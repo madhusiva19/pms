@@ -1,8 +1,19 @@
 "use client";
-import React, { useState } from "react";
+import React, { cache, useState } from "react";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
+    const handleSignIn = async () => {
+  try {
+    const res = await fetch("/api/health",{ cache: "no-store" });
+    const data = await res.json();
+    console.log("Backend response:", data);
+    alert("Backend connected ✅");
+  } catch (err) {
+    console.error("Backend connection failed:", err);
+    alert("Backend connection failed ❌");
+  }
+};
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -89,8 +100,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <button className={styles.primaryBtn} type="button">
-              Sign In
+            <button className={styles.primaryBtn} type="button" onClick={handleSignIn}>
+            Sign In
             </button>
 
             <div className={styles.divider}>
