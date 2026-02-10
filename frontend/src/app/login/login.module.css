@@ -1,0 +1,206 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: "Segoe UI Symbol", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+}
+
+/* OPTIONAL: if you don't have an image, it will still look fine */
+.bgImage {
+  position: absolute;
+  inset: 0;
+  background: #444;
+  background-image: url("/login-bg.jpeg");
+  background-size: cover;
+  background-position: center;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(30, 58, 138, 0.85) 0%,
+    rgba(37, 99, 235, 0.75) 50%,
+    rgba(30, 64, 175, 0.85) 100%
+  );
+}
+
+.container {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 80px 16px 32px;
+  gap: 16px;
+}
+
+.card {
+  width: 448px;
+  max-width: calc(100vw - 32px);
+  padding: 33px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0px 25px 50px -12px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12px);
+  color: #ffffff;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.iconBox {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(4px);
+}
+
+.title {
+  margin: 0;
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 400;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  color: #dbeafe;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  color: #ffffff;
+}
+
+.inputWrap {
+  position: relative;
+}
+
+.leftIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px 0 41px;
+  border-radius: 6px;
+  outline: none;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(4px);
+}
+
+.input::placeholder {
+  color: #d1d5dc;
+}
+
+.primaryBtn {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #101828;
+  font-size: 16px;
+  font-weight: 400;
+  cursor: pointer;
+  box-shadow: 0px 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0px 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 16px;
+}
+
+.line {
+  flex: 1;
+  height: 1px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.or {
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: #dbeafe;
+}
+
+.msBtn {
+  width: 100%;
+  height: 50px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0px 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0px 4px 6px -4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.msIcon {
+  display: grid;
+  grid-template-columns: repeat(2, 10px);
+  gap: 2px;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+}
+
+.msSq {
+  width: 10px;
+  height: 10px;
+  display: block;
+}
+
+.msRed { background: #f25022; }
+.msGray { background: #64748b; }
+.msGreen { background: #7fba00; }
+.msYellow { background: #f59e0b; }
+
+.footer {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: #dbeafe;
+  text-align: center;
+}
