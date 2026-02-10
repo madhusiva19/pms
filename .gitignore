@@ -1,0 +1,26 @@
+# ---------- Node / Next.js ----------
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/pnpm-debug.log*
+
+# ---------- Python / Flask ----------
+backend/__pycache__/
+backend/*.pyc
+backend/.venv/
+backend/venv/
+backend/env/
+backend/instance/
+backend/.env
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+
+# ---------- Editor ----------
+.vscode/
+.idea/
