@@ -1,0 +1,374 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 32px;
+  width: 100%;
+  min-height: 100vh;
+  background: #f8f9fc;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 16px;
+  padding: 0 18px;
+}
+
+.breadcrumbWrapper {
+  width: 100%;
+}
+
+.titleSection {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 20px;
+}
+
+.titleContent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.title {
+  font-family: 'Inter';
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 36px;
+  color: #101828;
+  margin: 0;
+}
+
+.actionButtons {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+}
+
+.buttonBase {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 7.8px 15.8px;
+  border-radius: 6px;
+  font-family: 'Inter';
+  font-weight: 500;
+  font-size: 12.7px;
+  line-height: 20px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 8px;
+}
+
+.buttonSecondary {
+  background: #f8f9fc;
+  color: #1e293b;
+}
+
+.buttonSecondary:hover {
+  background: #f1f5f9;
+}
+
+.buttonSaveDraft {
+  background: #f8f9fc;
+  color: #1e293b;
+  padding: 7.8px 11.8px;
+  gap: 8px;
+  width: 124.6px;
+  height: 36px;
+}
+
+.buttonSubmit {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  padding: 8px 12px;
+  width: 171px;
+  height: 36px;
+}
+
+.buttonSubmit:hover {
+  background: #1d4ed8;
+}
+
+.mainContent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 30px;
+  padding: 0 18px;
+}
+
+.profileCard {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 24px;
+  width: 100%;
+  background: #ffffff;
+  box-shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  gap: 40px;
+}
+
+.profileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.profileName {
+  font-family: 'Inter';
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 29px;
+  color: #1f2937;
+  margin: 0;
+}
+
+.profileRole {
+  font-family: 'Inter';
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 19px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.profilePeriod {
+  font-family: 'Inter';
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 19px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.scoreBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10.8px 20.8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.scoreValue {
+  font-family: 'Inter';
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 39px;
+  color: #2563eb;
+}
+
+.scoreLabel {
+  font-family: 'Inter';
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 13px;
+  color: #6b7280;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+.kpiContainer {
+  width: 100%;
+  background: #ffffff;
+  box-shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.kpiTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tableHeader {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tableHeaderCell {
+  padding: 16px;
+  font-family: 'Inter';
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 15px;
+  color: #6b7280;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.tableBodyRow {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tableBodyRow:hover {
+  background: #f9fafb;
+}
+
+.categoryRow {
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.categoryCell {
+  padding: 16px;
+  font-family: 'Inter';
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 17px;
+  color: #374151;
+  text-transform: none;
+}
+
+.tableDataCell {
+  padding: 19.6px 16px;
+  font-family: 'Inter';
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 17px;
+  color: #1f2937;
+  text-align: left;
+}
+
+.ratingBadge {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-family: 'Inter';
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+.badgeOrange {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.badgeRed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badgeYellow {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.badgeGreen {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badgeBlue {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.aiInsights {
+  width: 100%;
+  padding: 24px;
+  background: linear-gradient(101.1deg, #1e3a8a 0%, #2563eb 100%);
+  border-radius: 12px;
+  color: #ffffff;
+}
+
+.aiInsightsTitle {
+  font-family: 'Inter';
+  font-size: 18.7px;
+  font-weight: 700;
+  line-height: 23px;
+  color: #ffffff;
+  margin: 0 0 18px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aiTag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.aiInsightsContent {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.aiInsightsParagraph {
+  font-family: 'Inter';
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 26px;
+  color: #ffffff;
+  margin: 0;
+}
+
+.aiInsightsRecommendation {
+  font-family: 'Inter';
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 26px;
+  color: #ffffff;
+  margin: 0;
+}
+
+@media (max-width: 1024px) {
+  .container {
+    padding: 24px;
+  }
+
+  .profileCard {
+    flex-direction: column;
+    gap: 24px;
+    text-align: center;
+  }
+
+  .profileInfo {
+    align-items: center;
+  }
+
+  .titleSection {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .actionButtons {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .buttonBase {
+    width: 100%;
+    justify-content: center;
+  }
+}
