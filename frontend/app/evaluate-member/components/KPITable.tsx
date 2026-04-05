@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { EvaluationCategory, EvaluationKPI } from '../types';
+import { EvaluationCategory, EvaluationKPI } from '../types/index';
 import styles from '../styles/page.module.css';
 
 interface KPITableProps {

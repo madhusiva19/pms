@@ -1,0 +1,10 @@
+.container {
+  padding: 20px;
+}
+.title {
+  font-size: 28px;
+  font-weight: bold;
+}
+.subtitle {
+  color: gray;
+}
