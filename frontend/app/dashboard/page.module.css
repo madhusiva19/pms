@@ -1,0 +1,185 @@
+/* Dashboard Page Styles */
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 32px;
+  width: 100%;
+  min-height: 100vh;
+  background: linear-gradient(0deg, #f8f9fc, #f8f9fc);
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 8px;
+  padding: 0 18px;
+}
+
+.title {
+  font-family: 'Inter';
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 36px;
+  color: #394764;
+  margin: 0;
+}
+
+.subtitle {
+  font-family: 'Inter';
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  color: #4a5565;
+  margin: 0;
+}
+
+.mainContent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 24px;
+  padding: 0 18px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24px;
+  width: 100%;
+  background: #ffffff;
+  box-shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  gap: 16px;
+}
+
+.cardTitle {
+  font-family: 'Inter';
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 27px;
+  color: #1f2937;
+  margin: 0;
+}
+
+.cardText {
+  font-family: 'Inter';
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 21px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.statsSection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  text-align: center;
+  gap: 8px;
+}
+
+.statValue {
+  font-family: 'Inter';
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 39px;
+  color: #2563eb;
+}
+
+.statLabel {
+  font-family: 'Inter';
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 15px;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+
+.actionButtons {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 6px;
+  font-family: 'Inter';
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.2);
+}
+
+.actionButton:active {
+  transform: translateY(0);
+  background: #1e40af;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+
+  .header {
+    padding: 0;
+  }
+
+  .mainContent {
+    padding: 0;
+  }
+
+  .title {
+    font-size: 22px;
+    line-height: 28px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .statsSection {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .actionButtons {
+    flex-direction: column;
+  }
+
+  .actionButton {
+    width: 100%;
+  }
+}

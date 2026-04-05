@@ -1,0 +1,152 @@
+/* Container for the Card */
+.memberCard {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 24px;
+    background-color: #ffffff;
+    border: 1px solid #eaecf0;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease-in-out;
+}
+
+.memberCard:hover {
+    border-color: #d0d5dd;
+    box-shadow: 0px 4px 12px rgba(16, 24, 40, 0.06);
+}
+
+/* Left Section: Avatar + Text Info */
+.memberContent {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+}
+
+.avatar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.memberInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.memberName {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: #101828;
+    margin: 0;
+}
+
+.memberRole {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #475467;
+    margin: 0;
+}
+
+.memberDepartment {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: #667085;
+    margin: 0;
+}
+
+/* Right Section: Status Badge + Button */
+.memberActions {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-shrink: 0;
+}
+
+/* Status Badge Base - "Cooler" Soft Rectangle Style */
+.statusBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 14px;
+    border-radius: 6px; /* Soft rounded corners as per design */
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    min-width: 90px;
+    text-transform: lowercase;
+}
+
+/* --- UPDATED "COOLER" FIGMA STATUS COLORS --- */
+
+/* Pending (Soft Blue-Grey) */
+.pending {
+    background-color: #f1f5f9; /* Soft cool grey-blue */
+    color: #475569;            /* Muted slate text */
+}
+
+/* In Progress (Soft Yellow) */
+.inprogress {
+    background-color: #fef9c3; /* Soft warm yellow */
+    color: #854d0e;            /* Deep gold-brown text for contrast */
+}
+
+/* Completed (Soft Green) */
+.completed {
+    background-color: #dcfce7; /* Soft mint green */
+    color: #166534;            /* Deep emerald green text */
+}
+
+/* Evaluate Button Style */
+.evaluateButton {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 18px;
+    gap: 8px;
+    background-color: #2563eb;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.evaluateButton:hover {
+    background-color: #1d4ed8;
+    box-shadow: 0px 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+.evaluateButton svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .memberCard {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    .memberActions {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
