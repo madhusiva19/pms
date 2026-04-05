@@ -1,21 +1,53 @@
 "use client";
-import React, { cache, useState } from "react";
+import React, { useState } from "react";
 import styles from "./login.module.css";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-    const handleSignIn = async () => {
-  try {
-    const res = await fetch("/api/health",{ cache: "no-store" });
-    const data = await res.json();
-    console.log("Backend response:", data);
-    alert("Backend connected ✅");
-  } catch (err) {
-    console.error("Backend connection failed:", err);
-    alert("Backend connection failed ❌");
-  }
-};
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      alert("Email and password are required");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("http://127.0.0.1:5000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message);
+        return;
+      }
+
+      // Redirect only if Grouped Admin
+      if (data.redirectTo) {
+        router.push(data.redirectTo);
+      } else {
+        alert(
+          `Login successful as ${data.role}. Dashboard not developed for this role yet.`
+        );
+      }
+    } catch (err) {
+      alert("Backend connection failed ❌");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className={styles.page}>
@@ -25,20 +57,18 @@ export default function LoginPage() {
       <main className={styles.container}>
         <section className={styles.card}>
           <header className={styles.header}>
-            <div className={styles.iconBox} aria-hidden="true">
-              {/* simple icon box (you can replace with logo later) */}
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M7 21V3h10v18M9 7h2M9 11h2M9 15h2M13 7h2M13 11h2M13 15h2"
-                  stroke="white"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-              </svg>
+            <div className={styles.logoBox}>
+              <img
+                src="/dgl-logo.svg"
+                alt="Dart Global Logistics"
+                className={styles.logo}
+              />
             </div>
 
             <h1 className={styles.title}>Performance Management System</h1>
-            <p className={styles.subtitle}>Enterprise Performance Tracking &amp; Evaluation</p>
+            <p className={styles.subtitle}>
+              Enterprise Performance Tracking &amp; Evaluation
+            </p>
           </header>
 
           <form className={styles.form} onSubmit={(e) => e.preventDefault()}>
@@ -67,6 +97,7 @@ export default function LoginPage() {
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -96,12 +127,18 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
                 />
               </div>
             </div>
 
-            <button className={styles.primaryBtn} type="button" onClick={handleSignIn}>
-            Sign In
+            <button
+              className={styles.primaryBtn}
+              type="button"
+              onClick={handleSignIn}
+              disabled={loading}
+            >
+              {loading ? "Signing In..." : "Sign In"}
             </button>
 
             <div className={styles.divider}>
@@ -110,7 +147,7 @@ export default function LoginPage() {
               <span className={styles.line} />
             </div>
 
-            <button className={styles.msBtn} type="button">
+            <button className={styles.msBtn} type="button" disabled={loading}>
               <span className={styles.msIcon} aria-hidden="true">
                 <span className={`${styles.msSq} ${styles.msRed}`} />
                 <span className={`${styles.msSq} ${styles.msGray}`} />
@@ -122,7 +159,9 @@ export default function LoginPage() {
           </form>
         </section>
 
-        <p className={styles.footer}>© 2026 PerformancePro. All rights reserved.</p>
+        <p className={styles.footer}>
+          © 2026 PerformancePro. All rights reserved.
+        </p>
       </main>
     </div>
   );
