@@ -5,7 +5,6 @@
   font-family: "Segoe UI Symbol", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
 }
 
-/* OPTIONAL: if you don't have an image, it will still look fine */
 .bgImage {
   position: absolute;
   inset: 0;
@@ -21,7 +20,7 @@
   background: linear-gradient(
     135deg,
     rgba(30, 58, 138, 0.85) 0%,
-    rgba(37, 99, 235, 0.75) 50%,
+    rgba(37, 99, 235, 0.75) 22.12%,
     rgba(30, 64, 175, 0.85) 100%
   );
 }
@@ -55,15 +54,19 @@
   margin-bottom: 24px;
 }
 
-.iconBox {
-  width: 64px;
+.logoBox {
+  width: 150px;
   height: 64px;
   border-radius: 12px;
   margin: 0 auto 16px;
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   place-items: center;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(4px);
+
+  opacity: 0.9;
 }
 
 .title {
@@ -203,4 +206,12 @@
   line-height: 20px;
   color: #dbeafe;
   text-align: center;
+}
+
+.logo {
+  width: 150px;
+  max-width: 120px;
+  height: auto;
+  display: block;
+  margin: 0 auto 10px;
 }
