@@ -12,37 +12,41 @@ achievements_store = {}   # email -> { achievement, status }
 
 # ── Dummy users ──
 USERS = {
-    "groupadmin@dgl.com": {
-        "password_hash": generate_password_hash("Group@123"),
-        "role": "Grouped Admin",
-        "name": "Grouped Admin User"
+    "hqadmin@dgl.com": {
+        "password_hash": generate_password_hash("HQ@123"),
+        "role": "HQ Admin",
+        "name": "HQ Admin User"
     },
-    "superadmin@dgl.com": {
-        "password_hash": generate_password_hash("Super@123"),
-        "role": "Super Admin",
-        "name": "Super Admin User"
+    "countryadmin@dgl.com": {
+        "password_hash": generate_password_hash("Country@123"),
+        "role": "Country Admin",
+        "name": "Country Admin User"
     },
-    "admin@dgl.com": {
-        "password_hash": generate_password_hash("Admin@123"),
-        "role": "Admin",
-        "name": "Admin User"
+    "branchadmin@dgl.com": {
+        "password_hash": generate_password_hash("Branch@123"),
+        "role": "Branch Admin",
+        "name": "Branch Admin User"
     },
-    "supervisor@dgl.com": {
-        "password_hash": generate_password_hash("Supervisor@123"),
-        "role": "Supervisor",
-        "name": "Supervisor User"
+    "deptadmin@dgl.com": {
+        "password_hash": generate_password_hash("Dept@123"),
+        "role": "Dept Admin",
+        "name": "Dept Admin User"
     },
-    "employee@dgl.com": {
-        "password_hash": generate_password_hash("Employee@123"),
-        "role": "Employee",
-        "name": "Employee User"
+    "subdeptadmin@dgl.com": {
+        "password_hash": generate_password_hash("Subdept@123"),
+        "role": "Sub-Dept Admin",
+        "name": "Sub-Dept Admin User"
     }
 }
 
 ROLE_REDIRECTS = {
-    "Grouped Admin": "/group-admin/dashboard",
-    "Super Admin":   "/super-admin/dashboard",
+    "HQ Admin": "/hq-admin/dashboard",
+    "Country Admin": "/country-admin/dashboard",
+    "Branch Admin": "/branch-admin/dashboard",
+    "Dept Admin": "/dept-admin/dashboard",
+    "Sub-Dept Admin": "/sub-dept-admin/dashboard",
 }
+
 
 def is_valid_email(email):
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -81,7 +85,7 @@ def login():
     }), 200
 
 
-# ── Group Admin: Save achievement (no approval needed) ──
+# ── HQ Admin: Save achievement (no approval needed) ──
 @app.post("/api/profile/achievement")
 def save_achievement():
     data = request.get_json(silent=True) or {}
@@ -130,7 +134,7 @@ def get_achievement():
     }), 200
 
 
-# ── Super Admin: Submit achievement for approval ──
+# ── Country Admin: Submit achievement for approval ──
 @app.post("/api/profile/achievement/submit")
 def submit_achievement():
     data = request.get_json(silent=True) or {}
@@ -147,8 +151,8 @@ def submit_achievement():
         return jsonify({"message": "Achievement must be 600 characters or less"}), 400
     if email not in USERS:
         return jsonify({"message": "User not found"}), 404
-    if USERS[email]["role"] != "Super Admin":
-        return jsonify({"message": "Only Super Admins can submit for approval"}), 403
+    if USERS[email]["role"] != "Country Admin":
+        return jsonify({"message": "Only Country Admins can submit for approval"}), 403
 
     achievements_store[email] = {
         "achievement": achievement,
@@ -163,7 +167,7 @@ def submit_achievement():
     }), 200
 
 
-# ── Group Admin: Get all pending achievements ──
+# ── HQ Admin: Get all pending achievements ──
 @app.get("/api/profile/achievement/pending")
 def get_pending_achievements():
     reviewer_email = (request.args.get("reviewer_email") or "").strip().lower()
@@ -172,8 +176,8 @@ def get_pending_achievements():
         return jsonify({"message": "Reviewer email is required"}), 400
     if reviewer_email not in USERS:
         return jsonify({"message": "Reviewer not found"}), 404
-    if USERS[reviewer_email]["role"] != "Grouped Admin":
-        return jsonify({"message": "Only Group Admins can review achievements"}), 403
+    if USERS[reviewer_email]["role"] != "HQ Admin":
+        return jsonify({"message": "Only HQ Admins can review achievements"}), 403
 
     pending = [
         {
@@ -189,7 +193,7 @@ def get_pending_achievements():
     return jsonify({"pending": pending}), 200
 
 
-# ── Group Admin: Approve or Reject achievement ──
+# ── HQ Admin: Approve or Reject achievement ──
 @app.post("/api/profile/achievement/review")
 def review_achievement():
     data = request.get_json(silent=True) or {}
@@ -203,8 +207,8 @@ def review_achievement():
         return jsonify({"message": "Action must be 'approve' or 'reject'"}), 400
     if reviewer_email not in USERS:
         return jsonify({"message": "Reviewer not found"}), 404
-    if USERS[reviewer_email]["role"] != "Grouped Admin":
-        return jsonify({"message": "Only Group Admins can review achievements"}), 403
+    if USERS[reviewer_email]["role"] != "HQ Admin":
+        return jsonify({"message": "Only HQ Admins can review achievements"}), 403
     if target_email not in achievements_store:
         return jsonify({"message": "No achievement found for this user"}), 404
     if achievements_store[target_email]["status"] != "pending":

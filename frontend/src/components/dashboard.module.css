@@ -351,6 +351,14 @@
   gap: 12px;
 }
 
+/* Add this one class for Level 5 compatibility */
+.chartBoxFull {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  grid-column: span 2; /* This forces the chart to span across both columns in the grid */
+}
 
 
 

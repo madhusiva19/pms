@@ -5,36 +5,35 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "./profile.module.css";
 
-export default function SuperAdminProfilePage() {
+export default function HQAdminProfilePage() {
   const router = useRouter();
   const [achievement, setAchievement] = useState("");
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
-  const [statusMsg, setStatusMsg] = useState("");
-  const [approvalStatus, setApprovalStatus] = useState<"none" | "pending" | "approved" | "rejected">("none");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
+  const [saveMessage, setSaveMessage] = useState("");
 
   // Dummy data for interim
-  const admin = {
-    fullName: "Amarasinghe S. K.",
-    dob: "1988-04-22",
-    joinedDate: "2018-06-15",
-    designation: "Mraketing Director",
-    email: "superadmin@dgl.com",
-    branch: "Head Office",
+  const perera = {
+    fullName: "Perera A. K.",
+    dob: "1996-08-14",
+    joinedDate: "2021-03-01",
+    designation: "Senior Executive - Operations",
+    email: "perera@dgl.com",
+    branch: "Colombo",
   };
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (achievement.trim().length === 0) return;
 
     setSaving(true);
-    setStatus("idle");
+    setSaveStatus("idle");
 
     try {
-      const res = await fetch("http://127.0.0.1:5000/api/profile/achievement/submit", {
+      const res = await fetch("http://127.0.0.1:5000/api/profile/achievement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: "superadmin@dgl.com",
+          email: "hqadmin@dgl.com",   // replace with session user later
           achievement: achievement.trim(),
         }),
       });
@@ -42,37 +41,28 @@ export default function SuperAdminProfilePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setStatus("error");
-        setStatusMsg(data.message || "Failed to submit");
+        setSaveStatus("error");
+        setSaveMessage(data.message || "Failed to save");
       } else {
-        setStatus("success");
-        setStatusMsg("Achievement submitted for approval ✅");
-        setApprovalStatus("pending");
+        setSaveStatus("success");
+        setSaveMessage("Achievement saved successfully ✅");
       }
     } catch (err) {
-      setStatus("error");
-      setStatusMsg("Backend connection failed ❌");
+      setSaveStatus("error");
+      setSaveMessage("Backend connection failed ❌");
     } finally {
       setSaving(false);
+      // Clear message after 3 seconds
       setTimeout(() => {
-        setStatus("idle");
-        setStatusMsg("");
+        setSaveStatus("idle");
+        setSaveMessage("");
       }, 3000);
     }
   };
 
-  const badgeConfig = {
-    none:     { label: "",                    bg: "transparent", color: "transparent" },
-    pending:  { label: "⏳ Pending Approval", bg: "#FFFBEB",     color: "#92400E" },
-    approved: { label: "✅ Approved",          bg: "#ECFDF5",     color: "#065F46" },
-    rejected: { label: "❌ Rejected",          bg: "#FEF2F2",     color: "#991B1B" },
-  };
-
-  const badge = badgeConfig[approvalStatus];
-
   return (
     <div className={styles.shell}>
-      {/* ── Sidebar (same color as Group Admin) ── */}
+      {/* Sidebar */}
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <Image
@@ -86,33 +76,30 @@ export default function SuperAdminProfilePage() {
         </div>
 
         <nav className={styles.sideNav}>
-          {/* Dashboard */}
           <button
             type="button"
             className={styles.sideItem}
-            onClick={() => router.push("/super-admin/dashboard")}
+            onClick={() => router.push("/hq-admin/dashboard")}
           >
             <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <rect x="3"  y="3"  width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-              <rect x="14" y="3"  width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-              <rect x="3"  y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
+              <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
               <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
             </svg>
             <span className={styles.sideLabel}>Dashboard</span>
           </button>
 
-          {/* Template Management */}
           <button type="button" className={styles.sideItem}>
             <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
               <path d="M7 3h7l3 3v15H7V3Z" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-              <path d="M14 3v4h4"           stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-              <path d="M9 12h6"             stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M9 16h6"             stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M14 3v4h4" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
+              <path d="M9 12h6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M9 16h6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
             </svg>
             <span className={styles.sideLabel}>Template Management</span>
           </button>
 
-          {/* My Team */}
           <button type="button" className={styles.sideItem}>
             <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
               <path d="M8 18c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
@@ -122,23 +109,22 @@ export default function SuperAdminProfilePage() {
             <span className={styles.sideLabel}>My Team</span>
           </button>
 
-          {/* Reports */}
           <button type="button" className={styles.sideItem}>
             <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M5 20V4"    stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M5 20h15"   stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M9 20v-7"   stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M5 20V4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M5 20h15" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M9 20v-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
               <path d="M13 20v-11" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M17 20v-4"  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M17 20v-4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
             </svg>
             <span className={styles.sideLabel}>Reports</span>
           </button>
 
-          {/* My Profile — Active */}
+          {/* Active */}
           <button type="button" className={`${styles.sideItem} ${styles.active}`}>
             <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
               <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M20 21a8 8 0 0 0-16 0"                stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M20 21a8 8 0 0 0-16 0" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
             </svg>
             <span className={styles.sideLabel}>My Profile</span>
           </button>
@@ -146,10 +132,10 @@ export default function SuperAdminProfilePage() {
 
         <div className={styles.sideFooter}>
           <div className={styles.profileRow}>
-            <div className={styles.avatarCircle}>SA</div>
+            <div className={styles.avatarCircle}>GA</div>
             <div className={styles.profileText}>
-              <div className={styles.profileName}>Amarasinghe</div>
-              <div className={styles.profileRole}>super admin</div>
+              <div className={styles.profileName}>Perera</div>
+              <div className={styles.profileRole}>hq admin</div>
             </div>
           </div>
           <button
@@ -162,14 +148,14 @@ export default function SuperAdminProfilePage() {
         </div>
       </aside>
 
-      {/* ── Main ── */}
+      {/* Main */}
       <main className={styles.main}>
         <div className={styles.breadcrumb}>
-          <span className={styles.crumbLink} onClick={() => router.push("/super-admin/dashboard")}>
+          <span className={styles.crumbLink} onClick={() => router.push("/hq-admin/dashboard")}>
             Home
           </span>
           <span className={styles.crumbSep}>›</span>
-          <span className={styles.crumbLink} onClick={() => router.push("/super-admin/dashboard")}>
+          <span className={styles.crumbLink} onClick={() => router.push("/hq-admin/dashboard")}>
             Dashboard
           </span>
           <span className={styles.crumbSep}>›</span>
@@ -181,11 +167,7 @@ export default function SuperAdminProfilePage() {
             <h1 className={styles.title}>My Profile</h1>
             <p className={styles.subtitle}>Personal Details and Performance Highlights</p>
           </div>
-          <button
-            className={styles.backBtn}
-            type="button"
-            onClick={() => router.push("/super-admin/dashboard")}
-          >
+          <button className={styles.backBtn} type="button" onClick={() => router.push("/hq-admin/dashboard")}>
             Back to Dashboard
           </button>
         </div>
@@ -194,16 +176,16 @@ export default function SuperAdminProfilePage() {
         <section className={styles.profileTopCard}>
           <div className={styles.profileHero}>
             <div className={styles.heroAvatar}>
-              <span className={styles.heroInitials}>A</span>
+              <span className={styles.heroInitials}>P</span>
             </div>
             <div className={styles.heroText}>
-              <div className={styles.heroName}>{admin.fullName}</div>
+              <div className={styles.heroName}>{perera.fullName}</div>
               <div className={styles.heroMeta}>
-                <span className={styles.pill}>{admin.designation}</span>
+                <span className={styles.pill}>{perera.designation}</span>
                 <span className={styles.dot}>•</span>
-                <span className={styles.muted}>{admin.branch}</span>
+                <span className={styles.muted}>{perera.branch}</span>
               </div>
-              <div className={styles.heroEmail}>{admin.email}</div>
+              <div className={styles.heroEmail}>{perera.email}</div>
             </div>
           </div>
           <div className={styles.heroAccent} />
@@ -211,7 +193,7 @@ export default function SuperAdminProfilePage() {
 
         {/* Details + Achievements */}
         <section className={styles.grid}>
-          {/* Personal Details Card */}
+          {/* Details Card */}
           <div className={styles.card}>
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>Personal Details</h2>
@@ -219,19 +201,19 @@ export default function SuperAdminProfilePage() {
             <div className={styles.detailGrid}>
               <div className={styles.field}>
                 <div className={styles.label}>Full Name</div>
-                <div className={styles.value}>{admin.fullName}</div>
+                <div className={styles.value}>{perera.fullName}</div>
               </div>
               <div className={styles.field}>
                 <div className={styles.label}>Date of Birth</div>
-                <div className={styles.value}>{admin.dob}</div>
+                <div className={styles.value}>{perera.dob}</div>
               </div>
               <div className={styles.field}>
                 <div className={styles.label}>Date Joined</div>
-                <div className={styles.value}>{admin.joinedDate}</div>
+                <div className={styles.value}>{perera.joinedDate}</div>
               </div>
               <div className={styles.field}>
                 <div className={styles.label}>Designation</div>
-                <div className={styles.value}>{admin.designation}</div>
+                <div className={styles.value}>{perera.designation}</div>
               </div>
             </div>
           </div>
@@ -240,21 +222,6 @@ export default function SuperAdminProfilePage() {
           <div className={styles.card}>
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>Remarkable Performance / Achievements</h2>
-
-              {/* Approval status badge */}
-              {approvalStatus !== "none" && (
-                <span style={{
-                  padding: "4px 12px",
-                  borderRadius: "999px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  background: badge.bg,
-                  color: badge.color,
-                  border: `1px solid ${badge.color}`,
-                }}>
-                  {badge.label}
-                </span>
-              )}
             </div>
 
             <div className={styles.textAreaWrap}>
@@ -264,61 +231,42 @@ export default function SuperAdminProfilePage() {
                 value={achievement}
                 onChange={(e) => setAchievement(e.target.value)}
                 maxLength={600}
-                disabled={approvalStatus === "pending" || approvalStatus === "approved"}
               />
               <div className={styles.textAreaFooter}>
                 <span className={styles.mutedSmall}>{achievement.length}/600</span>
                 <button
                   type="button"
                   className={styles.saveBtn}
-                  onClick={handleSubmit}
-                  disabled={
-                    achievement.trim().length === 0 ||
-                    saving ||
-                    approvalStatus === "pending" ||
-                    approvalStatus === "approved"
-                  }
+                  onClick={handleSave}
+                  disabled={achievement.trim().length === 0 || saving}
                 >
-                  {saving ? "Submitting..." : "Submit for Approval"}
+                  {saving ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>
 
-            {/* Status message */}
-            {status !== "idle" && (
-              <div style={{
-                marginTop: "10px",
-                padding: "10px 14px",
-                borderRadius: "8px",
-                fontSize: "14px",
-                fontWeight: 500,
-                background: status === "success" ? "#ECFDF5" : "#FEF2F2",
-                color:      status === "success" ? "#065F46" : "#991B1B",
-                border: `1px solid ${status === "success" ? "#A7F3D0" : "#FECACA"}`,
-              }}>
-                {statusMsg}
-              </div>
-            )}
-
-            {/* Pending note */}
-            {approvalStatus === "pending" && (
-              <div style={{
-                marginTop: "10px",
-                padding: "10px 14px",
-                borderRadius: "8px",
-                fontSize: "13px",
-                background: "#FFFBEB",
-                color: "#92400E",
-                border: "1px solid #FDE68A",
-              }}>
-                Your achievement is awaiting review by the Group Admin. You cannot edit it until a decision is made.
+            {/* Save status message */}
+            {saveStatus !== "idle" && (
+              <div
+                style={{
+                  marginTop: "10px",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  background: saveStatus === "success" ? "#ECFDF5" : "#FEF2F2",
+                  color: saveStatus === "success" ? "#065F46" : "#991B1B",
+                  border: `1px solid ${saveStatus === "success" ? "#A7F3D0" : "#FECACA"}`,
+                }}
+              >
+                {saveMessage}
               </div>
             )}
 
             <div className={styles.tipBox}>
               <div className={styles.tipTitle}>Tip</div>
               <div className={styles.tipText}>
-                Keep it short and measurable! Your achievement will be reviewed by the Group Admin before it is recorded.
+                Keep it short and measurable! Focus on specific accomplishments that had a positive impact on your work or team.
               </div>
             </div>
           </div>
