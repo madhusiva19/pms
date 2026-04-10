@@ -29,20 +29,19 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.message);
+        alert(data.message || "Login failed");
         return;
       }
 
-      // Redirect only if Grouped Admin
+      // Simplified: If the backend gives us a path, go there immediately
       if (data.redirectTo) {
         router.push(data.redirectTo);
       } else {
-        alert(
-          `Login successful as ${data.role}. Dashboard not developed for this role yet.`
-        );
+        // Fallback in case a new role is added to USERS but not ROLE_REDIRECTS in app.py
+        alert("Login successful, but no dashboard path was found for your role.");
       }
     } catch (err) {
-      alert("Backend connection failed ❌");
+      alert("Cannot connect to the server. Is the Flask backend running? ❌");
       console.error(err);
     } finally {
       setLoading(false);
