@@ -8,7 +8,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
   const handleSignIn = async () => {
     if (!email || !password) {
       alert("Email and password are required");
@@ -35,7 +34,18 @@ export default function LoginPage() {
 
       // Simplified: If the backend gives us a path, go there immediately
       if (data.redirectTo) {
-        router.push(data.redirectTo);
+      // Save user session to localStorage
+      localStorage.setItem("epms_user", JSON.stringify({
+        employee_id: data.employee_id,
+        full_name: data.full_name,
+        email: data.email,
+        org_level: data.org_level,
+        role: data.role,
+        iata_branch_code: data.iata_branch_code,
+      }));
+
+  router.push(data.redirectTo);
+}
       } else {
         // Fallback in case a new role is added to USERS but not ROLE_REDIRECTS in app.py
         alert("Login successful, but no dashboard path was found for your role.");
