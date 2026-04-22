@@ -27,7 +27,7 @@ type TrainingSuggestion = {
   justification: string;
   status: "pending" | "approved" | "rejected";
   supervisorComment?: string;
-  submittedBy?: string; // for supervisor view
+  submittedBy?: string;
   submittedByRole?: string;
 };
 
@@ -35,7 +35,7 @@ type AIRecommendation = {
   id: string;
   trainingName: string;
   reason: string;
-  basedOn: string; // e.g. "Low score in Leadership KPI"
+  basedOn: string;
 };
 
 interface TrainingPassportProps {
@@ -44,9 +44,10 @@ interface TrainingPassportProps {
   dashboardPath: string;
   userName: string;
   designation: string;
+  employeeId?: string;
   initialAttended?: TrainingAttended[];
   initialSuggestions?: TrainingSuggestion[];
-  initialSubordinateSuggestions?: TrainingSuggestion[]; // for supervisors
+  initialSubordinateSuggestions?: TrainingSuggestion[];
   aiRecommendations?: AIRecommendation[];
 }
 
@@ -54,10 +55,10 @@ interface TrainingPassportProps {
 const ROLE_CONFIG: Record<Role, {
   avatarLabel: string;
   roleLabel: string;
-  canLog: boolean;        // can log attended trainings
-  canSuggest: boolean;    // can suggest future trainings
-  canReview: boolean;     // can review subordinate suggestions
-  showAI: boolean;        // show AI recommendations
+  canLog: boolean;
+  canSuggest: boolean;
+  canReview: boolean;
+  showAI: boolean;
 }> = {
   "HQ Admin":       { avatarLabel: "HQ", roleLabel: "hq admin",       canLog: false, canSuggest: false, canReview: true,  showAI: false },
   "Country Admin":  { avatarLabel: "CA", roleLabel: "country admin",   canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
@@ -74,27 +75,11 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }>
   rejected: { bg: "#FEE2E2", color: "#991B1B", label: "❌ Rejected" },
 };
 
-// ── Dummy data ─────────────────────────────────────────
-const DUMMY_ATTENDED: TrainingAttended[] = [
-  { id: "1", trainingName: "Leadership Excellence Program",      date: "2024-11-10", provider: "Dale Carnegie" },
-  { id: "2", trainingName: "Advanced Excel for Managers",        date: "2025-01-22", provider: "Internal HR" },
-  { id: "3", trainingName: "Customs Compliance & Trade Regulations", date: "2025-03-05", provider: "IATA" },
-];
-
-const DUMMY_SUGGESTIONS: TrainingSuggestion[] = [
-  { id: "1", trainingName: "Project Management Professional (PMP)", justification: "To better manage cross-functional teams and large-scale logistics projects.", status: "approved", supervisorComment: "Highly recommended. Please enroll in Q3." },
-  { id: "2", trainingName: "Digital Transformation in Supply Chain",  justification: "Our operations need modernisation to stay competitive.", status: "pending" },
-];
-
-const DUMMY_SUBORDINATE_SUGGESTIONS: TrainingSuggestion[] = [
-  { id: "1", trainingName: "Project Management Professional (PMP)", justification: "To better manage cross-functional teams.", status: "pending", submittedBy: "Perera A. K.", submittedByRole: "Branch Admin" },
-  { id: "2", trainingName: "Six Sigma Green Belt", justification: "To improve process quality in air exports.", status: "pending", submittedBy: "Silva R.", submittedByRole: "Dept Admin" },
-];
-
+// ── Dummy AI data ──────────────────────────────────────
 const DUMMY_AI: AIRecommendation[] = [
   { id: "1", trainingName: "Strategic Leadership & Decision Making", reason: "Leadership KPI scored below target (2.8/5) in last appraisal.", basedOn: "PMS Score" },
   { id: "2", trainingName: "Freight Forwarding & Customs Clearance Advanced", reason: "Supervisor identified gaps in regulatory compliance knowledge.", basedOn: "Supervisor Input" },
-  { id: "3", trainingName: "Data Analytics for Operations Managers",  reason: "Self-suggested interest in digital tools aligns with company roadmap.", basedOn: "Self Suggestion" },
+  { id: "3", trainingName: "Data Analytics for Operations Managers", reason: "Self-suggested interest in digital tools aligns with company roadmap.", basedOn: "Self Suggestion" },
 ];
 
 // ── Component ──────────────────────────────────────────
@@ -104,9 +89,10 @@ export default function TrainingPassport({
   dashboardPath,
   userName,
   designation,
-  initialAttended = DUMMY_ATTENDED,
-  initialSuggestions = DUMMY_SUGGESTIONS,
-  initialSubordinateSuggestions = DUMMY_SUBORDINATE_SUGGESTIONS,
+  employeeId,
+  initialAttended = [],
+  initialSuggestions = [],
+  initialSubordinateSuggestions = [],
   aiRecommendations = DUMMY_AI,
 }: TrainingPassportProps) {
   const router = useRouter();
@@ -118,6 +104,8 @@ export default function TrainingPassport({
   const [attendedList, setAttendedList] = useState<TrainingAttended[]>(initialAttended);
   const [newTraining, setNewTraining] = useState({ trainingName: "", date: "", provider: "" });
   const [addingTraining, setAddingTraining] = useState(false);
+  const [savingTraining, setSavingTraining] = useState(false);
+  const [trainingMsg, setTrainingMsg] = useState("");
 
   // Suggestions state
   const [suggestionList, setSuggestionList] = useState<TrainingSuggestion[]>(initialSuggestions);
@@ -125,33 +113,115 @@ export default function TrainingPassport({
   const [newSuggestion, setNewSuggestion] = useState({ trainingName: "", justification: "" });
   const [addingSuggestion, setAddingSuggestion] = useState(false);
   const [reviewComment, setReviewComment] = useState<Record<string, string>>({});
+  const [savingSuggestion, setSavingSuggestion] = useState(false);
+  const [suggestionMsg, setSuggestionMsg] = useState("");
 
-  // ── Handlers ──
-  const handleAddTraining = () => {
+  // ── Add Training — calls Flask ──
+  const handleAddTraining = async () => {
     if (!newTraining.trainingName || !newTraining.date || !newTraining.provider) return;
-    setAttendedList((prev) => [
-      { id: Math.random().toString(36).substr(2, 9), ...newTraining },
-      ...prev,
-    ]);
-    setNewTraining({ trainingName: "", date: "", provider: "" });
-    setAddingTraining(false);
+    setSavingTraining(true);
+    setTrainingMsg("");
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employee_id:      employeeId,
+          programme_name:   newTraining.trainingName,
+          training_date:    newTraining.date,
+          trainer_provider: newTraining.provider,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAttendedList((prev) => [
+          {
+            id: data.data?.training_id || Math.random().toString(36).substr(2, 9),
+            trainingName: newTraining.trainingName,
+            date: newTraining.date,
+            provider: newTraining.provider,
+          },
+          ...prev,
+        ]);
+        setNewTraining({ trainingName: "", date: "", provider: "" });
+        setAddingTraining(false);
+        setTrainingMsg("Training record saved ✅");
+      } else {
+        setTrainingMsg(data.message || "Failed to save ❌");
+      }
+    } catch {
+      setTrainingMsg("Backend connection failed ❌");
+    } finally {
+      setSavingTraining(false);
+      setTimeout(() => setTrainingMsg(""), 3000);
+    }
   };
 
-  const handleAddSuggestion = () => {
-    if (!newSuggestion.trainingName || !newSuggestion.justification) return;
-    setSuggestionList((prev) => [
-      { id: Math.random().toString(36).substr(2, 9), ...newSuggestion, status: "pending" },
-      ...prev,
-    ]);
-    setNewSuggestion({ trainingName: "", justification: "" });
-    setAddingSuggestion(false);
-  };
+  // ── Add Suggestion — calls Flask ──
+const handleAddSuggestion = async () => {
+  if (!newSuggestion.trainingName || !newSuggestion.justification) return;
+  setSavingSuggestion(true);
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employee_id:   employeeId,
+        training_name: newSuggestion.trainingName,
+        justification: newSuggestion.justification,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setSuggestionList((prev) => [
+        {
+          id: data.data?.suggestion_id || Math.random().toString(36).substr(2, 9),
+          trainingName: newSuggestion.trainingName,
+          justification: newSuggestion.justification,
+          status: "pending",
+        },
+        ...prev,
+      ]);
+      setNewSuggestion({ trainingName: "", justification: "" });
+      setAddingSuggestion(false);
+      setSuggestionMsg("Suggestion submitted ✅");
+    } else {
+      setSuggestionMsg(data.message || "Failed ❌");
+    }
+  } catch {
+    setSuggestionMsg("Backend connection failed ❌");
+  } finally {
+    setSavingSuggestion(false);
+    setTimeout(() => setSuggestionMsg(""), 3000);
+  }
+};
 
-  const handleReview = (id: string, action: "approved" | "rejected") => {
-    setSubordinateSuggestions((prev) =>
-      prev.map((s) => s.id === id ? { ...s, status: action, supervisorComment: reviewComment[id] || "" } : s)
+  // ── Review subordinate suggestion — calls Flask ──
+const handleReview = async (id: string, action: "approved" | "rejected") => {
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions/${id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          comment: reviewComment[id] || "",
+        }),
+      }
     );
-  };
+    if (res.ok) {
+      setSubordinateSuggestions((prev) =>
+        prev.map((s) => s.id === id
+          ? { ...s, status: action, supervisorComment: reviewComment[id] || "" }
+          : s
+        )
+      );
+    }
+  } catch (err) {
+    console.error("Failed to review suggestion:", err);
+  }
+};
 
   const initials = userName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
@@ -207,7 +277,8 @@ export default function TrainingPassport({
             <span className={styles.sideLabel}>Reports</span>
           </button>
 
-          <button type="button" className={styles.sideItem} onClick={() => router.push(`/${role.toLowerCase().replace(/ /g, "-")}/profile`)}>
+          <button type="button" className={styles.sideItem}
+            onClick={() => router.push(`/${role.toLowerCase().replace(/ /g, "-")}/profile`)}>
             <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
               <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
               <path d="M20 21a8 8 0 0 0-16 0"                stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
@@ -225,7 +296,8 @@ export default function TrainingPassport({
             <span className={styles.sideLabel}>Training Passport</span>
           </button>
 
-          <button type="button" className={styles.sideItem} onClick={() => router.push(`/${role.toLowerCase().replace(/ /g, "-")}/notifications`)}>
+          <button type="button" className={styles.sideItem}
+            onClick={() => router.push(`/${role.toLowerCase().replace(/ /g, "-")}/notifications`)}>
             <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0"                    stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -242,7 +314,12 @@ export default function TrainingPassport({
               <div className={styles.profileRole}>{config.roleLabel}</div>
             </div>
           </div>
-          <button className={styles.logoutBtn} type="button" onClick={() => router.push("/login")}>Logout</button>
+          <button className={styles.logoutBtn} type="button" onClick={() => {
+            localStorage.removeItem("pms_user");
+            router.push("/login");
+          }}>
+            Logout
+          </button>
         </div>
       </aside>
 
@@ -338,10 +415,28 @@ export default function TrainingPassport({
                       />
                     </div>
                     <div className={styles.formActions}>
-                      <button type="button" className={styles.saveBtn} onClick={handleAddTraining}>Save</button>
-                      <button type="button" className={styles.cancelBtn} onClick={() => setAddingTraining(false)}>Cancel</button>
+                      <button
+                        type="button"
+                        className={styles.saveBtn}
+                        onClick={handleAddTraining}
+                        disabled={savingTraining}
+                      >
+                        {savingTraining ? "Saving..." : "Save"}
+                      </button>
+                      <button type="button" className={styles.cancelBtn} onClick={() => setAddingTraining(false)}>
+                        Cancel
+                      </button>
                     </div>
                   </div>
+                )}
+                {/* Status message */}
+                {trainingMsg && (
+                  <p style={{
+                    marginTop: "8px", fontSize: "13px", fontWeight: 500,
+                    color: trainingMsg.includes("✅") ? "#065F46" : "#991B1B"
+                  }}>
+                    {trainingMsg}
+                  </p>
                 )}
               </div>
             )}
@@ -380,7 +475,6 @@ export default function TrainingPassport({
         {activeTab === "suggestions" && (
           <div className={styles.section}>
 
-            {/* Self suggestions — for roles that can suggest */}
             {config.canSuggest && (
               <>
                 <h3 className={styles.sectionSubTitle}>My Suggestions</h3>
@@ -411,9 +505,26 @@ export default function TrainingPassport({
                         />
                       </div>
                       <div className={styles.formActions}>
-                        <button type="button" className={styles.saveBtn} onClick={handleAddSuggestion}>Submit</button>
-                        <button type="button" className={styles.cancelBtn} onClick={() => setAddingSuggestion(false)}>Cancel</button>
-                      </div>
+  <button
+    type="button"
+    className={styles.saveBtn}
+    onClick={handleAddSuggestion}
+    disabled={savingSuggestion}
+  >
+    {savingSuggestion ? "Submitting..." : "Submit"}
+  </button>
+  <button type="button" className={styles.cancelBtn} onClick={() => setAddingSuggestion(false)}>
+    Cancel
+  </button>
+</div>
+{suggestionMsg && (
+  <p style={{
+    marginTop: "8px", fontSize: "13px", fontWeight: 500,
+    color: suggestionMsg.includes("✅") ? "#065F46" : "#991B1B"
+  }}>
+    {suggestionMsg}
+  </p>
+)}
                     </div>
                   </div>
                 )}
@@ -444,7 +555,6 @@ export default function TrainingPassport({
               </>
             )}
 
-            {/* Subordinate suggestions — for roles that can review */}
             {config.canReview && (
               <>
                 <h3 className={styles.sectionSubTitle} style={{ marginTop: config.canSuggest ? "32px" : "0" }}>
@@ -470,7 +580,7 @@ export default function TrainingPassport({
                             style={{ flex: 1 }}
                           />
                           <button type="button" className={styles.approveBtn} onClick={() => handleReview(s.id, "approved")}>✓ Approve</button>
-                          <button type="button" className={styles.rejectBtn}  onClick={() => handleReview(s.id, "rejected")}>✕ Reject</button>
+                          <button type="button" className={styles.rejectBtn} onClick={() => handleReview(s.id, "rejected")}>✕ Reject</button>
                         </div>
                       </div>
                     ))
@@ -481,7 +591,7 @@ export default function TrainingPassport({
           </div>
         )}
 
-        {/* ══ AI Recommendations — always visible ══ */}
+        {/* ══ AI Recommendations ══ */}
         {config.showAI && (
           <div className={styles.aiSection}>
             <div className={styles.aiHeader}>

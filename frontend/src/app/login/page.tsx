@@ -35,7 +35,7 @@ export default function LoginPage() {
       // Simplified: If the backend gives us a path, go there immediately
       if (data.redirectTo) {
       // Save user session to localStorage
-      localStorage.setItem("epms_user", JSON.stringify({
+      localStorage.setItem("pms_user", JSON.stringify({
         employee_id: data.employee_id,
         full_name: data.full_name,
         email: data.email,
@@ -45,7 +45,7 @@ export default function LoginPage() {
       }));
 
   router.push(data.redirectTo);
-}
+
       } else {
         // Fallback in case a new role is added to USERS but not ROLE_REDIRECTS in app.py
         alert("Login successful, but no dashboard path was found for your role.");
