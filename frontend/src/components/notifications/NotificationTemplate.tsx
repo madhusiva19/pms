@@ -58,7 +58,7 @@ const ROLE_CONFIG: Record<Role, { avatarLabel: string; roleLabel: string }> = {
 function getCutoffStatus(cutoffDate: string): CutoffStatus {
   const today = new Date();
   const cutoff = new Date(cutoffDate);
-  const graceEnd = new Date("2025-09-15");
+  const graceEnd = new Date("2026-09-15");
   const diffDays = Math.ceil((cutoff.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   if (today > graceEnd) return "frozen";
@@ -68,94 +68,87 @@ function getCutoffStatus(cutoffDate: string): CutoffStatus {
 }
 
 const STATUS_STYLES: Record<CutoffStatus, { bg: string; border: string; badge: string; badgeColor: string; badgeText: string }> = {
-  normal:   { bg: "#FFFFFF",  border: "#E5E7EB", badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Upcoming" },
-  urgent:   { bg: "#FFFBEB",  border: "#FDE047", badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon" },
-  critical: { bg: "#FEF2F2",  border: "#FECACA", badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "🔴 Overdue" },
-  frozen:   { bg: "#F3F4F6",  border: "#D1D5DB", badge: "#E5E7EB", badgeColor: "#374151", badgeText: "🔒 Frozen" },
+  normal:   { bg: "#FFFFFF",  border: "#E5E7EB", badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Upcoming"    },
+  urgent:   { bg: "#FFFBEB",  border: "#FDE047", badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon"  },
+  critical: { bg: "#FEF2F2",  border: "#FECACA", badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "🔴 Overdue"  },
+  frozen:   { bg: "#F3F4F6",  border: "#D1D5DB", badge: "#E5E7EB", badgeColor: "#374151", badgeText: "🔒 Frozen"   },
 };
-
-// ── Dummy data factory ────────────────────────────────
-function getDummyAchievements(role: Role): AchievementNotification[] {
-  const map: Partial<Record<Role, AchievementNotification[]>> = {
-    "HQ Admin": [
-      { id: "1", fromName: "Amarasinghe S. K.", fromRole: "Country Admin", submittedAt: "2025-04-15", achievement: "Achieved 120% of Q1 sales target across all branches.", isRead: false, actionUrl: "/hq-admin/profile" },
-      { id: "2", fromName: "Perera A. K.",      fromRole: "Country Admin", submittedAt: "2025-04-10", achievement: "Led cross-country operations review for Sri Lanka and India.", isRead: true,  actionUrl: "/hq-admin/profile" },
-    ],
-    "Country Admin": [
-      { id: "1", fromName: "Silva R.",    fromRole: "Branch Admin",   submittedAt: "2025-04-14", achievement: "Reduced branch operational costs by 18% in Q1.", isRead: false, actionUrl: "/country-admin/profile" },
-      { id: "2", fromName: "Fernando K.", fromRole: "Branch Admin",   submittedAt: "2025-04-08", achievement: "Implemented new customer onboarding process.", isRead: false, actionUrl: "/country-admin/profile" },
-    ],
-    "Branch Admin": [
-      { id: "1", fromName: "Raj M.",  fromRole: "Dept Admin", submittedAt: "2025-04-13", achievement: "Air exports volume increased by 22% this quarter.", isRead: false, actionUrl: "/branch-admin/profile" },
-    ],
-    "Dept Admin": [
-      { id: "1", fromName: "Kumar S.", fromRole: "Sub Dept Admin", submittedAt: "2025-04-12", achievement: "Zero customs delay for 3 consecutive months.", isRead: false, actionUrl: "/dept-admin/profile" },
-    ],
-    "Sub Dept Admin": [
-      { id: "1", fromName: "Ali H.", fromRole: "Employee", submittedAt: "2025-04-11", achievement: "Handled 200+ shipments with 99% accuracy.", isRead: false, actionUrl: "/sub-dept-admin/profile" },
-    ],
-    "Employee": [
-      { id: "1", fromName: "Sub Dept Admin", fromRole: "Sub Dept Admin", submittedAt: "2025-04-16", achievement: "Your achievement submission has been approved ✅", isRead: false, actionUrl: "/employee/profile" },
-    ],
-  };
-  return map[role] || [];
-}
-
-function getDummyCutoffs(role: Role): CutoffNotification[] {
-  const map: Partial<Record<Role, CutoffNotification[]>> = {
-    "HQ Admin": [
-      { id: "1", title: "Objectives Setting Deadline", message: "All country-level objectives must be finalised. After 15th September, templates will be frozen with previous year KPIs.", cutoffDate: "2025-08-25", status: getCutoffStatus("2025-08-25"), isRead: false, actionUrl: "/hq-admin/template-management" },
-    ],
-    "Country Admin": [
-      { id: "1", title: "Objectives Setting Deadline", message: "All branch-level objectives under your country must be finalised by 15th August.", cutoffDate: "2025-08-15", status: getCutoffStatus("2025-08-15"), isRead: false, actionUrl: "/country-admin/template-management" },
-    ],
-    "Branch Admin": [
-      { id: "1", title: "Objectives Setting Deadline", message: "All department-level objectives under your branch must be finalised by 10th August.", cutoffDate: "2025-08-10", status: getCutoffStatus("2025-08-10"), isRead: false, actionUrl: "/branch-admin/template-management" },
-    ],
-    "Dept Admin": [
-      { id: "1", title: "Objectives Setting Deadline", message: "All sub-department objectives under your department must be finalised by 5th August.", cutoffDate: "2025-08-05", status: getCutoffStatus("2025-08-05"), isRead: false, actionUrl: "/dept-admin/template-management" },
-    ],
-    "Sub Dept Admin": [
-      { id: "1", title: "Objectives Setting Deadline", message: "All employee objectives under your sub-department must be finalised by 31st July.", cutoffDate: "2025-07-31", status: getCutoffStatus("2025-07-31"), isRead: false, actionUrl: "/sub-dept-admin/template-management" },
-    ],
-    "Employee": [],
-  };
-  return map[role] || [];
-}
 
 // ── Component ──────────────────────────────────────────
 export default function NotificationTemplate({
   role,
   sidebarName,
   dashboardPath,
-  achievementNotifications,
-  cutoffNotifications,
+  achievementNotifications = [],
+  cutoffNotifications = [],
 }: NotificationPageProps) {
   const router = useRouter();
   const config = ROLE_CONFIG[role];
 
   const [activeTab, setActiveTab] = useState<"achievements" | "cutoff">("achievements");
-
-  const achievements = achievementNotifications ?? getDummyAchievements(role);
-  const cutoffs      = cutoffNotifications      ?? getDummyCutoffs(role);
-
-  const [achievementList, setAchievementList] = useState(achievements);
-  const [cutoffList, setCutoffList]           = useState(cutoffs);
+  const [achievementList, setAchievementList] = useState<AchievementNotification[]>(achievementNotifications);
+  const [cutoffList, setCutoffList]           = useState<CutoffNotification[]>(cutoffNotifications);
 
   const unreadAchievements = achievementList.filter((n) => !n.isRead).length;
   const unreadCutoffs      = cutoffList.filter((n) => !n.isRead).length;
   const totalUnread        = unreadAchievements + unreadCutoffs;
 
-  const markAchievementRead = (id: string) =>
+  // ── Mark achievement as read ──
+  const markAchievementRead = async (id: string) => {
     setAchievementList((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
-
-  const markCutoffRead = (id: string) =>
-    setCutoffList((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
-
-  const markAllRead = () => {
-    if (activeTab === "achievements") setAchievementList((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    else setCutoffList((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${id}/read`, {
+        method: "PATCH",
+      });
+    } catch (err) {
+      console.error("Failed to mark as read:", err);
+    }
   };
+
+  // ── Mark cutoff as read ──
+  const markCutoffRead = async (id: string) => {
+    setCutoffList((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${id}/read`, {
+        method: "PATCH",
+      });
+    } catch (err) {
+      console.error("Failed to mark as read:", err);
+    }
+  };
+
+  // ── Mark all as read ──
+  const markAllRead = async () => {
+    if (activeTab === "achievements") {
+      const unread = achievementList.filter((n) => !n.isRead);
+      setAchievementList((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      for (const n of unread) {
+        try {
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${n.id}/read`, {
+            method: "PATCH",
+          });
+        } catch (err) {
+          console.error("Failed to mark as read:", err);
+        }
+      }
+    } else {
+      const unread = cutoffList.filter((n) => !n.isRead);
+      setCutoffList((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      for (const n of unread) {
+        try {
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${n.id}/read`, {
+            method: "PATCH",
+          });
+        } catch (err) {
+          console.error("Failed to mark as read:", err);
+        }
+      }
+    }
+  };
+
+  // ── Get user from localStorage ──
+  const raw = typeof window !== "undefined" ? localStorage.getItem("pms_user") : null;
+  const user = raw ? JSON.parse(raw) : null;
 
   return (
     <div className={styles.shell}>
@@ -167,7 +160,6 @@ export default function NotificationTemplate({
         </div>
 
         <nav className={styles.sideNav}>
-          {/* Dashboard — hidden for Employee */}
           {role !== "Employee" && (
             <button type="button" className={styles.sideItem} onClick={() => router.push(dashboardPath)}>
               <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
@@ -210,7 +202,8 @@ export default function NotificationTemplate({
             <span className={styles.sideLabel}>Reports</span>
           </button>
 
-          <button type="button" className={styles.sideItem} onClick={() => router.push(`/${role.toLowerCase().replace(/ /g, "-")}/profile`)}>
+          <button type="button" className={styles.sideItem}
+            onClick={() => router.push(`/${role.toLowerCase().replace(/ /g, "-")}/profile`)}>
             <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
               <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
               <path d="M20 21a8 8 0 0 0-16 0"                stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
@@ -247,11 +240,14 @@ export default function NotificationTemplate({
           <div className={styles.profileRow}>
             <div className={styles.avatarCircle}>{config.avatarLabel}</div>
             <div className={styles.profileText}>
-              <div className={styles.profileName}>{sidebarName}</div>
+              <div className={styles.profileName}>{user?.full_name?.split(" ")[0] || sidebarName}</div>
               <div className={styles.profileRole}>{config.roleLabel}</div>
             </div>
           </div>
-          <button className={styles.logoutBtn} type="button" onClick={() => router.push("/login")}>
+          <button className={styles.logoutBtn} type="button" onClick={() => {
+            localStorage.removeItem("pms_user");
+            router.push("/login");
+          }}>
             Logout
           </button>
         </div>
@@ -315,8 +311,12 @@ export default function NotificationTemplate({
                   <div className={styles.notifTop}>
                     <div className={styles.notifMeta}>
                       {!n.isRead && <span className={styles.unreadDot} />}
-                      <div>
-                        <p className={styles.notifTitle}>Achievement submitted by {n.fromName}</p>
+                      <div><p className={styles.notifTitle}>
+  {n.fromName.includes("Approved") || n.fromName.includes("Rejected")
+    ? n.fromName
+    : `Achievement submitted by ${n.fromName}`}
+</p>
+                        
                         <p className={styles.notifRole}>{n.fromRole} · {n.submittedAt}</p>
                       </div>
                     </div>
