@@ -1,0 +1,820 @@
+/* TemplateDashboardBase.module.css
+ *
+ * Design language: aligned with HQ Admin Dashboard —
+ * soft blue-grey page bg (#f0f4f8), white cards, clean borders.
+ * Colour palette from dashboard charts:
+ *   Blue   #4472C4  Teal  #2EC4B6  Amber #F5A623  Coral #E8735A  Purple #9B8EC4
+ *
+ * Period wrapper (outer container only, cards always white):
+ *   Open   → transparent (inherits page bg)
+ *   Grace  → soft amber tint
+ *   Frozen → soft blue tint
+ */
+
+/* ─── Design tokens ──────────────────────────────────────────────────────────*/
+:root {
+  --tdb-space-xs:   4px;
+  --tdb-space-sm:   8px;
+  --tdb-space-md:  12px;
+  --tdb-space-lg:  20px;
+  --tdb-space-xl:  28px;
+
+  --tdb-radius-sm:  6px;
+  --tdb-radius-md:  10px;
+  --tdb-radius-lg:  14px;
+  --tdb-radius-xl:  16px;
+
+  --tdb-shadow-card:  0 1px 4px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
+  --tdb-shadow-light: 0 1px 3px rgba(0,0,0,0.05);
+
+  /* Dashboard palette — pulled from chart colours */
+  --tdb-blue:   #4472C4;
+  --tdb-teal:   #2EC4B6;
+  --tdb-amber:  #F5A623;
+  --tdb-coral:  #E8735A;
+  --tdb-purple: #9B8EC4;
+
+  /* Light tints of each */
+  --tdb-blue-tint:   #eef2fb;
+  --tdb-teal-tint:   #e8faf9;
+  --tdb-amber-tint:  #fef8ec;
+  --tdb-coral-tint:  #fdf2ef;
+  --tdb-purple-tint: #f3f1fb;
+
+  /* Border colours for each tint */
+  --tdb-blue-border:   #c7d5f0;
+  --tdb-teal-border:   #a8e9e5;
+  --tdb-amber-border:  #fbe0a8;
+  --tdb-coral-border:  #f5c9be;
+  --tdb-purple-border: #d6d0ef;
+
+  /* Neutral */
+  --tdb-border:       #e2e8f0;
+  --tdb-border-light: #f1f5f9;
+  --tdb-text-primary: #111827;
+  --tdb-text-muted:   #6b7280;
+  --tdb-text-faint:   #9ca3af;
+
+  /* Status */
+  --tdb-open-bg:      #ecfdf5;
+  --tdb-open-text:    #065f46;
+  --tdb-open-border:  #a7f3d0;
+
+  --tdb-grace-bg:     #fef8ec;
+  --tdb-grace-text:   #92400e;
+  --tdb-grace-border: #fbe0a8;
+
+  --tdb-frozen-bg:     #eef2fb;
+  --tdb-frozen-text:   #1e3a8a;
+  --tdb-frozen-border: #c7d5f0;
+}
+
+/* ─── Wrapper ─────────────────────────────────────────────────────────────── */
+
+.wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0px 30px 80px 10px;
+  font-family: inherit;
+}
+
+/* ─── Period Wrapper ──────────────────────────────────────────────────────── */
+/* This big outer div changes tint per freeze period. Cards inside stay white. */
+
+.periodWrapper {
+  border-radius: var(--tdb-radius-xl);
+  padding: 12px;
+  border: 1px solid transparent;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+/* Open: transparent — page bg shows through naturally */
+.periodOpen {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* Grace: warm amber — clear "heads up" signal */
+.periodGrace {
+  background: #fffdf5;
+  border-color: var(--tdb-amber-border);
+}
+
+/* Frozen: cool blue — locked, read-only */
+.periodFrozen {
+  background: #f0f5ff;
+  border-color: var(--tdb-blue-border);
+}
+
+/* ─── Page Header ─────────────────────────────────────────────────────────── */
+
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  gap: var(--tdb-space-lg);
+}
+
+.pageTitle {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--tdb-text-primary);
+  letter-spacing: -0.3px;
+  margin: 0 0 6px;
+}
+
+.pageSubtitleMain {
+  font-size: 14px;
+  color: var(--tdb-text-muted);
+  font-weight: 400;
+  margin: 0 0 10px;
+}
+
+.pageSubtitle {
+  display: flex;
+  align-items: center;
+  gap: var(--tdb-space-sm);
+  font-size: 12px;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.rolePill {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--tdb-border);
+}
+
+.subtitleNote       { color: var(--tdb-text-muted); font-size: 12px; }
+.subtitleNoteAmber  { color: #92400e; font-size: 12px; }
+.subtitleNoteFrozen { color: #1e3a8a; font-size: 12px; font-weight: 600; }
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--tdb-space-md);
+  flex-shrink: 0;
+}
+
+/* Create button — matches dashboard's blue */
+
+.createBtn {
+  padding: 10px 20px;
+  border-radius: var(--tdb-radius-md);
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.createBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(59,130,246,0.4);
+}
+
+
+/* ─── Status Pills ────────────────────────────────────────────────────────── */
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.statusPillOpen   { background: var(--tdb-open-bg);   color: var(--tdb-open-text);   border-color: var(--tdb-open-border); }
+.statusPillGrace  { background: var(--tdb-grace-bg);  color: var(--tdb-grace-text);  border-color: var(--tdb-grace-border); }
+.statusPillFrozen { background: var(--tdb-frozen-bg); color: var(--tdb-frozen-text); border-color: var(--tdb-frozen-border); }
+
+/* ─── Banners — solid coloured with white text ───────────────────────────── */
+/*
+ *   Frozen  → dark navy  #1E3A8A  (same as frozen milestone)
+ *   Grace   → amber      #F5A623
+ *   Warning → coral      #E8735A
+ */
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 30px 20px;
+  border-radius: var(--tdb-radius-lg);
+  margin-bottom: 20px;
+  border: none;
+}
+
+.bannerIconWrapper {
+  width: 35px;
+  height: 35px;
+  border-radius: var(--tdb-radius-md);
+  background: rgba(255,255,255,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* White text on solid backgrounds */
+.bannerTitle { font-weight: 600; font-size: 14px; color: #fff; margin-bottom: 3px; }
+.bannerText  { font-size: 13px; color: rgba(255,255,255,0.88); line-height: 1.55; }
+.bannerText strong { color: #fff; }
+
+/* Frozen — deep navy, matches frozen milestone box */
+.bannerFrozen {
+  background: #1E3A8A;
+  box-shadow: 0 3px 12px rgba(30,58,138,0.3);
+}
+
+/* Grace — warm amber, matches grace milestone box */
+.bannerGrace {
+  background: #F5A623;
+  box-shadow: 0 3px 12px rgba(245,166,35,0.3);
+}
+
+/* Warning — coral */
+.bannerWarning {
+  background: #E8735A;
+  box-shadow: 0 3px 12px rgba(232,115,90,0.3);
+}
+
+/* ─── PMS Cycle Timeline Section ─────────────────────────────────────────── */
+
+.timelineSection {
+  background: #fff;
+  border: 1px solid var(--tdb-border);
+  border-radius: var(--tdb-radius-xl);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--tdb-shadow-card);
+}
+
+.timelineSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: var(--tdb-space-sm);
+}
+
+.timelineSectionTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timelineSectionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--tdb-text-primary);
+}
+
+.timelineSectionTag {
+  background: var(--tdb-blue-tint);
+  color: #1e40af;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--tdb-blue-border);
+}
+
+.timelineSectionMeta { display: flex; align-items: center; }
+
+.timelineSectionMetaLabel {
+  font-size: 12px;
+  color: var(--tdb-text-faint);
+}
+
+/* ─── Progress Bar ────────────────────────────────────────────────────────── */
+
+.progressBarWrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.progressBarTrack {
+  flex: 1;
+  height: 7px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Progress fill uses dashboard blue */
+.progressBarFill {
+  height: 100%;
+  background: var(--tdb-blue);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.progressBarLabel {
+  font-size: 11px;
+  color: var(--tdb-text-faint);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─── Milestone Boxes — solid coloured, white text ──────────────────────── */
+/*
+ * Colour key (dashboard chart palette):
+ *   Cycle Start       → light blue    #89B4F8  (soft, not too dark)
+ *   Objective Setting → teal          #2EC4B6
+ *   Grace             → amber         #F5A623
+ *   Frozen            → dark blue     #1E3A8A  (deep navy, clearly "locked")
+ *   Mid-Year Review   → coral         #E8735A
+ *   Year-End Review   → purple        #9B8EC4
+ */
+
+.milestoneGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 1024px) { .milestoneGrid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 600px)  { .milestoneGrid { grid-template-columns: repeat(2, 1fr); } }
+
+.milestoneBox {
+  border-radius: var(--tdb-radius-md);
+  padding: 14px 10px 12px;
+  text-align: center;
+  position: relative;
+  border: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: default;
+}
+
+.milestoneBox:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.18) !important;
+}
+
+/* Per-stage solid colours */
+.milestoneBox[data-key="start"]     { background: #89B4F8; box-shadow: 0 2px 8px rgba(137,180,248,0.4); }
+.milestoneBox[data-key="objective"] { background: #2EC4B6; box-shadow: 0 2px 8px rgba(46,196,182,0.35); }
+.milestoneBox[data-key="grace"]     { background: #F5A623; box-shadow: 0 2px 8px rgba(245,166,35,0.35); }
+.milestoneBox[data-key="frozen"]    { background: #1E3A8A; box-shadow: 0 2px 8px rgba(30,58,138,0.4); }
+.milestoneBox[data-key="midyear"]   { background: #E8735A; box-shadow: 0 2px 8px rgba(232,115,90,0.35); }
+.milestoneBox[data-key="yearend"]   { background: #9B8EC4; box-shadow: 0 2px 8px rgba(155,142,196,0.35); }
+
+/* Active state: white outline ring to highlight current stage */
+.milestoneBoxActive {
+  transform: translateY(-3px);
+  outline: 3px solid rgba(255,255,255,0.7);
+  outline-offset: 2px;
+}
+.milestoneBoxActive[data-key="start"]     { box-shadow: 0 8px 20px rgba(137,180,248,0.5); }
+.milestoneBoxActive[data-key="objective"] { box-shadow: 0 8px 20px rgba(46,196,182,0.5); }
+.milestoneBoxActive[data-key="grace"]     { box-shadow: 0 8px 20px rgba(245,166,35,0.5); }
+.milestoneBoxActive[data-key="frozen"]    { box-shadow: 0 8px 20px rgba(30,58,138,0.55); }
+.milestoneBoxActive[data-key="midyear"]   { box-shadow: 0 8px 20px rgba(232,115,90,0.5); }
+.milestoneBoxActive[data-key="yearend"]   { box-shadow: 0 8px 20px rgba(155,142,196,0.5); }
+
+/* All text is white */
+.milestoneBoxIcon  { display: flex; justify-content: center; margin-bottom: 6px; color: rgba(255,255,255,0.8); }
+.milestoneBoxLabel {
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+  line-height: 1.3;
+}
+.milestoneBoxDate {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+}
+
+/* "Now" badge — white background, coloured text */
+.milestoneBoxNow {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.milestoneBox[data-key="start"]     .milestoneBoxNow { color: #4a8ae8; }
+.milestoneBox[data-key="objective"] .milestoneBoxNow { color: #1a9e92; }
+.milestoneBox[data-key="grace"]     .milestoneBoxNow { color: #c47d00; }
+.milestoneBox[data-key="frozen"]    .milestoneBoxNow { color: #1E3A8A; }
+.milestoneBox[data-key="midyear"]   .milestoneBoxNow { color: #c4513a; }
+.milestoneBox[data-key="yearend"]   .milestoneBoxNow { color: #6b5ea8; }
+
+
+
+/* ─── Search — wrapped in a white card matching template cards ──────────── */
+
+.searchCard {
+  background: #ffffff;
+  border-radius: var(--tdb-radius-xl);
+  border: 1px solid var(--tdb-border);
+  box-shadow: var(--tdb-shadow-card);
+  padding: 14px 20px;
+  margin-bottom: 16px;
+}
+
+.searchWrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--tdb-space-sm);
+  background: #f8fafc;
+  border: 1px solid var(--tdb-border-light);
+  border-radius: var(--tdb-radius-lg);
+  padding: 9px 14px;
+}
+
+.searchInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--tdb-text-primary);
+  background: transparent;
+  font-weight: 500;
+}
+
+.searchInput::placeholder { color: var(--tdb-text-faint); }
+
+.searchClear {
+  background: #f1f5f9;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  color: var(--tdb-text-muted);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.searchCount { font-size: 12px; font-weight: 700; color: var(--tdb-text-faint); white-space: nowrap; }
+
+/* ─── Loading / Empty ─────────────────────────────────────────────────────── */
+
+.loadingWrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px; gap: 16px; }
+.loadingText    { color: var(--tdb-text-muted); font-size: 14px; font-weight: 500; }
+
+@keyframes tdbSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spinner { animation: tdbSpin 1s linear infinite; }
+
+.emptyState {
+  text-align: center;
+  padding: 80px 40px;
+  background: #f8fafc;
+  border-radius: var(--tdb-radius-xl);
+  border: 2px dashed var(--tdb-border);
+}
+
+.emptyTitle { font-size: 18px; font-weight: 700; color: #475569; margin: 0 0 var(--tdb-space-sm); }
+.emptyText  { color: var(--tdb-text-faint); font-size: 14px; margin: 0; }
+
+/* ─── Card List ───────────────────────────────────────────────────────────── */
+
+.cardList { display: flex; flex-direction: column; gap: 12px; }
+
+/* ─── Template Card — always white, matches dashboard stat cards ─────────── */
+
+.card {
+  background: #ffffff;
+  border-radius: var(--tdb-radius-xl);
+  border: 1px solid var(--tdb-border);
+  box-shadow: var(--tdb-shadow-card);
+  overflow: hidden;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  border-color: #c8d4e8;
+}
+
+/* ─── Card Top ────────────────────────────────────────────────────────────── */
+
+.cardTop        { display: flex; flex-direction: column; gap: 12px; padding: var(--tdb-space-lg) 22px 0; }
+.cardTopInner   { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
+.cardLeft       { display: flex; gap: 14px; flex: 1; min-width: 0; }
+
+.cardIconWrapper {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--tdb-radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--tdb-blue-tint);
+  border: 1px solid var(--tdb-blue-border);
+}
+
+.cardTitleRow   { display: flex; align-items: center; gap: var(--tdb-space-sm); margin-bottom: var(--tdb-space-xs); flex-wrap: wrap; }
+.cardTitle      { font-size: 16px; font-weight: 700; color: var(--tdb-text-primary); margin: 0; }
+.cardDescription { font-size: 13px; color: var(--tdb-text-muted); margin: 0 0 var(--tdb-space-sm); line-height: 1.5; }
+
+/* ─── Card Actions — horizontal row ──────────────────────────────────────── */
+
+.cardActions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--tdb-radius-sm);
+  background: #f8fafc;
+  border: 1px solid var(--tdb-border);
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.actionBtn:hover {
+  background: var(--tdb-blue-tint);
+  border-color: var(--tdb-blue-border);
+  color: var(--tdb-blue);
+}
+
+.actionBtnFrozen { opacity: 0.5; }
+.actionBtnFrozen:hover { opacity: 0.7; background: var(--tdb-blue-tint); border-color: var(--tdb-blue-border); }
+
+.actionBtnDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: var(--tdb-radius-sm);
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.actionBtnDanger:hover { background: #fee2e2; border-color: #f87171; }
+
+.actionBtnDangerFrozen { opacity: 0.5; }
+.actionBtnDangerFrozen:hover { opacity: 0.7; background: var(--tdb-blue-tint); border-color: var(--tdb-blue-border); color: var(--tdb-blue); }
+
+/* ─── Stats Row — each value uses a dashboard chart colour ───────────────── */
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: #f8fafc;
+  border-radius: var(--tdb-radius-lg);
+  padding: 14px 0;
+  text-align: center;
+  margin: 14px 22px;
+}
+
+.statCell { padding: 4px 12px; }
+
+.statValue {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+
+/* Assign each column its dashboard chart colour */
+.statCell:nth-child(1) .statValue { color: var(--tdb-blue); }
+.statCell:nth-child(2) .statValue { color: var(--tdb-teal); }
+.statCell:nth-child(3) .statValue { color: var(--tdb-purple); }
+.statCell:nth-child(4) .statValue { color: var(--tdb-coral); }
+.statCell:nth-child(5) .statValue { color: var(--tdb-amber); }
+
+.statLabel {
+  font-size: 10px;
+  color: var(--tdb-text-faint);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ─── Card Meta Row ───────────────────────────────────────────────────────── */
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 22px;
+  border-top: 1px solid var(--tdb-border-light);
+  flex-wrap: wrap;
+  gap: var(--tdb-space-sm);
+}
+
+.cardMetaLeft    { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cardMetaLabel   { font-size: 11px; font-weight: 600; color: var(--tdb-text-muted); }
+.cardMetaRight   { display: flex; align-items: center; gap: 6px; }
+.cardMetaTimestamp { font-size: 11px; color: var(--tdb-text-faint); font-weight: 500; }
+
+.linkageBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--tdb-space-sm);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+/* ─── Expand Toggle ───────────────────────────────────────────────────────── */
+
+.expandToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 22px;
+  background: #f8fafc;
+  border: none;
+  border-top: 1px solid var(--tdb-border-light);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3b82f6;
+  transition: background 0.15s;
+}
+
+.expandToggle:hover { background: #eff6ff; }
+
+/* ─── Expanded Section ────────────────────────────────────────────────────── */
+
+.expandedSection {
+  padding: 16px 22px 20px;
+  background: #fafbfd;
+  border-top: 1px solid var(--tdb-border-light);
+}
+
+.expandedSectionHeading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--tdb-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: var(--tdb-space-sm);
+}
+
+.categoryGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--tdb-space-md); }
+.categoryEmptyNote { font-size: 13px; color: var(--tdb-text-faint); margin: 0; font-style: italic; }
+
+.categoryDetailCard { padding: 12px 14px; border-radius: var(--tdb-radius-md); border: 1px solid transparent; }
+.categoryDetailHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.categoryDetailBar { height: 5px; background: rgba(0,0,0,0.08); border-radius: 3px; overflow: hidden; margin-bottom: var(--tdb-space-sm); }
+.categoryDetailStats { display: flex; gap: var(--tdb-space-sm); font-size: 11px; color: #475569; opacity: 0.85; }
+
+/* ─── Roles & Departments ─────────────────────────────────────────────────── */
+
+.rolesDeptsSection { display: flex; gap: var(--tdb-space-xl); flex-wrap: wrap; }
+.rolesDeptsGroup   { display: flex; flex-direction: column; gap: var(--tdb-space-sm); min-width: 160px; }
+
+.rolesDeptsLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--tdb-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.rolesDeptsChips  { display: flex; flex-wrap: wrap; gap: 5px; }
+.rolesDeptsEmpty  { font-size: 11px; color: var(--tdb-text-faint); font-style: italic; }
+
+.rolesChip {
+  background: var(--tdb-blue-tint);
+  color: #1e40af;
+  border: 1px solid var(--tdb-blue-border);
+  padding: 3px var(--tdb-space-sm);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.deptsChip {
+  background: var(--tdb-purple-tint);
+  color: #5b21b6;
+  border: 1px solid var(--tdb-purple-border);
+  padding: 3px var(--tdb-space-sm);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ─── Delete Modal ────────────────────────────────────────────────────────── */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--tdb-space-lg);
+}
+
+.modalCard {
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  border: 1px solid var(--tdb-border-light);
+}
+
+.modalIconWrapper {
+  width: 56px;
+  height: 56px;
+  background: #fff1f2;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  border: 2px solid #fecaca;
+}
+
+.modalTitle { font-size: 18px; font-weight: 700; color: var(--tdb-text-primary); margin: 0 0 10px; }
+.modalText  { color: var(--tdb-text-muted); font-size: 14px; line-height: 1.6; margin: 0 0 24px; }
+.modalActions { display: flex; gap: var(--tdb-space-md); }
+
+.modalCancelBtn {
+  flex: 1;
+  padding: 11px;
+  border-radius: var(--tdb-radius-md);
+  border: 1px solid var(--tdb-border);
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modalCancelBtn:hover { background: #f1f5f9; }
+
+.modalDeleteBtn {
+  flex: 1;
+  padding: 11px;
+  border-radius: var(--tdb-radius-md);
+  border: none;
+  background: #ef4444;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modalDeleteBtn:hover { background: #dc2626; }
+
