@@ -7,6 +7,10 @@
  *
  * Naming: camelCase, component-scoped, descriptive.
  * No magic numbers — all spacing/sizing via CSS custom properties.
+ *
+ * Training Linkage column removed.
+ * Arrows removed from KPI Scale and Control selects — badges are clickable triggers.
+ * KPI Scale column is wide enough to display full label text without truncation.
  */
 
 /* ─── Design tokens ──────────────────────────────────────────────────────────*/
@@ -93,17 +97,6 @@
 
 @keyframes tcbBarFill {
   from { width: 0; }
-}
-
-@keyframes tcbDropdownReveal {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 /* ─── Page wrapper ───────────────────────────────────────────────────────────*/
@@ -412,6 +405,67 @@
   cursor: not-allowed;
 }
 
+/* ─── Basic Info enhancements ─────────────────────────────────────────────────*/
+
+/* Required star */
+.requiredStar {
+  color: #ef4444;
+  margin-left: 3px;
+  font-weight: 700;
+}
+
+/* Optional tag pill */
+.optionalTag {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: var(--tcb-font-size-2xs);
+  font-weight: 600;
+  color: var(--tcb-slate-400);
+  background: var(--tcb-slate-100);
+  border-radius: 10px;
+  padding: 1px 7px;
+  text-transform: none;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
+/* Hint text under fields */
+.fieldHint {
+  margin: 5px 0 0;
+  font-size: var(--tcb-font-size-sm);
+  color: var(--tcb-slate-400);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* Description label row with char counter */
+.descriptionRow {
+  margin-top: 4px;
+}
+
+.descriptionLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--tcb-space-sm);
+}
+
+.descriptionLabelRow .formFieldLabel {
+  margin-bottom: 0;
+}
+
+.charCounter {
+  font-size: var(--tcb-font-size-xs);
+  color: var(--tcb-slate-400);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.charCounterWarn {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
 /* ─── KPI Scale & Control reference card ────────────────────────────────────*/
 
 .referenceSubHeading {
@@ -442,8 +496,8 @@
 
 .referenceDivider {
   height: 1px;
-  background: var(--tcb-slate-100);
-  margin: 14px 0;
+  background: var(--tcb-slate-200); /* light gray — clearly visible but subtle */
+  margin: 12px 0;
 }
 
 .referenceItemsRow {
@@ -456,7 +510,7 @@
   display: flex;
   align-items: center;
   gap: var(--tcb-space-sm);
-  padding: var(--tcb-space-sm) 14px;
+  padding: 6px 12px;
   border-radius: var(--tcb-radius-md);
   border: 1px solid transparent;
 }
@@ -464,33 +518,52 @@
 .controlReferenceItemLocked   { background: var(--tcb-blue-50);  border-color: var(--tcb-blue-200); }
 .controlReferenceItemEditable { background: var(--tcb-green-50); border-color: var(--tcb-green-200); }
 
-.controlReferenceLabel         { font-size: var(--tcb-font-size-base); font-weight: 700; }
+.controlReferenceLabel         { font-size: var(--tcb-font-size-md); font-weight: 600; }
 .controlReferenceLabelLocked   { color: var(--tcb-blue-800); }
 .controlReferenceLabelEditable { color: var(--tcb-green-600); }
-.controlReferenceDesc          { font-size: var(--tcb-font-size-sm); opacity: 0.7; }
+.controlReferenceDesc          { font-size: var(--tcb-font-size-sm); font-weight: 400; opacity: 0.65; }
 
 .kpiScaleItem {
-  padding: var(--tcb-space-sm)14px;
+  padding: 10px 14px;
   border-radius: var(--tcb-radius-md);
   border: 1px solid transparent;
   min-width: 160px;
+  flex: 1;
 }
 
 .kpiScaleItemHeader {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .kpiScaleItemLabel {
-  font-size: var(--tcb-font-size-base);
-  font-weight: 700;
+  font-size: var(--tcb-font-size-md);
+  font-weight: 600; /* lighter than before — was 700 */
 }
 
 .kpiScaleItemHint {
   font-size: var(--tcb-font-size-xs);
-  opacity: 0.75;
+  font-weight: 400; /* plain weight — was bold */
+  opacity: 0.7;
+  margin: 0 0 6px 0;
+  line-height: 1.4;
+}
+
+/* Tag pills inside KPI reference card */
+.kpiScaleTagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.kpiScaleTag {
+  font-size: var(--tcb-font-size-xs);
+  font-weight: 500; /* medium — not heavy */
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
 }
 
 /* ─── Add Category button ────────────────────────────────────────────────────*/
@@ -604,85 +677,183 @@
 
 .categoryRemoveBtn:hover { background: rgba(255,255,255,0.28); }
 
-/* ─── Objectives table ───────────────────────────────────────────────────────
+/* ─── Objectives list — flex rows (replaces table) ──────────────────────────
  *
- * No overflow-x on the wrapper — the table stretches to fill its container
- * using percentage-based column widths so no horizontal scrollbar appears.
- * The Training Linkage column is intentionally the widest to accommodate
- * stacked tag pills.
+ * Layout matches the reference UI:
+ *   #num | objective name (flex-grow) | weight (fixed) | control (fixed) | kpi scale (flex-grow) | max score (fixed) | action (fixed)
+ *
+ * Column proportions are set via flex-basis so they stay consistent between
+ * the header row and every data row, without table-layout quirks.
  */
 
-.objectivesTableWrapper {
+.objectivesList {
   width: 100%;
-  /* overflow-x removed — table fits within the card at all times */
+  display: flex;
+  flex-direction: column;
 }
 
-.objectivesTable {
+/* ── Shared row layout ── */
+.objHeaderRow,
+.objRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
   width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
+  box-sizing: border-box;
 }
 
-/* ── Column widths — percentage-based so the table never overflows ── */
-.colObjective { width: 26%; }
-.colWeight    { width: 7%;  }
-.colControl   { width: 11%; }
-.colKpiScale  { width: 12%; }
-.colMaxScore  { width: 10%; }
-.colTraining  { width: 22%; } /* widest — holds stacked tag pills */
-.colActions   { width: 5%;  }
-/* Total with actions:  93% (remaining 7% absorbed by browser natural flow)  */
-/* Total without actions: 88% (actions col absent in read-only)               */
-
-.tableHead { background: var(--tcb-slate-50); border-bottom: 1px solid #e8edf2; }
-
-.tableHeaderCell {
-  text-align: left;
-  padding: var(--tcb-space-sm) 14px;
-  font-size: var(--tcb-font-size-sm);
+/* ── Header row ── */
+.objHeaderRow {
+  background: var(--tcb-slate-50);
+  border-bottom: 1px solid #e8edf2;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: var(--tcb-font-size-xs);
+  font-weight: 600;
   color: var(--tcb-slate-400);
-  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
 }
 
-.tableHeaderCellCenter { text-align: center; }
+/* ── Data rows ── */
+.objRow {
+  border-bottom: 1px solid var(--tcb-slate-100);
+  padding-top: 7px;
+  padding-bottom: 7px;
+  transition: background 0.1s;
+}
 
-.tableHeaderSubtext {
+.objRowNormal { background: var(--tcb-white); }
+.objRowNormal:hover { background: #fafbfc; }
+.objRowLocked { background: #f5f9ff; }
+.objRowLocked:hover { background: #eef4ff; }
+
+/* ── Column flex widths ── */
+
+/* Row number — narrow fixed */
+.objColNum {
+  flex: 0 0 38px;
+  min-width: 38px;
+}
+
+/* Objective name — grows to fill available space */
+.objColName {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Weight — compact fixed */
+.objColWeight {
+  flex: 0 0 76px;
+  min-width: 76px;
+}
+
+/* Control badge — fixed */
+.objColControl {
+  flex: 0 0 100px;
+  min-width: 100px;
+}
+
+/* KPI Scale — wide, grows */
+.objColKpi {
+  flex: 1.4 1 0;
+  min-width: 0;
+}
+
+/* Max score — fixed */
+.objColMax {
+  flex: 0 0 100px;
+  min-width: 100px;
+}
+
+/* Action button — narrow fixed */
+.objColAction {
+  flex: 0 0 36px;
+  min-width: 36px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Header sub-label (e.g. "null = inherit 5") */
+.objColMaxSub {
   display: block;
   font-size: var(--tcb-font-size-2xs);
   color: var(--tcb-slate-300);
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
-.tableRowNormal { background: var(--tcb-white); }
-.tableRowLocked { background: #f5f9ff; }
-
-.tableCell {
-  padding: var(--tcb-space-sm) 14px;
-  border-bottom: 1px solid var(--tcb-slate-100);
-  vertical-align: middle;
-  /* Prevent any single cell from forcing the table wider than its container */
-  overflow: hidden;
+/* Row number badge */
+.objRowNum {
+  font-size: var(--tcb-font-size-xs);
+  font-weight: 700;
+  color: var(--tcb-slate-400);
+  white-space: nowrap;
 }
 
-/* Linkage cell: top-aligned so tags stack naturally */
-.tableCellLinkage {
-  padding: var(--tcb-space-sm) 14px;
-  border-bottom: 1px solid var(--tcb-slate-100);
-  vertical-align: top;
-  padding-top: 10px;
-  overflow: hidden;
+/* KPI read-only text */
+.kpiReadOnlyText {
+  font-size: var(--tcb-font-size-md);
+  font-weight: 500;
+  color: var(--tcb-slate-600);
 }
 
-.tableCellCenter {
-  padding: var(--tcb-space-sm) 6px;
-  border-bottom: 1px solid var(--tcb-slate-100);
-  text-align: center;
-  vertical-align: middle;
+/* ─── Inline input box — click-to-reveal bordered box ───────────────────────
+ *
+ * Objective name and Weight cells use this wrapper.
+ * In read-only mode: plain text appearance, no box.
+ * In editable mode: transparent border at rest, blue ring on hover/focus-within.
+ * New rows added via "Add Objective" get the box immediately visible so the
+ * user knows to type right away.
+ */
+
+.inlineInputBox {
+  border-radius: var(--tcb-radius-sm);
+  border: 1.5px solid var(--tcb-slate-200);
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Editable — shows subtle box on hover, blue ring on focus */
+.inlineInputBoxEditable {
+  background: var(--tcb-white);
+}
+
+.inlineInputBoxEditable:hover {
+  border-color: var(--tcb-blue-200);
+  background: var(--tcb-slate-50);
+}
+
+.inlineInputBoxEditable:focus-within {
+  border-color: var(--tcb-blue-600);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  background: var(--tcb-white);
+}
+
+/* New row added via "Add Objective" — show focus ring immediately */
+.inlineInputBoxNew {
+  border-color: var(--tcb-blue-600) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12) !important;
+  background: var(--tcb-white) !important;
+}
+
+/* Read-only — no prominent box */
+.inlineInputBoxReadOnly {
+  background: transparent;
+  border-color: transparent;
+  pointer-events: none;
+}
+
+/* Weight box */
+.inlineInputBoxWeight {
+  width: 100%;
 }
 
 /* Objective name inline input */
@@ -693,14 +864,23 @@
   background: transparent;
   border: none;
   outline: none;
-  /* Truncate long names gracefully instead of forcing column wider */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
-.objectiveNameInputActive   { color: var(--tcb-slate-800); cursor: text; }
-.objectiveNameInputReadOnly { color: var(--tcb-slate-500); cursor: default; }
+.objectiveNameInputActive {
+  color: var(--tcb-slate-800);
+  cursor: text;
+}
+
+.objectiveNameInputActive::placeholder {
+  color: var(--tcb-slate-400);
+  font-weight: 400;
+}
+
+.objectiveNameInputReadOnly { color: var(--tcb-slate-600); cursor: default; }
 
 /* Weight inline input */
 .weightInput {
@@ -710,6 +890,8 @@
   outline: none;
   font-size: var(--tcb-font-size-md);
   font-weight: 600;
+  text-align: center;
+  min-width: 0;
 }
 
 .weightInputActive   { color: var(--tcb-slate-800); cursor: text; }
@@ -734,121 +916,6 @@
   font-size: var(--tcb-font-size-base);
   font-weight: 700;
   color: var(--tcb-slate-500);
-}
-
-/* ─── Training Linkage cell — multi-tag UI ───────────────────────────────────*/
-
-/* Read-only view: just tags, no interactive chrome */
-.linkageCellReadOnly {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-/* Editable wrapper: tags row + collapsible dropdown below */
-.linkageCellWrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-}
-
-/* Horizontal row of tags + trigger button */
-.linkageTagsRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  min-height: 26px;
-}
-
-/* Individual training area badge */
-.trainingAreaBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px 2px 6px;
-  border-radius: 20px;
-  font-size: var(--tcb-font-size-xs);
-  font-weight: 700;
-  white-space: nowrap;
-  border: 1px solid transparent;
-  line-height: 1.6;
-  transition: box-shadow 0.12s;
-}
-
-.trainingAreaBadge:hover {
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-}
-
-/* Remove button inside badge */
-.trainingAreaBadgeRemove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  border-radius: 50%;
-  width: 14px;
-  height: 14px;
-  margin-left: 1px;
-  flex-shrink: 0;
-  opacity: 0.6;
-  transition: opacity 0.12s, background 0.12s;
-}
-
-.trainingAreaBadgeRemove:hover {
-  opacity: 1;
-  background: rgba(0,0,0,0.08);
-}
-
-/* "Add linkage" trigger — icon-only pill button */
-.linkageAddTrigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px 7px;
-  border-radius: 20px;
-  border: 1px dashed var(--tcb-slate-300);
-  background: var(--tcb-slate-50);
-  color: var(--tcb-slate-400);
-  cursor: pointer;
-  font-size: var(--tcb-font-size-xs);
-  font-weight: 600;
-  transition: border-color 0.13s, background 0.13s, color 0.13s, box-shadow 0.13s;
-  flex-shrink: 0;
-}
-
-.linkageAddTrigger:hover {
-  border-color: var(--tcb-blue-600);
-  background: var(--tcb-blue-50);
-  color: var(--tcb-blue-800);
-  box-shadow: 0 1px 4px rgba(59,130,246,0.12);
-}
-
-/* Active state when dropdown is open */
-.linkageAddTriggerActive {
-  border-color: var(--tcb-blue-600);
-  background: var(--tcb-blue-50);
-  color: var(--tcb-blue-800);
-  border-style: solid;
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.12);
-}
-
-/* Dropdown that expands below the tags row */
-.linkageDropdownWrapper {
-  margin-top: 2px;
-  animation: tcbDropdownReveal 0.15s ease forwards;
-  position: relative;
-  z-index: 10;
-}
-
-/* Empty state placeholder */
-.linkageEmptyPlaceholder {
-  font-size: var(--tcb-font-size-sm);
-  color: var(--tcb-slate-300);
 }
 
 /* Row action button (delete objective) */
@@ -995,144 +1062,94 @@
   text-align: right;
 }
 
-/* ─── Training linkage summary panel ─────────────────────────────────────────*/
-
-.linkagePanelWrapper {
-  margin-bottom: 24px;
-  border: 1px solid var(--tcb-sky-100);
-  border-radius: var(--tcb-radius-xl);
-  overflow: hidden;
-  background: var(--tcb-white);
-}
-
-.linkagePanelTrigger {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--tcb-space-lg) 24px;
-  background: var(--tcb-sky-50);
-  border: none;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.linkagePanelTrigger:hover { background: #e0f2fe; }
-.linkagePanelTriggerOpen   { border-bottom: 1px solid var(--tcb-sky-100); }
-
-.linkagePanelTriggerLeft  { display: flex; align-items: center; gap: var(--tcb-space-md); }
-.linkagePanelTriggerRight { display: flex; align-items: center; gap: var(--tcb-space-md); }
-
-.linkagePanelIconWrapper {
-  background: var(--tcb-sky-500);
-  border-radius: var(--tcb-radius-sm);
-  padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.linkagePanelTitleText { text-align: left; }
-.linkagePanelTitle     { font-weight: 700; color: var(--tcb-sky-700); font-size: var(--tcb-font-size-lg); }
-.linkagePanelSubtitle  { font-size: var(--tcb-font-size-base); color: #0284c7; margin-top: 1px; }
-
-.linkageProgressWrapper { display: flex; align-items: center; gap: var(--tcb-space-sm); }
-
-.linkageProgressTrack {
-  width: 120px;
-  height: 8px;
-  background: var(--tcb-sky-100);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.linkageProgressFill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.6s ease;
-}
-
-.linkageProgressFillComplete { background: var(--tcb-green-500); }
-.linkageProgressFillPartial  { background: var(--tcb-sky-500); }
-
-.linkageProgressPct {
-  font-size: var(--tcb-font-size-base);
-  font-weight: 700;
-  color: var(--tcb-sky-700);
-}
-
-.linkagePanelBody { background: var(--tcb-white); padding: var(--tcb-space-lg) 24px; }
-
-.linkagePanelEmpty {
-  text-align: center;
-  padding: 24px;
-  color: var(--tcb-slate-400);
-  font-size: var(--tcb-font-size-md);
-}
-
-.linkageAreaGrid { display: grid; gap: 14px; }
-
-.linkageAreaCard {
-  padding: 14px 18px;
-  border-radius: var(--tcb-radius-lg);
-  border: 1px solid transparent;
-}
-
-.linkageAreaHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--tcb-space-sm);
-}
-
-.linkageAreaHeaderLeft { display: flex; align-items: center; gap: var(--tcb-space-sm); }
-
-.linkageAreaDot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.linkageAreaName   { font-weight: 700; font-size: var(--tcb-font-size-md); }
-.linkageAreaMeta   { font-size: var(--tcb-font-size-sm); opacity: 0.75; }
-.linkageAreaPct    { font-weight: 800; font-size: var(--tcb-font-size-lg); }
-
-.linkageAreaBarTrack {
-  height: 10px;
-  background: rgba(255,255,255,0.6);
-  border-radius: 5px;
-  overflow: hidden;
-  margin-bottom: var(--tcb-space-sm);
-}
-
-.linkageAreaBarFill {
-  height: 100%;
-  border-radius: 5px;
-  transition: width 0.6s ease;
-}
-
-.linkageAreaChips { display: flex; flex-wrap: wrap; gap: 6px; }
-
-.linkageAreaChip {
-  font-size: var(--tcb-font-size-sm);
-  padding: 3px var(--tcb-space-sm);
-  border-radius: 20px;
-  background: rgba(255,255,255,0.8);
-  border: 1px solid transparent;
-  font-weight: 600;
-}
+/* ─── Distribution strategy section ──────────────────────────────────────────*/
 
 /* ─── Distribution strategy section ──────────────────────────────────────────*/
+
+/* Logic note banner */
+.distributionLogicNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: var(--tcb-radius-md);
+  padding: 10px 14px;
+  margin-bottom: 20px;
+}
+
+.distributionLogicIcon {
+  color: var(--tcb-sky-700);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.distributionLogicText {
+  font-size: var(--tcb-font-size-base);
+  color: #0369a1;
+  margin: 0;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.distributionLogicText strong {
+  font-weight: 700;
+}
 
 .distributionGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+  margin-bottom: 4px;
 }
 
 @media (max-width: 700px) {
   .distributionGrid { grid-template-columns: 1fr; }
+}
+
+/* Assignment summary (read-only view) */
+.assignmentSummary {
+  margin-top: 18px;
+  padding: 14px 16px;
+  background: var(--tcb-slate-50);
+  border: 1px solid var(--tcb-slate-200);
+  border-radius: var(--tcb-radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.assignmentSummaryRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.assignmentSummaryLabel {
+  font-size: var(--tcb-font-size-xs);
+  font-weight: 700;
+  color: var(--tcb-slate-400);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  padding-top: 3px;
+  min-width: 100px;
+}
+
+.assignmentSummaryTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.assignmentSummaryBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: var(--tcb-font-size-sm);
+  font-weight: 600;
+  border: 1px solid transparent;
 }
 
 /* ─── Action buttons row ─────────────────────────────────────────────────────*/
@@ -1256,5 +1273,3 @@
   .categoriesOuterCard { padding: 20px 16px; }
   .sectionCard         { padding: var(--tcb-space-lg); }
 }
-
-

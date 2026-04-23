@@ -2,15 +2,14 @@
 app.py — PMS Template Management Backend
 
 Changes in this version:
-  - Training linkage: templates now store trainingLinkageIds (array) per objective
-    instead of the legacy scalar trainingLinkageId.  Backward-compat migration
-    runs on GET /templates: any objective that has a scalar trainingLinkageId
-    but no trainingLinkageIds array is automatically promoted to a single-element
-    array so old saved templates continue to work.
+  - Training linkage removed from templates entirely.
   - max_score removed from BasicInfo form concept; per-objective kpiMaxScore
     takes precedence, with the template-level max_score as the fallback default.
   - assign_template fixed: employee + role/dept combinations all persist correctly.
   - PMS cycle management routes: /pms-cycles/close and /pms-cycles/open-next.
+  - sync_cycle_dates_from_constants() runs on startup: changing constants in
+    app.py automatically pushes recomputed dates to the active DB cycle so
+    freeze logic always reflects the latest constants without manual SQL.
 """
 
 from flask import Flask, request, jsonify
@@ -34,45 +33,68 @@ SUPABASE_KEY = (
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Freeze constants (mirror lib/freezeConfig.ts exactly) ────────────────────
-OBJECTIVE_SETTING_MONTHS = 2    # window closes 31 Aug
-GRACE_PERIOD_DAYS        =15   # hard freeze 15 Sep
+# These are the SINGLE SOURCE OF TRUTH for freeze window durations.
+# On every app startup, sync_cycle_dates_from_constants() recomputes and
+# pushes objective_setting_end + grace_period_end to the active DB cycle
+# so that changing a constant here is all you need to do — no manual SQL.
+OBJECTIVE_SETTING_MONTHS = 12    # window closes 2 months after PMS start
+GRACE_PERIOD_DAYS        = 15   # hard freeze 15 days after objective window
 PMS_START_MONTH          = 7    # July (1-based)
 PMS_START_DAY            = 1
 DEFAULT_MAX_SCORE        = 5    # default appraisal rating scale
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MIGRATION HELPERS
+# STARTUP SYNC
 # ─────────────────────────────────────────────────────────────────────────────
 
-def migrate_objective_linkage(obj: dict) -> dict:
+def sync_cycle_dates_from_constants() -> None:
     """
-    Ensures every objective has a trainingLinkageIds list (not a scalar).
-    Old templates stored a scalar trainingLinkageId; new ones use an array.
-    This is a non-destructive, read-time migration — the DB row is unchanged.
+    Runs once when app.py starts.
+
+    Recomputes objective_setting_end and grace_period_end from the current
+    constants and writes them back to the active pms_cycle row in the DB.
+
+    Why this exists:
+      - The DB stores dates so the frontend can display them.
+      - The constants define the business rules (how long each window is).
+      - Without this sync, changing a constant has no effect because
+        compute_freeze_dates_from_cycle() reads the stored DB dates.
+      - With this sync, changing a constant + restarting the app is enough
+        to update the entire system — no manual SQL needed.
     """
-    if "trainingLinkageIds" not in obj or obj["trainingLinkageIds"] is None:
-        legacy_id = obj.get("trainingLinkageId")
-        obj["trainingLinkageIds"] = [legacy_id] if legacy_id is not None else []
-    # Remove the scalar key so the frontend only sees the canonical array form
-    obj.pop("trainingLinkageId", None)
-    return obj
+    try:
+        result = (
+            supabase.table("pms_cycles")
+            .select("*")
+            .eq("is_active", True)
+            .order("pms_year", desc=True)
+            .limit(1)
+            .execute()
+        )
 
+        if not result.data:
+            print("⚠️  sync_cycle_dates_from_constants: no active cycle found — skipping.")
+            return
 
-def migrate_categories(categories: list | None) -> list:
-    """Applies migrate_objective_linkage to every objective in every category."""
-    if not categories:
-        return categories or []
-    return [
-        {
-            **cat,
-            "objectives": [
-                migrate_objective_linkage(dict(obj))
-                for obj in (cat.get("objectives") or [])
-            ],
-        }
-        for cat in categories
-    ]
+        cycle     = result.data[0]
+        pms_start = datetime.fromisoformat(cycle["pms_start"]).date()
+
+        objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
+        grace_end     = objective_end + timedelta(days=GRACE_PERIOD_DAYS)
+
+        supabase.table("pms_cycles").update({
+            "objective_setting_end": objective_end.isoformat(),
+            "grace_period_end":      grace_end.isoformat(),
+        }).eq("id", cycle["id"]).execute()
+
+        print(
+            f"✅ sync_cycle_dates_from_constants: cycle {cycle['pms_year']} updated → "
+            f"objective_end={objective_end}, grace_end={grace_end}"
+        )
+
+    except Exception as error:
+        print(f"❌ sync_cycle_dates_from_constants failed: {error}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -98,9 +120,22 @@ def get_active_pms_cycle() -> dict | None:
 
 
 def compute_freeze_dates_from_cycle(cycle: dict) -> dict:
-    pms_start     = datetime.fromisoformat(cycle["pms_start"]).date()
-    objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
+    """
+    Reads freeze dates directly from the DB cycle row.
+    These dates are always in sync with the constants because
+    sync_cycle_dates_from_constants() rewrites them on every startup.
+    """
+    pms_start = datetime.fromisoformat(cycle["pms_start"]).date()
 
+    # objective_setting_end is written by sync on startup — use it directly
+    if cycle.get("objective_setting_end"):
+        objective_end = datetime.fromisoformat(cycle["objective_setting_end"]).date()
+    else:
+        # Fallback: recompute from constants (handles brand-new cycles created
+        # before the sync had a chance to run)
+        objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
+
+    # grace_period_end is also written by sync on startup — use it directly
     if cycle.get("grace_period_end"):
         grace_end = datetime.fromisoformat(cycle["grace_period_end"]).date()
     else:
@@ -114,6 +149,10 @@ def compute_freeze_dates_from_cycle(cycle: dict) -> dict:
 
 
 def compute_freeze_dates_from_constants() -> dict:
+    """
+    Fallback used only when there is NO active cycle in the DB at all.
+    Computes dates purely from constants + today's date.
+    """
     today = date.today()
     year  = today.year
 
@@ -149,69 +188,6 @@ def can_role_edit(level: int) -> bool:
 
 def get_request_level() -> int:
     return int(request.headers.get("X-User-Level", 1))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TRAINING AREAS ROUTES
-# ─────────────────────────────────────────────────────────────────────────────
-
-@app.route("/training-areas", methods=["GET"])
-def get_training_areas():
-    """Returns all active training areas sorted by sort_order."""
-    try:
-        areas = (
-            supabase.table("training_areas")
-            .select("*")
-            .eq("is_active", True)
-            .order("sort_order")
-            .execute()
-            .data
-        )
-        return jsonify(areas), 200
-    except Exception as error:
-        return jsonify({"error": str(error)}), 400
-
-
-@app.route("/training-areas", methods=["POST"])
-def create_training_area():
-    """
-    Creates a custom training area in the database.
-    NOTE: color and bg_color are UI-only; they are derived from the area ID
-    on the frontend and are NOT stored from the request.
-    Only the name is stored permanently.
-    """
-    try:
-        level = get_request_level()
-        if level > 1:
-            return jsonify({"error": "Only HQ Admin can create training areas."}), 403
-
-        data = request.get_json()
-        name = (data.get("name") or "").strip()
-        if not name:
-            return jsonify({"error": "name is required"}), 400
-
-        # Prevent duplicates (case-insensitive)
-        existing = (
-            supabase.table("training_areas")
-            .select("id, name")
-            .ilike("name", name)
-            .execute()
-        )
-        if existing.data:
-            return jsonify(existing.data[0]), 200
-
-        all_areas = supabase.table("training_areas").select("sort_order").execute().data
-        max_order = max((a["sort_order"] or 0 for a in all_areas), default=0)
-
-        result = supabase.table("training_areas").insert({
-            "name":       name,
-            "sort_order": max_order + 1,
-            "is_active":  True,
-        }).execute()
-
-        return jsonify(result.data[0]), 200
-    except Exception as error:
-        return jsonify({"error": str(error)}), 400
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -287,13 +263,14 @@ def create_pms_cycle():
         supabase.table("pms_cycles").update({"is_active": False}).eq("is_active", True).execute()
 
         result = supabase.table("pms_cycles").insert({
-            "pms_year":          int(year),
-            "pms_start":         pms_start.isoformat(),
-            "mid_year_review":   data.get("mid_year_review"),
-            "year_end_review":   data.get("year_end_review"),
-            "grace_period_end":  data.get("grace_period_end", grace_end.isoformat()),
-            "is_active":         True,
-            "created_at":        datetime.now().isoformat(),
+            "pms_year":              int(year),
+            "pms_start":             pms_start.isoformat(),
+            "objective_setting_end": objective_end.isoformat(),
+            "mid_year_review":       data.get("mid_year_review"),
+            "year_end_review":       data.get("year_end_review"),
+            "grace_period_end":      grace_end.isoformat(),
+            "is_active":             True,
+            "created_at":            datetime.now().isoformat(),
         }).execute()
 
         return jsonify(result.data[0]), 200
@@ -318,6 +295,8 @@ def update_pms_cycle(cycle_id):
             update_payload["year_end_review"] = data["year_end_review"]
         if data.get("grace_period_end"):
             update_payload["grace_period_end"] = data["grace_period_end"]
+        if data.get("objective_setting_end"):
+            update_payload["objective_setting_end"] = data["objective_setting_end"]
 
         if update_payload:
             supabase.table("pms_cycles").update(update_payload).eq("id", cycle_id).execute()
@@ -350,13 +329,13 @@ def open_next_pms_cycle():
     """
     HQ Admin opens the next PMS cycle.
     Automatically determines the next year, closes the current cycle,
-    and creates the new one with computed dates.
+    and creates the new one with dates computed from the current constants.
 
     Annual continuation design:
       1. HQ Admin clicks "Open Next PMS Cycle" in the UI once per year.
       2. This endpoint deactivates the current cycle and inserts a new row
          for the next year with pms_start = 1 July <next_year>.
-      3. All freeze dates are computed from the new pms_start.
+      3. All freeze dates are computed from constants + new pms_start.
       4. Frontend immediately reflects the new cycle.
     """
     try:
@@ -379,13 +358,14 @@ def open_next_pms_cycle():
         data = request.get_json() or {}
 
         result = supabase.table("pms_cycles").insert({
-            "pms_year":          next_year,
-            "pms_start":         pms_start.isoformat(),
-            "mid_year_review":   data.get("mid_year_review"),
-            "year_end_review":   data.get("year_end_review"),
-            "grace_period_end":  grace_end.isoformat(),
-            "is_active":         True,
-            "created_at":        datetime.now().isoformat(),
+            "pms_year":              next_year,
+            "pms_start":             pms_start.isoformat(),
+            "objective_setting_end": objective_end.isoformat(),
+            "mid_year_review":       data.get("mid_year_review"),
+            "year_end_review":       data.get("year_end_review"),
+            "grace_period_end":      grace_end.isoformat(),
+            "is_active":             True,
+            "created_at":            datetime.now().isoformat(),
         }).execute()
 
         return jsonify({
@@ -402,11 +382,7 @@ def open_next_pms_cycle():
 
 @app.route("/templates", methods=["POST"])
 def save_template():
-    """
-    Create a new template.
-    Objectives may carry a trainingLinkageIds list (array of area IDs).
-    The scalar trainingLinkageId is no longer used in new saves.
-    """
+    """Create a new template."""
     try:
         data = request.get_json()
         now  = datetime.now().isoformat()
@@ -414,14 +390,11 @@ def save_template():
         active_cycle = get_active_pms_cycle()
         cycle_id     = active_cycle["id"] if active_cycle else None
 
-        # Normalise categories before storing: migrate linkage to array form
-        categories = migrate_categories(data.get("categories"))
-
         result = supabase.table("templates").insert({
             "name":          data.get("name"),
             "description":   data.get("description"),
             "max_score":     data.get("max_score", DEFAULT_MAX_SCORE),
-            "categories":    categories,
+            "categories":    data.get("categories"),
             "total_weight":  data.get("totalWeight"),
             "pms_cycle_id":  cycle_id,
             "status":        "active",
@@ -475,9 +448,6 @@ def get_templates():
             if template.get("max_score") is None:
                 template["max_score"] = DEFAULT_MAX_SCORE
 
-            # Read-time migration: ensure every objective uses trainingLinkageIds array
-            template["categories"] = migrate_categories(template.get("categories"))
-
         return jsonify(templates), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
@@ -493,7 +463,6 @@ def get_single_template(template_id):
         template = result.data
         if template.get("max_score") is None:
             template["max_score"] = DEFAULT_MAX_SCORE
-        template["categories"] = migrate_categories(template.get("categories"))
         return jsonify(template), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
@@ -515,14 +484,11 @@ def update_template(template_id):
         data = request.get_json()
         now  = datetime.now().isoformat()
 
-        # Normalise categories: ensure trainingLinkageIds arrays before storing
-        categories = migrate_categories(data.get("categories"))
-
         update_payload = {
             "name":         data.get("name"),
             "description":  data.get("description"),
             "max_score":    data.get("max_score", DEFAULT_MAX_SCORE),
-            "categories":   categories,
+            "categories":   data.get("categories"),
             "total_weight": data.get("totalWeight"),
             "lastModified": now,
         }
@@ -597,14 +563,7 @@ def get_my_templates():
             return jsonify([]), 200
 
         all_templates = supabase.table("templates").select("*").execute().data
-        my_templates  = [
-            {
-                **t,
-                "categories": migrate_categories(t.get("categories")),
-            }
-            for t in all_templates
-            if t["id"] in matched_template_ids
-        ]
+        my_templates  = [t for t in all_templates if t["id"] in matched_template_ids]
 
         return jsonify(my_templates), 200
     except Exception as error:
@@ -753,7 +712,6 @@ def assign_template():
         return jsonify({"message": "Template assigned successfully"}), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
-    
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -836,4 +794,5 @@ def add_employee():
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    sync_cycle_dates_from_constants()   # ← push constants → DB on every startup
     app.run(debug=True, port=5000)
