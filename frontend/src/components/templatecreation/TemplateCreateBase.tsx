@@ -2,23 +2,22 @@
 
 // components/TemplateCreateBase.tsx
 //
-// Training linkage — multi-tag per objective (array, not scalar).
+// Training linkage removed.
 // KPI Scale Control Card — below the tables.
-// Table layout — fixed structured layout, no horizontal X-axis scroll section below.
+// Table layout — fixed structured layout, no horizontal scroll.
 // Consistent camelCase naming; no magic numbers; separate CSS file.
 // KPI Scales — grouped dropdown: Interpolated (8), Bracket (4, one inverse), Manual (1).
+// Dropdown arrows removed from KPI Scale and Control selects — badge-click triggers menu.
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Select from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { toast } from "sonner";
 import {
-  BookOpen, ChevronDown, ChevronUp,
-  AlertCircle, Eye, Lock, Unlock,
+  Eye, Lock, Unlock,
   Settings2, Sliders, Plus, Trash2,
   TrendingUp, TrendingDown, SlidersHorizontal,
-  Tag, X,
 } from "lucide-react";
 import {
   computeFreezeDates,
@@ -36,17 +35,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000"
 const DEFAULT_MAX_SCORE    = 5;
 const MAX_SCORE_OPTIONS    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
-/**
- * Training area IDs 1–8 are the PRD-defined defaults (seeded in DB).
- * Any ID above this boundary was created by an admin at runtime.
- */
-const PRD_AREA_ID_BOUNDARY = 8;
-
 // ─── KPI Scale Options — grouped (Interpolated / Bracket / Manual) ────────────
-// Each entry maps to a specific calculation method from the Excel rating log.
 
 const KPI_SCALE_OPTIONS = [
-  // ── INTERPOLATED ── continuous linear scoring between lower & upper limits
   {
     value:     "interpolated_financial",
     label:     "Financial Achievement",
@@ -119,7 +110,6 @@ const KPI_SCALE_OPTIONS = [
     badge:     { bg: "#eff6ff", color: "#1e40af", border: "#bfdbfe" },
     icon:      <TrendingUp size={13} color="#1e40af" />,
   },
-  // ── BRACKET ── stepped band ratings — value falls into a defined range
   {
     value:     "bracket_statutory",
     label:     "Statutory & Legal Compliance",
@@ -156,7 +146,6 @@ const KPI_SCALE_OPTIONS = [
     badge:     { bg: "#fef3c7", color: "#92400e", border: "#fde68a" },
     icon:      <SlidersHorizontal size={13} color="#92400e" />,
   },
-  // ── MANUAL ── appraiser enters score directly
   {
     value:     "manual",
     label:     "Manual Rating (1–5)",
@@ -168,14 +157,12 @@ const KPI_SCALE_OPTIONS = [
   },
 ] as const;
 
-// Grouped structure consumed by react-select formatGroupLabel
 const KPI_SCALE_GROUPS = [
   { groupKey: "interpolated", groupLabel: "INTERPOLATED", color: "#1e40af" },
   { groupKey: "bracket",      groupLabel: "BRACKET",      color: "#92400e" },
   { groupKey: "manual",       groupLabel: "MANUAL",       color: "#166534" },
 ] as const;
 
-// Helper — resolve a kpiScale value string → option object (with fallback)
 function resolveKpiOption(value: string | undefined) {
   return (
     KPI_SCALE_OPTIONS.find((o) => o.value === (value ?? "interpolated_financial")) ??
@@ -190,88 +177,26 @@ const CONTROL_OPTIONS = [
   { value: "Editable", label: "Editable", badge: { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" } },
 ] as const;
 
-// ─── PRD training area IDs (1–8, matches DB seed) ────────────────────────────
-
-const TRAINING_AREA_ID = {
-  JOB_SPECIFIC_SKILLS:  1,
-  GUEST_SENSITIVITY:    2,
-  TEAMWORK:             3,
-  COMMUNICATION_SKILLS: 4,
-  COMPLAINT_HANDLING:   5,
-  PRODUCT_KNOWLEDGE:    6,
-  SERVICE_ORIENTATION:  7,
-  OTHER:                8,
-} as const;
-
-// ─── UI-only training area colours ────────────────────────────────────────────
-
-const PRD_UI_COLORS: Record<number, AreaColors> = {
-  [TRAINING_AREA_ID.JOB_SPECIFIC_SKILLS]:  { color: "#3b82f6", bgColor: "#eff6ff", borderColor: "#bfdbfe" },
-  [TRAINING_AREA_ID.GUEST_SENSITIVITY]:    { color: "#8b5cf6", bgColor: "#f5f3ff", borderColor: "#ddd6fe" },
-  [TRAINING_AREA_ID.TEAMWORK]:             { color: "#059669", bgColor: "#ecfdf5", borderColor: "#a7f3d0" },
-  [TRAINING_AREA_ID.COMMUNICATION_SKILLS]: { color: "#0891b2", bgColor: "#ecfeff", borderColor: "#a5f3fc" },
-  [TRAINING_AREA_ID.COMPLAINT_HANDLING]:   { color: "#dc2626", bgColor: "#fff1f2", borderColor: "#fecaca" },
-  [TRAINING_AREA_ID.PRODUCT_KNOWLEDGE]:    { color: "#d97706", bgColor: "#fffbeb", borderColor: "#fde68a" },
-  [TRAINING_AREA_ID.SERVICE_ORIENTATION]:  { color: "#7c3aed", bgColor: "#faf5ff", borderColor: "#e9d5ff" },
-  [TRAINING_AREA_ID.OTHER]:               { color: "#64748b", bgColor: "#f8fafc", borderColor: "#e2e8f0" },
-};
-
-const FALLBACK_UI_COLOR: AreaColors = {
-  color: "#64748b", bgColor: "#f8fafc", borderColor: "#e2e8f0",
-};
-
-function resolveAreaColors(id: number | null): AreaColors {
-  if (id === null || id === 0) return FALLBACK_UI_COLOR;
-  return PRD_UI_COLORS[id] ?? FALLBACK_UI_COLOR;
-}
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface AreaColors {
-  color:       string;
-  bgColor:     string;
-  borderColor: string;
-}
-
-interface TrainingArea {
-  id:          number;
-  name:        string;
-  color:       string;
-  bgColor:     string;
-  borderColor: string;
-}
-
 interface ObjectiveRow {
-  name:               string;
-  kpiScale:           string;
-  weight:             number | string | null;
-  control:            string;
-  mandatory:          boolean;
-  trainingTags:       string[];
-  trainingLinkageIds: Array<number | string>;
-  kpiMaxScore:        number | null;
+  name:        string;
+  kpiScale:    string;
+  weight:      number | string | null;
+  control:     string;
+  mandatory:   boolean;
+  kpiMaxScore: number | null;
 }
 
 interface CategoryRow {
   name:         string;
   weight:       number;
   mandatory:    boolean;
-  trainingTags: string[];
   objectives:   ObjectiveRow[];
 }
 
 interface TemplateCreateBaseProps {
   level?: number;
-}
-
-// ─── Training area option builder ─────────────────────────────────────────────
-
-function buildTrainingAreaOptions(dbAreas: TrainingArea[]) {
-  return dbAreas.map((area) => ({
-    value:    String(area.id),
-    label:    area.name,
-    isCustom: area.id > PRD_AREA_ID_BOUNDARY,
-  }));
 }
 
 // ─── react-select style factories ─────────────────────────────────────────────
@@ -313,25 +238,31 @@ function buildBaseSelectStyles(): any {
   };
 }
 
-function buildTableSelectStyles(isDisabled: boolean): any {
+// Table cell select — no arrow, transparent background, badge-click opens menu
+function buildTableSelectStyles(): any {
   return {
     control: (base: any) => ({
       ...base,
-      borderRadius: "20px", border: "none", padding: "0", minHeight: "28px",
-      boxShadow: "none", background: "transparent",
-      cursor: isDisabled ? "not-allowed" : "pointer",
+      border: "none",
+      background: "transparent",
+      minHeight: "unset",
+      boxShadow: "none",
+      cursor: "pointer",
+      padding: 0,
       "&:hover": {},
     }),
-    valueContainer:      (base: any) => ({ ...base, padding: "0" }),
-    indicatorsContainer: (base: any) => ({ ...base, display: isDisabled ? "none" : "flex" }),
-    dropdownIndicator:   (base: any) => ({ ...base, padding: "0 4px", color: "#94a3b8" }),
-    indicatorSeparator:  () => ({ display: "none" }),
+    valueContainer:      (base: any) => ({ ...base, padding: 0 }),
+    indicatorsContainer: () => ({ display: "none" }),
     singleValue:         (base: any) => ({ ...base, margin: 0 }),
     menu: (base: any) => ({
       ...base, borderRadius: "12px",
       boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
       border: "1px solid #f1f5f9", marginTop: "6px", padding: "4px",
-      zIndex: 9999, minWidth: "260px",
+      zIndex: 9999, minWidth: "220px",
+    }),
+    menuList: (base: any) => ({
+      ...base, maxHeight: "200px",
+      paddingTop: 0, paddingBottom: 0,
     }),
     option: (base: any, { isFocused, isSelected }: any) => ({
       ...base,
@@ -340,11 +271,59 @@ function buildTableSelectStyles(isDisabled: boolean): any {
       padding: "8px 12px", borderRadius: "8px",
       cursor: "pointer", fontSize: "12px", fontWeight: "600",
     }),
+  };
+}
+
+// KPI scale select — wide boxed input, tall menu showing all options at once
+function buildKpiSelectStyles(): any {
+  return {
+    control: (base: any, { isFocused }: any) => ({
+      ...base,
+      border:       isFocused ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0",
+      borderRadius: "8px",
+      background:   "#fff",
+      minHeight:    "36px",
+      boxShadow:    isFocused ? "0 0 0 3px rgba(59,130,246,0.1)" : "none",
+      cursor:       "pointer",
+      padding:      "0 8px",
+      transition:   "border-color 0.15s, box-shadow 0.15s",
+      "&:hover":    { borderColor: "#3b82f6" },
+    }),
+    valueContainer:      (base: any) => ({ ...base, padding: "0 2px" }),
+    indicatorsContainer: () => ({ display: "none" }), // no arrow
+    singleValue:         (base: any) => ({ ...base, margin: 0 }),
+    placeholder: (base: any) => ({
+      ...base, color: "#94a3b8", fontSize: "12px", fontWeight: "500",
+    }),
+    menu: (base: any) => ({
+      ...base, borderRadius: "12px",
+      boxShadow: "0 12px 32px rgba(0,0,0,0.14)",
+      border: "1px solid #e8edf5",
+      marginTop: "4px", padding: "6px",
+      zIndex: 9999,
+      // wide enough to read every label clearly
+      minWidth: "320px",
+    }),
+    menuList: (base: any) => ({
+      ...base,
+      // tall enough to show all 13 options + group headers without scrolling
+      maxHeight: "520px",
+      paddingTop: 0, paddingBottom: 0,
+      overflowY: "auto",
+    }),
+    option: (base: any, { isFocused, isSelected }: any) => ({
+      ...base,
+      backgroundColor: isSelected ? "#3b82f6" : isFocused ? "#eff6ff" : "transparent",
+      color:           isSelected ? "#fff"     : "#475569",
+      padding: "7px 10px", borderRadius: "7px",
+      cursor: "pointer", fontSize: "12px", fontWeight: "600",
+    }),
     groupHeading: (base: any) => ({
       ...base,
       fontSize: "10px", fontWeight: "800", letterSpacing: "0.08em",
-      padding: "6px 12px 2px", textTransform: "uppercase",
-      borderTop: "1px solid #f1f5f9", marginTop: "4px",
+      padding: "8px 10px 3px", textTransform: "uppercase",
+      borderTop: "1px solid #f1f5f9", marginTop: "2px",
+      color: "#94a3b8",
     }),
   };
 }
@@ -391,18 +370,25 @@ const KpiScaleOptionRenderer = ({ data, innerProps, isSelected, isFocused }: any
   </div>
 );
 
+// Clickable KPI badge — entire pill is the trigger, no arrow
 const KpiScaleBadge = ({ opt, isDisabled }: { opt: any; isDisabled: boolean }) => (
-  <span style={{
-    display: "inline-flex", alignItems: "center", gap: "5px",
-    padding: "3px 10px", borderRadius: "20px",
-    fontSize: "11px", fontWeight: "700", whiteSpace: "nowrap",
-    background: isDisabled ? "#f1f5f9" : opt.badge.bg,
-    color:      isDisabled ? "#94a3b8" : opt.badge.color,
-    border:     `1px solid ${isDisabled ? "#e2e8f0" : opt.badge.border}`,
-    maxWidth:   "175px", overflow: "hidden", textOverflow: "ellipsis",
-  }}>
+  <span
+    title={isDisabled ? undefined : `Click to change · ${opt.hint}`}
+    style={{
+      display: "inline-flex", alignItems: "center", gap: "5px",
+      padding: "4px 10px", borderRadius: "20px",
+      fontSize: "11px", fontWeight: "700", whiteSpace: "nowrap",
+      background: isDisabled ? "#f1f5f9" : opt.badge.bg,
+      color:      isDisabled ? "#94a3b8" : opt.badge.color,
+      border:     `1px solid ${isDisabled ? "#e2e8f0" : opt.badge.border}`,
+      cursor:     isDisabled ? "default" : "pointer",
+      userSelect: "none",
+      // wide enough to always show full label
+      maxWidth:   "none",
+    }}
+  >
     {!isDisabled && <span style={{ flexShrink: 0 }}>{opt.icon}</span>}
-    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{opt.label}</span>
+    <span>{opt.label}</span>
     {opt.isInverse && !isDisabled && (
       <span style={{
         fontSize: "9px", fontWeight: "700", padding: "1px 4px", borderRadius: "3px",
@@ -430,286 +416,115 @@ const ControlOptionRenderer = ({ data, innerProps, isSelected, isFocused }: any)
   </div>
 );
 
+// Clickable control badge — no arrow
 const ControlBadge = ({ opt, isDisabled }: { opt: any; isDisabled: boolean }) => (
-  <span style={{
-    display: "inline-flex", alignItems: "center", gap: "4px",
-    padding: "3px 10px", borderRadius: "20px",
-    fontSize: "11px", fontWeight: "700", whiteSpace: "nowrap",
-    background: isDisabled ? "#f1f5f9" : opt.badge.bg,
-    color:      isDisabled ? "#94a3b8" : opt.badge.color,
-    border:     `1px solid ${isDisabled ? "#e2e8f0" : opt.badge.border}`,
-  }}>
+  <span
+    title={isDisabled ? undefined : "Click to toggle"}
+    style={{
+      display: "inline-flex", alignItems: "center", gap: "4px",
+      padding: "4px 10px", borderRadius: "20px",
+      fontSize: "11px", fontWeight: "700", whiteSpace: "nowrap",
+      background: isDisabled ? "#f1f5f9" : opt.badge.bg,
+      color:      isDisabled ? "#94a3b8" : opt.badge.color,
+      border:     `1px solid ${isDisabled ? "#e2e8f0" : opt.badge.border}`,
+      cursor:     isDisabled ? "default" : "pointer",
+      userSelect: "none",
+    }}
+  >
     {opt.value === "Locked" ? <Lock size={10} /> : <Unlock size={10} />}
     {opt.label}
   </span>
 );
 
-const TrainingAreaBadge = ({ area, onRemove }: {
-  area: AreaColors & { name: string };
-  onRemove?: () => void;
-}) => (
-  <span
-    className={styles.trainingAreaBadge}
-    style={{ background: area.bgColor, color: area.color, borderColor: area.borderColor }}
-  >
-    <Tag size={9} style={{ flexShrink: 0 }} />
-    {area.name}
-    {onRemove && (
-      <button
-        className={styles.trainingAreaBadgeRemove}
-        onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        style={{ color: area.color }}
-        aria-label={`Remove ${area.name}`}
-        type="button"
-      >
-        <X size={9} />
-      </button>
-    )}
-  </span>
-);
-
-// ─── MultiLinkageCell ─────────────────────────────────────────────────────────
-
-interface MultiLinkageCellProps {
-  linkageIds:          Array<number | string>;
-  isReadOnly:          boolean;
-  dbTrainingAreas:     TrainingArea[];
-  trainingAreaOptions: { value: string; label: string; isCustom: boolean }[];
-  onAdd:               (id: number | string) => void;
-  onRemove:            (id: number | string) => void;
-  onCreateNew:         (inputValue: string) => void;
-}
-
-function MultiLinkageCell({
-  linkageIds, isReadOnly, dbTrainingAreas, trainingAreaOptions,
-  onAdd, onRemove, onCreateNew,
-}: MultiLinkageCellProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isExpanded) return;
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setIsExpanded(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [isExpanded]);
-
-  const resolveArea = (id: number | string): (AreaColors & { name: string }) | null => {
-    const numId  = Number(id);
-    const dbArea = isNaN(numId)
-      ? dbTrainingAreas.find((a) => a.name === String(id))
-      : dbTrainingAreas.find((a) => a.id === numId);
-    const name = dbArea?.name ?? (id !== null ? String(id) : null);
-    if (!name) return null;
-    return { name, ...resolveAreaColors(dbArea?.id ?? null) };
-  };
-
-  const alreadySelectedValues = new Set(linkageIds.map(String));
-  const availableOptions = trainingAreaOptions.filter(
-    (opt) => !alreadySelectedValues.has(opt.value),
-  );
-
-  const dropdownSelectStyles: any = {
-    control: (base: any, { isFocused }: any) => ({
-      ...base,
-      borderRadius: "8px",
-      border:       isFocused ? "1.5px solid #3b82f6" : "1px solid #e2e8f0",
-      minHeight:    "32px",
-      boxShadow:    isFocused ? "0 0 0 3px rgba(59,130,246,0.08)" : "none",
-      fontSize:     "12px", fontWeight: "500", background: "#fff",
-      cursor: "text", transition: "all 0.15s",
-    }),
-    valueContainer:      (base: any) => ({ ...base, padding: "2px 8px" }),
-    dropdownIndicator:   (base: any) => ({ ...base, padding: "0 6px", color: "#94a3b8" }),
-    indicatorSeparator:  () => ({ display: "none" }),
-    placeholder:         (base: any) => ({ ...base, color: "#94a3b8", fontSize: "12px" }),
-    menu: (base: any) => ({
-      ...base, borderRadius: "10px",
-      boxShadow: "0 8px 24px rgba(0,0,0,0.13)",
-      border: "1px solid #e8edf5", marginTop: "4px", padding: "4px", zIndex: 9999, minWidth: "220px",
-    }),
-    option: (base: any, { isFocused, isSelected }: any) => ({
-      ...base,
-      backgroundColor: isSelected ? "#3b82f6" : isFocused ? "#eff6ff" : "transparent",
-      color:           isSelected ? "#fff"     : "#475569",
-      padding: "7px 10px", borderRadius: "7px",
-      cursor: "pointer", fontSize: "12px", fontWeight: "600",
-    }),
-  };
-
-  if (isReadOnly) {
-    return (
-      <div className={styles.linkageCellReadOnly}>
-        {linkageIds.length === 0 ? (
-          <span className={styles.linkageEmptyPlaceholder}>—</span>
-        ) : (
-          <div className={styles.linkageTagsRow}>
-            {linkageIds.map((id) => {
-              const area = resolveArea(id);
-              return area ? <TrainingAreaBadge key={String(id)} area={area} /> : null;
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div ref={wrapperRef} className={styles.linkageCellWrapper}>
-      <div className={styles.linkageTagsRow}>
-        {linkageIds.map((id) => {
-          const area = resolveArea(id);
-          return area ? (
-            <TrainingAreaBadge key={String(id)} area={area} onRemove={() => onRemove(id)} />
-          ) : null;
-        })}
-        <button
-          className={`${styles.linkageAddTrigger} ${isExpanded ? styles.linkageAddTriggerActive : ""}`}
-          onClick={() => setIsExpanded((prev) => !prev)}
-          type="button"
-          aria-label="Add training linkage"
-          title="Link a training area"
-        >
-          <Tag size={10} />
-          <Plus size={9} />
-        </button>
-      </div>
-
-      {isExpanded && (
-        <div className={styles.linkageDropdownWrapper}>
-          <CreatableSelect
-            autoFocus
-            menuIsOpen
-            options={availableOptions}
-            placeholder="Search or add training area…"
-            styles={dropdownSelectStyles}
-            isClearable={false}
-            value={null}
-            onChange={(opt: any) => {
-              if (!opt) return;
-              const resolvedId = isNaN(Number(opt.value)) ? opt.value : Number(opt.value);
-              onAdd(resolvedId);
-              setIsExpanded(false);
-            }}
-            onCreateOption={(inputValue: string) => {
-              onCreateNew(inputValue);
-              setIsExpanded(false);
-            }}
-            formatCreateLabel={(inputValue: string) => `Save "${inputValue}" as new area`}
-            menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-            menuPosition="fixed"
-            formatOptionLabel={(opt: any, { context }: any) => {
-              if (context === "value") return <span>{opt.label}</span>;
-              const matchedArea = dbTrainingAreas.find((a) => String(a.id) === opt.value);
-              const colors      = matchedArea ? resolveAreaColors(matchedArea.id) : FALLBACK_UI_COLOR;
-              return (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{
-                    width: "8px", height: "8px", borderRadius: "50%",
-                    background: colors.color, flexShrink: 0,
-                  }} />
-                  <span style={{ fontSize: "12px", fontWeight: "600" }}>{opt.label}</span>
-                  {opt.isCustom && (
-                    <span style={{ fontSize: "10px", color: "#94a3b8", marginLeft: "auto" }}>custom</span>
-                  )}
-                </div>
-              );
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Objective factory ────────────────────────────────────────────────────────
 
 function makeDefaultObjective(
-  name:               string,
-  kpiScale:           string,
-  control:            string,
-  trainingLinkageIds: Array<number | string> = [],
-  kpiMaxScore:        number | null = null,
+  name:        string,
+  kpiScale:    string,
+  control:     string,
+  weight:      number | null = null,
+  kpiMaxScore: number | null = null,
 ): ObjectiveRow {
   return {
-    name, kpiScale, weight: null, control,
-    mandatory: true, trainingTags: [], trainingLinkageIds, kpiMaxScore,
+    name, kpiScale, weight, control,
+    mandatory: true, kpiMaxScore,
   };
 }
 
-// ─── Initial category seed data ───────────────────────────────────────────────
+// ─── Initial category seed data — with predefined weights ─────────────────────
+//
+// Weights are assigned per category so each category sums to a sensible share.
+// Financial Focus  = 35%, Customer Focus = 25%, HR Focus = 15%,
+// Process Focus    = 15%, Personal       = 10%  → grand total = 100%
+//
+// Within each category, weights are distributed evenly across objectives that
+// are commonly used (Locked ones carry the main weight).
 
 const INITIAL_CATEGORIES: CategoryRow[] = [
   {
-    name: "Financial Focus", weight: 0, mandatory: true, trainingTags: [],
+    name: "Financial Focus", weight: 0, mandatory: true,
     objectives: [
-      makeDefaultObjective("Revenue Achievement",                    "interpolated_financial",   "Locked",   [TRAINING_AREA_ID.JOB_SPECIFIC_SKILLS]),
-      makeDefaultObjective("GP Achievement",                         "interpolated_financial",   "Locked",   [TRAINING_AREA_ID.JOB_SPECIFIC_SKILLS]),
-      makeDefaultObjective("Achievement of Dept Revenue",            "interpolated_financial",   "Locked",   [TRAINING_AREA_ID.JOB_SPECIFIC_SKILLS]),
-      makeDefaultObjective("Achievement of Dept GP (___)",           "interpolated_financial",   "Editable"),
-      makeDefaultObjective("Profit Margin % of ___",                 "interpolated_gp_margin",   "Editable"),
-      makeDefaultObjective("Achievement of Sales Dept. Target",      "interpolated_financial",   "Editable"),
-      makeDefaultObjective("Effective Sales Ratio of CMB (60 Days)", "interpolated_sales_ratio", "Editable"),
-      makeDefaultObjective("GP Margin (Ops) Overall",                "interpolated_gp_margin",   "Editable"),
-      makeDefaultObjective("Optimize Direct Cost",                   "bracket_wip",              "Editable"),
-      makeDefaultObjective("GP Margin %",                            "interpolated_gp_margin",   "Editable"),
-      makeDefaultObjective("GP Contribution %",                      "interpolated_to_gp",       "Editable"),
-      makeDefaultObjective("Turnover Contribution %",                "interpolated_to_gp",       "Editable"),
-      makeDefaultObjective("Achievement of Individual Sales Target", "interpolated_financial",   "Editable"),
+      makeDefaultObjective("Revenue Achievement",                    "interpolated_financial",   "Locked",   10),
+      makeDefaultObjective("GP Achievement",                         "interpolated_financial",   "Locked",   10),
+      makeDefaultObjective("Achievement of Dept Revenue",            "interpolated_financial",   "Locked",    5),
+      makeDefaultObjective("Achievement of Dept GP (___)",           "interpolated_financial",   "Editable",  5),
+      makeDefaultObjective("Profit Margin % of ___",                 "interpolated_gp_margin",   "Editable",  null),
+      makeDefaultObjective("Achievement of Sales Dept. Target",      "interpolated_financial",   "Editable",  null),
+      makeDefaultObjective("Effective Sales Ratio of CMB (60 Days)", "interpolated_sales_ratio", "Editable",  null),
+      makeDefaultObjective("GP Margin (Ops) Overall",                "interpolated_gp_margin",   "Editable",  null),
+      makeDefaultObjective("Optimize Direct Cost",                   "bracket_wip",              "Editable",  null),
+      makeDefaultObjective("GP Margin %",                            "interpolated_gp_margin",   "Editable",  null),
+      makeDefaultObjective("GP Contribution %",                      "interpolated_to_gp",       "Editable",  null),
+      makeDefaultObjective("Turnover Contribution %",                "interpolated_to_gp",       "Editable",  null),
+      makeDefaultObjective("Achievement of Individual Sales Target", "interpolated_financial",   "Editable",  5),
     ],
   },
   {
-    name: "Customer Focus", weight: 0, mandatory: true, trainingTags: [],
+    name: "Customer Focus", weight: 0, mandatory: true,
     objectives: [
-      makeDefaultObjective("NPS Index",                         "interpolated_nps_ccr",           "Locked",   [TRAINING_AREA_ID.GUEST_SENSITIVITY]),
-      makeDefaultObjective("Complaints on service failures",    "bracket_statutory",              "Locked",   [TRAINING_AREA_ID.COMPLAINT_HANDLING]),
-      makeDefaultObjective("Monthly Idea Generation",           "manual",                         "Editable"),
-      makeDefaultObjective("GP on Personal Done by Individual", "bracket_individual_sales_gp",    "Editable"),
-      makeDefaultObjective("NO. of Qualified Sales leads",      "interpolated_financial",         "Editable"),
-      makeDefaultObjective("New Customers brought in",          "interpolated_financial",         "Editable"),
-      makeDefaultObjective("Sales quotation success ratio",     "interpolated_sales_ratio",       "Editable"),
+      makeDefaultObjective("NPS Index",                         "interpolated_nps_ccr",        "Locked",   10),
+      makeDefaultObjective("Complaints on service failures",    "bracket_statutory",           "Locked",    5),
+      makeDefaultObjective("Monthly Idea Generation",           "manual",                      "Editable",  null),
+      makeDefaultObjective("GP on Personal Done by Individual", "bracket_individual_sales_gp", "Editable",  5),
+      makeDefaultObjective("NO. of Qualified Sales leads",      "interpolated_financial",      "Editable",  null),
+      makeDefaultObjective("New Customers brought in",          "interpolated_financial",      "Editable",  null),
+      makeDefaultObjective("Sales quotation success ratio",     "interpolated_sales_ratio",    "Editable",  5),
     ],
   },
   {
-    name: "Human Resources Focus", weight: 0, mandatory: true, trainingTags: [],
+    name: "Human Resources Focus", weight: 0, mandatory: true,
     objectives: [
-      makeDefaultObjective("360 Feedback (Automated)", "interpolated_ees_360",      "Locked"),
-      makeDefaultObjective("Dept. Retention",          "interpolated_emp_retention","Locked"),
-      makeDefaultObjective("GPTW Score",               "interpolated_financial",    "Locked"),
+      makeDefaultObjective("360 Feedback (Automated)", "interpolated_ees_360",       "Locked",   5),
+      makeDefaultObjective("Dept. Retention",          "interpolated_emp_retention", "Locked",   5),
+      makeDefaultObjective("GPTW Score",               "interpolated_financial",     "Locked",   5),
     ],
   },
   {
-    name: "Process Focus", weight: 0, mandatory: true, trainingTags: [],
+    name: "Process Focus", weight: 0, mandatory: true,
     objectives: [
-      makeDefaultObjective("International Audit-Positive Assurance Score-Overall", "bracket_statutory",  "Locked"),
-      makeDefaultObjective("DPAM Operations Score",                                "bracket_ops_dpam",   "Editable"),
-      makeDefaultObjective("WIP (Total Ops)",                                      "bracket_wip",        "Editable"),
-      makeDefaultObjective("Team adherence to cargowise module",                   "interpolated_dpam",  "Editable"),
-      makeDefaultObjective("Adherence to Sales Module in CW",                      "interpolated_dpam",  "Editable"),
+      makeDefaultObjective("International Audit-Positive Assurance Score-Overall", "bracket_statutory", "Locked",    5),
+      makeDefaultObjective("DPAM Operations Score",                                "bracket_ops_dpam",  "Editable",  5),
+      makeDefaultObjective("WIP (Total Ops)",                                      "bracket_wip",       "Editable",  null),
+      makeDefaultObjective("Team adherence to cargowise module",                   "interpolated_dpam", "Editable",  null),
+      makeDefaultObjective("Adherence to Sales Module in CW",                      "interpolated_dpam", "Editable",  5),
     ],
   },
   {
-    name: "Personal Assessment", weight: 0, mandatory: true, trainingTags: [],
-    objectives: [makeDefaultObjective("HOD Evaluation", "manual", "Locked")],
+    name: "Personal Assessment", weight: 0, mandatory: true,
+    objectives: [makeDefaultObjective("HOD Evaluation", "manual", "Locked", 10)],
   },
 ];
 
 const BLANK_OBJECTIVE: ObjectiveRow = {
   name: "", kpiScale: "interpolated_financial", weight: "", control: "Editable",
-  mandatory: false, trainingTags: [], trainingLinkageIds: [], kpiMaxScore: null,
+  mandatory: false, kpiMaxScore: null,
 };
 
 // ─── Migration helper ─────────────────────────────────────────────────────────
-// Converts old scale values (standard / inverse) to new grouped values.
 
 const LEGACY_SCALE_MAP: Record<string, string> = {
   standard: "interpolated_financial",
   inverse:  "bracket_wip",
-  // manual stays as-is
 };
 
 function migrateLegacyKpiScale(scale: string | undefined): string {
@@ -717,19 +532,14 @@ function migrateLegacyKpiScale(scale: string | undefined): string {
   return LEGACY_SCALE_MAP[scale] ?? scale;
 }
 
-function migrateObjectiveLinkage(obj: any): ObjectiveRow {
-  let ids: Array<number | string> = [];
-  if (Array.isArray(obj.trainingLinkageIds)) {
-    ids = obj.trainingLinkageIds;
-  } else if (obj.trainingLinkageId !== null && obj.trainingLinkageId !== undefined) {
-    ids = [obj.trainingLinkageId];
-  }
+function migrateObjective(obj: any): ObjectiveRow {
   return {
-    ...obj,
-    trainingTags:       obj.trainingTags ?? [],
-    trainingLinkageIds: ids,
-    kpiMaxScore:        obj.kpiMaxScore ?? null,
-    kpiScale:           migrateLegacyKpiScale(obj.kpiScale),
+    name:        obj.name ?? "",
+    kpiScale:    migrateLegacyKpiScale(obj.kpiScale),
+    weight:      obj.weight ?? null,
+    control:     obj.control ?? "Editable",
+    mandatory:   obj.mandatory ?? false,
+    kpiMaxScore: obj.kpiMaxScore ?? null,
   };
 }
 
@@ -754,8 +564,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   const [description,          setDescription]          = useState("");
   const [maxScore,             setMaxScore]             = useState<number>(DEFAULT_MAX_SCORE);
   const [categories,           setCategories]           = useState<CategoryRow[]>(INITIAL_CATEGORIES);
-  const [templateTrainingTags, setTemplateTrainingTags] = useState<string[]>([]);
-  const [dbTrainingAreas,      setDbTrainingAreas]      = useState<TrainingArea[]>([]);
   const [roles,                setRoles]                = useState<any[]>([]);
   const [departments,          setDepartments]          = useState<any[]>([]);
   const [employees,            setEmployees]            = useState<any[]>([]);
@@ -764,15 +572,13 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   const [selectedDepartments,  setSelectedDepartments]  = useState<number[]>([]);
   const [showCancelConfirm,    setShowCancelConfirm]    = useState(false);
   const [isPageLoading,        setIsPageLoading]        = useState(!!editId);
-  const [showLinkageSummary,   setShowLinkageSummary]   = useState(false);
+  // Tracks the key "catIndex-objIndex" of the most recently added blank row
+  const [newObjKey,            setNewObjKey]            = useState<string | null>(null);
 
   // ── Memoised react-select styles ───────────────────────────────────────────
-  const baseSelectStyles    = useMemo(() => buildBaseSelectStyles(), []);
-  const tableSelectStyles   = useMemo(() => buildTableSelectStyles(isReadOnly), [isReadOnly]);
-  const trainingAreaOptions = useMemo(
-    () => buildTrainingAreaOptions(dbTrainingAreas),
-    [dbTrainingAreas],
-  );
+  const baseSelectStyles  = useMemo(() => buildBaseSelectStyles(), []);
+  const tableSelectStyles = useMemo(() => buildTableSelectStyles(), []);
+  const kpiSelectStyles   = useMemo(() => buildKpiSelectStyles(), []);
 
   // ── Grouped options for KPI scale select ───────────────────────────────────
   const kpiScaleGroupedOptions = useMemo(
@@ -788,25 +594,23 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   useEffect(() => {
     const loadMasterData = async () => {
       try {
-        const [rolesRes, deptsRes, empsRes, areasRes] = await Promise.all([
+        const [rolesRes, deptsRes, empsRes] = await Promise.all([
           fetch(`${API_BASE}/roles`),
           fetch(`${API_BASE}/departments`),
           fetch(`${API_BASE}/employees`),
-          fetch(`${API_BASE}/training-areas`),
         ]);
-        if (!rolesRes.ok || !deptsRes.ok || !empsRes.ok || !areasRes.ok) {
+        if (!rolesRes.ok || !deptsRes.ok || !empsRes.ok) {
           throw new Error("One or more master data requests failed");
         }
-        const [rolesData, deptsData, empsData, areasData] = await Promise.all([
-          rolesRes.json(), deptsRes.json(), empsRes.json(), areasRes.json(),
+        const [rolesData, deptsData, empsData] = await Promise.all([
+          rolesRes.json(), deptsRes.json(), empsRes.json(),
         ]);
         setRoles(rolesData);
         setDepartments(deptsData);
         setEmployees(empsData);
-        setDbTrainingAreas(areasData);
       } catch (err) {
         console.error("Master data load error:", err);
-        toast.error("Failed to load roles, departments, and training areas");
+        toast.error("Failed to load roles and departments");
       }
     };
     loadMasterData();
@@ -834,11 +638,9 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         setCategories(
           (tmpl.categories ?? INITIAL_CATEGORIES).map((cat: any) => ({
             ...cat,
-            trainingTags: cat.trainingTags ?? [],
-            objectives:   (cat.objectives ?? []).map(migrateObjectiveLinkage),
+            objectives: (cat.objectives ?? []).map(migrateObjective),
           })),
         );
-        setTemplateTrainingTags(tmpl.trainingTags ?? []);
         setSelectedRoles(tmpl.assignedRolesIds?.map(Number) ?? []);
         setSelectedDepartments(tmpl.assignedDepartmentsIds?.map(Number) ?? []);
 
@@ -879,44 +681,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
     [categoryWeights],
   );
 
-  const trainingLinkageSummary = useMemo(() => {
-    type AreaEntry = AreaColors & { name: string; objectives: string[]; totalWeight: number };
-    const areaMap       = new Map<string, AreaEntry>();
-    let linkedCount     = 0;
-    let totalObjectives = 0;
-
-    for (const cat of categories) {
-      for (const obj of cat.objectives) {
-        totalObjectives++;
-        const ids = obj.trainingLinkageIds ?? [];
-        if (ids.length === 0) continue;
-        linkedCount++;
-        for (const linkId of ids) {
-          const numId  = Number(linkId);
-          const dbArea = isNaN(numId)
-            ? dbTrainingAreas.find((a) => a.name === String(linkId))
-            : dbTrainingAreas.find((a) => a.id === numId);
-          const areaName = dbArea?.name ?? String(linkId);
-          const colors   = dbArea ? resolveAreaColors(dbArea.id) : FALLBACK_UI_COLOR;
-          if (!areaMap.has(areaName)) {
-            areaMap.set(areaName, { name: areaName, ...colors, objectives: [], totalWeight: 0 });
-          }
-          const entry = areaMap.get(areaName)!;
-          if (!entry.objectives.includes(obj.name || "Untitled")) {
-            entry.objectives.push(obj.name || "Untitled");
-            entry.totalWeight += Number(obj.weight) || 0;
-          }
-        }
-      }
-    }
-
-    const linkedPercent = totalObjectives > 0
-      ? Math.round((linkedCount / totalObjectives) * 100)
-      : 0;
-
-    return { areas: Array.from(areaMap.values()), linkedCount, totalObjectives, linkedPercent };
-  }, [categories, dbTrainingAreas]);
-
   // ── Category / objective mutations ─────────────────────────────────────────
 
   const updateObjectiveField = useCallback(
@@ -928,46 +692,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
             objectives: cat.objectives.map((obj, oi) =>
               oi !== objIndex ? obj : { ...obj, [field]: value },
             ),
-          },
-        ),
-      ),
-    [],
-  );
-
-  const addTrainingLinkage = useCallback(
-    (catIndex: number, objIndex: number, id: number | string) =>
-      setCategories((prev) =>
-        prev.map((cat, ci) =>
-          ci !== catIndex ? cat : {
-            ...cat,
-            objectives: cat.objectives.map((obj, oi) => {
-              if (oi !== objIndex) return obj;
-              const existing = obj.trainingLinkageIds ?? [];
-              const asString = String(id);
-              if (existing.some((e) => String(e) === asString)) return obj;
-              return { ...obj, trainingLinkageIds: [...existing, id] };
-            }),
-          },
-        ),
-      ),
-    [],
-  );
-
-  const removeTrainingLinkage = useCallback(
-    (catIndex: number, objIndex: number, id: number | string) =>
-      setCategories((prev) =>
-        prev.map((cat, ci) =>
-          ci !== catIndex ? cat : {
-            ...cat,
-            objectives: cat.objectives.map((obj, oi) => {
-              if (oi !== objIndex) return obj;
-              return {
-                ...obj,
-                trainingLinkageIds: (obj.trainingLinkageIds ?? []).filter(
-                  (e) => String(e) !== String(id),
-                ),
-              };
-            }),
           },
         ),
       ),
@@ -986,7 +710,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
     () =>
       setCategories((prev) => [
         ...prev,
-        { name: "", weight: 0, objectives: [], trainingTags: [], mandatory: false },
+        { name: "", weight: 0, objectives: [], mandatory: false },
       ]),
     [],
   );
@@ -998,12 +722,22 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   );
 
   const addObjective = useCallback(
-    (catIndex: number) =>
+    (catIndex: number) => {
       setCategories((prev) =>
         prev.map((cat, ci) =>
           ci !== catIndex ? cat : { ...cat, objectives: [...cat.objectives, { ...BLANK_OBJECTIVE }] },
         ),
-      ),
+      );
+      // After state update, the new row will be the last one in catIndex
+      // We use a timeout so the DOM is painted before we try to focus
+      setTimeout(() => {
+        setCategories((prev) => {
+          const newIdx = prev[catIndex]?.objectives.length - 1;
+          setNewObjKey(`${catIndex}-${newIdx}`);
+          return prev;
+        });
+      }, 0);
+    },
     [],
   );
 
@@ -1058,34 +792,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
     }
   };
 
-  // ── Training area DB creation ──────────────────────────────────────────────
-
-  const handleCreateTrainingArea = async (
-    inputValue: string,
-    catIndex:   number,
-    objIndex:   number,
-  ) => {
-    const trimmedName = inputValue.trim();
-    if (!trimmedName) return;
-    try {
-      const res = await fetch(`${API_BASE}/training-areas`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json", "X-User-Level": String(level) },
-        body:    JSON.stringify({ name: trimmedName }),
-      });
-      if (!res.ok) throw new Error("Training area creation failed");
-      const created: TrainingArea = await res.json();
-      setDbTrainingAreas((prev) =>
-        prev.find((a) => a.id === created.id) ? prev : [...prev, created],
-      );
-      addTrainingLinkage(catIndex, objIndex, created.id);
-      toast.success(`Training area "${trimmedName}" saved`);
-    } catch (err) {
-      console.error("Training area create error:", err);
-      toast.error("Failed to save training area");
-    }
-  };
-
   // ── Validation ─────────────────────────────────────────────────────────────
 
   const validateForm = (): boolean => {
@@ -1121,7 +827,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
       description:  description.trim(),
       max_score:    maxScore,
       categories:   categoriesWithWeight,
-      trainingTags: templateTrainingTags,
       totalWeight,
       lastModified: new Date().toISOString(),
     };
@@ -1168,7 +873,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
       }
 
       toast.success(editId ? "Template Updated Successfully!" : "Template Created & Assigned Successfully!");
-      setTimeout(() => router.push("/hq-admin/templates"), 1200);
+      router.push("/hq-admin/templates");
     } catch (err: any) {
       console.error("Save error:", err);
       toast.error(err.message ?? "Failed to save template");
@@ -1285,21 +990,38 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
 
         <div className={styles.basicInfoGrid}>
           <div>
-            <label className={styles.formFieldLabel}>Template Name</label>
+            <label className={styles.formFieldLabel}>
+              Template Name <span className={styles.requiredStar}>*</span>
+            </label>
             <input
               className={`${styles.formInput} ${isReadOnly ? styles.formInputReadOnly : ""}`}
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
               placeholder="e.g. Sales Manager Appraisal 2025"
               readOnly={isReadOnly}
+              maxLength={120}
             />
+            {!isReadOnly && (
+              <p className={styles.fieldHint}>
+                Use a clear, year-specific name so it's easy to identify later.
+              </p>
+            )}
           </div>
           <div>
-            <label className={styles.formFieldLabel}>Employee (optional)</label>
+            <label className={styles.formFieldLabel}>
+              Assign to Employee
+              <span className={styles.optionalTag}>optional</span>
+            </label>
             <Select
               instanceId="emp-select"
               styles={baseSelectStyles}
               isDisabled={isReadOnly}
+              isSearchable
+              filterOption={(option: any, inputValue: string) => {
+                if (!inputValue) return true;
+                const q = inputValue.toLowerCase();
+                return option.label.toLowerCase().includes(q);
+              }}
               options={employees.map((emp: any) => ({
                 value: emp.emp_id,
                 label: `${emp.emp_id} — ${emp.name}`,
@@ -1314,19 +1036,36 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               }
               onChange={(opt: any) => setSelectedEmployee(opt ? (opt.value as string) : null)}
               isClearable
-              placeholder="Select employee…"
+              placeholder="Search by ID or name…"
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+              menuPosition="fixed"
             />
+            {!isReadOnly && (
+              <p className={styles.fieldHint}>
+                Assigns directly to this individual, regardless of role or department.
+              </p>
+            )}
           </div>
         </div>
 
-        <label className={styles.formFieldLabel}>Description</label>
-        <textarea
-          className={`${styles.formTextarea} ${isReadOnly ? styles.formTextareaReadOnly : ""}`}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe purpose, scope, or notes…"
-          readOnly={isReadOnly}
-        />
+        <div className={styles.descriptionRow}>
+          <div className={styles.descriptionLabelRow}>
+            <label className={styles.formFieldLabel}>Description</label>
+            {!isReadOnly && (
+              <span className={`${styles.charCounter} ${description.length > 400 ? styles.charCounterWarn : ""}`}>
+                {description.length} / 500
+              </span>
+            )}
+          </div>
+          <textarea
+            className={`${styles.formTextarea} ${isReadOnly ? styles.formTextareaReadOnly : ""}`}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Describe the purpose, scope, target audience, or any special notes for this template…"
+            readOnly={isReadOnly}
+            maxLength={500}
+          />
+        </div>
       </div>
 
       {/* ── Add Category button ── */}
@@ -1370,194 +1109,195 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               </div>
             </div>
 
-            {/* Objectives table */}
-            <div className={styles.objectivesTableWrapper}>
-              <table className={styles.objectivesTable}>
-                <colgroup>
-                  <col className={styles.colObjective} />
-                  <col className={styles.colWeight} />
-                  <col className={styles.colControl} />
-                  <col className={styles.colKpiScale} />
-                  <col className={styles.colMaxScore} />
-                  <col className={styles.colTraining} />
-                  {!isReadOnly && <col className={styles.colActions} />}
-                </colgroup>
-                <thead className={styles.tableHead}>
-                  <tr>
-                    <th className={styles.tableHeaderCell}>Objective</th>
-                    <th className={styles.tableHeaderCell}>Weight%</th>
-                    <th className={styles.tableHeaderCell}>Control</th>
-                    <th className={styles.tableHeaderCell}>KPI Scale</th>
-                    <th className={styles.tableHeaderCell}>
-                      Max Score
-                      <span className={styles.tableHeaderSubtext}>null = inherit {maxScore}</span>
-                    </th>
-                    <th className={styles.tableHeaderCell}>
-                      Training Linkage
-                      <span className={styles.tableHeaderSubtext}>multiple areas supported</span>
-                    </th>
-                    {!isReadOnly && (
-                      <th className={`${styles.tableHeaderCell} ${styles.tableHeaderCellCenter}`}>
-                        Actions
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {cat.objectives.map((obj, objIndex) => {
-                    const scaleOption   = resolveKpiOption(obj.kpiScale);
-                    const controlOption = CONTROL_OPTIONS.find((c) => c.value === (obj.control ?? "Editable")) ?? CONTROL_OPTIONS[1];
+            {/* Objectives list — flex rows */}
+            <div className={styles.objectivesList}>
 
-                    return (
-                      <tr
-                        key={objIndex}
-                        className={obj.control === "Locked" ? styles.tableRowLocked : styles.tableRowNormal}
-                      >
-                        {/* Objective name */}
-                        <td className={styles.tableCell}>
-                          <input
-                            className={`${styles.objectiveNameInput} ${isReadOnly ? styles.objectiveNameInputReadOnly : styles.objectiveNameInputActive}`}
-                            value={obj.name ?? ""}
-                            readOnly={isReadOnly}
-                            onChange={(e) => !isReadOnly && updateObjectiveField(catIndex, objIndex, "name", e.target.value)}
-                          />
-                        </td>
+              {/* Column header row */}
+              <div className={styles.objHeaderRow}>
+                <div className={styles.objColNum}>#</div>
+                <div className={styles.objColName}>Objective</div>
+                <div className={styles.objColWeight}>Weight%</div>
+                <div className={styles.objColControl}>Control</div>
+                <div className={styles.objColKpi}>KPI Scale</div>
+                <div className={styles.objColMax}>Max Score<span className={styles.objColMaxSub}>null = inherit {maxScore}</span></div>
+                {!isReadOnly && <div className={styles.objColAction} />}
+              </div>
 
-                        {/* Weight */}
-                        <td className={styles.tableCell}>
-                          <input
-                            className={`${styles.weightInput} ${isReadOnly ? styles.weightInputReadOnly : styles.weightInputActive}`}
-                            type="number"
-                            min="0"
-                            max="100"
-                            placeholder="0"
-                            value={obj.weight ?? ""}
-                            readOnly={isReadOnly}
-                            onChange={(e) =>
-                              !isReadOnly && updateObjectiveField(
-                                catIndex, objIndex, "weight",
-                                e.target.value === "" ? "" : Number(e.target.value),
-                              )
-                            }
-                          />
-                        </td>
+              {cat.objectives.map((obj, objIndex) => {
+                const scaleOption   = resolveKpiOption(obj.kpiScale);
+                const controlOption = CONTROL_OPTIONS.find((c) => c.value === (obj.control ?? "Editable")) ?? CONTROL_OPTIONS[1];
+                const isNew         = !isReadOnly && newObjKey === `${catIndex}-${objIndex}`;
 
-                        {/* Control */}
-                        <td className={styles.tableCell}>
-                          <Select
-                            instanceId={`ctrl-${catIndex}-${objIndex}`}
-                            styles={tableSelectStyles}
-                            options={CONTROL_OPTIONS as any}
-                            isDisabled={isReadOnly}
-                            value={CONTROL_OPTIONS.find((o) => o.value === (obj.control ?? "Editable"))}
-                            onChange={(opt: any) =>
-                              !isReadOnly && updateObjectiveField(catIndex, objIndex, "control", opt?.value ?? "Editable")
-                            }
-                            isSearchable={false}
-                            menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-                            menuPosition="fixed"
-                            components={{ Option: ControlOptionRenderer }}
-                            formatOptionLabel={(opt: any, { context }: any) =>
-                              context === "value"
-                                ? <ControlBadge opt={opt} isDisabled={isReadOnly} />
-                                : <>{opt.label}</>
-                            }
-                          />
-                        </td>
+                return (
+                  <div
+                    key={objIndex}
+                    className={`${styles.objRow} ${obj.control === "Locked" ? styles.objRowLocked : styles.objRowNormal}`}
+                  >
+                    {/* Row number */}
+                    <div className={styles.objColNum}>
+                      <span className={styles.objRowNum}>{catIndex + 1}.{objIndex + 1}</span>
+                    </div>
 
-                        {/* KPI Scale — grouped dropdown */}
-                        <td className={styles.tableCell}>
-                          <Select
-                            instanceId={`kpi-${catIndex}-${objIndex}`}
-                            styles={tableSelectStyles}
-                            options={kpiScaleGroupedOptions}
-                            isDisabled={isReadOnly}
-                            value={scaleOption}
-                            onChange={(opt: any) =>
-                              !isReadOnly && updateObjectiveField(catIndex, objIndex, "kpiScale", opt?.value ?? "interpolated_financial")
-                            }
-                            components={{ Option: KpiScaleOptionRenderer }}
-                            isSearchable={false}
-                            menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-                            menuPosition="fixed"
-                            formatGroupLabel={(group: any) => {
-                              const groupMeta = KPI_SCALE_GROUPS.find((g) => g.groupLabel === group.label);
-                              return (
-                                <div style={{
-                                  fontSize: "10px", fontWeight: "800", letterSpacing: "0.08em",
-                                  color: groupMeta?.color ?? "#64748b",
-                                  padding: "4px 4px 2px",
+                    {/* Objective name */}
+                    <div className={styles.objColName}>
+                      <div className={`${styles.inlineInputBox} ${isReadOnly ? styles.inlineInputBoxReadOnly : styles.inlineInputBoxEditable} ${isNew ? styles.inlineInputBoxNew : ""}`}>
+                        <input
+                          className={`${styles.objectiveNameInput} ${isReadOnly ? styles.objectiveNameInputReadOnly : styles.objectiveNameInputActive}`}
+                          value={obj.name ?? ""}
+                          readOnly={isReadOnly}
+                          placeholder={isReadOnly ? "—" : "Objective name *"}
+                          autoFocus={isNew}
+                          onFocus={() => setNewObjKey(null)}
+                          onChange={(e) => !isReadOnly && updateObjectiveField(catIndex, objIndex, "name", e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Weight */}
+                    <div className={styles.objColWeight}>
+                      <div className={`${styles.inlineInputBox} ${styles.inlineInputBoxWeight} ${isReadOnly ? styles.inlineInputBoxReadOnly : styles.inlineInputBoxEditable}`}>
+                        <input
+                          className={`${styles.weightInput} ${isReadOnly ? styles.weightInputReadOnly : styles.weightInputActive}`}
+                          type="number"
+                          min="0"
+                          max="100"
+                          placeholder="0"
+                          value={obj.weight ?? ""}
+                          readOnly={isReadOnly}
+                          onChange={(e) =>
+                            !isReadOnly && updateObjectiveField(
+                              catIndex, objIndex, "weight",
+                              e.target.value === "" ? "" : Number(e.target.value),
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Control */}
+                    <div className={styles.objColControl}>
+                      {isReadOnly ? (
+                        <ControlBadge opt={controlOption} isDisabled={true} />
+                      ) : (
+                        <Select
+                          instanceId={`ctrl-${catIndex}-${objIndex}`}
+                          styles={tableSelectStyles}
+                          options={CONTROL_OPTIONS as any}
+                          isDisabled={false}
+                          value={controlOption}
+                          onChange={(opt: any) =>
+                            updateObjectiveField(catIndex, objIndex, "control", opt?.value ?? "Editable")
+                          }
+                          isSearchable={false}
+                          menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                          menuPosition="fixed"
+                          components={{ Option: ControlOptionRenderer }}
+                          formatOptionLabel={(opt: any, { context }: any) =>
+                            context === "value"
+                              ? <ControlBadge opt={opt} isDisabled={false} />
+                              : <>{opt.label}</>
+                          }
+                        />
+                      )}
+                    </div>
+
+                    {/* KPI Scale — wide boxed select, tall menu */}
+                    <div className={styles.objColKpi}>
+                      {isReadOnly ? (
+                        <span className={styles.kpiReadOnlyText}>{scaleOption.label}</span>
+                      ) : (
+                        <Select
+                          instanceId={`kpi-${catIndex}-${objIndex}`}
+                          styles={kpiSelectStyles}
+                          options={kpiScaleGroupedOptions}
+                          isDisabled={false}
+                          value={scaleOption}
+                          placeholder="Select KPI scale *"
+                          onChange={(opt: any) =>
+                            updateObjectiveField(catIndex, objIndex, "kpiScale", opt?.value ?? "interpolated_financial")
+                          }
+                          components={{ Option: KpiScaleOptionRenderer }}
+                          isSearchable={false}
+                          menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                          menuPosition="fixed"
+                          formatGroupLabel={(group: any) => {
+                            const groupMeta = KPI_SCALE_GROUPS.find((g) => g.groupLabel === group.label);
+                            return (
+                              <div style={{
+                                fontSize: "10px", fontWeight: "800", letterSpacing: "0.08em",
+                                color: groupMeta?.color ?? "#64748b",
+                                padding: "6px 8px 2px",
+                                textTransform: "uppercase",
+                              }}>
+                                {group.label}
+                              </div>
+                            );
+                          }}
+                          formatOptionLabel={(opt: any, { context }: any) =>
+                            context === "value"
+                              ? (
+                                <span style={{
+                                  fontSize: "12px", fontWeight: "600",
+                                  color: "#1e293b",
+                                  display: "flex", alignItems: "center", gap: "6px",
                                 }}>
-                                  {group.label}
-                                </div>
-                              );
-                            }}
-                            formatOptionLabel={(opt: any, { context }: any) =>
-                              context === "value"
-                                ? <KpiScaleBadge opt={opt} isDisabled={isReadOnly} />
-                                : <>{opt.label}</>
-                            }
-                          />
-                        </td>
+                                  <span style={{ flexShrink: 0 }}>{opt.icon}</span>
+                                  {opt.label}
+                                  {opt.isInverse && (
+                                    <span style={{
+                                      fontSize: "9px", padding: "1px 5px", borderRadius: "4px",
+                                      background: "#fee2e2", color: "#dc2626", fontWeight: "700",
+                                    }}>inv</span>
+                                  )}
+                                </span>
+                              )
+                              : <>{opt.label}</>
+                          }
+                        />
+                      )}
+                    </div>
 
-                        {/* Per-objective Max Score */}
-                        <td className={styles.tableCell}>
-                          {isReadOnly ? (
-                            <span className={styles.maxScoreReadOnly}>
-                              {obj.kpiMaxScore ?? `=${maxScore}`}
-                            </span>
-                          ) : (
-                            <select
-                              className={`${styles.maxScoreSelect} ${obj.kpiMaxScore ? styles.maxScoreSelectSet : styles.maxScoreSelectUnset}`}
-                              value={obj.kpiMaxScore ?? ""}
-                              onChange={(e) =>
-                                updateObjectiveField(
-                                  catIndex, objIndex, "kpiMaxScore",
-                                  e.target.value === "" ? null : Number(e.target.value),
-                                )
-                              }
-                            >
-                              <option value="">inherit ({maxScore})</option>
-                              {MAX_SCORE_OPTIONS.map((score) => (
-                                <option key={score} value={score}>{score}</option>
-                              ))}
-                            </select>
-                          )}
-                        </td>
+                    {/* Max Score */}
+                    <div className={styles.objColMax}>
+                      {isReadOnly ? (
+                        <span className={styles.maxScoreReadOnly}>
+                          {obj.kpiMaxScore ?? `=${maxScore}`}
+                        </span>
+                      ) : (
+                        <select
+                          className={`${styles.maxScoreSelect} ${obj.kpiMaxScore ? styles.maxScoreSelectSet : styles.maxScoreSelectUnset}`}
+                          value={obj.kpiMaxScore ?? ""}
+                          onChange={(e) =>
+                            updateObjectiveField(
+                              catIndex, objIndex, "kpiMaxScore",
+                              e.target.value === "" ? null : Number(e.target.value),
+                            )
+                          }
+                        >
+                          <option value="">inherit ({maxScore})</option>
+                          {MAX_SCORE_OPTIONS.map((score) => (
+                            <option key={score} value={score}>{score}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
 
-                        {/* Training Linkage — multi-tag cell */}
-                        <td className={styles.tableCellLinkage}>
-                          <MultiLinkageCell
-                            linkageIds={obj.trainingLinkageIds ?? []}
-                            isReadOnly={isReadOnly}
-                            dbTrainingAreas={dbTrainingAreas}
-                            trainingAreaOptions={trainingAreaOptions}
-                            onAdd={(id) => addTrainingLinkage(catIndex, objIndex, id)}
-                            onRemove={(id) => removeTrainingLinkage(catIndex, objIndex, id)}
-                            onCreateNew={(inputValue) =>
-                              handleCreateTrainingArea(inputValue, catIndex, objIndex)
-                            }
-                          />
-                        </td>
-
-                        {/* Actions */}
-                        {!isReadOnly && (
-                          <td className={styles.tableCellCenter}>
-                            <button
-                              className={styles.objectiveDeleteBtn}
-                              onClick={() => removeObjective(catIndex, objIndex)}
-                              aria-label={`Remove objective ${obj.name || objIndex + 1}`}
-                              title="Remove objective"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    {/* Actions */}
+                    {!isReadOnly && (
+                      <div className={styles.objColAction}>
+                        <button
+                          className={styles.objectiveDeleteBtn}
+                          onClick={() => removeObjective(catIndex, objIndex)}
+                          aria-label={`Remove objective ${obj.name || objIndex + 1}`}
+                          title="Remove objective"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Add Objective footer */}
@@ -1652,14 +1392,14 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           </div>
           <div className={styles.referenceItemsRow}>
             <div className={`${styles.controlReferenceItem} ${styles.controlReferenceItemLocked}`}>
-              <Lock size={13} color="#1e40af" />
+              <Lock size={12} color="#1e40af" />
               <span className={`${styles.controlReferenceLabel} ${styles.controlReferenceLabelLocked}`}>Locked</span>
               <span className={`${styles.controlReferenceDesc} ${styles.controlReferenceLabelLocked}`}>
                 Fixed — cannot be changed by appraisee
               </span>
             </div>
             <div className={`${styles.controlReferenceItem} ${styles.controlReferenceItemEditable}`}>
-              <Unlock size={13} color="#16a34a" />
+              <Unlock size={12} color="#16a34a" />
               <span className={`${styles.controlReferenceLabel} ${styles.controlReferenceLabelEditable}`}>Editable</span>
               <span className={`${styles.controlReferenceDesc} ${styles.controlReferenceLabelEditable}`}>
                 Flexible — appraisee may adjust
@@ -1681,23 +1421,17 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
 
           <div className={styles.referenceItemsRow}>
             {/* INTERPOLATED */}
-            <div
-              className={styles.kpiScaleItem}
-              style={{ background: "#eff6ff", borderColor: "#bfdbfe", borderWidth: "1px", borderStyle: "solid" }}
-            >
+            <div className={styles.kpiScaleItem} style={{ background: "#eff6ff", borderColor: "#bfdbfe", borderWidth: "1px", borderStyle: "solid" }}>
               <div className={styles.kpiScaleItemHeader}>
                 <TrendingUp size={13} color="#1e40af" />
-                <div className={styles.kpiScaleItemLabel} style={{ color: "#1e40af" }}>Interpolated</div>
+                <span className={styles.kpiScaleItemLabel} style={{ color: "#1e40af" }}>Interpolated</span>
               </div>
-              <div className={styles.kpiScaleItemHint} style={{ color: "#1e40af" }}>
-                Continuous linear scoring between lower &amp; upper limits (e.g. Financial, NPS, Retention)
-              </div>
-              <div style={{ marginTop: "6px", display: "flex", flexWrap: "wrap", gap: "4px" }}>
+              <p className={styles.kpiScaleItemHint} style={{ color: "#3b82f6" }}>
+                Continuous linear scoring between lower &amp; upper limits
+              </p>
+              <div className={styles.kpiScaleTagRow}>
                 {KPI_SCALE_OPTIONS.filter((o) => o.group === "interpolated").map((o) => (
-                  <span key={o.value} style={{
-                    fontSize: "10px", padding: "2px 7px", borderRadius: "10px",
-                    background: "#dbeafe", color: "#1e40af", fontWeight: "600",
-                  }}>
+                  <span key={o.value} className={styles.kpiScaleTag} style={{ background: "#dbeafe", color: "#1e40af" }}>
                     {o.label}
                   </span>
                 ))}
@@ -1705,30 +1439,23 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
             </div>
 
             {/* BRACKET */}
-            <div
-              className={styles.kpiScaleItem}
-              style={{ background: "#fef3c7", borderColor: "#fde68a", borderWidth: "1px", borderStyle: "solid" }}
-            >
+            <div className={styles.kpiScaleItem} style={{ background: "#fef3c7", borderColor: "#fde68a", borderWidth: "1px", borderStyle: "solid" }}>
               <div className={styles.kpiScaleItemHeader}>
                 <SlidersHorizontal size={13} color="#92400e" />
-                <div className={styles.kpiScaleItemLabel} style={{ color: "#92400e" }}>Bracket</div>
+                <span className={styles.kpiScaleItemLabel} style={{ color: "#92400e" }}>Bracket</span>
               </div>
-              <div className={styles.kpiScaleItemHint} style={{ color: "#92400e" }}>
-                Stepped band ratings — value falls into a defined range to get score (e.g. WIP Days, Sales GP)
-              </div>
-              <div style={{ marginTop: "6px", display: "flex", flexWrap: "wrap", gap: "4px" }}>
+              <p className={styles.kpiScaleItemHint} style={{ color: "#b45309" }}>
+                Stepped band ratings — value falls into a defined range
+              </p>
+              <div className={styles.kpiScaleTagRow}>
                 {KPI_SCALE_OPTIONS.filter((o) => o.group === "bracket").map((o) => (
-                  <span key={o.value} style={{
-                    fontSize: "10px", padding: "2px 7px", borderRadius: "10px",
-                    background: "#fde68a", color: "#92400e", fontWeight: "600",
-                    display: "inline-flex", alignItems: "center", gap: "4px",
+                  <span key={o.value} className={styles.kpiScaleTag} style={{
+                    background: "#fde68a", color: "#92400e",
+                    display: "inline-flex", alignItems: "center", gap: "3px",
                   }}>
                     {o.label}
                     {o.isInverse && (
-                      <span style={{
-                        fontSize: "9px", padding: "0px 3px", borderRadius: "3px",
-                        background: "#fee2e2", color: "#dc2626",
-                      }}>inv</span>
+                      <span style={{ fontSize: "9px", padding: "0 3px", borderRadius: "3px", background: "#fee2e2", color: "#dc2626" }}>inv</span>
                     )}
                   </span>
                 ))}
@@ -1736,23 +1463,17 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
             </div>
 
             {/* MANUAL */}
-            <div
-              className={styles.kpiScaleItem}
-              style={{ background: "#f0fdf4", borderColor: "#bbf7d0", borderWidth: "1px", borderStyle: "solid" }}
-            >
+            <div className={styles.kpiScaleItem} style={{ background: "#f0fdf4", borderColor: "#bbf7d0", borderWidth: "1px", borderStyle: "solid" }}>
               <div className={styles.kpiScaleItemHeader}>
                 <SlidersHorizontal size={13} color="#166534" />
-                <div className={styles.kpiScaleItemLabel} style={{ color: "#166534" }}>Manual</div>
+                <span className={styles.kpiScaleItemLabel} style={{ color: "#166534" }}>Manual</span>
               </div>
-              <div className={styles.kpiScaleItemHint} style={{ color: "#166534" }}>
+              <p className={styles.kpiScaleItemHint} style={{ color: "#16a34a" }}>
                 Appraiser enters 1–5 directly — no formula applied
-              </div>
-              <div style={{ marginTop: "6px", display: "flex", flexWrap: "wrap", gap: "4px" }}>
+              </p>
+              <div className={styles.kpiScaleTagRow}>
                 {KPI_SCALE_OPTIONS.filter((o) => o.group === "manual").map((o) => (
-                  <span key={o.value} style={{
-                    fontSize: "10px", padding: "2px 7px", borderRadius: "10px",
-                    background: "#bbf7d0", color: "#166534", fontWeight: "600",
-                  }}>
+                  <span key={o.value} className={styles.kpiScaleTag} style={{ background: "#bbf7d0", color: "#166534" }}>
                     {o.label}
                   </span>
                 ))}
@@ -1760,98 +1481,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
             </div>
           </div>
         </div>
-      </div>
-
-      {/* ── Training Linkage Summary panel ── */}
-      <div className={styles.linkagePanelWrapper}>
-        <button
-          className={`${styles.linkagePanelTrigger} ${showLinkageSummary ? styles.linkagePanelTriggerOpen : ""}`}
-          onClick={() => setShowLinkageSummary((prev) => !prev)}
-        >
-          <div className={styles.linkagePanelTriggerLeft}>
-            <div className={styles.linkagePanelIconWrapper}>
-              <BookOpen size={16} color="#fff" />
-            </div>
-            <div className={styles.linkagePanelTitleText}>
-              <div className={styles.linkagePanelTitle}>Training Linkage Summary</div>
-              <div className={styles.linkagePanelSubtitle}>
-                {trainingLinkageSummary.linkedCount} / {trainingLinkageSummary.totalObjectives} objectives linked
-                &nbsp;·&nbsp;
-                {trainingLinkageSummary.areas.length} training area
-                {trainingLinkageSummary.areas.length !== 1 ? "s" : ""} covered
-              </div>
-            </div>
-          </div>
-          <div className={styles.linkagePanelTriggerRight}>
-            <div className={styles.linkageProgressWrapper}>
-              <div className={styles.linkageProgressTrack}>
-                <div
-                  className={`${styles.linkageProgressFill} ${
-                    trainingLinkageSummary.linkedCount === trainingLinkageSummary.totalObjectives
-                      ? styles.linkageProgressFillComplete
-                      : styles.linkageProgressFillPartial
-                  }`}
-                  style={{ width: `${trainingLinkageSummary.linkedPercent}%` }}
-                />
-              </div>
-              <span className={styles.linkageProgressPct}>{trainingLinkageSummary.linkedPercent}%</span>
-            </div>
-            {showLinkageSummary
-              ? <ChevronUp   size={18} color="#0369a1" />
-              : <ChevronDown size={18} color="#0369a1" />}
-          </div>
-        </button>
-
-        {showLinkageSummary && (
-          <div className={styles.linkagePanelBody}>
-            {trainingLinkageSummary.areas.length === 0 ? (
-              <div className={styles.linkagePanelEmpty}>
-                <AlertCircle size={32} color="#cbd5e1" style={{ display: "block", margin: "0 auto 8px" }} />
-                No training linkages set yet. Use the Training Linkage column in each objective row.
-              </div>
-            ) : (
-              <div className={styles.linkageAreaGrid}>
-                {trainingLinkageSummary.areas.map(({ name, color, bgColor, borderColor, objectives, totalWeight: areaWeight }) => {
-                  const areaCount = objectives.length;
-                  const areaPct   = trainingLinkageSummary.totalObjectives > 0
-                    ? Math.round((areaCount / trainingLinkageSummary.totalObjectives) * 100)
-                    : 0;
-                  return (
-                    <div key={name} className={styles.linkageAreaCard} style={{ background: bgColor, borderColor }}>
-                      <div className={styles.linkageAreaHeader}>
-                        <div className={styles.linkageAreaHeaderLeft}>
-                          <span className={styles.linkageAreaDot} style={{ background: color }} />
-                          <span className={styles.linkageAreaName} style={{ color }}>{name}</span>
-                          <span className={styles.linkageAreaMeta} style={{ color }}>
-                            {areaCount} objective{areaCount !== 1 ? "s" : ""} · {areaWeight}% weight
-                          </span>
-                        </div>
-                        <span className={styles.linkageAreaPct} style={{ color }}>{areaPct}%</span>
-                      </div>
-                      <div className={styles.linkageAreaBarTrack}>
-                        <div
-                          className={styles.linkageAreaBarFill}
-                          style={{ width: `${areaPct}%`, background: `linear-gradient(90deg, ${color}, ${color}cc)` }}
-                        />
-                      </div>
-                      <div className={styles.linkageAreaChips}>
-                        {objectives.map((objName, chipIdx) => (
-                          <span
-                            key={chipIdx}
-                            className={styles.linkageAreaChip}
-                            style={{ color, borderColor }}
-                          >
-                            {objName}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* ── Distribution Strategy ── */}
@@ -1861,6 +1490,20 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           <h3 className={styles.sectionHeadingTitle}>Distribution Strategy</h3>
           {isReadOnly && <span className={styles.sectionHeadingReadOnly}>(read-only)</span>}
         </div>
+
+        {/* Visibility logic note */}
+        <div className={styles.distributionLogicNote}>
+          <div className={styles.distributionLogicIcon}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <p className={styles.distributionLogicText}>
+            An employee sees this template if they match <strong>any</strong> of the selected roles, <strong>any</strong> of the selected departments, or are assigned directly by name. A direct employee assignment always takes priority.
+          </p>
+        </div>
+
+        {/* Roles + Departments row */}
         <div className={styles.distributionGrid}>
           <div>
             <label className={styles.formFieldLabel}>Target Roles</label>
@@ -1876,6 +1519,9 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               onCreateOption={handleCreateRole}
               formatCreateLabel={(val: string) => `Create role: "${val}"`}
             />
+            {!isReadOnly && (
+              <p className={styles.fieldHint}>All employees with this role will see the template.</p>
+            )}
           </div>
           <div>
             <label className={styles.formFieldLabel}>Departments</label>
@@ -1894,8 +1540,55 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               onCreateOption={handleCreateDepartment}
               formatCreateLabel={(val: string) => `Create department: "${val}"`}
             />
+            {!isReadOnly && (
+              <p className={styles.fieldHint}>All employees in this department will see the template.</p>
+            )}
           </div>
         </div>
+
+        {/* Assignment summary — read-only view of what's set */}
+        {isReadOnly && (selectedRoles.length > 0 || selectedDepartments.length > 0 || selectedEmployee) && (
+          <div className={styles.assignmentSummary}>
+            {selectedEmployee && (
+              <div className={styles.assignmentSummaryRow}>
+                <span className={styles.assignmentSummaryLabel}>Direct Employee</span>
+                <span className={styles.assignmentSummaryBadge} style={{ background: "#eff6ff", color: "#1e40af", borderColor: "#bfdbfe" }}>
+                  {(() => { const emp = employees.find((x: any) => x.emp_id === selectedEmployee); return emp ? `${emp.emp_id} — ${emp.name}` : selectedEmployee; })()}
+                </span>
+              </div>
+            )}
+            {selectedRoles.length > 0 && (
+              <div className={styles.assignmentSummaryRow}>
+                <span className={styles.assignmentSummaryLabel}>Roles</span>
+                <div className={styles.assignmentSummaryTags}>
+                  {selectedRoles.map((id) => {
+                    const r = roles.find((x: any) => x.id === id);
+                    return r ? (
+                      <span key={id} className={styles.assignmentSummaryBadge} style={{ background: "#f0fdf4", color: "#166534", borderColor: "#bbf7d0" }}>
+                        {r.name}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            )}
+            {selectedDepartments.length > 0 && (
+              <div className={styles.assignmentSummaryRow}>
+                <span className={styles.assignmentSummaryLabel}>Departments</span>
+                <div className={styles.assignmentSummaryTags}>
+                  {selectedDepartments.map((id) => {
+                    const d = departments.find((x: any) => x.id === id);
+                    return d ? (
+                      <span key={id} className={styles.assignmentSummaryBadge} style={{ background: "#fef3c7", color: "#92400e", borderColor: "#fde68a" }}>
+                        {d.name}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Action row ── */}
@@ -1943,4 +1636,3 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
     </div>
   );
 }
-
