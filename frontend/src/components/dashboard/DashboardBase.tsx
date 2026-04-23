@@ -121,15 +121,28 @@ export default function DashboardBase({ level }: { level: number }) {
   const config = ROLE_CONFIG[level] || ROLE_CONFIG[1];
   const paths  = ROLE_PATHS[level]  || ROLE_PATHS[1];
 
+  const [stats, setStats] = useState<Record<string, number>>({});
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem("pms_user");
-    if (!raw) {
-      router.push("/login");
-      return;
-    }
-    setUser(JSON.parse(raw));
+    if (!raw) return;
+    const currentUser = JSON.parse(raw);
+    setUser(currentUser);
+
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats/${currentUser.employee_id}`
+        );
+        const data = await res.json();
+        setStats(data.stats || {});
+      } catch (err) {
+        console.error("Failed to fetch stats:", err);
+      }
+    };
+
+    fetchStats();
   }, []);
 
   const handleLogout = () => {
@@ -205,7 +218,7 @@ export default function DashboardBase({ level }: { level: number }) {
             <div key={idx} className={styles.statCard}>
               <div className={styles.statLeft}>
                 <p className={styles.statTitle}>{label}</p>
-                <p className={styles.statValue}>--</p>
+                <p className={styles.statValue}>{stats[label] ?? "--"}</p>
               </div>
             </div>
           ))}

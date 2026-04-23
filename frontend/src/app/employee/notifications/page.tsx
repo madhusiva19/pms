@@ -22,13 +22,13 @@ export default function EmployeeNotificationsPage() {
 
         setAchievementNotifs(
           (data.notifications || []).filter((n: any) => n.type === "diary_approval").map((n: any) => ({
-            id: n.notification_id,
+            id: n.id,
             fromName: n.title,
             fromRole: "",
             submittedAt: n.created_at?.split("T")[0],
             achievement: n.message,
             isRead: n.is_read,
-            actionUrl: n.action_url || "/employee/profile",
+            actionUrl: n.action_link || "/employee/profile",
           }))
         );
       } catch (err) {
