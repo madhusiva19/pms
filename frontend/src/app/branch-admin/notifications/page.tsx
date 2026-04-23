@@ -23,25 +23,25 @@ export default function BranchAdminNotificationsPage() {
 
         setAchievementNotifs(
           (data.notifications || []).filter((n: any) => n.type === "diary_approval").map((n: any) => ({
-            id: n.notification_id,
+            id: n.id,
             fromName: n.title,
             fromRole: "",
             submittedAt: n.created_at?.split("T")[0],
             achievement: n.message,
             isRead: n.is_read,
-            actionUrl: n.action_url || "/branch-admin/profile",
+            actionUrl: n.action_link || "/branch-admin/profile",
           }))
         );
 
         setCutoffNotifs(
           (data.notifications || []).filter((n: any) => n.type === "objective_cutoff").map((n: any) => ({
-            id: n.notification_id,
+            id: n.id,
             title: n.title,
             message: n.message,
             cutoffDate: n.created_at?.split("T")[0],
             status: "normal",
             isRead: n.is_read,
-            actionUrl: "/branch-admin/dashboard",
+            actionUrl: n.action_link || "/branch-admin/dashboard",
           }))
         );
       } catch (err) {

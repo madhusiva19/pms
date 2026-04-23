@@ -28,25 +28,25 @@ export default function HQNotificationsPage() {
         const achievements = (data.notifications || [])
           .filter((n: any) => n.type === "diary_approval")
           .map((n: any) => ({
-            id: n.notification_id,
+            id: n.id,
             fromName: n.title,
             fromRole: "",
             submittedAt: n.created_at?.split("T")[0],
             achievement: n.message,
             isRead: n.is_read,
-            actionUrl: n.action_url || "/hq-admin/profile",
+            actionUrl: n.action_link || "/hq-admin/profile",
           }));
 
         const cutoffs = (data.notifications || [])
           .filter((n: any) => n.type === "objective_cutoff")
           .map((n: any) => ({
-            id: n.notification_id,
+            id: n.id,
             title: n.title,
             message: n.message,
             cutoffDate: n.created_at?.split("T")[0],
             status: "normal",
             isRead: n.is_read,
-            actionUrl: "/hq-admin/dashboard",
+            actionUrl: n.action_link ||  "/hq-admin/dashboard",
           }));
 
         setAchievementNotifs(achievements);

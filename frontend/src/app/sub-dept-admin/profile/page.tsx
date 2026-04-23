@@ -30,10 +30,10 @@ export default function SubDeptAdminProfilePage() {
         const diaryJson = await diaryRes.json();
 
         setSelfEntries((diaryJson.self_entries || []).map((e: any) => ({
-          id: e.diary_id, date: e.entry_date, content: e.description, status: e.status,
+          id: e.id, date: e.entry_date, content: e.entry_text, status: e.status,
         })));
         setSupervisorEntries((diaryJson.supervisor_entries || []).map((e: any) => ({
-          id: e.diary_id, date: e.entry_date, supervisorName: e.author_id, comment: e.description,
+          id: e.id, date: e.entry_date, supervisorName: e.author_id, comment: e.entry_text,
         })));
       } catch (err) {
         console.error("Failed to fetch data:", err);

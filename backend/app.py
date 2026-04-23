@@ -3,6 +3,8 @@ from flask_cors import CORS
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from datetime import datetime, timezone
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 import os
 import re
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -17,13 +19,13 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ── Dummy users (replace with MS AD later) ──────────────────────────────────
+# ── Dummy users ──────────────────────────────────────────────────────────────
 USERS = {
     "hqadmin@dgl.com": {
         "password_hash": generate_password_hash("HQ@123"),
         "role": "HQ Admin",
         "full_name": "HQ Admin User",
-        "employee_id": "emp-001",
+        "employee_id": "00000000-0000-0000-0000-000000000001",
         "org_level": 1,
         "iata_branch_code": "HQ"
     },
@@ -31,7 +33,7 @@ USERS = {
         "password_hash": generate_password_hash("Country@123"),
         "role": "Country Admin",
         "full_name": "Country Admin User",
-        "employee_id": "emp-002",
+        "employee_id": "00000000-0000-0000-0000-000000000002",
         "org_level": 2,
         "iata_branch_code": "CMB"
     },
@@ -39,7 +41,7 @@ USERS = {
         "password_hash": generate_password_hash("Branch@123"),
         "role": "Branch Admin",
         "full_name": "Branch Admin User",
-        "employee_id": "emp-003",
+        "employee_id": "00000000-0000-0000-0000-000000000003",
         "org_level": 3,
         "iata_branch_code": "CMB"
     },
@@ -47,7 +49,7 @@ USERS = {
         "password_hash": generate_password_hash("Dept@123"),
         "role": "Dept Admin",
         "full_name": "Dept Admin User",
-        "employee_id": "emp-004",
+        "employee_id": "00000000-0000-0000-0000-000000000004",
         "org_level": 4,
         "iata_branch_code": "CMB"
     },
@@ -55,7 +57,7 @@ USERS = {
         "password_hash": generate_password_hash("Subdept@123"),
         "role": "Sub Dept Admin",
         "full_name": "Sub Dept Admin User",
-        "employee_id": "emp-005",
+        "employee_id": "00000000-0000-0000-0000-000000000005",
         "org_level": 5,
         "iata_branch_code": "CMB"
     },
@@ -63,13 +65,13 @@ USERS = {
         "password_hash": generate_password_hash("Emp@123"),
         "role": "Employee",
         "full_name": "Employee User",
-        "employee_id": "emp-006",
+        "employee_id": "00000000-0000-0000-0000-000000000006",
         "org_level": 6,
         "iata_branch_code": "CMB"
     },
 }
 
-# ── Role redirects after login ───────────────────────────────────────────────
+# ── Role redirects ───────────────────────────────────────────────────────────
 ROLE_REDIRECTS = {
     "HQ Admin":       "/hq-admin/dashboard",
     "Country Admin":  "/country-admin/dashboard",
@@ -79,7 +81,7 @@ ROLE_REDIRECTS = {
     "Employee":       "/employee/profile",
 }
 
-# ── Role profile paths (used for notification action URLs) ───────────────────
+# ── Role profile paths ───────────────────────────────────────────────────────
 ROLE_PROFILE_PATHS = {
     1: "/hq-admin/profile",
     2: "/country-admin/profile",
@@ -89,10 +91,124 @@ ROLE_PROFILE_PATHS = {
     6: "/employee/profile",
 }
 
-# ── Helper ───────────────────────────────────────────────────────────────────
 def is_valid_email(email):
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# OBJECTIVE CUTOFF SCHEDULER
+# ════════════════════════════════════════════════════════════════════════════
+
+def send_cutoff_notification(recipient_org_level: int, title: str, message: str):
+    try:
+        users = supabase.table("users")\
+            .select("id")\
+            .eq("org_level", recipient_org_level)\
+            .eq("is_active", True)\
+            .execute()
+
+        for user in users.data:
+            supabase.table("notifications").insert({
+                "receiver_id":  user["id"],
+                "type":         "objective_cutoff",
+                "title":        title,
+                "message":      message,
+                "triggered_by": "system",
+                "action_link":  None,
+            }).execute()
+
+        print(f"✅ Cutoff notification sent to org_level {recipient_org_level}")
+
+    except Exception as e:
+        print(f"❌ Failed to send cutoff notification: {str(e)}")
+
+
+def send_all_users_notification(title: str, message: str):
+    try:
+        users = supabase.table("users")\
+            .select("id")\
+            .eq("is_active", True)\
+            .execute()
+
+        for user in users.data:
+            supabase.table("notifications").insert({
+                "receiver_id":  user["id"],
+                "type":         "objective_cutoff",
+                "title":        title,
+                "message":      message,
+                "triggered_by": "system",
+                "action_link":  None,
+            }).execute()
+
+        print("✅ Notification sent to all users")
+
+    except Exception as e:
+        print(f"❌ Failed to send all users notification: {str(e)}")
+
+
+def job_july_1():
+    send_all_users_notification(
+        title="New Appraisal Year Started",
+        message="New appraisal year has started. Objective setting window is now open."
+    )
+
+def job_july_31():
+    send_cutoff_notification(5,
+        title="Objectives Setting Reminder",
+        message="Reminder: Objectives must be set for your team by 31st August. Please begin KPI assignment now."
+    )
+
+def job_aug_5():
+    send_cutoff_notification(4,
+        title="Objectives Setting Alert",
+        message="Alert: Objective setting is in progress. Verify that your Sub Dept Admins have begun KPI assignments."
+    )
+
+def job_aug_10():
+    send_cutoff_notification(3,
+        title="Objectives Setting Escalation",
+        message="Escalation: Objective setting deadline approaching. Confirm Dept Admins are progressing with KPI assignments."
+    )
+
+def job_aug_15():
+    send_cutoff_notification(2,
+        title="Objectives Setting Escalation",
+        message="Escalation: Objective setting nearing final deadline. Ensure all branches have completed KPI assignments."
+    )
+
+def job_aug_25():
+    send_cutoff_notification(1,
+        title="Final Escalation — Objectives Setting",
+        message="Final Escalation: Objective setting closes 31st August. Incomplete assignments frozen with previous year KPIs. Grace period until 15th September."
+    )
+
+def job_aug_31():
+    send_all_users_notification(
+        title="Objectives Setting Window Closed",
+        message="Objective setting window is now CLOSED. Incomplete objectives frozen with previous year KPIs."
+    )
+
+def job_sep_15():
+    send_cutoff_notification(1,
+        title="Grace Period Ended",
+        message="Grace period has ended. PMS templates are now fully frozen. No further changes permitted until next appraisal cycle."
+    )
+
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(job_july_1,  CronTrigger(month=7, day=1,  hour=8, minute=0))
+    scheduler.add_job(job_july_31, CronTrigger(month=7, day=31, hour=8, minute=0))
+    scheduler.add_job(job_aug_5,   CronTrigger(month=8, day=5,  hour=8, minute=0))
+    scheduler.add_job(job_aug_10,  CronTrigger(month=8, day=10, hour=8, minute=0))
+    scheduler.add_job(job_aug_15,  CronTrigger(month=8, day=15, hour=8, minute=0))
+    scheduler.add_job(job_aug_25,  CronTrigger(month=8, day=25, hour=8, minute=0))
+    scheduler.add_job(job_aug_31,  CronTrigger(month=8, day=31, hour=8, minute=0))
+    scheduler.add_job(job_sep_15,  CronTrigger(month=9, day=15, hour=8, minute=0))
+    scheduler.start()
+    print("✅ Objective cutoff scheduler started")
+
+start_scheduler()
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -103,15 +219,13 @@ def is_valid_email(email):
 def health():
     return jsonify({"status": "ok", "service": "pms-backend"}), 200
 
-
 @app.get("/api/test-db")
 def test_db():
     try:
-        result = supabase.table("employees").select("*").execute()
-        return jsonify({"status": "connected", "employees": result.data}), 200
+        result = supabase.table("users").select("*").execute()
+        return jsonify({"status": "connected", "users": result.data}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
 
 @app.get("/api/debug-env")
 def debug_env():
@@ -141,14 +255,14 @@ def login():
         return jsonify({"message": "Invalid email or password"}), 401
 
     return jsonify({
-        "message":        "Login successful",
-        "employee_id":    user["employee_id"],
-        "full_name":      user["full_name"],
-        "email":          email,
-        "org_level":      user["org_level"],
-        "role":           user["role"],
+        "message":          "Login successful",
+        "employee_id":      user["employee_id"],
+        "full_name":        user["full_name"],
+        "email":            email,
+        "org_level":        user["org_level"],
+        "role":             user["role"],
         "iata_branch_code": user["iata_branch_code"],
-        "redirectTo":     ROLE_REDIRECTS.get(user["role"])
+        "redirectTo":       ROLE_REDIRECTS.get(user["role"])
     }), 200
 
 
@@ -156,17 +270,17 @@ def login():
 # PROFILE ROUTES
 # ════════════════════════════════════════════════════════════════════════════
 
-# Get any employee's profile by employee_id
+# Get any user's profile
 @app.get("/api/profile/<employee_id>")
 def get_profile(employee_id):
     try:
-        result = supabase.table("employees")\
+        result = supabase.table("users")\
             .select("*")\
-            .eq("employee_id", employee_id)\
+            .eq("id", employee_id)\
             .execute()
 
         if not result.data:
-            return jsonify({"message": "Employee not found"}), 404
+            return jsonify({"message": "User not found"}), 404
 
         return jsonify({"profile": result.data[0]}), 200
 
@@ -178,20 +292,20 @@ def get_profile(employee_id):
 # PERFORMANCE DIARY ROUTES
 # ════════════════════════════════════════════════════════════════════════════
 
-# Get diary entries for an employee (both self and supervisor)
+# Get diary entries for a user
 @app.get("/api/diary/<employee_id>")
 def get_diary(employee_id):
     try:
         self_entries = supabase.table("performance_diary")\
             .select("*")\
-            .eq("employee_id", employee_id)\
+            .eq("user_id", employee_id)\
             .eq("author_type", "self")\
             .order("created_at", desc=True)\
             .execute()
 
         supervisor_entries = supabase.table("performance_diary")\
             .select("*")\
-            .eq("employee_id", employee_id)\
+            .eq("user_id", employee_id)\
             .eq("author_type", "supervisor")\
             .order("created_at", desc=True)\
             .execute()
@@ -205,7 +319,7 @@ def get_diary(employee_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Save diary entry directly — HQ Admin only (no approval needed)
+# Save diary entry — HQ Admin only
 @app.post("/api/diary/save")
 def save_diary():
     data = request.get_json(silent=True) or {}
@@ -219,11 +333,11 @@ def save_diary():
 
     try:
         result = supabase.table("performance_diary").insert({
-            "employee_id": employee_id,
+            "user_id":     employee_id,
             "author_id":   employee_id,
             "author_type": "self",
             "entry_date":  entry_date,
-            "description": description,
+            "entry_text":  description,
             "cycle_id":    cycle_id or None,
             "status":      "approved"
         }).execute()
@@ -237,7 +351,7 @@ def save_diary():
         return jsonify({"message": str(e)}), 500
 
 
-# Submit diary entry for supervisor approval — all roles except HQ Admin
+# Submit diary entry for approval
 @app.post("/api/diary/submit")
 def submit_diary():
     data = request.get_json(silent=True) or {}
@@ -250,33 +364,32 @@ def submit_diary():
         return jsonify({"message": "employee_id, description and entry_date are required"}), 400
 
     try:
-        # Save diary entry with pending status
+        # Save diary entry
         result = supabase.table("performance_diary").insert({
-            "employee_id": employee_id,
+            "user_id":     employee_id,
             "author_id":   employee_id,
             "author_type": "self",
             "entry_date":  entry_date,
-            "description": description,
+            "entry_text":  description,
             "cycle_id":    cycle_id or None,
             "status":      "pending"
         }).execute()
 
-        # Find supervisor to notify
-        employee = supabase.table("employees")\
-            .select("full_name, org_level, supervisor_id")\
-            .eq("employee_id", employee_id)\
+        # Find supervisor
+        user = supabase.table("users")\
+            .select("full_name, org_level, manager_id")\
+            .eq("id", employee_id)\
             .execute()
 
-        if employee.data:
-            emp = employee.data[0]
-            supervisor_id = emp.get("supervisor_id")
+        if user.data:
+            emp           = user.data[0]
+            supervisor_id = emp.get("manager_id")
             full_name     = emp.get("full_name")
 
             if supervisor_id:
-                # Get supervisor org_level for correct profile path
-                supervisor = supabase.table("employees")\
+                supervisor = supabase.table("users")\
                     .select("org_level")\
-                    .eq("employee_id", supervisor_id)\
+                    .eq("id", supervisor_id)\
                     .execute()
 
                 if supervisor.data:
@@ -284,14 +397,13 @@ def submit_diary():
                     base_path  = ROLE_PROFILE_PATHS.get(supervisor_level, "/")
                     action_url = f"{base_path}?employee_id={employee_id}"
 
-                    # Notify supervisor
                     supabase.table("notifications").insert({
-                        "recipient_id": supervisor_id,
+                        "receiver_id":  supervisor_id,
                         "type":         "diary_approval",
                         "title":        full_name,
                         "message":      description,
                         "triggered_by": "system",
-                        "action_url":   action_url,
+                        "action_link":  action_url,
                     }).execute()
 
         return jsonify({
@@ -303,7 +415,7 @@ def submit_diary():
         return jsonify({"message": str(e)}), 500
 
 
-# Supervisor adds diary comment directly — no approval needed
+# Supervisor adds diary comment directly
 @app.post("/api/diary/supervisor")
 def add_supervisor_diary():
     data = request.get_json(silent=True) or {}
@@ -318,11 +430,11 @@ def add_supervisor_diary():
 
     try:
         result = supabase.table("performance_diary").insert({
-            "employee_id": employee_id,
+            "user_id":     employee_id,
             "author_id":   supervisor_id,
             "author_type": "supervisor",
             "entry_date":  entry_date,
-            "description": description,
+            "entry_text":  description,
             "cycle_id":    cycle_id or None,
             "status":      "approved"
         }).execute()
@@ -336,50 +448,46 @@ def add_supervisor_diary():
         return jsonify({"message": str(e)}), 500
 
 
-# Approve a diary entry — supervisor action
+# Approve diary entry
 @app.patch("/api/diary/<diary_id>/approve")
 def approve_diary(diary_id):
     data = request.get_json(silent=True) or {}
     reviewer_id = (data.get("reviewer_id") or "").strip()
 
     try:
-        # Update diary status to approved
         supabase.table("performance_diary")\
             .update({
                 "status":      "approved",
                 "reviewed_by": reviewer_id,
                 "reviewed_at": datetime.now(timezone.utc).isoformat()
             })\
-            .eq("diary_id", diary_id)\
+            .eq("id", diary_id)\
             .execute()
 
-        # Get diary entry to find employee
         diary = supabase.table("performance_diary")\
-            .select("employee_id, description")\
-            .eq("diary_id", diary_id)\
+            .select("user_id, entry_text")\
+            .eq("id", diary_id)\
             .execute()
 
         if diary.data:
-            employee_id = diary.data[0]["employee_id"]
-            description = diary.data[0]["description"]
+            employee_id = diary.data[0]["user_id"]
+            description = diary.data[0]["entry_text"]
 
-            # Get employee org_level for notification action URL
-            employee = supabase.table("employees")\
+            user = supabase.table("users")\
                 .select("org_level")\
-                .eq("employee_id", employee_id)\
+                .eq("id", employee_id)\
                 .execute()
 
-            org_level  = employee.data[0]["org_level"] if employee.data else 6
+            org_level  = user.data[0]["org_level"] if user.data else 6
             action_url = ROLE_PROFILE_PATHS.get(org_level, "/")
 
-            # Notify employee of approval
             supabase.table("notifications").insert({
-                "recipient_id": employee_id,
+                "receiver_id":  employee_id,
                 "type":         "diary_approval",
                 "title":        "Achievement Approved ✅",
                 "message":      f"Your diary entry has been approved: {description[:100]}",
                 "triggered_by": "system",
-                "action_url":   action_url,
+                "action_link":  action_url,
             }).execute()
 
         return jsonify({"message": "Diary entry approved"}), 200
@@ -388,50 +496,46 @@ def approve_diary(diary_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Reject a diary entry — supervisor action
+# Reject diary entry
 @app.patch("/api/diary/<diary_id>/reject")
 def reject_diary(diary_id):
     data = request.get_json(silent=True) or {}
     reviewer_id = (data.get("reviewer_id") or "").strip()
 
     try:
-        # Update diary status to rejected
         supabase.table("performance_diary")\
             .update({
                 "status":      "rejected",
                 "reviewed_by": reviewer_id,
                 "reviewed_at": datetime.now(timezone.utc).isoformat()
             })\
-            .eq("diary_id", diary_id)\
+            .eq("id", diary_id)\
             .execute()
 
-        # Get diary entry to find employee
         diary = supabase.table("performance_diary")\
-            .select("employee_id, description")\
-            .eq("diary_id", diary_id)\
+            .select("user_id, entry_text")\
+            .eq("id", diary_id)\
             .execute()
 
         if diary.data:
-            employee_id = diary.data[0]["employee_id"]
-            description = diary.data[0]["description"]
+            employee_id = diary.data[0]["user_id"]
+            description = diary.data[0]["entry_text"]
 
-            # Get employee org_level for notification action URL
-            employee = supabase.table("employees")\
+            user = supabase.table("users")\
                 .select("org_level")\
-                .eq("employee_id", employee_id)\
+                .eq("id", employee_id)\
                 .execute()
 
-            org_level  = employee.data[0]["org_level"] if employee.data else 6
+            org_level  = user.data[0]["org_level"] if user.data else 6
             action_url = ROLE_PROFILE_PATHS.get(org_level, "/")
 
-            # Notify employee of rejection
             supabase.table("notifications").insert({
-                "recipient_id": employee_id,
+                "receiver_id":  employee_id,
                 "type":         "diary_approval",
                 "title":        "Achievement Rejected ❌",
                 "message":      f"Your diary entry was not approved: {description[:100]}",
                 "triggered_by": "system",
-                "action_url":   action_url,
+                "action_link":  action_url,
             }).execute()
 
         return jsonify({"message": "Diary entry rejected"}), 200
@@ -440,13 +544,13 @@ def reject_diary(diary_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Delete a diary entry — HQ Admin only
+# Delete diary entry — HQ Admin only
 @app.delete("/api/diary/<diary_id>")
 def delete_diary(diary_id):
     try:
         supabase.table("performance_diary")\
             .delete()\
-            .eq("diary_id", diary_id)\
+            .eq("id", diary_id)\
             .execute()
         return jsonify({"message": "Entry deleted"}), 200
     except Exception as e:
@@ -457,13 +561,13 @@ def delete_diary(diary_id):
 # NOTIFICATION ROUTES
 # ════════════════════════════════════════════════════════════════════════════
 
-# Get all notifications for an employee
+# Get all notifications for a user
 @app.get("/api/notifications/<employee_id>")
 def get_notifications(employee_id):
     try:
         result = supabase.table("notifications")\
             .select("*")\
-            .eq("recipient_id", employee_id)\
+            .eq("receiver_id", employee_id)\
             .order("created_at", desc=True)\
             .execute()
 
@@ -473,7 +577,7 @@ def get_notifications(employee_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Mark a notification as read
+# Mark notification as read
 @app.patch("/api/notifications/<notification_id>/read")
 def mark_notification_read(notification_id):
     try:
@@ -482,7 +586,7 @@ def mark_notification_read(notification_id):
                 "is_read": True,
                 "read_at": datetime.now(timezone.utc).isoformat()
             })\
-            .eq("notification_id", notification_id)\
+            .eq("id", notification_id)\
             .execute()
 
         return jsonify({"message": "Marked as read"}), 200
@@ -491,17 +595,43 @@ def mark_notification_read(notification_id):
         return jsonify({"message": str(e)}), 500
 
 
+# Manual trigger for testing cutoff notifications
+@app.post("/api/notifications/trigger-cutoff")
+def trigger_cutoff():
+    data = request.get_json(silent=True) or {}
+    job  = (data.get("job") or "").strip()
+
+    jobs = {
+        "july_1":  job_july_1,
+        "july_31": job_july_31,
+        "aug_5":   job_aug_5,
+        "aug_10":  job_aug_10,
+        "aug_15":  job_aug_15,
+        "aug_25":  job_aug_25,
+        "aug_31":  job_aug_31,
+        "sep_15":  job_sep_15,
+    }
+
+    if job not in jobs:
+        return jsonify({
+            "message": "Invalid job. Use: july_1, july_31, aug_5, aug_10, aug_15, aug_25, aug_31, sep_15"
+        }), 400
+
+    jobs[job]()
+    return jsonify({"message": f"Notification triggered: {job}"}), 200
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # TRAINING PASSPORT ROUTES
 # ════════════════════════════════════════════════════════════════════════════
 
-# Get all training records attended by an employee
+# Get all training records for a user
 @app.get("/api/training/attended/<employee_id>")
 def get_training_attended(employee_id):
     try:
-        result = supabase.table("training_attended")\
+        result = supabase.table("training_passport")\
             .select("*")\
-            .eq("employee_id", employee_id)\
+            .eq("user_id", employee_id)\
             .order("training_date", desc=True)\
             .execute()
 
@@ -511,7 +641,7 @@ def get_training_attended(employee_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Add a new training attended record
+# Add a new training record
 @app.post("/api/training/attended")
 def add_training_attended():
     data = request.get_json(silent=True) or {}
@@ -525,11 +655,12 @@ def add_training_attended():
         return jsonify({"message": "All fields are required"}), 400
 
     try:
-        result = supabase.table("training_attended").insert({
-            "employee_id":      employee_id,
-            "programme_name":   programme_name,
+        result = supabase.table("training_passport").insert({
+            "user_id":          employee_id,
+            "training_name":    programme_name,
             "training_date":    training_date,
             "trainer_provider": trainer_provider,
+            "provider":         trainer_provider,
             "cycle_id":         cycle_id or None,
         }).execute()
 
@@ -542,24 +673,7 @@ def add_training_attended():
         return jsonify({"message": str(e)}), 500
 
 
-# Get training needs checklist for an employee
-@app.get("/api/training/needs/<employee_id>")
-def get_training_needs(employee_id):
-    try:
-        result = supabase.table("training_needs")\
-            .select("*")\
-            .eq("employee_id", employee_id)\
-            .execute()
-
-        return jsonify({"needs": result.data}), 200
-
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
-
-
-# ── Training Suggestions ─────────────────────────────────────────────────────
-
-# Submit a new training suggestion (employee → supervisor)
+# Submit a training suggestion
 @app.post("/api/training/suggestions")
 def add_training_suggestion():
     data = request.get_json(silent=True) or {}
@@ -571,15 +685,14 @@ def add_training_suggestion():
         return jsonify({"message": "All fields are required"}), 400
 
     try:
-        # Get supervisor_id from employees table
-        employee = supabase.table("employees")\
-            .select("supervisor_id, full_name")\
-            .eq("employee_id", employee_id)\
+        user = supabase.table("users")\
+            .select("manager_id")\
+            .eq("id", employee_id)\
             .execute()
 
         supervisor_id = None
-        if employee.data:
-            supervisor_id = employee.data[0].get("supervisor_id")
+        if user.data:
+            supervisor_id = user.data[0].get("manager_id")
 
         result = supabase.table("training_suggestions").insert({
             "employee_id":   employee_id,
@@ -598,7 +711,7 @@ def add_training_suggestion():
         return jsonify({"message": str(e)}), 500
 
 
-# Get own training suggestions for an employee
+# Get own training suggestions
 @app.get("/api/training/suggestions/<employee_id>")
 def get_training_suggestions(employee_id):
     try:
@@ -614,12 +727,12 @@ def get_training_suggestions(employee_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Get pending suggestions submitted by subordinates (for supervisor review)
+# Get subordinate suggestions for supervisor
 @app.get("/api/training/subordinate-suggestions/<supervisor_id>")
 def get_subordinate_suggestions(supervisor_id):
     try:
         result = supabase.table("training_suggestions")\
-            .select("*, employees!training_suggestions_employee_id_fkey(full_name, role)")\
+            .select("*, users!training_suggestions_employee_id_fkey(full_name, role)")\
             .eq("supervisor_id", supervisor_id)\
             .eq("status", "pending")\
             .order("created_at", desc=True)\
@@ -631,7 +744,7 @@ def get_subordinate_suggestions(supervisor_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Approve or reject a training suggestion — supervisor action
+# Approve or reject a training suggestion
 @app.patch("/api/training/suggestions/<suggestion_id>")
 def review_suggestion(suggestion_id):
     data = request.get_json(silent=True) or {}
@@ -648,10 +761,80 @@ def review_suggestion(suggestion_id):
                 "supervisor_comment": comment,
                 "updated_at":         datetime.now(timezone.utc).isoformat()
             })\
-            .eq("suggestion_id", suggestion_id)\
+            .eq("id", suggestion_id)\
             .execute()
 
         return jsonify({"message": f"Suggestion {action}"}), 200
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# DASHBOARD ROUTES
+# ════════════════════════════════════════════════════════════════════════════
+
+# Get dashboard stats by role
+@app.get("/api/dashboard/stats/<employee_id>")
+def get_dashboard_stats(employee_id):
+    try:
+        user = supabase.table("users")\
+            .select("org_level, iata_branch_code")\
+            .eq("id", employee_id)\
+            .execute()
+
+        if not user.data:
+            return jsonify({"message": "User not found"}), 404
+
+        org_level = user.data[0]["org_level"]
+        stats = {}
+
+        if org_level == 1:
+            countries  = supabase.table("countries").select("id", count="exact").execute()
+            employees  = supabase.table("users").select("id", count="exact").eq("org_level", 6).execute()
+            branches   = supabase.table("branches").select("id", count="exact").execute()
+            stats = {
+                "Total Countries": countries.count or 0,
+                "Total Employees": employees.count or 0,
+                "Total Branches":  branches.count or 0,
+            }
+
+        elif org_level == 2:
+            branches    = supabase.table("branches").select("id", count="exact").execute()
+            employees   = supabase.table("users").select("id", count="exact").eq("org_level", 6).execute()
+            departments = supabase.table("departments").select("id", count="exact").execute()
+            stats = {
+                "Total Branches":    branches.count or 0,
+                "Total Employees":   employees.count or 0,
+                "Total Departments": departments.count or 0,
+            }
+
+        elif org_level == 3:
+            departments = supabase.table("departments").select("id", count="exact").execute()
+            employees   = supabase.table("users").select("id", count="exact").eq("org_level", 6).execute()
+            stats = {
+                "Total Departments": departments.count or 0,
+                "Total Employees":   employees.count or 0,
+                "Total Sub-Depts":   0,
+            }
+
+        elif org_level == 4:
+            employees = supabase.table("users").select("id", count="exact").eq("org_level", 6).execute()
+            stats = {
+                "Total Sub-Departments": 0,
+                "Total Employees":       employees.count or 0,
+            }
+
+        elif org_level == 5:
+            employees = supabase.table("users")\
+                .select("id", count="exact")\
+                .eq("manager_id", employee_id)\
+                .execute()
+            stats = {
+                "Total Employees": employees.count or 0,
+            }
+
+        return jsonify({"stats": stats}), 200
 
     except Exception as e:
         return jsonify({"message": str(e)}), 500

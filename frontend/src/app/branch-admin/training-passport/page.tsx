@@ -22,7 +22,7 @@ export default function BranchAdminTrainingPage() {
         const attRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended/${currentUser.employee_id}`);
         const attData = await attRes.json();
         setAttended((attData.trainings || []).map((t: any) => ({
-          id: t.training_id, trainingName: t.programme_name, date: t.training_date, provider: t.trainer_provider,
+          id: t.id, trainingName: t.training_name, date: t.training_date, provider: t.trainer_provider,
         })));
 
         const suggRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions/${currentUser.employee_id}`);

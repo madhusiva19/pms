@@ -41,19 +41,19 @@ export default function HQAdminProfilePage() {
 
         setSelfEntries(
           (diaryJson.self_entries || []).map((e: any) => ({
-            id: e.diary_id,
+            id: e.id,
             date: e.entry_date,
-            content: e.description,
+            content: e.entry_text,
             status: e.status,
           }))
         );
 
         setSupervisorEntries(
           (diaryJson.supervisor_entries || []).map((e: any) => ({
-            id: e.diary_id,
+            id: e.id,
             date: e.entry_date,
             supervisorName: e.author_id,
-            comment: e.description,
+            comment: e.entry_text,
           }))
         );
       } catch (err) {
