@@ -1,4 +1,4 @@
-## README: Employee Performance Management System (EPMS)
+## README: Performance Management System (PMS)
 
 This repository contains the source code for the **Digital Employee Performance Management System (PMS)**, a high-fidelity platform designed for **Dart Global Logistics Inc.**The system is engineered to replace manual performance tracking with an automated, AI-driven workflow that supports a global organizational structure
 
