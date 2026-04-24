@@ -22,32 +22,20 @@ import {
 } from 'lucide-react';
 
 import MetricCard from '@/components/MetricCard';
-import ComparisonChart from '@/components/ComparisonChart';
 import AIInsightCard from '@/components/AIInsightCard';
 import AIRecommendationsList from '@/components/AIRecommendationsList';
 import SubDeptScoreBarChart from '@/components/SubDeptScoreBarChart';
 import type { TeamScoreEntry } from '@/components/SubDeptScoreBarChart';
 
 import {
-  branchByCodeApi,
-  branchDashboardApi,
-  branchComparisonApi,
-  branchInsightsApi,
   employeesApi,
   performanceSummariesApi,
 } from '@/services/api';
-import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
 
-import type {
-  Branch,
-  BranchDashboardSummary,
-  BranchPerformanceComparison,
-  BranchAIInsight,
-  ReportType,
-} from '@/types';
+import type { ReportType } from '@/types';
 
-type DownloadStatus = 'idle' | 'requesting' | 'generating' | 'success' | 'failed';
+type DownloadStatus = 'idle' | 'generating' | 'success' | 'failed';
 
 export default function SubDeptAdminReportDetailPage() {
   const params = useParams();
@@ -55,6 +43,25 @@ export default function SubDeptAdminReportDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const employeeId = params?.employeeId as string;
   const [empName, setEmpName] = useState('Employee');
+  const [activeTab, setActiveTab] = useState<ReportType>('mid_year');
+  const [teamScores, setTeamScores] = useState<TeamScoreEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
+
+  const recommendations = [
+    { text: 'Launch targeted coaching programs for the lower 15% to move them out of the 1.0–2.0 band.' },
+    { text: 'Recognize and reward the high-performing 3.5–4.0 group to maintain their momentum.' },
+    { text: 'Introduce leadership development programs to grow the top performer pool beyond 4.5.' },
+    { text: 'Focus mid-level employees in the 3.0–3.5 band on skill development to push them into higher ratings.' },
+  ];
+
+  const fallbackInsight = activeTab === 'mid_year'
+    ? 'Distribution follows a normal curve with slight right skew. Top 18% performers exceed 4.5 rating. Recommend targeted development programs for the lower 15%'
+    : 'Year-end performance shows improvement across all bands. Top performers increased by 37%. Distribution normalized successfully with 21% in exceptional category';
+
+  useEffect(() => {
+    if (!authLoading && (!user || user.role !== 'sub_dept_admin')) router.push('/');
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     if (employeeId) {
@@ -64,19 +71,9 @@ export default function SubDeptAdminReportDetailPage() {
     }
   }, [employeeId]);
 
-  const [branch, setBranch] = useState<Branch | null>(null);
-  const [summary, setSummary] = useState<BranchDashboardSummary | null>(null);
-  const [activeTab, setActiveTab] = useState<ReportType>('mid_year');
-const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison[]>([]);
-  const [insights, setInsights] = useState<BranchAIInsight[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
-  const [teamScores, setTeamScores] = useState<TeamScoreEntry[]>([]);
-
   useEffect(() => {
     if (!user?.sub_department_id || !employeeId) return;
+    setLoading(true);
     employeesApi.getBySubDepartment(user.sub_department_id)
       .then(async (emps) => {
         const scores = await Promise.all(
@@ -94,88 +91,24 @@ const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison
         );
         setTeamScores(scores);
       })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [user?.sub_department_id, employeeId]);
 
-  const recommendations = [
-    { text: 'Launch targeted coaching programs for the lower 15% to move them out of the 1.0–2.0 band.' },
-    { text: 'Recognize and reward the high-performing 3.5–4.0 group to maintain their momentum.' },
-    { text: 'Introduce leadership development programs to grow the top performer pool beyond 4.5.' },
-    { text: 'Focus mid-level employees in the 3.0–3.5 band on skill development to push them into higher ratings.' },
-  ];
-
-  useEffect(() => {
-    if (!authLoading && (!user || user.role !== 'sub_dept_admin')) router.push('/');
-  }, [user, authLoading, router]);
-
-  useEffect(() => {
-    if (user?.iata_branch_code) fetchAllData();
-  }, [user?.iata_branch_code, activeTab]);
-
-  const fetchAllData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      // Clear previous data to prevent stale charts showing on tab switch
-      setComparisonData([]);
-      setInsights([]);
-
-      const branchData = await branchByCodeApi.get(user!.iata_branch_code!);
-      setBranch(branchData);
-
-      const summaryData = await branchDashboardApi.getSummary(branchData.id);
-      setSummary(summaryData);
-
-      const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
-
-      if (activeReport) {
-        const insightsData = await branchInsightsApi.getByReport(activeReport.id);
-        if (insightsData && insightsData.length > 0) {
-          setInsights(insightsData);
-        } else {
-          const fallbackInsight = activeTab === 'mid_year'
-            ? 'Distribution follows a normal curve with slight right skew. Top 18% performers exceed 4.5 rating. Recommend targeted development programs for the lower 15%'
-            : 'Year-end performance shows improvement across all bands. Top performers increased by 37%. Distribution normalized successfully with 21% in exceptional category';
-          setInsights([{
-            id: 'fallback-insight',
-            report_id: activeReport.id,
-            insight_text: fallbackInsight,
-            insight_type: 'distribution_analysis',
-            created_at: new Date().toISOString(),
-          }]);
-        }
-      }
-
-      if (activeTab === 'year_end') {
-        const comparison = await branchComparisonApi.getByBranch(
-          branchData.id,
-          summaryData.year_end?.report_year
-        );
-        setComparisonData(comparison);
-      }
-    } catch (err) {
-      setError('Failed to load report data. Please try again.');
-      console.error('Error fetching data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Compute metric cards from teamScores for the active tab
+  const activeScores = teamScores.filter(s =>
+    activeTab === 'mid_year' ? s.midYearScore !== undefined : s.yearEndScore !== undefined
+  );
+  const totalEvaluated = activeScores.length;
+  const avgScore = totalEvaluated > 0
+    ? activeScores.reduce((sum, s) => sum + (activeTab === 'mid_year' ? s.midYearScore! : s.yearEndScore!), 0) / totalEvaluated
+    : 0;
+  const topPerformers = activeScores.filter(s =>
+    (activeTab === 'mid_year' ? s.midYearScore! : s.yearEndScore!) >= 4.5
+  ).length;
 
   const handleDownload = async () => {
-    if (!branch) {
-      setError('Cannot download: No branch information available.');
-      setDownloadStatus('failed');
-      setTimeout(() => setDownloadStatus('idle'), 3000);
-      return;
-    }
     try {
-      setError(null);
-      setDownloadStatus('requesting');
-      try {
-        await reportRequestApi.create(branch.country_id, activeTab, 'current-admin-id');
-      } catch (logErr) {
-        console.warn('⚠️ Failed to log report request:', logErr);
-      }
       setDownloadStatus('generating');
       const fileName = `${empName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-2026.pdf`;
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -183,7 +116,6 @@ const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison
       setDownloadStatus('success');
       setTimeout(() => setDownloadStatus('idle'), 3000);
     } catch (err: any) {
-      setError(`Download Error: ${err?.message || 'Download failed.'}`);
       setDownloadStatus('failed');
       setTimeout(() => setDownloadStatus('idle'), 3000);
     }
@@ -191,7 +123,6 @@ const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison
 
   const downloadButtonContent = () => {
     switch (downloadStatus) {
-      case 'requesting': return <><Loader2 className="w-4 h-4 animate-spin" /> Preparing Request...</>;
       case 'generating': return <><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF...</>;
       case 'success': return <><CheckCircle className="w-4 h-4" /> Downloaded!</>;
       case 'failed': return <><XCircle className="w-4 h-4" /> Failed. Try Again</>;
@@ -207,8 +138,6 @@ const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison
     }
   };
 
-  const activeReport = activeTab === 'mid_year' ? summary?.mid_year : summary?.year_end;
-
   if (authLoading) return <div className="flex items-center justify-center p-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
   if (!user || user.role !== 'sub_dept_admin') return null;
 
@@ -216,22 +145,6 @@ const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
         <div className="text-gray-500 text-sm">Loading...</div>
-      </div>
-    );
-  }
-
-  if (error || !branch || !summary) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error || 'Data not found'}</p>
-          <button
-            onClick={() => router.push('/sub-dept-admin/reports')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-          >
-            Back to Reports
-          </button>
-        </div>
       </div>
     );
   }
@@ -326,7 +239,7 @@ const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison
         {/* ── Report Content ── */}
         <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
 
-          {!activeReport && (
+          {totalEvaluated === 0 && (
             <div className="flex flex-col items-center justify-center p-20 text-center bg-[#F9FAFB] rounded-lg border border-dashed border-gray-200">
               <p className="text-[#64748B] text-[15px] font-medium">No {activeTab === 'mid_year' ? 'mid-year' : 'year-end'} report data found for {empName}.</p>
               <p className="text-[#94A3B8] text-[13px] mt-1">Please ensure the data is loaded in the database.</p>
@@ -334,27 +247,21 @@ const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison
           )}
 
           {/* Metric Cards */}
-          {activeReport && (
+          {totalEvaluated > 0 && (
             <div className="grid grid-cols-3 gap-4">
               <MetricCard
                 title="Evaluated"
-                value={activeReport.total_evaluated}
-                subtitle={
-                  activeTab === 'year_end'
-                    ? '100% completion'
-                    : `out of ${branch.total_employees}`
-                }
-                subtitleColor={activeTab === 'year_end' ? 'text-[#00A63E]' : 'text-[#6A7282]'}
+                value={totalEvaluated}
+                subtitle={`out of ${teamScores.length}`}
+                subtitleColor="text-[#6A7282]"
                 icon={Users}
                 iconColor="#155DFC"
                 iconBgColor="#FFFFFF"
               />
               <MetricCard
                 title="Avg Score"
-                value={activeReport.avg_score.toFixed(1)}
-                subtitle={
-                  activeTab === 'year_end' ? '+0.2 from mid-year' : '+0.2 from last period'
-                }
+                value={avgScore.toFixed(1)}
+                subtitle={activeTab === 'year_end' ? '+0.2 from mid-year' : '+0.2 from last period'}
                 subtitleColor="text-[#00A63E]"
                 icon={TrendingUp}
                 iconColor="#0092B8"
@@ -362,7 +269,7 @@ const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison
               />
               <MetricCard
                 title="Top Performers"
-                value={activeReport.top_performers}
+                value={topPerformers}
                 subtitle="Rating ≥ 4.5"
                 subtitleColor="text-[#6A7282]"
                 icon={Award}
@@ -383,29 +290,14 @@ const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison
           )}
 
           {/* AI Insight strip */}
-          {insights.length > 0 && (
-            <div>
-              {insights.map((insight) => (
-                <AIInsightCard
-                  key={insight.id}
-                  insight={insight.insight_text}
-                  type={activeTab === 'year_end' ? 'success' : 'info'}
-                />
-              ))}
-            </div>
-          )}
+          <AIInsightCard
+            insight={fallbackInsight}
+            type={activeTab === 'year_end' ? 'success' : 'info'}
+          />
 
-          {/* Bottom Section: Recommendations OR Comparison */}
-          {activeTab === 'mid_year' ? (
+          {/* Bottom Section: Recommendations */}
+          {activeTab === 'mid_year' && (
             <AIRecommendationsList recommendations={recommendations} />
-          ) : (
-            comparisonData.length > 0 && (
-              <ComparisonChart
-                data={comparisonData as any}
-                title="Mid-Year vs Year-End Comparison"
-                subtitle="Performance progression across categories"
-              />
-            )
           )}
 
         </div>

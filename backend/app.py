@@ -551,10 +551,10 @@ def get_branch_details(branch_id: str):
 @app.route('/api/branch-by-code/<code>', methods=['GET'])
 def get_branch_by_code(code: str):
     try:
-        response = supabase.table('branches').select('*').eq('code', code).single().execute()
+        response = supabase.table('branches').select('*').eq('code', code).limit(1).execute()
         if not response.data:
             return jsonify({'success': False, 'error': 'Branch not found'}), 404
-        return jsonify({'success': True, 'data': response.data}), 200
+        return jsonify({'success': True, 'data': response.data[0]}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
