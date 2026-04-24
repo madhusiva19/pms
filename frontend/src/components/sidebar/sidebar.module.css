@@ -1,0 +1,155 @@
+
+.sidebar {
+  width: 251px;
+  background: #1c398e;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  flex-shrink: 0;
+}
+
+.brand {
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: left;
+    height: 80px;
+    overflow: hidden;
+}
+
+.brandLogoImg {
+  height: auto;
+  width: 251px;
+  object-fit: contain;
+}
+
+.sideNav {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.sideItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  color: #ffffff;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  border: none;
+  text-align: left;
+  text-decoration: none;
+  height: 46px;
+  transition: background 0.15s;
+}
+
+.sideItem:hover {
+  background: #1e40af;
+}
+
+.active {
+  background: #4d8df5 !important;
+  color: #fff;
+}
+
+.navSvg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.sideLabel {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 27px;
+  font-family: "Segoe UI", Inter, sans-serif;
+}
+
+.sideFooter {
+  padding: 12px 16px;
+  border-top: 1px solid #1e3ea7;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  
+}
+
+.profileRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.avatarCircle {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
+.profileText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.profileName {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 27px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profileRole {
+  font-size: 10px;
+  line-height: 16px;
+  color: #bedbff;
+  text-transform: capitalize;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logoutBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #dbeafe;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 36px;
+  transition: background 0.15s;
+}
+
+.logoutBtn:hover {
+  background: #1e40af;
+}
+
+
+

@@ -1,7 +1,7 @@
 "use client";
 
 // components/templatedashboard/TemplateDashboardBase.tsx
-
+import Image from "next/image";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import styles from "./TemplateDashboardBase.module.css";
+import Sidebar from "@/components/sidebar/Sidebar";
 import {
   computeFreezeDates,
   getTemplatePermissions,
@@ -208,7 +209,7 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
       : styles.periodOpen;
 
   // ─────────────────────────────────────────────────────────────────────────
-
+  
   return (
     <div className={styles.wrapper}>
 
@@ -852,12 +853,13 @@ function TemplateCard({
             </div>
           </div>
         </div>
-      )}
+      )
+      
+ }
+
 
     </div>
   );
 }
-
-
 
 
