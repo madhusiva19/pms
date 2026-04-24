@@ -3,7 +3,7 @@ import Sidebar from "@/components/sidebar/Sidebar";
 import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles from "@/components/templatedashboard/TemplateDashboardBase.module.css";
 
-export default function HQAdminLayout({ children }: { children: React.ReactNode }) {
+export default function CountryAdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={styles.dashShell}>
       <Sidebar />

@@ -1,0 +1,49 @@
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  padding: 12px 0 20px;
+  color: #6b7280;
+}
+
+.homeLink {
+  display: flex;
+  align-items: center;
+  color: #6b7280;
+  transition: color 0.15s;
+}
+
+.homeLink:hover {
+  color: #3b82f6;
+}
+
+.segment {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.separator {
+  color: #d1d5db;
+  flex-shrink: 0;
+}
+
+.link {
+  color: #6b7280;
+  text-decoration: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.link:hover {
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+.current {
+  color: #111827;
+  font-weight: 600;
+  padding: 2px 4px;
+}

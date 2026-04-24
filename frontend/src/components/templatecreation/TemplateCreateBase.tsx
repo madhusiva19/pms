@@ -1,14 +1,6 @@
 "use client";
 
-// components/TemplateCreateBase.tsx
-//
-// Training linkage removed.
-// KPI Scale Control Card — below the tables.
-// Table layout — fixed structured layout, no horizontal scroll.
-// Consistent camelCase naming; no magic numbers; separate CSS file.
-// KPI Scales — grouped dropdown: Interpolated (8), Bracket (4, one inverse), Manual (1).
-// Dropdown arrows removed from KPI Scale and Control selects — badge-click triggers menu.
-// employees table replaced with users table (id=uuid, full_name=text).
+
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
