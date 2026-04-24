@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from supabase import create_client, Client
+
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -17,7 +17,97 @@ CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000"]}})
 # ── Supabase client ──────────────────────────────────────────────────────────
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+import requests as req
+
+class SupabaseClient:
+    def __init__(self, url, key):
+        self.url = url
+        self.key = key
+        self.headers = {
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
+
+    def table(self, table_name):
+        return SupabaseTable(self.url, self.headers, table_name)
+
+class SupabaseTable:
+    def __init__(self, url, headers, table_name):
+        self.url = url
+        self.headers = headers
+        self.table_name = table_name
+        self.params = {}
+        self.method = "GET"
+        self.body = None
+        self._count = None
+
+    def select(self, columns="*", count=None):
+        self.params["select"] = columns
+        if count == "exact":
+            self.headers = {**self.headers, "Prefer": "count=exact"}
+            self._count = True
+        return self
+
+    def insert(self, data):
+        self.method = "POST"
+        self.body = data
+        return self
+
+    def update(self, data):
+        self.method = "PATCH"
+        self.body = data
+        return self
+
+    def delete(self):
+        self.method = "DELETE"
+        return self
+
+    def eq(self, col, val):
+        self.params[col] = f"eq.{val}"
+        return self
+
+    def order(self, col, desc=False):
+        self.params["order"] = f"{col}.{'desc' if desc else 'asc'}"
+        return self
+
+    def execute(self):
+        url = f"{self.url}/rest/v1/{self.table_name}"
+        if self.method == "GET":
+            res = req.get(url, headers=self.headers, params=self.params)
+        elif self.method == "POST":
+            res = req.post(url, headers=self.headers, json=self.body)
+        elif self.method == "PATCH":
+            res = req.patch(url, headers=self.headers, params=self.params, json=self.body)
+        elif self.method == "DELETE":
+            res = req.delete(url, headers=self.headers, params=self.params)
+
+        class Result:
+            pass
+
+        result = Result()
+        try:
+            result.data = res.json() if res.text else []
+            if not isinstance(result.data, list):
+                result.data = [result.data] if result.data else []
+        except:
+            result.data = []
+
+        # Handle count
+        if self._count:
+            content_range = res.headers.get("Content-Range", "")
+            try:
+                result.count = int(content_range.split("/")[-1])
+            except:
+                result.count = len(result.data)
+        else:
+            result.count = len(result.data)
+
+        return result
+
+supabase = SupabaseClient(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Dummy users ──────────────────────────────────────────────────────────────
 USERS = {
@@ -79,6 +169,16 @@ ROLE_REDIRECTS = {
     "Dept Admin":     "/dept-admin/dashboard",
     "Sub Dept Admin": "/sub-dept-admin/dashboard",
     "Employee":       "/employee/profile",
+}
+
+# ── Role keys for frontend sidebar ───────────────────────────────────────────
+ROLE_KEYS = {
+    "HQ Admin":       "hq_admin",
+    "Country Admin":  "country_admin",
+    "Branch Admin":   "branch_admin",
+    "Dept Admin":     "dept_admin",
+    "Sub Dept Admin": "sub_dept_admin",
+    "Employee":       "employee",
 }
 
 # ── Role profile paths ───────────────────────────────────────────────────────
@@ -208,8 +308,6 @@ def start_scheduler():
     scheduler.start()
     print("✅ Objective cutoff scheduler started")
 
-start_scheduler()
-
 
 # ════════════════════════════════════════════════════════════════════════════
 # SYSTEM ROUTES
@@ -260,7 +358,7 @@ def login():
         "full_name":        user["full_name"],
         "email":            email,
         "org_level":        user["org_level"],
-        "role":             user["role"],
+        "role":             ROLE_KEYS.get(user["role"]),
         "iata_branch_code": user["iata_branch_code"],
         "redirectTo":       ROLE_REDIRECTS.get(user["role"])
     }), 200
@@ -270,7 +368,6 @@ def login():
 # PROFILE ROUTES
 # ════════════════════════════════════════════════════════════════════════════
 
-# Get any user's profile
 @app.get("/api/profile/<employee_id>")
 def get_profile(employee_id):
     try:
@@ -292,7 +389,6 @@ def get_profile(employee_id):
 # PERFORMANCE DIARY ROUTES
 # ════════════════════════════════════════════════════════════════════════════
 
-# Get diary entries for a user
 @app.get("/api/diary/<employee_id>")
 def get_diary(employee_id):
     try:
@@ -319,7 +415,6 @@ def get_diary(employee_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Save diary entry — HQ Admin only
 @app.post("/api/diary/save")
 def save_diary():
     data = request.get_json(silent=True) or {}
@@ -351,7 +446,6 @@ def save_diary():
         return jsonify({"message": str(e)}), 500
 
 
-# Submit diary entry for approval
 @app.post("/api/diary/submit")
 def submit_diary():
     data = request.get_json(silent=True) or {}
@@ -364,7 +458,6 @@ def submit_diary():
         return jsonify({"message": "employee_id, description and entry_date are required"}), 400
 
     try:
-        # Save diary entry
         result = supabase.table("performance_diary").insert({
             "user_id":     employee_id,
             "author_id":   employee_id,
@@ -375,7 +468,6 @@ def submit_diary():
             "status":      "pending"
         }).execute()
 
-        # Find supervisor
         user = supabase.table("users")\
             .select("full_name, org_level, manager_id")\
             .eq("id", employee_id)\
@@ -415,7 +507,6 @@ def submit_diary():
         return jsonify({"message": str(e)}), 500
 
 
-# Supervisor adds diary comment directly
 @app.post("/api/diary/supervisor")
 def add_supervisor_diary():
     data = request.get_json(silent=True) or {}
@@ -448,7 +539,6 @@ def add_supervisor_diary():
         return jsonify({"message": str(e)}), 500
 
 
-# Approve diary entry
 @app.patch("/api/diary/<diary_id>/approve")
 def approve_diary(diary_id):
     data = request.get_json(silent=True) or {}
@@ -496,7 +586,6 @@ def approve_diary(diary_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Reject diary entry
 @app.patch("/api/diary/<diary_id>/reject")
 def reject_diary(diary_id):
     data = request.get_json(silent=True) or {}
@@ -544,7 +633,6 @@ def reject_diary(diary_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Delete diary entry — HQ Admin only
 @app.delete("/api/diary/<diary_id>")
 def delete_diary(diary_id):
     try:
@@ -561,7 +649,6 @@ def delete_diary(diary_id):
 # NOTIFICATION ROUTES
 # ════════════════════════════════════════════════════════════════════════════
 
-# Get all notifications for a user
 @app.get("/api/notifications/<employee_id>")
 def get_notifications(employee_id):
     try:
@@ -577,7 +664,6 @@ def get_notifications(employee_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Mark notification as read
 @app.patch("/api/notifications/<notification_id>/read")
 def mark_notification_read(notification_id):
     try:
@@ -595,7 +681,6 @@ def mark_notification_read(notification_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Manual trigger for testing cutoff notifications
 @app.post("/api/notifications/trigger-cutoff")
 def trigger_cutoff():
     data = request.get_json(silent=True) or {}
@@ -625,7 +710,6 @@ def trigger_cutoff():
 # TRAINING PASSPORT ROUTES
 # ════════════════════════════════════════════════════════════════════════════
 
-# Get all training records for a user
 @app.get("/api/training/attended/<employee_id>")
 def get_training_attended(employee_id):
     try:
@@ -641,7 +725,6 @@ def get_training_attended(employee_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Add a new training record
 @app.post("/api/training/attended")
 def add_training_attended():
     data = request.get_json(silent=True) or {}
@@ -673,7 +756,6 @@ def add_training_attended():
         return jsonify({"message": str(e)}), 500
 
 
-# Submit a training suggestion
 @app.post("/api/training/suggestions")
 def add_training_suggestion():
     data = request.get_json(silent=True) or {}
@@ -711,7 +793,6 @@ def add_training_suggestion():
         return jsonify({"message": str(e)}), 500
 
 
-# Get own training suggestions
 @app.get("/api/training/suggestions/<employee_id>")
 def get_training_suggestions(employee_id):
     try:
@@ -727,7 +808,6 @@ def get_training_suggestions(employee_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Get subordinate suggestions for supervisor
 @app.get("/api/training/subordinate-suggestions/<supervisor_id>")
 def get_subordinate_suggestions(supervisor_id):
     try:
@@ -744,7 +824,6 @@ def get_subordinate_suggestions(supervisor_id):
         return jsonify({"message": str(e)}), 500
 
 
-# Approve or reject a training suggestion
 @app.patch("/api/training/suggestions/<suggestion_id>")
 def review_suggestion(suggestion_id):
     data = request.get_json(silent=True) or {}
@@ -774,7 +853,6 @@ def review_suggestion(suggestion_id):
 # DASHBOARD ROUTES
 # ════════════════════════════════════════════════════════════════════════════
 
-# Get dashboard stats by role
 @app.get("/api/dashboard/stats/<employee_id>")
 def get_dashboard_stats(employee_id):
     try:
@@ -845,4 +923,5 @@ def get_dashboard_stats(employee_id):
 # ════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
+    #start_scheduler()
     app.run(host="127.0.0.1", port=5000, debug=True)

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./profile.module.css";
+import Sidebar from "@/components/sidebar/Sidebar";
 
 // ── Types ──────────────────────────────────────────────
 export type Role =
@@ -300,79 +301,8 @@ export default function ProfileTemplate({
   return (
     <div className={styles.shell}>
 
-      {/* ══════════════ SIDEBAR ══════════════ */}
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <Image src="/dgl-logo.png" alt="DGL Logo" width={160} height={56} className={styles.brandLogoImg} priority />
-        </div>
-
-        <nav className={styles.sideNav}>
-          <button type="button" className={styles.sideItem} onClick={() => router.push(dashboardPath)}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <rect x="3"  y="3"  width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-              <rect x="14" y="3"  width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-              <rect x="3"  y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-              <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-            </svg>
-            <span className={styles.sideLabel}>Dashboard</span>
-          </button>
-
-          <button type="button" className={styles.sideItem}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M7 3h7l3 3v15H7V3Z" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-              <path d="M14 3v4h4"           stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-              <path d="M9 12h6"             stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M9 16h6"             stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-            <span className={styles.sideLabel}>Template Management</span>
-          </button>
-
-          <button type="button" className={styles.sideItem}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M8 18c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M12 13a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 13Z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M19 18c0-1.8-1.2-3.3-2.8-3.8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-            <span className={styles.sideLabel}>My Team</span>
-          </button>
-
-          <button type="button" className={styles.sideItem}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M5 20V4"    stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M5 20h15"   stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M9 20v-7"   stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M13 20v-11" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M17 20v-4"  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-            <span className={styles.sideLabel}>Reports</span>
-          </button>
-
-          <button type="button" className={`${styles.sideItem} ${viewMode === "own" ? styles.active : ""}`}
-            onClick={() => router.push(dashboardPath.replace("dashboard", "profile"))}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M20 21a8 8 0 0 0-16 0"                stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-            <span className={styles.sideLabel}>My Profile</span>
-          </button>
-        </nav>
-
-        <div className={styles.sideFooter}>
-          <div className={styles.profileRow}>
-            <div className={styles.avatarCircle}>{config.avatarLabel}</div>
-            <div className={styles.profileText}>
-              <div className={styles.profileName}>{sidebarName}</div>
-              <div className={styles.profileRole}>{role.toLowerCase()}</div>
-            </div>
-          </div>
-          <button className={styles.logoutBtn} type="button" onClick={() => {
-            localStorage.removeItem("pms_user");
-            router.push("/login");
-          }}>
-            Logout
-          </button>
-        </div>
-      </aside>
+      
+      <Sidebar />
 
       {/* ══════════════ MAIN ══════════════ */}
       <main className={styles.main}>
