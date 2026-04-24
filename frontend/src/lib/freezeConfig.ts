@@ -1,23 +1,12 @@
 // lib/freezeConfig.ts
-// WHY: Single source of truth for all PMS freeze/notification dates.
-// To test freeze behaviour, change values HERE ONLY — nowhere else in the codebase.
-//
-// TEST EXAMPLES:
-//   Simulate "Open":  objectiveSettingMonths: 12  (window stays open a full year)
-//   Simulate "Grace": objectiveSettingMonths: 0   (closes immediately, grace still applies)
-//   Simulate "Frozen": objectiveSettingMonths: 0, gracePeriodDays: 0  (hard freeze now)
-//   Restore production: objectiveSettingMonths: 2, gracePeriodDays: 15
+
 
 export const FREEZE_CONFIG = {
-  // PMS year starts 1st July (month index 6 in JS Date = July)
+
   pmsStartMonth: 7,
   pmsStartDay: 1,
-
-  // How many months after PMS start before objective-setting window closes (31 Aug)
-  objectiveSettingMonths: 2,
-
-  // Grace period in days that HQ Admin gets after the objective window closes (→ 15 Sep)
-  gracePeriodDays: 215,
+  objectiveSettingMonths: 12,
+  gracePeriodDays: 15,
 
   // Cascading notification schedule (monthOffset = months after PMS year start)
   notifications: [
