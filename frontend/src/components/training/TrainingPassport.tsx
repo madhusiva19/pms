@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import styles from "./training.module.css";
+import Sidebar from "@/components/sidebar/Sidebar";
 
 // ── Types ──────────────────────────────────────────────
 export type Role =
@@ -60,7 +61,7 @@ const ROLE_CONFIG: Record<Role, {
   canReview: boolean;
   showAI: boolean;
 }> = {
-  "HQ Admin":       { avatarLabel: "HQ", roleLabel: "hq admin",       canLog: false, canSuggest: false, canReview: true,  showAI: false },
+  "HQ Admin":       { avatarLabel: "HQ", roleLabel: "hq admin",       canLog: true, canSuggest: false, canReview: true,  showAI: false },
   "Country Admin":  { avatarLabel: "CA", roleLabel: "country admin",   canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
   "Branch Admin":   { avatarLabel: "BA", roleLabel: "branch admin",    canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
   "Dept Admin":     { avatarLabel: "DA", roleLabel: "dept admin",      canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
@@ -228,100 +229,7 @@ const handleReview = async (id: string, action: "approved" | "rejected") => {
   return (
     <div className={styles.shell}>
 
-      {/* ══════════ SIDEBAR ══════════ */}
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <Image src="/dgl-logo.png" alt="DGL Logo" width={160} height={56} className={styles.brandLogoImg} priority />
-        </div>
-
-        <nav className={styles.sideNav}>
-          {role !== "Employee" && (
-            <button type="button" className={styles.sideItem} onClick={() => router.push(dashboardPath)}>
-              <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-                <rect x="3"  y="3"  width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-                <rect x="14" y="3"  width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-                <rect x="3"  y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-                <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.2" />
-              </svg>
-              <span className={styles.sideLabel}>Dashboard</span>
-            </button>
-          )}
-
-          <button type="button" className={styles.sideItem}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M7 3h7l3 3v15H7V3Z" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-              <path d="M14 3v4h4"           stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-              <path d="M9 12h6"             stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M9 16h6"             stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-            <span className={styles.sideLabel}>Template Management</span>
-          </button>
-
-          <button type="button" className={styles.sideItem}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M8 18c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M12 13a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 13Z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M19 18c0-1.8-1.2-3.3-2.8-3.8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-            <span className={styles.sideLabel}>My Team</span>
-          </button>
-
-          <button type="button" className={styles.sideItem}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M5 20V4"    stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M5 20h15"   stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M9 20v-7"   stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M13 20v-11" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M17 20v-4"  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-            <span className={styles.sideLabel}>Reports</span>
-          </button>
-
-          <button type="button" className={styles.sideItem}
-            onClick={() => router.push(`/${role.toLowerCase().replace(/ /g, "-")}/profile`)}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M20 21a8 8 0 0 0-16 0"                stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-            <span className={styles.sideLabel}>My Profile</span>
-          </button>
-
-          {/* Training Passport — Active */}
-          <button type="button" className={`${styles.sideItem} ${styles.active}`}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-              <path d="M9 7h6M9 11h6M9 15h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span className={styles.sideLabel}>Training Passport</span>
-          </button>
-
-          <button type="button" className={styles.sideItem}
-            onClick={() => router.push(`/${role.toLowerCase().replace(/ /g, "-")}/notifications`)}>
-            <svg className={styles.navSvg} viewBox="0 0 24 24" fill="none">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"                    stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className={styles.sideLabel}>Notifications</span>
-          </button>
-        </nav>
-
-        <div className={styles.sideFooter}>
-          <div className={styles.profileRow}>
-            <div className={styles.avatarCircle}>{config.avatarLabel}</div>
-            <div className={styles.profileText}>
-              <div className={styles.profileName}>{sidebarName}</div>
-              <div className={styles.profileRole}>{config.roleLabel}</div>
-            </div>
-          </div>
-          <button className={styles.logoutBtn} type="button" onClick={() => {
-            localStorage.removeItem("pms_user");
-            router.push("/login");
-          }}>
-            Logout
-          </button>
-        </div>
-      </aside>
+      <Sidebar />
 
       {/* ══════════ MAIN ══════════ */}
       <main className={styles.main}>
@@ -533,10 +441,10 @@ const handleReview = async (id: string, action: "approved" | "rejected") => {
                   {suggestionList.length === 0 ? (
                     <div className={styles.emptyState}>No suggestions submitted yet.</div>
                   ) : (
-                    suggestionList.map((s) => {
-                      const st = STATUS_STYLE[s.status];
-                      return (
-                        <div key={s.id} className={styles.suggCard}>
+                    suggestionList.map((s, idx) => {
+  const st = STATUS_STYLE[s.status];
+  return (
+    <div key={s.id || idx} className={styles.suggCard}>
                           <div className={styles.suggTop}>
                             <p className={styles.suggName}>{s.trainingName}</p>
                             <span style={{ padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, background: st.bg, color: st.color }}>{st.label}</span>
@@ -564,8 +472,8 @@ const handleReview = async (id: string, action: "approved" | "rejected") => {
                   {subordinateSuggestions.filter((s) => s.status === "pending").length === 0 ? (
                     <div className={styles.emptyState}>No pending suggestions to review.</div>
                   ) : (
-                    subordinateSuggestions.filter((s) => s.status === "pending").map((s) => (
-                      <div key={s.id} className={styles.suggCard}>
+                    subordinateSuggestions.filter((s) => s.status === "pending").map((s, idx) => (
+                      <div key={s.id || idx} className={styles.suggCard}>
                         <div className={styles.suggTop}>
                           <p className={styles.suggName}>{s.trainingName}</p>
                           <span style={{ fontSize: "12px", color: "#6B7280" }}>{s.submittedBy} · {s.submittedByRole}</span>

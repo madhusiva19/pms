@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import styles from "./dashboard.module.css";
+import Sidebar from "@/components/sidebar/Sidebar";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -156,51 +157,7 @@ export default function DashboardBase({ level }: { level: number }) {
 
   return (
     <div className={styles.dashShell}>
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <Image src="/dgl-logo.png" alt="DGL Logo" width={160} height={56} priority />
-        </div>
-        <nav className={styles.sideNav}>
-          <button type="button" className={`${styles.sideItem} ${styles.active}`}>
-            <span className={styles.sideLabel}>Dashboard</span>
-          </button>
-          {level === 1 && (
-            <button type="button" className={styles.sideItem}>
-              <span className={styles.sideLabel}>Template Management</span>
-            </button>
-          )}
-          <button type="button" className={styles.sideItem}>
-            <span className={styles.sideLabel}>My Team</span>
-          </button>
-          <button type="button" className={styles.sideItem}>
-            <span className={styles.sideLabel}>Reports</span>
-          </button>
-          <button type="button" className={styles.sideItem}
-            onClick={() => router.push(paths.profile)}>
-            <span className={styles.sideLabel}>My Profile</span>
-          </button>
-          <button type="button" className={styles.sideItem}
-            onClick={() => router.push(paths.notifications)}>
-            <span className={styles.sideLabel}>Notifications</span>
-          </button>
-          <button type="button" className={styles.sideItem}
-            onClick={() => router.push(paths.training)}>
-            <span className={styles.sideLabel}>Training Passport</span>
-          </button>
-        </nav>
-        <div className={styles.sideFooter}>
-          <div className={styles.profileRowBtnLikeProfile}>
-            <div className={styles.avatarCircle}>{initials}</div>
-            <div className={styles.profileText}>
-              <div className={styles.profileName}>{user?.full_name?.split(" ")[0] || "..."}</div>
-              <div className={styles.profileRole}>{config.role}</div>
-            </div>
-          </div>
-          <button className={styles.logoutBtn} type="button" onClick={handleLogout}>
-            Logout
-          </button>
-        </div>
-      </aside>
+      <Sidebar />
 
       <main className={styles.main}>
         <div className={styles.breadcrumb}>
