@@ -31,7 +31,6 @@ import type { TeamScoreEntry } from '@/components/SubDeptScoreBarChart';
 import {
   branchByCodeApi,
   branchDashboardApi,
-  branchBellCurveApi,
   branchComparisonApi,
   branchInsightsApi,
   employeesApi,
@@ -43,7 +42,6 @@ import { downloadReportAsPDF } from '@/utils/downloadReport';
 import type {
   Branch,
   BranchDashboardSummary,
-  BranchBellCurveData,
   BranchPerformanceComparison,
   BranchAIInsight,
   ReportType,
@@ -69,8 +67,7 @@ export default function SubDeptAdminReportDetailPage() {
   const [branch, setBranch] = useState<Branch | null>(null);
   const [summary, setSummary] = useState<BranchDashboardSummary | null>(null);
   const [activeTab, setActiveTab] = useState<ReportType>('mid_year');
-  const [bellCurveData, setBellCurveData] = useState<BranchBellCurveData[]>([]);
-  const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison[]>([]);
+const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison[]>([]);
   const [insights, setInsights] = useState<BranchAIInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +117,6 @@ export default function SubDeptAdminReportDetailPage() {
       setLoading(true);
       setError(null);
       // Clear previous data to prevent stale charts showing on tab switch
-      setBellCurveData([]);
       setComparisonData([]);
       setInsights([]);
 
@@ -133,9 +129,6 @@ export default function SubDeptAdminReportDetailPage() {
       const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
 
       if (activeReport) {
-        const bellCurve = await branchBellCurveApi.getByReport(activeReport.id);
-        setBellCurveData(bellCurve);
-
         const insightsData = await branchInsightsApi.getByReport(activeReport.id);
         if (insightsData && insightsData.length > 0) {
           setInsights(insightsData);
