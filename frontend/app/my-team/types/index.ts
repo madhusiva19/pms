@@ -1,37 +1,52 @@
 export type EvaluationStatus = 'pending' | 'in-progress' | 'completed';
+export type AdminLevel = 1 | 2 | 3 | 4 | 5;
 
 export interface TeamMember {
   id: string;
   name: string;
-  role: string;
+  role?: string;
+  title?: string;
   department: string;
-  avatar: string;
-  avatarColor?: string;
-  status: EvaluationStatus;
+  status?: EvaluationStatus;
+  level?: number;
+  email?: string;
 }
 
-export interface SearchFilters {
-  searchQuery: string;
-  statusFilter?: EvaluationStatus | 'all';
+export interface Admin extends TeamMember {
+  level: AdminLevel;
+  reportsTo?: string;
+  directReports: string[];
+  title: string;
+  email: string;
 }
 
-export const EVALUATION_STATUS_COLORS: Record<EvaluationStatus, { bg: string; text: string }> = {
-  pending: {
-    bg: '#F3F4F6',
-    text: '#1E2939',
-  },
-  'in-progress': {
-    bg: '#FEF9C2',
-    text: '#894B00',
-  },
-  completed: {
-    bg: '#DCFCE7',
-    text: '#016630',
-  },
+export const ADMIN_LEVEL_LABELS: Record<AdminLevel, string> = {
+  1: 'HQ Admin',
+  2: 'Country Admin',
+  3: 'Branch Admin',
+  4: 'Dept Admin',
+  5: 'Sub Dept Admin',
+};
+
+export const ADMIN_LEVEL_DESCRIPTIONS: Record<AdminLevel, string> = {
+  1: 'Global Authority - Evaluates Country Admins',
+  2: 'Country-wide Authority - Evaluates Branch Admins',
+  3: 'Branch-level Authority - Evaluates Dept Admins',
+  4: 'Department-level Authority - Evaluates Sub Dept Admins',
+  5: 'Sub-dept Authority - Evaluates Employees',
 };
 
 export const STATUS_LABELS: Record<EvaluationStatus, string> = {
-  pending: 'pending',
-  'in-progress': 'in progress',
-  completed: 'completed',
+  pending: 'Pending',
+  'in-progress': 'In Progress',
+  completed: 'Completed',
+};
+
+export const EVALUATION_STATUS_COLORS: Record<
+  EvaluationStatus,
+  { bg: string; text: string }
+> = {
+  pending: { bg: '#FEF3C7', text: '#92400E' },
+  'in-progress': { bg: '#DBEAFE', text: '#1E40AF' },
+  completed: { bg: '#D1FAE5', text: '#065F46' },
 };

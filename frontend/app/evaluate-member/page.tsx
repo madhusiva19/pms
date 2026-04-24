@@ -1,132 +1,185 @@
-"use client";
+'use client';
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import type { EvaluationCategory, EvaluationKPI } from './types';
+import { KPITable } from './components/KPITable';
 import styles from './page.module.css';
 
-export default function EvaluateMemberPage() {
-  const [submitted, setSubmitted] = useState(false);
+interface EvaluationData {
+  memberName: string;
+  role: string;
+  department: string;
+  period: string;
+  categories: EvaluationCategory[];
+}
 
-  const handleSubmit = () => {
-    setSubmitted(true);
-    // Auto-hide the message after 4 seconds
-    setTimeout(() => setSubmitted(false), 4000);
+export default function EvaluateMemberPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const memberId = searchParams.get('memberId') || '1';
+  const memberName = searchParams.get('memberName') || 'Team Member';
+  const adminId = searchParams.get('adminId') || 'admin_hq_001';
+  
+  const [submitted, setSubmitted] = useState(false);
+  const [categories, setCategories] = useState<EvaluationCategory[]>([]);
+  const [evaluationData, setEvaluationData] = useState<EvaluationData | null>(null);
+  const [feedback, setFeedback] = useState<{ feedback: string; recommendation: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const fetchEvaluationData = async () => {
+      try {
+        setLoading(true);
+        const [evalResponse, feedbackResponse] = await Promise.all([
+          fetch(`http://localhost:5001/api/evaluations/${memberId}`),
+          fetch(`http://localhost:5001/api/evaluations/${memberId}/feedback`),
+        ]);
+
+        if (!evalResponse.ok || !feedbackResponse.ok) {
+          throw new Error('Failed to fetch evaluation data');
+        }
+
+        const evalData = await evalResponse.json();
+        const feedbackData = await feedbackResponse.json();
+
+        setEvaluationData(evalData);
+        setCategories(evalData.categories || []);
+        setFeedback(feedbackData);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to fetch evaluation data:', err);
+        setError('Failed to load evaluation data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEvaluationData();
+  }, [memberId]);
+
+  const handleSubmit = async () => {
+    try {
+      setSubmitting(true);
+      
+      const evaluationPayload = {
+        memberId,
+        memberName,
+        adminId,
+        categories,
+        period: evaluationData?.period || 'Annual Performance 2024',
+        department: evaluationData?.department || '',
+        role: evaluationData?.role || '',
+      };
+
+      const response = await fetch('http://localhost:5001/api/evaluation/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(evaluationPayload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit evaluation');
+      }
+
+      const result = await response.json();
+      setSubmitted(true);
+      setTimeout(() => {
+        router.push(`/my-team?adminId=${adminId}`);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to submit evaluation:', err);
+      alert('Failed to submit evaluation. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const overallScore = categories.reduce<number>((total: number, category: EvaluationCategory) => {
+    const catScore = category.kpis.reduce<number>(
+      (sum: number, kpi: EvaluationKPI) => sum + kpi.rating * kpi.weight,
+      0
+    );
+    return total + catScore * (category.percentage / 100);
+  }, 0);
 
   return (
     <div className={styles.container}>
       {submitted && (
         <div className={styles.successToast}>
-          <div style={{background: '#10B981', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px'}}>✓</div>
+          <div style={{ background: '#10B981', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>
+            ✓
+          </div>
           <span>Evaluation submitted successfully!</span>
         </div>
       )}
 
       <div className={styles.mainWrapper}>
-        <nav className={styles.breadcrumb}>
-          <span>Home</span> <span>/</span> <span>My Team</span> <span>/</span> 
-          <span style={{color: '#1E293B'}}>Sarah Johnson</span>
-        </nav>
-
-        <div className={styles.headerArea}>
-          <h1>Evaluate Team Member</h1>
-        </div>
-
-        <section className={styles.profileCard}>
-          <div className={styles.profileInfo}>
-            <h2>L.E. Senevirathna</h2>
-            <p>Asst. General Manager (OL-4) • Custom Brokerage</p>
-            <p>Period: Annual Performance 2024</p>
+        {loading && (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <p>Loading evaluation data...</p>
           </div>
-          <div className={styles.scoreBadge}>
-            <span className={styles.scoreVal}>3.24</span>
-            <span className={styles.scoreLabel}>Overall Score</span>
+        )}
+        {error && (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>
+            <p>{error}</p>
           </div>
-        </section>
+        )}
+        {!loading && !error && (
+          <>
+            <nav className={styles.breadcrumb}>
+              <span>Home</span> / <span>My Team</span> / <span style={{ color: '#1E293B' }}>{memberName}</span>
+            </nav>
 
-        <div className={styles.tableContainer}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th className={styles.th}>Objective</th>
-                <th className={styles.th}>Weight</th>
-                <th className={styles.th}>Target</th>
-                <th className={styles.th}>Actual</th>
-                <th className={styles.th}>Achieve %</th>
-                <th className={styles.th}>Rating</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Financial Focus */}
-              <tr className={styles.categoryRow}><td colSpan={6}>FINANCIAL FOCUS (30%)</td></tr>
-              <tr>
-                <td className={styles.td}>Revenue Achievement</td>
-                <td className={styles.td}>0.10</td>
-                <td className={styles.td}>4910.7M</td>
-                <td className={styles.td}>4863.1M</td>
-                <td className={styles.td}>99.0%</td>
-                <td className={styles.td}><span className={styles.badge} style={{background: '#FFEDD5', color: '#9A3412'}}>2.81</span></td>
-              </tr>
-              <tr>
-                <td className={styles.td}>GP Achievement</td>
-                <td className={styles.td}>0.10</td>
-                <td className={styles.td}>527.52M</td>
-                <td className={styles.td}>454.82M</td>
-                <td className={styles.td}>86.2%</td>
-                <td className={styles.td}><span className={styles.badge} style={{background: '#FEE2E2', color: '#991B1B'}}>1.00</span></td>
-              </tr>
+            <div className={styles.headerArea}>
+              <h1>Evaluate Team Member</h1>
+            </div>
 
-              {/* Customer Focus */}
-              <tr className={styles.categoryRow}><td colSpan={6}>CUSTOMER FOCUS (30%)</td></tr>
-              <tr>
-                <td className={styles.td}>NPS Index Score</td>
-                <td className={styles.td}>0.10</td>
-                <td className={styles.td}>0.35</td>
-                <td className={styles.td}>0.27</td>
-                <td className={styles.td}>78.0%</td>
-                <td className={styles.td}><span className={styles.badge} style={{background: '#FFEDD5', color: '#9A3412'}}>2.00</span></td>
-              </tr>
-              <tr>
-                <td className={styles.td}>GP on Personal Sales</td>
-                <td className={styles.td}>0.04</td>
-                <td className={styles.td}>-</td>
-                <td className={styles.td}>High</td>
-                <td className={styles.td}>100%</td>
-                <td className={styles.td}><span className={styles.badge} style={{background: '#D1FAE5', color: '#065F46'}}>5.00</span></td>
-              </tr>
+            <section className={styles.profileCard}>
+              <div className={styles.profileInfo}>
+                <h2>{memberName}</h2>
+                <p>{evaluationData?.role} • {evaluationData?.department}</p>
+                <p>Period: {evaluationData?.period}</p>
+              </div>
+              <div className={styles.scoreBadge}>
+                <span className={styles.scoreVal}>{(categories.reduce<number>((total: number, category: EvaluationCategory) => {
+                  const catScore = category.kpis.reduce<number>(
+                    (sum: number, kpi: EvaluationKPI) => sum + kpi.rating * kpi.weight,
+                    0
+                  );
+                  return total + catScore * (category.percentage / 100);
+                }, 0)).toFixed(2)}</span>
+                <span className={styles.scoreLabel}>Overall Score</span>
+              </div>
+            </section>
 
-              {/* HR Focus */}
-              <tr className={styles.categoryRow}><td colSpan={6}>HUMAN RESOURCES FOCUS (40%)</td></tr>
-              <tr>
-                <td className={styles.td}>Statutory & Legal Compliance</td>
-                <td className={styles.td}>0.20</td>
-                <td className={styles.td}>100%</td>
-                <td className={styles.td}>100%</td>
-                <td className={styles.td}>100%</td>
-                <td className={styles.td}><span className={styles.badge} style={{background: '#FEF9C3', color: '#854D0E'}}>3.00</span></td>
-              </tr>
-              <tr>
-                <td className={styles.td}>360 Degree Feedback</td>
-                <td className={styles.td}>0.05</td>
-                <td className={styles.td}>0.85</td>
-                <td className={styles.td}>0.81</td>
-                <td className={styles.td}>95.2%</td>
-                <td className={styles.td}><span className={styles.badge} style={{background: '#FEF9C3', color: '#854D0E'}}>3.00</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+            <KPITable categories={categories} />
 
-        <section className={styles.aiPanel}>
-          <h3>Group Admin Feedback</h3>
-          <p style={{fontWeight: 300}}>L.E. Senevirathna is performing strongly in Statutory Compliance and Personal Sales. However, the GP Achievement (86.2%) is currently the primary bottleneck.</p>
-          <p style={{marginTop: '16px'}}><strong>Recommendation:</strong> Initiate a cost-audit in the Brokerage department to identify margin leakages. Increasing NPS from 0.27 to 0.35 should be the focus for H2.</p>
-        </section>
+            <section className={styles.aiPanel}>
+              <h3>Group Admin Feedback</h3>
+              <p style={{ fontWeight: 300 }}>
+                {feedback?.feedback || 'No feedback available.'}
+              </p>
+              <p style={{ marginTop: 16 }}>
+                <strong>Recommendation:</strong> {feedback?.recommendation || 'No recommendation available.'}
+              </p>
+            </section>
 
-        <div className={styles.footerActions}>
-          <button className={styles.btnSecondary}>Cancel</button>
-          <button className={styles.btnSecondary}>Save Draft</button>
-          <button className={styles.btnPrimary} onClick={handleSubmit}>Submit Evaluation</button>
-        </div>
+            <div className={styles.footerActions}>
+              <button className={styles.btnSecondary} disabled={submitting}>Cancel</button>
+              <button className={styles.btnSecondary} disabled={submitting}>Save Draft</button>
+              <button 
+                className={styles.btnPrimary} 
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? 'Submitting...' : 'Submit Evaluation'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

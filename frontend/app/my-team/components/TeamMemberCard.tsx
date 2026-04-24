@@ -2,18 +2,19 @@
 
 import React from 'react';
 import styles from '../styles/team-member-card.module.css';
-// Import the actual type that your API/Data uses
 import { TeamMember } from '../types/index'; 
 
 interface TeamMemberCardProps {
   member: TeamMember;
   onEvaluate?: (memberId: string) => void;
+  isAdmin?: boolean;
 }
 
-export const TeamMemberCard = ({ member, onEvaluate }: TeamMemberCardProps) => {
+export const TeamMemberCard = ({ member, onEvaluate, isAdmin = false }: TeamMemberCardProps) => {
+  // For admins, use title; for employees, use role
+  const displayRole = isAdmin ? member.title : (member.role || member.title);
   
-  // Logic to handle CSS class mapping: 
-  // This converts "in-progress" to "inprogress" for your CSS module
+  // Logic to handle CSS class mapping for status badges
   const statusKey = member.status ? member.status.replace('-', '') : 'pending';
 
   return (
@@ -27,16 +28,18 @@ export const TeamMemberCard = ({ member, onEvaluate }: TeamMemberCardProps) => {
 
         <div className={styles.memberInfo}>
           <h3 className={styles.memberName}>{member.name}</h3>
-          <p className={styles.memberRole}>{member.role}</p>
+          <p className={styles.memberRole}>{displayRole}</p>
           <p className={styles.memberDepartment}>{member.department}</p>
+          {member.email && <p className={styles.memberEmail}>{member.email}</p>}
         </div>
       </div>
 
       <div className={styles.memberActions}>
-        {/* We use member.status directly for text, but statusKey for the CSS class */}
-        <span className={`${styles.statusBadge} ${styles[statusKey]}`}>
-          {member.status}
-        </span>
+        {member.status && (
+          <span className={`${styles.statusBadge} ${styles[statusKey]}`}>
+            {member.status}
+          </span>
+        )}
 
         {onEvaluate && (
           <button

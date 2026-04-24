@@ -1,46 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import styles from './page.module.css';
 
-interface DashboardStats {
-  totalEvaluations: number;
-  completed: number;
-  pending: number;
-  inProgress: number;
-}
-
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalEvaluations: 0,
-    completed: 0,
-    pending: 0,
-    inProgress: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('http://localhost:5001/api/dashboard-stats');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setStats(data);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to fetch dashboard stats:', err);
-        setError('Failed to load dashboard statistics');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, []);
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -58,19 +21,19 @@ export default function DashboardPage() {
 
         <div className={styles.statsSection}>
           <div className={styles.statCard}>
-            <div className={styles.statValue}>{stats.totalEvaluations}</div>
+            <div className={styles.statValue}>0</div>
             <div className={styles.statLabel}>Total Evaluations</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statValue}>{stats.completed}</div>
+            <div className={styles.statValue}>0</div>
             <div className={styles.statLabel}>Completed</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statValue}>{stats.pending}</div>
+            <div className={styles.statValue}>0</div>
             <div className={styles.statLabel}>Pending</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statValue}>{stats.inProgress}</div>
+            <div className={styles.statValue}>0</div>
             <div className={styles.statLabel}>In Progress</div>
           </div>
         </div>

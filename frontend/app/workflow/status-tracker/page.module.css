@@ -1,0 +1,391 @@
+.container {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 32px;
+}
+
+.header h1 {
+  font-size: 32px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #1e293b;
+}
+
+.subtitle {
+  color: #64748b;
+  margin: 0;
+  font-size: 16px;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.evaluationsList {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  padding: 24px;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  color: #1e293b;
+}
+
+.evaluationsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.evaluationCard {
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.evaluationCard:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.evaluationCard.selected {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.memberName {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.statusBadge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+
+.cardBody {
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.statusTimeline {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.timelineItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.value {
+  color: #1e293b;
+}
+
+.value.rejected {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.deadline {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.deadline .urgentDeadline {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.progressBar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progressFill {
+  height: 100%;
+  background: #10b981;
+  transition: width 0.3s;
+}
+
+.message {
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.errorMessage {
+  padding: 16px;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+}
+
+.workflowDetails {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  padding: 24px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.detailsCard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.section {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 16px;
+}
+
+.section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.section h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+}
+
+.infoItem label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.infoItem p {
+  margin: 0;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.approvalChain {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.approvalStep {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  align-items: flex-start;
+}
+
+.stepNumber {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e0e7ff;
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.stepContent {
+  flex: 1;
+}
+
+.stepApprover {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.stepRole {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.stepStatus {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-top: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.stepStatus.pending {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.stepStatus.approved {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.stepStatus.rejected {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.stepStatus.not_started {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.stepComments {
+  font-size: 12px;
+  color: #475569;
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.stepDate {
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.rejectionHistory {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rejectionItem {
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+}
+
+.rejectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.rejectionDate {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.rejectionReason {
+  margin: 6px 0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.rejectionComments {
+  margin: 6px 0 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.categoriesList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.categoryItem {
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.categoryName {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.categoryPercentage {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.categoryKpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kpiTag {
+  font-size: 11px;
+  background: #e0e7ff;
+  color: #4f46e5;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+@media (max-width: 1024px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+
+  .infoGrid {
+    grid-template-columns: 1fr;
+  }
+}

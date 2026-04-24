@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { EvaluationCategory, EvaluationKPI } from '../types/index';
+import type { EvaluationCategory, EvaluationKPI } from '../types';
 import styles from '../styles/page.module.css';
 
 interface KPITableProps {
@@ -12,19 +12,10 @@ const getRatingBadgeClass = (rating: number): string => {
   if (rating >= 4.5) return styles.badgeGreen;
   if (rating >= 3.5) return styles.badgeYellow;
   if (rating >= 2.5) return styles.badgeOrange;
-  if (rating >= 1.5) return styles.badgeRed;
   return styles.badgeRed;
 };
 
-export const KPITable = ({ categories }: KPITableProps) => {
-  const allKPIs = categories.flatMap((cat) =>
-    cat.kpis.map((kpi) => ({
-      ...kpi,
-      categoryName: cat.name,
-      categoryPercentage: cat.percentage,
-    }))
-  );
-
+export const KPITable: React.FC<KPITableProps> = ({ categories }) => {
   return (
     <div className={styles.kpiContainer}>
       <table className={styles.kpiTable}>
@@ -46,7 +37,7 @@ export const KPITable = ({ categories }: KPITableProps) => {
                   {category.name} ({category.percentage}%)
                 </td>
               </tr>
-              {category.kpis.map((kpi) => (
+              {category.kpis.map((kpi: EvaluationKPI) => (
                 <tr key={kpi.id} className={styles.tableBodyRow}>
                   <td className={styles.tableDataCell}>{kpi.objective}</td>
                   <td className={styles.tableDataCell}>{kpi.weight.toFixed(2)}</td>

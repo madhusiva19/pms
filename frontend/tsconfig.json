@@ -11,7 +11,7 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "jsxImportSource": "react",
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -20,6 +20,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "strict": true,
+    "ignoreDeprecations": "6.0",
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
