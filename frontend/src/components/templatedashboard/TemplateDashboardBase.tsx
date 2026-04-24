@@ -1,7 +1,5 @@
 "use client";
 
-// components/templatedashboard/TemplateDashboardBase.tsx
-import Image from "next/image";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -10,13 +8,12 @@ import {
   Calendar, Copy, BookOpen,
   CheckCircle2, Clock3,
   Eye, ChevronDown, ChevronUp,
-  Layers, Unlock,
+  Layers, Unlock,Award,
   Bell, Users, Building2, BarChart3,
   TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import styles from "./TemplateDashboardBase.module.css";
-import Sidebar from "@/components/sidebar/Sidebar";
 import {
   computeFreezeDates,
   getTemplatePermissions,
@@ -25,7 +22,7 @@ import {
   type TemplatePermissions,
 } from "@/lib/freezeUtils";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
 
@@ -37,10 +34,6 @@ const CATEGORY_PALETTE = [
   { bg: "#fff1f2", fill: "#f43f5e", text: "#be123c" },
   { bg: "#ecfeff", fill: "#0891b2", text: "#164e63" },
 ];
-
-
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface TemplateDashboardBaseProps {
   level: number;
@@ -62,19 +55,22 @@ interface TemplateRecord {
   assignedCount?:          number;
 }
 
+
+
 // ─── Main Component ───────────────────────────────────────────────────────────
+
 
 export default function TemplateDashboardBase({ level }: TemplateDashboardBaseProps) {
   const router = useRouter();
 
-  const [templates,       setTemplates]       = useState<TemplateRecord[]>([]);
-  const [searchQuery,     setSearchQuery]      = useState("");
-  const [confirmDeleteId, setConfirmDeleteId]  = useState<number | null>(null);
-  const [isLoading,       setIsLoading]        = useState(true);
-  const [expandedCardId,  setExpandedCardId]   = useState<number | null>(null);
+  const [templates,        setTemplates]       = useState<TemplateRecord[]>([]);
+  const [searchQuery,      setSearchQuery]      = useState("");
+  const [confirmDeleteId,  setConfirmDeleteId]  = useState<number | null>(null);
+  const [isLoading,        setIsLoading]        = useState(true);
+  const [expandedCardId,   setExpandedCardId]   = useState<number | null>(null);
   const [expandedAssignId, setExpandedAssignId] = useState<number | null>(null);
-  const [isDuplicating,   setIsDuplicating]    = useState<number | null>(null);
-  const [activeCycle,     setActiveCycle]      = useState<any>(null);
+  const [isDuplicating,    setIsDuplicating]    = useState<number | null>(null);
+  const [activeCycle,      setActiveCycle]      = useState<any>(null);
 
   const freezeDates  = useMemo(() => computeFreezeDates(new Date()), []);
   const permissions: TemplatePermissions = useMemo(
@@ -82,7 +78,10 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
     [level, freezeDates],
   );
 
-  // ── Fetch templates ────────────────────────────────────────────────────────
+
+
+ // ── Fetch templates ────────────────────────────────────────────────────────
+
 
   useEffect(() => {
     const loadData = async () => {
@@ -105,7 +104,9 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
     loadData();
   }, []);
 
-  // ── Filtered list ──────────────────────────────────────────────────────────
+
+
+    // ── Filtered list ──────────────────────────────────────────────────────────
 
   const filteredTemplates = useMemo(
     () =>
@@ -118,6 +119,9 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
         ),
     [templates, searchQuery],
   );
+
+
+
 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
@@ -136,7 +140,9 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
     router.push(`/hq-admin/create-template?edit=${templateId}`);
   };
 
+
   // ── Duplicate ──────────────────────────────────────────────────────────────
+
 
   const handleDuplicateTemplate = async (template: TemplateRecord) => {
     if (!permissions.canCreate) {
@@ -150,7 +156,6 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
         description:  template.description ?? "",
         max_score:    template.max_score ?? 5,
         categories:   template.categories ?? [],
-        trainingTags: [],
         totalWeight:  template.total_weight ?? 0,
         lastModified: new Date().toISOString(),
       };
@@ -170,7 +175,9 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
     }
   };
 
+
   // ── Delete ─────────────────────────────────────────────────────────────────
+
 
   const handleDeleteTemplate = async (templateId: number) => {
     if (!permissions.canDelete) {
@@ -198,9 +205,6 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
     }
   };
 
-  // ── Period wrapper class ───────────────────────────────────────────────────
-  // The outer container changes colour per freeze period; cards stay white.
-
   const periodWrapperClass =
     permissions.freezeStatus === "frozen"
       ? styles.periodFrozen
@@ -208,7 +212,6 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
       ? styles.periodGrace
       : styles.periodOpen;
 
-  // ─────────────────────────────────────────────────────────────────────────
   
   return (
     <div className={styles.wrapper}>
@@ -225,7 +228,9 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
               This action cannot be undone. All assignments linked to this template will also be removed.
             </p>
             <div className={styles.modalActions}>
-              <button className={styles.modalCancelBtn} onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+              <button className={styles.modalCancelBtn} onClick={() => setConfirmDeleteId(null)}>
+                Cancel
+              </button>
               <button className={styles.modalDeleteBtn} onClick={() => handleDeleteTemplate(confirmDeleteId)}>
                 Delete Template
               </button>
@@ -234,7 +239,8 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
         </div>
       )}
 
-      {/* ── Page header ── */}
+
+{/* ── Page header ── */}
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Template Management</h1>
@@ -261,10 +267,11 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
         </div>
       </div>
 
+
+
       {/* ── Status banners ── */}
       <StatusBanner permissions={permissions} freezeDates={freezeDates} level={level} />
 
-      {/* ── Combined PMS Timeline + Notification Cascade ── */}
       {!isLoading && (
         <PmsCycleTimeline
           freezeDates={freezeDates}
@@ -274,7 +281,9 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
         />
       )}
 
-      {/* ── Search — white card matching template cards ── */}
+
+
+  {/* ── Search — white card matching template cards ── */}
       <div className={styles.searchCard}>
         <div className={styles.searchWrapper}>
           <Search size={17} color="#94a3b8" />
@@ -299,10 +308,13 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
         </div>
       </div>
 
-      {/* ── Period wrapper — changes background per freeze state ── */}
+
+
+ {/* ── Period wrapper — changes background per freeze state ── */}
       <div className={`${styles.periodWrapper} ${periodWrapperClass}`}>
 
-        {/* ── Content ── */}
+
+       {/* ── Content ── */}
         {isLoading ? (
           <div className={styles.loadingWrapper}>
             <Loader2 size={36} color="#3b82f6" className={styles.spinner} />
@@ -352,18 +364,15 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
           </div>
         )}
       </div>
+
     </div>
   );
 }
 
 // ─── PMS Cycle Timeline ───────────────────────────────────────────────────────
-// Combines the progress bar, milestone boxes, and notification cascade
-// into a single unified section. Replaces PmsCycleDatesBar + NotificationTimeline.
+
 function PmsCycleTimeline({
-  freezeDates,
-  activeCycle,
-  templateCount,
-  permissions,
+  freezeDates, activeCycle, templateCount, permissions,
 }: {
   freezeDates:   any;
   activeCycle:   any;
@@ -372,17 +381,7 @@ function PmsCycleTimeline({
 }) {
   const now = new Date();
 
-  // ── Derive notification stages from freezeDates (no hardcoded dates) ──────
-  // freezeDates.notificationDates comes from freezeConfig via computeFreezeDates
-  // Shape: { role: string; date: Date }[]
-  // We map role names to match the display labels used in the UI
-  const notificationStages: { roleLabel: string; date: Date }[] =
-    (freezeDates.notificationDates ?? []).map(
-      (n: { role: string; date: Date }) => ({
-        roleLabel: n.role,
-        date:      n.date,
-      })
-    );
+
 
   // Progress bar: 0–100% across the full PMS year
   const yearStart = freezeDates.pmsYearStart.getTime();
@@ -395,7 +394,9 @@ function PmsCycleTimeline({
     Math.max(0, Math.round(((now.getTime() - yearStart) / (yearEnd - yearStart)) * 100)),
   );
 
-  // Which milestone box is currently active
+
+
+// Which milestone box is currently active
   const activeMilestone =
     now < freezeDates.objectiveSettingEnd ? "objective"
     : now < freezeDates.graceEnd         ? "grace"
@@ -404,51 +405,19 @@ function PmsCycleTimeline({
     : "yearend";
 
   const milestones = [
-    {
-      key:   "start",
-      label: "Cycle Start",
-      date:  formatDate(freezeDates.pmsYearStart),
-      icon:  <Calendar size={14} />,
-    },
-    {
-      key:   "objective",
-      label: "Objective Setting Closes",
-      date:  formatDate(freezeDates.objectiveSettingEnd),
-      icon:  <Target size={14} />,
-    },
-    {
-      key:   "grace",
-      label: "Grace Period",
-      date:  `${formatDate(freezeDates.objectiveSettingEnd)} – ${formatDate(freezeDates.graceEnd)}`,
-      icon:  <Clock3 size={14} />,
-    },
-    {
-      key:   "frozen",
-      label: "Frozen",
-      date:  `From ${formatDate(freezeDates.graceEnd)}`,
-      icon:  <Lock size={14} />,
-    },
-    {
-      key:   "midyear",
-      label: "Mid-Year Review",
-      date:  activeCycle?.mid_year_review
-        ? formatDate(new Date(activeCycle.mid_year_review))
-        : "Not set",
-      icon:  <BarChart3 size={14} />,
-    },
-    {
-      key:   "yearend",
-      label: "Year-End Review",
-      date:  activeCycle?.year_end_review
-        ? formatDate(new Date(activeCycle.year_end_review))
-        : "Not set",
-      icon:  <CheckCircle2 size={14} />,
-    },
+    { key: "start",     label: "Cycle Start",              date: formatDate(freezeDates.pmsYearStart),        icon: <Calendar size={14} />    },
+    { key: "objective", label: "Objective Setting Closes", date: formatDate(freezeDates.objectiveSettingEnd), icon: <Target size={14} />      },
+    { key: "grace",     label: "Grace Period",             date: `${formatDate(freezeDates.objectiveSettingEnd)} – ${formatDate(freezeDates.graceEnd)}`, icon: <Clock3 size={14} /> },
+    { key: "frozen",    label: "Frozen",                   date: `From ${formatDate(freezeDates.graceEnd)}`,  icon: <Lock size={14} />        },
+    { key: "midyear",   label: "Mid-Year Review",          date: activeCycle?.mid_year_review ? formatDate(new Date(activeCycle.mid_year_review)) : "Not set", icon: <BarChart3 size={14} /> },
+    { key: "yearend",   label: "Year-End Review",          date: activeCycle?.year_end_review ? formatDate(new Date(activeCycle.year_end_review)) : "Not set", icon: <CheckCircle2 size={14} /> },
   ];
 
   return (
+      
     <div className={styles.timelineSection}>
 
+      
       {/* Header row */}
       <div className={styles.timelineSectionHeader}>
         <div className={styles.timelineSectionTitleGroup}>
@@ -465,7 +434,8 @@ function PmsCycleTimeline({
         </div>
       </div>
 
-      {/* Progress bar */}
+
+   {/* Progress bar */}
       <div className={styles.progressBarWrap}>
         <div className={styles.progressBarTrack}>
           <div
@@ -479,6 +449,9 @@ function PmsCycleTimeline({
         </div>
         <span className={styles.progressBarLabel}>{progressPercent}% through cycle</span>
       </div>
+
+
+
 
       {/* Milestone boxes */}
       <div className={styles.milestoneGrid}>
@@ -497,7 +470,6 @@ function PmsCycleTimeline({
           </div>
         ))}
       </div>
-
     </div>
   );
 }
@@ -541,7 +513,7 @@ function StatusBanner({
   if (permissions.freezeStatus === "frozen") {
     return (
       <div className={`${styles.banner} ${styles.bannerFrozen}`}>
-        <div className={styles.bannerIconWrapper} >
+        <div className={styles.bannerIconWrapper}>
           <Lock size={18} color="#fff" />
         </div>
         <div>
@@ -560,7 +532,7 @@ function StatusBanner({
     const isHqAdmin = level === 1;
     return (
       <div className={`${styles.banner} ${styles.bannerGrace}`}>
-        <div className={styles.bannerIconWrapper} >
+        <div className={styles.bannerIconWrapper}>
           <Clock3 size={18} color="#fff" />
         </div>
         <div>
@@ -586,7 +558,7 @@ function StatusBanner({
   if (daysRemaining <= warningThreshold) {
     return (
       <div className={`${styles.banner} ${styles.bannerWarning}`}>
-        <div className={styles.bannerIconWrapper} >
+        <div className={styles.bannerIconWrapper}>
           <Calendar size={18} color="#fff" />
         </div>
         <div className={styles.bannerText}>
@@ -598,7 +570,26 @@ function StatusBanner({
     );
   }
 
-  return null;
+  
+  return (
+  <div className={`${styles.banner} ${styles.bannerOpen}`}>
+    <div className={styles.bannerIconWrapper}>
+      <Unlock size={18} color="#3b82f6" />
+    </div>
+    <div>
+      <div className={styles.bannerTitle}>Templates Open for Editing</div>
+      <div className={styles.bannerText}>
+        Objective-setting window is open until{" "}
+        <strong style={{ color: "#1e40af" }}>{formatDate(freezeDates.objectiveSettingEnd)}</strong>
+        {" "}— <strong>{daysRemaining} days remaining</strong>. All Authorized Roles may create and modify templates freely.
+      </div>
+    </div>
+  </div>
+);
+  
+  
+  
+  ;
 }
 
 // ─── Template Card ────────────────────────────────────────────────────────────
@@ -656,7 +647,8 @@ function TemplateCard({
   return (
     <div className={styles.card}>
 
-      {/* ── Card header ── */}
+
+ {/* ── Card header ── */}
       <div className={styles.cardTop}>
         <div className={styles.cardTopInner}>
           <div className={styles.cardLeft}>
@@ -674,7 +666,9 @@ function TemplateCard({
             </div>
           </div>
 
-          {/* Action buttons */}
+
+{/* Action buttons */}
+
           <div className={styles.cardActions}>
             <button className={styles.actionBtn} onClick={onView} title="View template">
               <Eye size={13} />
@@ -717,15 +711,16 @@ function TemplateCard({
         </div>
       </div>
 
-      {/* ── Stats row ── */}
+
+   {/* ── Stats row ── */}
+
       <div className={styles.statsRow}>
         {[
-          { label: "Categories",    value: categories.length },
+          { label: "Categories",     value: categories.length },
           { label: "Total KPIs",     value: totalObjectives },
           { label: "Locked",         value: lockedCount },
           { label: "Editable",       value: editableCount },
           { label: "Assigned Roles", value: template.assignedRoles?.length || 0 },
-
         ].map((stat, index) => (
           <div
             key={stat.label}
@@ -738,28 +733,30 @@ function TemplateCard({
         ))}
       </div>
 
+
+
+
       {/* ── Training linkage + meta row ── */}
       <div className={styles.cardMeta}>
         <div className={styles.cardMetaLeft}>
           <BookOpen size={12} color="#8b5cf6" />
-          <span className={styles.cardMetaLabel}>Training Linkage:</span>
-          <span
-            className={styles.linkageBadge}
-            style={{
-              color:       linkedCount === totalObjectives && totalObjectives > 0 ? "#15803d" : linkedCount > 0 ? "#b45309" : "#64748b",
-              background:  linkedCount === totalObjectives && totalObjectives > 0 ? "#dcfce7" : linkedCount > 0 ? "#fef3c7" : "#f8fafc",
-              borderColor: linkedCount === totalObjectives && totalObjectives > 0 ? "#bbf7d0" : linkedCount > 0 ? "#fde68a" : "#e2e8f0",
-            }}
-          >
-            {linkedCount}/{totalObjectives} Linked
-          </span>
+            <span className={styles.cardMetaLabel}>AI Suggested Insights</span>
+          <Award size={12} color="#d97706" />
+            <span className={styles.cardMetaLabel}>Training Recommendations </span>
+          <Target size={12} color="#3b82f6" />
+            <span className={styles.cardMetaLabel}> Smart Analysis Enabled</span>                 
         </div>
-        <div className={styles.cardMetaRight}>
+       
+       <div className={styles.cardMetaRight}>
           <span className={styles.cardMetaTimestamp}>Updated: {lastUpdatedText}</span>
         </div>
       </div>
 
-      {/* ── Expand: Category Details ── */}
+      
+
+
+ {/* ── Expand: Category Details ── */}
+
       <button className={styles.expandToggle} onClick={onToggleCategoryExpand}>
         <Layers size={14} color="#3b82f6" />
         <span>{isCategoryExpanded ? "Hide" : "Show"} Category Details</span>
@@ -811,7 +808,12 @@ function TemplateCard({
         </div>
       )}
 
+
+
+
+      
       {/* ── Expand: Assignments (roles + departments) ── */}
+
       <button className={styles.expandToggle} onClick={onToggleAssignExpand}>
         <Users size={14} color="#3b82f6" />
         <span>{isAssignExpanded ? "Hide" : "Show"} Assignments</span>
@@ -853,13 +855,12 @@ function TemplateCard({
             </div>
           </div>
         </div>
-      )
-      
- }
-
+      )}
 
     </div>
   );
 }
+
+
 
 

@@ -1,3 +1,5 @@
+
+
 'use client';
 
 import React from 'react';
@@ -98,7 +100,11 @@ export default function Sidebar() {
   const router   = useRouter();
   const { user } = useAuth();
 
-  const navItems = getNavItems(user?.role);
+  // ← replace the old navItems line with these two:
+  const roleFromPath = pathname?.split('/')[1]?.replace(/-/g, '_');
+  const navItems = getNavItems(user?.role ?? roleFromPath);
+
+
 
   const userInitials = user?.full_name
     ?.split(' ')
@@ -168,6 +174,41 @@ export default function Sidebar() {
     </aside>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

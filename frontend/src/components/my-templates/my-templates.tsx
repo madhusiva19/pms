@@ -1,12 +1,6 @@
 "use client";
 
-// src/components/my-templates/my-templates.tsx
-// Reusable component — export and use inside any role-based layout.
-// Changes:
-//  - emp_id / NEXT_PUBLIC_DEV_EMP_ID replaced with userId / NEXT_PUBLIC_DEV_USER_ID
-//  - Fetches /my-templates?user_id=<uuid> (matches template_assignments.user_id → users.id)
-//  - KPI_BADGES covers all 13 scale values from TemplateCreateBase
-//    (interpolated_*, bracket_*, manual) plus legacy keys (standard, inverse)
+
 
 import { useEffect, useState } from "react";
 import {
@@ -18,7 +12,7 @@ import styles from "./my-templates.module.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
 
-// ─── KPI Scale config — covers all 13 values from TemplateCreateBase ─────────
+// ─── KPI Scale config ─────────
 
 interface KpiBadge {
   bg:        string;
