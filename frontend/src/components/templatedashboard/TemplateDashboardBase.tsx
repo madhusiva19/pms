@@ -1,9 +1,8 @@
 "use client";
 
-// components/TemplateDashboardBase.tsx
+// components/templatedashboard/TemplateDashboardBase.tsx
 
 import { useEffect, useState, useMemo } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Search, FileText, Pencil, Trash2,

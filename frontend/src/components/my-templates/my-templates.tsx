@@ -2,12 +2,10 @@
 
 // src/components/my-templates/my-templates.tsx
 // Reusable component — export and use inside any role-based layout.
-// Changes from page version:
-//  - Moved to src/components/my-templates/ for role-based composition
-//  - Named export `MyTemplates` added (default export kept for convenience)
-//  - CSS module import path updated to ./my-templates.module.css
-//  - empId prop supported; falls back to window.__EMP_ID__ / env var
-//  - KPI_BADGES updated to cover all 13 scale values from TemplateCreateBase
+// Changes:
+//  - emp_id / NEXT_PUBLIC_DEV_EMP_ID replaced with userId / NEXT_PUBLIC_DEV_USER_ID
+//  - Fetches /my-templates?user_id=<uuid> (matches template_assignments.user_id → users.id)
+//  - KPI_BADGES covers all 13 scale values from TemplateCreateBase
 //    (interpolated_*, bracket_*, manual) plus legacy keys (standard, inverse)
 
 import { useEffect, useState } from "react";
@@ -21,17 +19,15 @@ import styles from "./my-templates.module.css";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
 
 // ─── KPI Scale config — covers all 13 values from TemplateCreateBase ─────────
-// Groups: interpolated (blue), bracket (amber), manual (green)
-// Legacy keys (standard / inverse) kept for backward compat with old templates.
 
 interface KpiBadge {
-  bg:     string;
-  color:  string;
-  border: string;
-  label:  string;
-  group:  "interpolated" | "bracket" | "manual";
-  icon:   React.ReactNode;
-  hint:   string;
+  bg:        string;
+  color:     string;
+  border:    string;
+  label:     string;
+  group:     "interpolated" | "bracket" | "manual";
+  icon:      React.ReactNode;
+  hint:      string;
   isInverse?: boolean;
 }
 
@@ -134,7 +130,7 @@ const KPI_BADGES: Record<string, KpiBadge> = {
     hint: "Appraiser enters directly",
   },
 
-  // ── LEGACY — kept for backward compat with templates saved before the rename
+  // ── LEGACY — backward compat with templates saved before the rename ────────
   standard: {
     bg: "#eff6ff", color: "#1e40af", border: "#bfdbfe",
     label: "Financial Achievement",
@@ -152,7 +148,6 @@ const KPI_BADGES: Record<string, KpiBadge> = {
   },
 };
 
-// Fallback for any unknown value — shows the raw string so nothing is hidden
 const unknownBadge = (scale: string): KpiBadge => ({
   bg: "#f8fafc", color: "#64748b", border: "#e2e8f0",
   label: scale,
@@ -169,17 +164,21 @@ const CONTROL_BADGES: Record<string, { bg: string; color: string; border: string
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface MyTemplatesProps {
-  /** Pass the employee ID from your auth context / role layout */
-  empId?: string;
+  /**
+   * Pass the user's uuid from your auth context / role layout.
+   * This must match users.id in Supabase (uuid).
+   * Falls back to NEXT_PUBLIC_DEV_USER_ID for local dev without a real login.
+   */
+  userId?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function MyTemplates({ empId: empIdProp }: MyTemplatesProps) {
-  // Resolve empId: prop → window global → env var
-  const empId =
-    empIdProp ||
-    (typeof window !== "undefined" ? (window as any).__EMP_ID__ : undefined) ||
-    process.env.NEXT_PUBLIC_DEV_EMP_ID ||
+export function MyTemplates({ userId: userIdProp }: MyTemplatesProps) {
+  // Resolve userId: prop → env var (dev fallback only)
+  // When you integrate real auth, pass the uuid from your session as the prop.
+  const userId =
+    userIdProp ||
+    process.env.NEXT_PUBLIC_DEV_USER_ID ||
     "";
 
   const [templates, setTemplates] = useState<any[]>([]);
@@ -187,8 +186,8 @@ export function MyTemplates({ empId: empIdProp }: MyTemplatesProps) {
   const [error,     setError]     = useState<string | null>(null);
 
   useEffect(() => {
-    if (!empId) {
-      setError("Could not determine your employee ID. Please sign in again.");
+    if (!userId) {
+      setError("Could not determine your user ID. Please sign in again.");
       setIsLoading(false);
       return;
     }
@@ -196,7 +195,10 @@ export function MyTemplates({ empId: empIdProp }: MyTemplatesProps) {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        const res = await fetch(`${API_BASE}/my-templates?emp_id=${encodeURIComponent(empId)}`);
+        // ── Changed: query param is now user_id (uuid) ────────────────────────
+        const res = await fetch(
+          `${API_BASE}/my-templates?user_id=${encodeURIComponent(userId)}`
+        );
         if (!res.ok) throw new Error(`Server error: ${res.status}`);
         const tmplData = await res.json();
         setTemplates(tmplData);
@@ -208,7 +210,7 @@ export function MyTemplates({ empId: empIdProp }: MyTemplatesProps) {
     };
 
     loadData();
-  }, [empId]);
+  }, [userId]);
 
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -347,20 +349,20 @@ export function MyTemplates({ empId: empIdProp }: MyTemplatesProps) {
                               {/* KPI Scale */}
                               <td className={styles.tdFixed}>
                                 <span style={{
-                                  display:    "inline-flex",
-                                  alignItems: "center",
-                                  gap:        "5px",
-                                  padding:    "3px 10px",
+                                  display:      "inline-flex",
+                                  alignItems:   "center",
+                                  gap:          "5px",
+                                  padding:      "3px 10px",
                                   borderRadius: "20px",
-                                  fontSize:   "11px",
-                                  fontWeight: "700",
-                                  background: kpiBadge.bg,
-                                  color:      kpiBadge.color,
-                                  border:     `1px solid ${kpiBadge.border}`,
-                                  maxWidth:   "100%",
-                                  overflow:   "hidden",
+                                  fontSize:     "11px",
+                                  fontWeight:   "700",
+                                  background:   kpiBadge.bg,
+                                  color:        kpiBadge.color,
+                                  border:       `1px solid ${kpiBadge.border}`,
+                                  maxWidth:     "100%",
+                                  overflow:     "hidden",
                                   textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
+                                  whiteSpace:   "nowrap",
                                 }}>
                                   {kpiBadge.icon}
                                   {kpiBadge.label}
@@ -393,7 +395,8 @@ export function MyTemplates({ empId: empIdProp }: MyTemplatesProps) {
                                   display: "inline-flex", alignItems: "center", gap: "4px",
                                   padding: "3px 10px", borderRadius: "20px",
                                   fontSize: "11px", fontWeight: "700",
-                                  background: ctrlBadge.bg, color: ctrlBadge.color, border: `1px solid ${ctrlBadge.border}`,
+                                  background: ctrlBadge.bg, color: ctrlBadge.color,
+                                  border: `1px solid ${ctrlBadge.border}`,
                                 }}>
                                   {isLocked ? <Lock size={9} /> : <Unlock size={9} />}
                                   {ctrlBadge.label}
@@ -432,7 +435,4 @@ export function MyTemplates({ empId: empIdProp }: MyTemplatesProps) {
   );
 }
 
-// Default export for convenience
 export default MyTemplates;
-
-
