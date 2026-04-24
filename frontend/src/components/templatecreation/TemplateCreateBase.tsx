@@ -8,6 +8,7 @@
 // Consistent camelCase naming; no magic numbers; separate CSS file.
 // KPI Scales — grouped dropdown: Interpolated (8), Bracket (4, one inverse), Manual (1).
 // Dropdown arrows removed from KPI Scale and Control selects — badge-click triggers menu.
+// employees table replaced with users table (id=uuid, full_name=text).
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -195,6 +196,12 @@ interface CategoryRow {
   objectives:   ObjectiveRow[];
 }
 
+// ── Changed: User shape from /users endpoint ──────────────────────────────────
+interface UserOption {
+  id:        string;   // uuid
+  full_name: string;
+}
+
 interface TemplateCreateBaseProps {
   level?: number;
 }
@@ -238,7 +245,6 @@ function buildBaseSelectStyles(): any {
   };
 }
 
-// Table cell select — no arrow, transparent background, badge-click opens menu
 function buildTableSelectStyles(): any {
   return {
     control: (base: any) => ({
@@ -274,7 +280,6 @@ function buildTableSelectStyles(): any {
   };
 }
 
-// KPI scale select — wide boxed input, tall menu showing all options at once
 function buildKpiSelectStyles(): any {
   return {
     control: (base: any, { isFocused }: any) => ({
@@ -290,7 +295,7 @@ function buildKpiSelectStyles(): any {
       "&:hover":    { borderColor: "#3b82f6" },
     }),
     valueContainer:      (base: any) => ({ ...base, padding: "0 2px" }),
-    indicatorsContainer: () => ({ display: "none" }), // no arrow
+    indicatorsContainer: () => ({ display: "none" }),
     singleValue:         (base: any) => ({ ...base, margin: 0 }),
     placeholder: (base: any) => ({
       ...base, color: "#94a3b8", fontSize: "12px", fontWeight: "500",
@@ -301,12 +306,10 @@ function buildKpiSelectStyles(): any {
       border: "1px solid #e8edf5",
       marginTop: "4px", padding: "6px",
       zIndex: 9999,
-      // wide enough to read every label clearly
       minWidth: "320px",
     }),
     menuList: (base: any) => ({
       ...base,
-      // tall enough to show all 13 options + group headers without scrolling
       maxHeight: "520px",
       paddingTop: 0, paddingBottom: 0,
       overflowY: "auto",
@@ -370,7 +373,6 @@ const KpiScaleOptionRenderer = ({ data, innerProps, isSelected, isFocused }: any
   </div>
 );
 
-// Clickable KPI badge — entire pill is the trigger, no arrow
 const KpiScaleBadge = ({ opt, isDisabled }: { opt: any; isDisabled: boolean }) => (
   <span
     title={isDisabled ? undefined : `Click to change · ${opt.hint}`}
@@ -383,7 +385,6 @@ const KpiScaleBadge = ({ opt, isDisabled }: { opt: any; isDisabled: boolean }) =
       border:     `1px solid ${isDisabled ? "#e2e8f0" : opt.badge.border}`,
       cursor:     isDisabled ? "default" : "pointer",
       userSelect: "none",
-      // wide enough to always show full label
       maxWidth:   "none",
     }}
   >
@@ -416,7 +417,6 @@ const ControlOptionRenderer = ({ data, innerProps, isSelected, isFocused }: any)
   </div>
 );
 
-// Clickable control badge — no arrow
 const ControlBadge = ({ opt, isDisabled }: { opt: any; isDisabled: boolean }) => (
   <span
     title={isDisabled ? undefined : "Click to toggle"}
@@ -451,14 +451,7 @@ function makeDefaultObjective(
   };
 }
 
-// ─── Initial category seed data — with predefined weights ─────────────────────
-//
-// Weights are assigned per category so each category sums to a sensible share.
-// Financial Focus  = 35%, Customer Focus = 25%, HR Focus = 15%,
-// Process Focus    = 15%, Personal       = 10%  → grand total = 100%
-//
-// Within each category, weights are distributed evenly across objectives that
-// are commonly used (Locked ones carry the main weight).
+// ─── Initial category seed data ───────────────────────────────────────────────
 
 const INITIAL_CATEGORIES: CategoryRow[] = [
   {
@@ -566,13 +559,16 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   const [categories,           setCategories]           = useState<CategoryRow[]>(INITIAL_CATEGORIES);
   const [roles,                setRoles]                = useState<any[]>([]);
   const [departments,          setDepartments]          = useState<any[]>([]);
-  const [employees,            setEmployees]            = useState<any[]>([]);
-  const [selectedEmployee,     setSelectedEmployee]     = useState<string | null>(null);
+
+  // ── Changed: users list (id uuid + full_name) replaces employees ───────────
+  const [users,                setUsers]                = useState<UserOption[]>([]);
+  // ── Changed: selectedUser stores uuid string (users.id) ───────────────────
+  const [selectedUser,         setSelectedUser]         = useState<string | null>(null);
+
   const [selectedRoles,        setSelectedRoles]        = useState<number[]>([]);
   const [selectedDepartments,  setSelectedDepartments]  = useState<number[]>([]);
   const [showCancelConfirm,    setShowCancelConfirm]    = useState(false);
   const [isPageLoading,        setIsPageLoading]        = useState(!!editId);
-  // Tracks the key "catIndex-objIndex" of the most recently added blank row
   const [newObjKey,            setNewObjKey]            = useState<string | null>(null);
 
   // ── Memoised react-select styles ───────────────────────────────────────────
@@ -594,20 +590,22 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   useEffect(() => {
     const loadMasterData = async () => {
       try {
-        const [rolesRes, deptsRes, empsRes] = await Promise.all([
+        const [rolesRes, deptsRes, usersRes] = await Promise.all([
           fetch(`${API_BASE}/roles`),
           fetch(`${API_BASE}/departments`),
-          fetch(`${API_BASE}/employees`),
+          // ── Changed: fetch /users instead of /employees ────────────────────
+          fetch(`${API_BASE}/users`),
         ]);
-        if (!rolesRes.ok || !deptsRes.ok || !empsRes.ok) {
+        if (!rolesRes.ok || !deptsRes.ok || !usersRes.ok) {
           throw new Error("One or more master data requests failed");
         }
-        const [rolesData, deptsData, empsData] = await Promise.all([
-          rolesRes.json(), deptsRes.json(), empsRes.json(),
+        const [rolesData, deptsData, usersData] = await Promise.all([
+          rolesRes.json(), deptsRes.json(), usersRes.json(),
         ]);
         setRoles(rolesData);
         setDepartments(deptsData);
-        setEmployees(empsData);
+        // ── Changed: store users (id + full_name) ─────────────────────────────
+        setUsers(usersData);
       } catch (err) {
         console.error("Master data load error:", err);
         toast.error("Failed to load roles and departments");
@@ -644,16 +642,11 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         setSelectedRoles(tmpl.assignedRolesIds?.map(Number) ?? []);
         setSelectedDepartments(tmpl.assignedDepartmentsIds?.map(Number) ?? []);
 
-        const assignedEmpPk = tmpl.assignedEmployeeIds?.[0];
-        if (assignedEmpPk) {
-          try {
-            const empRes  = await fetch(`${API_BASE}/employees`);
-            const empList = await empRes.json();
-            const match   = empList.find((emp: any) => emp.id === Number(assignedEmpPk));
-            setSelectedEmployee(match?.emp_id ?? null);
-          } catch {
-            setSelectedEmployee(null);
-          }
+        // ── Changed: assignedEmployeeIds now holds uuid strings ───────────────
+        // The first assigned user_id (uuid) is stored directly — no PK lookup needed.
+        const assignedUserUuid = tmpl.assignedEmployeeIds?.[0];
+        if (assignedUserUuid) {
+          setSelectedUser(String(assignedUserUuid));
         }
 
         if (isViewMode) toast.info("Viewing Template — Read-only mode");
@@ -728,8 +721,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           ci !== catIndex ? cat : { ...cat, objectives: [...cat.objectives, { ...BLANK_OBJECTIVE }] },
         ),
       );
-      // After state update, the new row will be the last one in catIndex
-      // We use a timeout so the DOM is painted before we try to focus
       setTimeout(() => {
         setCategories((prev) => {
           const newIdx = prev[catIndex]?.objectives.length - 1;
@@ -857,6 +848,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         resolvedId = created.id;
       }
 
+      // ── Changed: send user_id (uuid) instead of emp_id ────────────────────
       const assignRes = await fetch(`${API_BASE}/assign-template`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
@@ -864,7 +856,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           template_id:    resolvedId,
           role_ids:       selectedRoles,
           department_ids: selectedDepartments,
-          emp_id:         selectedEmployee,
+          user_id:        selectedUser,   // uuid string or null
         }),
       });
       if (!assignRes.ok) {
@@ -1007,36 +999,37 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               </p>
             )}
           </div>
+
+          {/* ── Changed: user selection — shows only full_name ─────────────── */}
           <div>
             <label className={styles.formFieldLabel}>
               Assign to Employee
               <span className={styles.optionalTag}>optional</span>
             </label>
             <Select
-              instanceId="emp-select"
+              instanceId="user-select"
               styles={baseSelectStyles}
               isDisabled={isReadOnly}
               isSearchable
               filterOption={(option: any, inputValue: string) => {
                 if (!inputValue) return true;
-                const q = inputValue.toLowerCase();
-                return option.label.toLowerCase().includes(q);
+                return option.label.toLowerCase().includes(inputValue.toLowerCase());
               }}
-              options={employees.map((emp: any) => ({
-                value: emp.emp_id,
-                label: `${emp.emp_id} — ${emp.name}`,
+              options={users.map((u) => ({
+                value: u.id,           // uuid — sent to backend as user_id
+                label: u.full_name,    // displayed in dropdown
               }))}
               value={
-                selectedEmployee !== null
+                selectedUser !== null
                   ? (() => {
-                      const emp = employees.find((x: any) => x.emp_id === selectedEmployee);
-                      return emp ? { value: emp.emp_id, label: `${emp.emp_id} — ${emp.name}` } : null;
+                      const u = users.find((x) => x.id === selectedUser);
+                      return u ? { value: u.id, label: u.full_name } : null;
                     })()
                   : null
               }
-              onChange={(opt: any) => setSelectedEmployee(opt ? (opt.value as string) : null)}
+              onChange={(opt: any) => setSelectedUser(opt ? (opt.value as string) : null)}
               isClearable
-              placeholder="Search by ID or name…"
+              placeholder="Search by name…"
               menuPortalTarget={typeof document !== "undefined" ? document.body : null}
               menuPosition="fixed"
             />
@@ -1109,10 +1102,8 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               </div>
             </div>
 
-            {/* Objectives list — flex rows */}
+            {/* Objectives list */}
             <div className={styles.objectivesList}>
-
-              {/* Column header row */}
               <div className={styles.objHeaderRow}>
                 <div className={styles.objColNum}>#</div>
                 <div className={styles.objColName}>Objective</div>
@@ -1133,12 +1124,10 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                     key={objIndex}
                     className={`${styles.objRow} ${obj.control === "Locked" ? styles.objRowLocked : styles.objRowNormal}`}
                   >
-                    {/* Row number */}
                     <div className={styles.objColNum}>
                       <span className={styles.objRowNum}>{catIndex + 1}.{objIndex + 1}</span>
                     </div>
 
-                    {/* Objective name */}
                     <div className={styles.objColName}>
                       <div className={`${styles.inlineInputBox} ${isReadOnly ? styles.inlineInputBoxReadOnly : styles.inlineInputBoxEditable} ${isNew ? styles.inlineInputBoxNew : ""}`}>
                         <input
@@ -1153,7 +1142,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                       </div>
                     </div>
 
-                    {/* Weight */}
                     <div className={styles.objColWeight}>
                       <div className={`${styles.inlineInputBox} ${styles.inlineInputBoxWeight} ${isReadOnly ? styles.inlineInputBoxReadOnly : styles.inlineInputBoxEditable}`}>
                         <input
@@ -1174,7 +1162,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                       </div>
                     </div>
 
-                    {/* Control */}
                     <div className={styles.objColControl}>
                       {isReadOnly ? (
                         <ControlBadge opt={controlOption} isDisabled={true} />
@@ -1201,7 +1188,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                       )}
                     </div>
 
-                    {/* KPI Scale — wide boxed select, tall menu */}
                     <div className={styles.objColKpi}>
                       {isReadOnly ? (
                         <span className={styles.kpiReadOnlyText}>{scaleOption.label}</span>
@@ -1257,7 +1243,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                       )}
                     </div>
 
-                    {/* Max Score */}
                     <div className={styles.objColMax}>
                       {isReadOnly ? (
                         <span className={styles.maxScoreReadOnly}>
@@ -1282,7 +1267,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                       )}
                     </div>
 
-                    {/* Actions */}
                     {!isReadOnly && (
                       <div className={styles.objColAction}>
                         <button
@@ -1300,7 +1284,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               })}
             </div>
 
-            {/* Add Objective footer */}
             {!isReadOnly && (
               <button
                 className={styles.addObjectiveBtn}
@@ -1382,7 +1365,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           <h4 className={styles.sectionHeadingTitleSm}>KPI Scale &amp; Control Reference</h4>
         </div>
 
-        {/* Control types */}
         <div>
           <div className={styles.referenceSubHeading}>
             <div className={`${styles.referenceSubIcon} ${styles.referenceSubIconBlue}`}>
@@ -1410,7 +1392,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
 
         <div className={styles.referenceDivider} />
 
-        {/* KPI Scale types — grouped */}
         <div>
           <div className={styles.referenceSubHeading}>
             <div className={`${styles.referenceSubIcon} ${styles.referenceSubIconViolet}`}>
@@ -1420,7 +1401,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           </div>
 
           <div className={styles.referenceItemsRow}>
-            {/* INTERPOLATED */}
             <div className={styles.kpiScaleItem} style={{ background: "#eff6ff", borderColor: "#bfdbfe", borderWidth: "1px", borderStyle: "solid" }}>
               <div className={styles.kpiScaleItemHeader}>
                 <TrendingUp size={13} color="#1e40af" />
@@ -1438,7 +1418,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               </div>
             </div>
 
-            {/* BRACKET */}
             <div className={styles.kpiScaleItem} style={{ background: "#fef3c7", borderColor: "#fde68a", borderWidth: "1px", borderStyle: "solid" }}>
               <div className={styles.kpiScaleItemHeader}>
                 <SlidersHorizontal size={13} color="#92400e" />
@@ -1462,7 +1441,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               </div>
             </div>
 
-            {/* MANUAL */}
             <div className={styles.kpiScaleItem} style={{ background: "#f0fdf4", borderColor: "#bbf7d0", borderWidth: "1px", borderStyle: "solid" }}>
               <div className={styles.kpiScaleItemHeader}>
                 <SlidersHorizontal size={13} color="#166534" />
@@ -1491,7 +1469,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           {isReadOnly && <span className={styles.sectionHeadingReadOnly}>(read-only)</span>}
         </div>
 
-        {/* Visibility logic note */}
         <div className={styles.distributionLogicNote}>
           <div className={styles.distributionLogicIcon}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1503,7 +1480,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           </p>
         </div>
 
-        {/* Roles + Departments row */}
         <div className={styles.distributionGrid}>
           <div>
             <label className={styles.formFieldLabel}>Target Roles</label>
@@ -1546,14 +1522,17 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           </div>
         </div>
 
-        {/* Assignment summary — read-only view of what's set */}
-        {isReadOnly && (selectedRoles.length > 0 || selectedDepartments.length > 0 || selectedEmployee) && (
+        {/* ── Changed: read-only summary uses full_name ─────────────────────── */}
+        {isReadOnly && (selectedRoles.length > 0 || selectedDepartments.length > 0 || selectedUser) && (
           <div className={styles.assignmentSummary}>
-            {selectedEmployee && (
+            {selectedUser && (
               <div className={styles.assignmentSummaryRow}>
                 <span className={styles.assignmentSummaryLabel}>Direct Employee</span>
                 <span className={styles.assignmentSummaryBadge} style={{ background: "#eff6ff", color: "#1e40af", borderColor: "#bfdbfe" }}>
-                  {(() => { const emp = employees.find((x: any) => x.emp_id === selectedEmployee); return emp ? `${emp.emp_id} — ${emp.name}` : selectedEmployee; })()}
+                  {(() => {
+                    const u = users.find((x) => x.id === selectedUser);
+                    return u ? u.full_name : selectedUser;
+                  })()}
                 </span>
               </div>
             )}

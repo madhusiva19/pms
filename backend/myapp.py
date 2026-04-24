@@ -10,6 +10,8 @@ Changes in this version:
   - sync_cycle_dates_from_constants() runs on startup: changing constants in
     app.py automatically pushes recomputed dates to the active DB cycle so
     freeze logic always reflects the latest constants without manual SQL.
+  - employees table replaced with users table (id=uuid, full_name=text).
+    template_assignments.user_id maps to users.id (uuid).
 """
 
 from flask import Flask, request, jsonify
@@ -33,15 +35,11 @@ SUPABASE_KEY = (
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Freeze constants (mirror lib/freezeConfig.ts exactly) ────────────────────
-# These are the SINGLE SOURCE OF TRUTH for freeze window durations.
-# On every app startup, sync_cycle_dates_from_constants() recomputes and
-# pushes objective_setting_end + grace_period_end to the active DB cycle
-# so that changing a constant here is all you need to do — no manual SQL.
-OBJECTIVE_SETTING_MONTHS = 12    # window closes 2 months after PMS start
-GRACE_PERIOD_DAYS        = 15   # hard freeze 15 days after objective window
-PMS_START_MONTH          = 7    # July (1-based)
+OBJECTIVE_SETTING_MONTHS = 12
+GRACE_PERIOD_DAYS        = 15
+PMS_START_MONTH          = 7
 PMS_START_DAY            = 1
-DEFAULT_MAX_SCORE        = 5    # default appraisal rating scale
+DEFAULT_MAX_SCORE        = 5
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -49,20 +47,6 @@ DEFAULT_MAX_SCORE        = 5    # default appraisal rating scale
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sync_cycle_dates_from_constants() -> None:
-    """
-    Runs once when app.py starts.
-
-    Recomputes objective_setting_end and grace_period_end from the current
-    constants and writes them back to the active pms_cycle row in the DB.
-
-    Why this exists:
-      - The DB stores dates so the frontend can display them.
-      - The constants define the business rules (how long each window is).
-      - Without this sync, changing a constant has no effect because
-        compute_freeze_dates_from_cycle() reads the stored DB dates.
-      - With this sync, changing a constant + restarting the app is enough
-        to update the entire system — no manual SQL needed.
-    """
     try:
         result = (
             supabase.table("pms_cycles")
@@ -102,7 +86,6 @@ def sync_cycle_dates_from_constants() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_active_pms_cycle() -> dict | None:
-    """Returns the currently active PMS cycle row, or None."""
     try:
         result = (
             supabase.table("pms_cycles")
@@ -120,22 +103,13 @@ def get_active_pms_cycle() -> dict | None:
 
 
 def compute_freeze_dates_from_cycle(cycle: dict) -> dict:
-    """
-    Reads freeze dates directly from the DB cycle row.
-    These dates are always in sync with the constants because
-    sync_cycle_dates_from_constants() rewrites them on every startup.
-    """
     pms_start = datetime.fromisoformat(cycle["pms_start"]).date()
 
-    # objective_setting_end is written by sync on startup — use it directly
     if cycle.get("objective_setting_end"):
         objective_end = datetime.fromisoformat(cycle["objective_setting_end"]).date()
     else:
-        # Fallback: recompute from constants (handles brand-new cycles created
-        # before the sync had a chance to run)
         objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
 
-    # grace_period_end is also written by sync on startup — use it directly
     if cycle.get("grace_period_end"):
         grace_end = datetime.fromisoformat(cycle["grace_period_end"]).date()
     else:
@@ -149,10 +123,6 @@ def compute_freeze_dates_from_cycle(cycle: dict) -> dict:
 
 
 def compute_freeze_dates_from_constants() -> dict:
-    """
-    Fallback used only when there is NO active cycle in the DB at all.
-    Computes dates purely from constants + today's date.
-    """
     today = date.today()
     year  = today.year
 
@@ -245,7 +215,6 @@ def get_active_pms_cycle_route():
 
 @app.route("/pms-cycles", methods=["POST"])
 def create_pms_cycle():
-    """HQ Admin creates a new PMS cycle, deactivating the current one."""
     try:
         level = get_request_level()
         if level > 1:
@@ -280,7 +249,6 @@ def create_pms_cycle():
 
 @app.route("/pms-cycles/<int:cycle_id>", methods=["PUT"])
 def update_pms_cycle(cycle_id):
-    """Update dates on an existing PMS cycle (HQ Admin only)."""
     try:
         level = get_request_level()
         if level > 1:
@@ -308,7 +276,6 @@ def update_pms_cycle(cycle_id):
 
 @app.route("/pms-cycles/close", methods=["POST"])
 def close_pms_cycle():
-    """HQ Admin closes the current active PMS cycle."""
     try:
         level = get_request_level()
         if level > 1:
@@ -326,18 +293,6 @@ def close_pms_cycle():
 
 @app.route("/pms-cycles/open-next", methods=["POST"])
 def open_next_pms_cycle():
-    """
-    HQ Admin opens the next PMS cycle.
-    Automatically determines the next year, closes the current cycle,
-    and creates the new one with dates computed from the current constants.
-
-    Annual continuation design:
-      1. HQ Admin clicks "Open Next PMS Cycle" in the UI once per year.
-      2. This endpoint deactivates the current cycle and inserts a new row
-         for the next year with pms_start = 1 July <next_year>.
-      3. All freeze dates are computed from constants + new pms_start.
-      4. Frontend immediately reflects the new cycle.
-    """
     try:
         level = get_request_level()
         if level > 1:
@@ -382,7 +337,6 @@ def open_next_pms_cycle():
 
 @app.route("/templates", methods=["POST"])
 def save_template():
-    """Create a new template."""
     try:
         data = request.get_json()
         now  = datetime.now().isoformat()
@@ -417,7 +371,8 @@ def get_templates():
         mapping     = supabase.table("template_assignments").select("*").execute().data
         roles       = supabase.table("roles").select("*").execute().data
         departments = supabase.table("departments").select("*").execute().data
-        employees   = supabase.table("employees").select("*").execute().data
+        # ── Changed: query users table (id uuid, full_name text) ──────────────
+        users       = supabase.table("users").select("id, full_name").execute().data
 
         for template in templates:
             t_id = template["id"]
@@ -430,21 +385,22 @@ def get_templates():
                 m["department_id"] for m in mapping
                 if m["template_id"] == t_id and m.get("department_id")
             ]))
-            assigned_emp_ids  = list(set([
-                m["emp_id"] for m in mapping
-                if m["template_id"] == t_id and m.get("emp_id")
+            # ── Changed: read user_id (uuid) instead of emp_id ───────────────
+            assigned_user_ids = list(set([
+                m["user_id"] for m in mapping
+                if m["template_id"] == t_id and m.get("user_id")
             ]))
 
             template["assignedRoles"]          = [r["name"] for r in roles if r["id"] in assigned_role_ids]
             template["assignedRolesIds"]       = assigned_role_ids
             template["assignedDepartments"]    = [d["name"] for d in departments if d["id"] in assigned_dept_ids]
             template["assignedDepartmentsIds"] = assigned_dept_ids
+            # ── Changed: display full_name, store uuid ids ────────────────────
             template["assignedEmployees"]      = [
-                f"{e['emp_id']} — {e['name']}" for e in employees if e["id"] in assigned_emp_ids
+                u["full_name"] for u in users if u["id"] in assigned_user_ids
             ]
-            template["assignedEmployeeIds"]    = assigned_emp_ids
+            template["assignedEmployeeIds"]    = assigned_user_ids
 
-            # Backfill default max_score for old rows that have null
             if template.get("max_score") is None:
                 template["max_score"] = DEFAULT_MAX_SCORE
 
@@ -514,42 +470,47 @@ def delete_template(template_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MY-TEMPLATES ROUTE (Employee view)
+# MY-TEMPLATES ROUTE (Employee / User view)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route("/my-templates", methods=["GET"])
 def get_my_templates():
     """
-    Returns templates assigned to the requesting employee.
-    Lookup priority: direct emp assignment → role → department.
+    Returns templates assigned to the requesting user.
+    Lookup priority: direct user assignment → role → department.
+
+    Query param: user_id (uuid string) — the users.id value.
     """
     try:
-        emp_id_code = request.args.get("emp_id", "").strip()
-        if not emp_id_code:
-            return jsonify({"error": "emp_id query parameter is required"}), 400
+        # ── Changed: accept user_id (uuid) instead of emp_id string ──────────
+        user_id_param = request.args.get("user_id", "").strip()
+        if not user_id_param:
+            return jsonify({"error": "user_id query parameter is required"}), 400
 
-        emp_result = (
-            supabase.table("employees")
-            .select("id, emp_id, name, role_id, department_id")
-            .eq("emp_id", emp_id_code)
+        # ── Changed: query users table by id (uuid), fetch full_name ─────────
+        user_result = (
+            supabase.table("users")
+            .select("id, full_name, role_id, department_id")
+            .eq("id", user_id_param)
             .execute()
         )
 
-        if not emp_result.data:
+        if not user_result.data:
             return jsonify({
-                "error": f"No employee found with emp_id '{emp_id_code}'."
+                "error": f"No user found with id '{user_id_param}'."
             }), 404
 
-        employee      = emp_result.data[0]
-        employee_pk   = employee["id"]
-        role_id       = employee.get("role_id")
-        department_id = employee.get("department_id")
+        user          = user_result.data[0]
+        user_pk       = user["id"]          # uuid
+        role_id       = user.get("role_id")
+        department_id = user.get("department_id")
 
         all_assignments = supabase.table("template_assignments").select("*").execute().data
 
         matched_template_ids: set = set()
         for assignment in all_assignments:
-            if assignment.get("emp_id") == employee_pk:
+            # ── Changed: match on user_id column (uuid) ───────────────────────
+            if assignment.get("user_id") == user_pk:
                 matched_template_ids.add(assignment["template_id"])
                 continue
             if role_id and assignment.get("role_id") == role_id:
@@ -577,21 +538,19 @@ def get_my_templates():
 @app.route("/assign-template", methods=["POST"])
 def assign_template():
     """
-    Assigns a template to roles, departments, and/or a specific employee.
+    Assigns a template to roles, departments, and/or a specific user.
 
-    FIXED LOGIC: When an employee is selected, we store an employee assignment
-    AND optionally role/department assignments if those were also selected.
-    All combinations work:
-      - employee only
-      - employee + role
-      - employee + department
-      - employee + role + department
-      - role + department (no employee)
-      - role only
-      - department only
+    Frontend sends:
+      - template_id   (int)
+      - role_ids      (list of ints)
+      - department_ids(list of ints)
+      - user_id       (uuid string — users.id)   ← was emp_id / emp_id_code
 
-    emp_id from the frontend is always the STRING code (e.g. "EMP001").
-    We look up the integer PK from the employees table using that string code.
+    template_assignments columns used:
+      - template_id   (int)
+      - role_id       (int, nullable)
+      - department_id (int, nullable)
+      - user_id       (uuid, nullable)            ← was emp_id (int)
     """
     try:
         level = get_request_level()
@@ -602,7 +561,8 @@ def assign_template():
         template_id = data.get("template_id")
         role_ids    = data.get("role_ids", [])
         dept_ids    = data.get("department_ids", [])
-        emp_id_raw  = data.get("emp_id")
+        # ── Changed: frontend sends user_id (uuid string) ────────────────────
+        user_id_raw = data.get("user_id")
 
         if not template_id:
             return jsonify({"error": "template_id is required"}), 400
@@ -612,34 +572,34 @@ def assign_template():
 
         assign_rows: list = []
 
-        # ── Resolve employee PK if provided ──────────────────────────────────
-        emp_pk = None
-        if emp_id_raw is not None and str(emp_id_raw).strip() != "":
-            emp_id_code = str(emp_id_raw).strip()
+        # ── Resolve / validate user uuid if provided ──────────────────────────
+        resolved_user_id = None
+        if user_id_raw is not None and str(user_id_raw).strip() != "":
+            candidate = str(user_id_raw).strip()
 
-            emp_result = (
-                supabase.table("employees")
+            # ── Changed: look up users table by id (uuid) ─────────────────────
+            user_result = (
+                supabase.table("users")
                 .select("id")
-                .eq("emp_id", emp_id_code)
+                .eq("id", candidate)
                 .execute()
             )
 
-            if not emp_result.data:
+            if not user_result.data:
                 return jsonify({
                     "error": (
-                        f"Employee with emp_id '{emp_id_code}' not found. "
-                        f"Make sure the emp_id matches exactly what is stored in the employees table."
+                        f"User with id '{candidate}' not found. "
+                        f"Make sure the uuid matches what is stored in the users table."
                     )
                 }), 404
 
-            emp_pk = emp_result.data[0]["id"]
+            resolved_user_id = user_result.data[0]["id"]   # uuid string
 
-        # ── Build assignment rows for all combinations ────────────────────────
-        # Case 1: Employee + roles + departments (all three)
-        if emp_pk and role_ids and dept_ids:
+        # ── Build assignment rows (same case logic, column name changed) ──────
+        if resolved_user_id and role_ids and dept_ids:
             assign_rows.append({
                 "template_id": template_id,
-                "emp_id":      emp_pk,
+                "user_id":     resolved_user_id,
             })
             for role_id in role_ids:
                 for dept_id in dept_ids:
@@ -649,11 +609,10 @@ def assign_template():
                         "department_id": dept_id,
                     })
 
-        # Case 2: Employee + roles only
-        elif emp_pk and role_ids and not dept_ids:
+        elif resolved_user_id and role_ids and not dept_ids:
             assign_rows.append({
                 "template_id": template_id,
-                "emp_id":      emp_pk,
+                "user_id":     resolved_user_id,
             })
             for role_id in role_ids:
                 assign_rows.append({
@@ -661,11 +620,10 @@ def assign_template():
                     "role_id":     role_id,
                 })
 
-        # Case 3: Employee + departments only
-        elif emp_pk and dept_ids and not role_ids:
+        elif resolved_user_id and dept_ids and not role_ids:
             assign_rows.append({
                 "template_id": template_id,
-                "emp_id":      emp_pk,
+                "user_id":     resolved_user_id,
             })
             for dept_id in dept_ids:
                 assign_rows.append({
@@ -673,15 +631,13 @@ def assign_template():
                     "department_id": dept_id,
                 })
 
-        # Case 4: Employee only (no role, no dept)
-        elif emp_pk and not role_ids and not dept_ids:
+        elif resolved_user_id and not role_ids and not dept_ids:
             assign_rows.append({
                 "template_id": template_id,
-                "emp_id":      emp_pk,
+                "user_id":     resolved_user_id,
             })
 
-        # Case 5: No employee — roles + departments
-        elif not emp_pk and role_ids and dept_ids:
+        elif not resolved_user_id and role_ids and dept_ids:
             for role_id in role_ids:
                 for dept_id in dept_ids:
                     assign_rows.append({
@@ -690,16 +646,14 @@ def assign_template():
                         "department_id": dept_id,
                     })
 
-        # Case 6: Roles only
-        elif not emp_pk and role_ids and not dept_ids:
+        elif not resolved_user_id and role_ids and not dept_ids:
             for role_id in role_ids:
                 assign_rows.append({
                     "template_id": template_id,
                     "role_id":     role_id,
                 })
 
-        # Case 7: Departments only
-        elif not emp_pk and dept_ids and not role_ids:
+        elif not resolved_user_id and dept_ids and not role_ids:
             for dept_id in dept_ids:
                 assign_rows.append({
                     "template_id":   template_id,
@@ -715,7 +669,7 @@ def assign_template():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ROLE / DEPARTMENT / EMPLOYEE ROUTES
+# ROLE / DEPARTMENT ROUTES  (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route("/roles", methods=["GET"])
@@ -758,35 +712,20 @@ def add_department():
         return jsonify({"error": str(error)}), 400
 
 
-@app.route("/employees", methods=["GET"])
-def get_employees():
+# ── Changed: /users replaces /employees ──────────────────────────────────────
+# Returns id (uuid) and full_name from the users table.
+# The /employees POST route is removed — users are managed externally.
+
+@app.route("/users", methods=["GET"])
+def get_users():
+    """
+    Returns all users with id (uuid) and full_name.
+    Used by the frontend employee-selection dropdown.
+    """
     try:
         return jsonify(
-            supabase.table("employees").select("id, emp_id, name, role_id, department_id").execute().data
+            supabase.table("users").select("id, full_name").execute().data
         ), 200
-    except Exception as error:
-        return jsonify({"error": str(error)}), 400
-
-
-@app.route("/employees", methods=["POST"])
-def add_employee():
-    try:
-        data    = request.json
-        emp_id  = data.get("emp_id")
-        name    = data.get("name")
-        role_id = data.get("role_id")
-        dept_id = data.get("department_id")
-
-        if not emp_id or not name:
-            return jsonify({"error": "emp_id and name are required"}), 400
-
-        result = supabase.table("employees").insert({
-            "emp_id":        emp_id,
-            "name":          name,
-            "role_id":       role_id,
-            "department_id": dept_id,
-        }).execute()
-        return jsonify(result.data[0]), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
 
@@ -794,5 +733,5 @@ def add_employee():
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    sync_cycle_dates_from_constants()   # ← push constants → DB on every startup
+    sync_cycle_dates_from_constants()
     app.run(debug=True, port=5000)
