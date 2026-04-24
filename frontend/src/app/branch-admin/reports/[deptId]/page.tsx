@@ -109,12 +109,12 @@ export default function BranchAdminReportDetailPage() {
       const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
 
       if (activeReport) {
-        // Fetch live bell curve from performance_summaries using branch UUID
+        // Fetch live bell curve from performance_summaries for this department
         const bellCurve = await bellCurveApi.getLive({
           period_type: activeTab,
           year: 2026,
-          scope: 'branch',
-          scope_id: branchData.id,
+          scope: 'department',
+          scope_id: deptId,
         });
         setBellCurveData(bellCurve as any);
 

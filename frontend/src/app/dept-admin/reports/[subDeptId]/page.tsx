@@ -109,11 +109,11 @@ export default function DeptAdminReportDetailPage() {
       const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
 
       if (activeReport) {
-        // Fetch live bell curve from performance_summaries for this department
+        // Fetch live bell curve from performance_summaries for this sub-department
         const bellCurve = await bellCurveApi.getLive({
           period_type: activeTab,
           year: 2026,
-          scope: 'department',
+          scope: 'sub_department',
           scope_id: subDeptId,
         });
         setBellCurveData(bellCurve as any);
