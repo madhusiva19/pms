@@ -116,17 +116,17 @@ export default function BranchReportPage() {
       const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
       console.log('📊 Active report:', activeReport);
 
-      if (activeReport) {
-        // Fetch live bell curve from performance_summaries using branch UUID
-        const bellCurve = await bellCurveApi.getLive({
-          period_type: activeTab,
-          year: 2026,
-          scope: 'branch',
-          scope_id: branchId,
-        });
-        console.log('✅ Bell curve data:', bellCurve);
-        setBellCurveData(bellCurve as any);
+      // Fetch live bell curve from performance_summaries — independent of activeReport
+      const bellCurve = await bellCurveApi.getLive({
+        period_type: activeTab,
+        year: 2026,
+        scope: 'branch',
+        scope_id: branchId,
+      });
+      console.log('✅ Bell curve data:', bellCurve);
+      setBellCurveData(bellCurve as any);
 
+      if (activeReport) {
         console.log('🔍 Fetching insights...');
         const insightsData = await branchInsightsApi.getByReport(activeReport.id);
         console.log('✅ Insights data:', insightsData);
