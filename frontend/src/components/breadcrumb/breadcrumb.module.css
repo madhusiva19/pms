@@ -5,8 +5,8 @@
   font-size: 13px;
   padding: 12px 0 20px;
   color: #6b7280;
+  background: #f9fafb; 
 }
-
 .homeLink {
   display: flex;
   align-items: center;
@@ -43,7 +43,7 @@
 }
 
 .current {
-  color: #111827;
+  color: #222c45;
   font-weight: 600;
   padding: 2px 4px;
 }

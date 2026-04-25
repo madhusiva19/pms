@@ -22,7 +22,7 @@ export default function Breadcrumb() {
       <Link href="/" className={styles.homeLink}>
         <Home size={14} />
       </Link>
-
+      
       {segments.map((seg) => (
         <span key={seg.href} className={styles.segment}>
           <ChevronRight size={14} className={styles.separator} />

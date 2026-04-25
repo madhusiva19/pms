@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
@@ -39,7 +37,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const raw = localStorage.getItem("pms_user");
-    if (raw) setUser(JSON.parse(raw));
+    if (raw) {
+      const parsedUser = JSON.parse(raw);
+      setUser(parsedUser);
+
+      // Sync user to public.users if not already there
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/sync-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id:   parsedUser.id,
+          email:     parsedUser.email,
+          full_name: parsedUser.full_name,
+        }),
+      }).catch(() => {}); // silent fail — non-critical
+    }
   }, []);
 
   const refreshBadges = useCallback(async () => {
@@ -58,8 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setNotificationCount(unread);
 
       // ── Training badge ──
-      // Supervisors see pending subordinate suggestions
-      // Employees see their own pending suggestions
       const isSupervisor = ["hq_admin", "country_admin", "branch_admin", "dept_admin", "sub_dept_admin"].includes(role);
 
       if (isSupervisor) {
@@ -107,7 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-
 
 
 

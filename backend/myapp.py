@@ -1,17 +1,6 @@
 """
 app.py — PMS Template Management Backend
 
-Changes in this version:
-  - Training linkage removed from templates entirely.
-  - max_score removed from BasicInfo form concept; per-objective kpiMaxScore
-    takes precedence, with the template-level max_score as the fallback default.
-  - assign_template fixed: employee + role/dept combinations all persist correctly.
-  - PMS cycle management routes: /pms-cycles/close and /pms-cycles/open-next.
-  - sync_cycle_dates_from_constants() runs on startup: changing constants in
-    app.py automatically pushes recomputed dates to the active DB cycle so
-    freeze logic always reflects the latest constants without manual SQL.
-  - employees table replaced with users table (id=uuid, full_name=text).
-    template_assignments.user_id maps to users.id (uuid).
 """
 
 from flask import Flask, request, jsonify
@@ -24,12 +13,12 @@ app = Flask(__name__)
 CORS(app)
 
 # ── Supabase credentials ──────────────────────────────────────────────────────
-SUPABASE_URL = "https://zupcupoagfxhnfsbhpmu.supabase.co"
+SUPABASE_URL = "https://yqdrcdkqwiqtmbyuntwk.supabase.co"
 SUPABASE_KEY = (
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-    ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1cGN1cG9hZ2Z4aG5mc2JocG11Iiw"
-    "icm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMjA3ODksImV4cCI6MjA4Njc5Njc4OX0"
-    ".Vmk27ISy7gniK_J_2lUVSN3nDnRalf0Y253S2tSOnvU"
+    ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZHJjZGtxd2lxdG1ieXVudHdrIiwi"
+    "cm9sZSI6ImFub24iLCJpYXQiOjE3NzA5NDkwMzUsImV4cCI6MjA4NjUyNTAzNX0"
+    ".l7tCKgIf2wTNPqRcareeOnHATr-XqF-wS68mzQ1gDZQ"
 )
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -345,15 +334,16 @@ def save_template():
         cycle_id     = active_cycle["id"] if active_cycle else None
 
         result = supabase.table("templates").insert({
-            "name":          data.get("name"),
-            "description":   data.get("description"),
-            "max_score":     data.get("max_score", DEFAULT_MAX_SCORE),
-            "categories":    data.get("categories"),
-            "total_weight":  data.get("totalWeight"),
-            "pms_cycle_id":  cycle_id,
-            "status":        "active",
-            "created_at":    now,
-            "lastModified":  now,
+            "name":             data.get("name"),
+            "description":      data.get("description"),
+            "max_score":        data.get("max_score", DEFAULT_MAX_SCORE),
+            "template_content": data.get("categories"),
+            "total_weight":     data.get("totalWeight"),
+            "pms_cycle_id":     cycle_id,
+            "status":           "active",
+            "created_at":       now,
+            "lastModified":     now,
+            "created_by":       None,
         }).execute()
 
         return jsonify({
@@ -371,10 +361,12 @@ def get_templates():
         mapping     = supabase.table("template_assignments").select("*").execute().data
         roles       = supabase.table("roles").select("*").execute().data
         departments = supabase.table("departments").select("*").execute().data
-        # ── Changed: query users table (id uuid, full_name text) ──────────────
         users       = supabase.table("users").select("id, full_name").execute().data
 
         for template in templates:
+            if "template_content" in template:
+                template["categories"] = template.pop("template_content")
+
             t_id = template["id"]
 
             assigned_role_ids = list(set([
@@ -385,7 +377,6 @@ def get_templates():
                 m["department_id"] for m in mapping
                 if m["template_id"] == t_id and m.get("department_id")
             ]))
-            # ── Changed: read user_id (uuid) instead of emp_id ───────────────
             assigned_user_ids = list(set([
                 m["user_id"] for m in mapping
                 if m["template_id"] == t_id and m.get("user_id")
@@ -395,7 +386,6 @@ def get_templates():
             template["assignedRolesIds"]       = assigned_role_ids
             template["assignedDepartments"]    = [d["name"] for d in departments if d["id"] in assigned_dept_ids]
             template["assignedDepartmentsIds"] = assigned_dept_ids
-            # ── Changed: display full_name, store uuid ids ────────────────────
             template["assignedEmployees"]      = [
                 u["full_name"] for u in users if u["id"] in assigned_user_ids
             ]
@@ -417,6 +407,8 @@ def get_single_template(template_id):
             return jsonify({"error": "Template not found"}), 404
 
         template = result.data
+        if "template_content" in template:
+            template["categories"] = template.pop("template_content")
         if template.get("max_score") is None:
             template["max_score"] = DEFAULT_MAX_SCORE
         return jsonify(template), 200
@@ -441,12 +433,12 @@ def update_template(template_id):
         now  = datetime.now().isoformat()
 
         update_payload = {
-            "name":         data.get("name"),
-            "description":  data.get("description"),
-            "max_score":    data.get("max_score", DEFAULT_MAX_SCORE),
-            "categories":   data.get("categories"),
-            "total_weight": data.get("totalWeight"),
-            "lastModified": now,
+            "name":             data.get("name"),
+            "description":      data.get("description"),
+            "max_score":        data.get("max_score", DEFAULT_MAX_SCORE),
+            "template_content": data.get("categories"),
+            "total_weight":     data.get("totalWeight"),
+            "lastModified":     now,
         }
 
         supabase.table("templates").update(update_payload).eq("id", template_id).execute()
@@ -482,12 +474,10 @@ def get_my_templates():
     Query param: user_id (uuid string) — the users.id value.
     """
     try:
-        # ── Changed: accept user_id (uuid) instead of emp_id string ──────────
         user_id_param = request.args.get("user_id", "").strip()
         if not user_id_param:
             return jsonify({"error": "user_id query parameter is required"}), 400
 
-        # ── Changed: query users table by id (uuid), fetch full_name ─────────
         user_result = (
             supabase.table("users")
             .select("id, full_name, role_id, department_id")
@@ -501,7 +491,7 @@ def get_my_templates():
             }), 404
 
         user          = user_result.data[0]
-        user_pk       = user["id"]          # uuid
+        user_pk       = user["id"]
         role_id       = user.get("role_id")
         department_id = user.get("department_id")
 
@@ -509,7 +499,6 @@ def get_my_templates():
 
         matched_template_ids: set = set()
         for assignment in all_assignments:
-            # ── Changed: match on user_id column (uuid) ───────────────────────
             if assignment.get("user_id") == user_pk:
                 matched_template_ids.add(assignment["template_id"])
                 continue
@@ -524,7 +513,13 @@ def get_my_templates():
             return jsonify([]), 200
 
         all_templates = supabase.table("templates").select("*").execute().data
-        my_templates  = [t for t in all_templates if t["id"] in matched_template_ids]
+
+        my_templates = []
+        for t in all_templates:
+            if t["id"] in matched_template_ids:
+                if "template_content" in t:
+                    t["categories"] = t.pop("template_content")
+                my_templates.append(t)
 
         return jsonify(my_templates), 200
     except Exception as error:
@@ -532,25 +527,32 @@ def get_my_templates():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ASSIGNMENT ROUTE
+# ASSIGNMENT ROUTES  (POST = create, PUT = update/replace)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.route("/assign-template", methods=["POST"])
-def assign_template():
+def _do_assign_template():
     """
-    Assigns a template to roles, departments, and/or a specific user.
+    Core assignment logic shared by POST and PUT handlers.
 
-    Frontend sends:
-      - template_id   (int)
-      - role_ids      (list of ints)
-      - department_ids(list of ints)
-      - user_id       (uuid string — users.id)   ← was emp_id / emp_id_code
+    Accepts any combination of:
+      - user_ids       (list[uuid str])   ← preferred multi-user field
+      - user_id        (uuid str)         ← legacy single-user field, still supported
+      - role_ids       (list[int])
+      - department_ids (list[uuid str])
 
-    template_assignments columns used:
-      - template_id   (int)
-      - role_id       (int, nullable)
-      - department_id (int, nullable)
-      - user_id       (uuid, nullable)            ← was emp_id (int)
+    All combinations are valid:
+      user only | role only | department only
+      user + role | user + department | role + department
+      user + role + department
+      multiple of any of the above
+
+    Each dimension is stored as independent rows so get_my_templates()
+    (which matches user → role → department independently) keeps working.
+    Role × Department pairs are also stored as combined rows so employees
+    who belong to both get the template even if neither alone matched.
+
+    PUT and POST both replace all existing assignments for the template
+    (delete-then-insert), making PUT fully idempotent.
     """
     try:
         level = get_request_level()
@@ -559,117 +561,123 @@ def assign_template():
 
         data        = request.get_json()
         template_id = data.get("template_id")
-        role_ids    = data.get("role_ids", [])
-        dept_ids    = data.get("department_ids", [])
-        # ── Changed: frontend sends user_id (uuid string) ────────────────────
-        user_id_raw = data.get("user_id")
 
         if not template_id:
             return jsonify({"error": "template_id is required"}), 400
 
-        # Clear old assignments for this template
-        supabase.table("template_assignments").delete().eq("template_id", template_id).execute()
+        role_ids = data.get("role_ids") or []
+        dept_ids = data.get("department_ids") or []
 
-        assign_rows: list = []
+        # Support both legacy single `user_id` and new multi-user `user_ids`
+        raw_user_ids: list = []
+        if data.get("user_ids"):
+            raw_user_ids = [str(u).strip() for u in data["user_ids"] if str(u).strip()]
+        elif data.get("user_id") and str(data.get("user_id", "")).strip():
+            raw_user_ids = [str(data["user_id"]).strip()]
 
-        # ── Resolve / validate user uuid if provided ──────────────────────────
-        resolved_user_id = None
-        if user_id_raw is not None and str(user_id_raw).strip() != "":
-            candidate = str(user_id_raw).strip()
+        # At least one dimension must be provided
+        if not raw_user_ids and not role_ids and not dept_ids:
+            return jsonify({
+                "error": "At least one of user_ids, role_ids, or department_ids is required."
+            }), 400
 
-            # ── Changed: look up users table by id (uuid) ─────────────────────
+        # ── Validate all supplied user UUIDs exist ────────────────────────────
+        resolved_user_ids: list = []
+        for candidate in raw_user_ids:
             user_result = (
                 supabase.table("users")
                 .select("id")
                 .eq("id", candidate)
                 .execute()
             )
-
             if not user_result.data:
                 return jsonify({
                     "error": (
                         f"User with id '{candidate}' not found. "
-                        f"Make sure the uuid matches what is stored in the users table."
+                        "Make sure the uuid matches what is stored in the users table."
                     )
                 }), 404
+            resolved_user_ids.append(user_result.data[0]["id"])
 
-            resolved_user_id = user_result.data[0]["id"]   # uuid string
+        # ── Replace all existing assignments for this template ────────────────
+        supabase.table("template_assignments").delete().eq("template_id", template_id).execute()
 
-        # ── Build assignment rows (same case logic, column name changed) ──────
-        if resolved_user_id and role_ids and dept_ids:
+        assign_rows: list = []
+
+        # User-only rows  (one row per user, no role/dept)
+        for uid in resolved_user_ids:
             assign_rows.append({
-                "template_id": template_id,
-                "user_id":     resolved_user_id,
+                "template_id":   template_id,
+                "user_id":       uid,
+                "role_id":       None,
+                "department_id": None,
             })
-            for role_id in role_ids:
-                for dept_id in dept_ids:
-                    assign_rows.append({
-                        "template_id":   template_id,
-                        "role_id":       role_id,
-                        "department_id": dept_id,
-                    })
 
-        elif resolved_user_id and role_ids and not dept_ids:
+        # Role-only rows  (one row per role, no user/dept)
+        for role_id in role_ids:
             assign_rows.append({
-                "template_id": template_id,
-                "user_id":     resolved_user_id,
+                "template_id":   template_id,
+                "role_id":       role_id,
+                "user_id":       None,
+                "department_id": None,
             })
-            for role_id in role_ids:
-                assign_rows.append({
-                    "template_id": template_id,
-                    "role_id":     role_id,
-                })
 
-        elif resolved_user_id and dept_ids and not role_ids:
+        # Department-only rows  (one row per dept, no user/role)
+        for dept_id in dept_ids:
             assign_rows.append({
-                "template_id": template_id,
-                "user_id":     resolved_user_id,
+                "template_id":   template_id,
+                "department_id": dept_id,
+                "user_id":       None,
+                "role_id":       None,
             })
+
+        # Role × Department combination rows
+        # Allows employees whose role AND department both match to get the template
+        # even if neither individual row alone would catch them via get_my_templates().
+        for role_id in role_ids:
             for dept_id in dept_ids:
                 assign_rows.append({
                     "template_id":   template_id,
+                    "role_id":       role_id,
                     "department_id": dept_id,
-                })
-
-        elif resolved_user_id and not role_ids and not dept_ids:
-            assign_rows.append({
-                "template_id": template_id,
-                "user_id":     resolved_user_id,
-            })
-
-        elif not resolved_user_id and role_ids and dept_ids:
-            for role_id in role_ids:
-                for dept_id in dept_ids:
-                    assign_rows.append({
-                        "template_id":   template_id,
-                        "role_id":       role_id,
-                        "department_id": dept_id,
-                    })
-
-        elif not resolved_user_id and role_ids and not dept_ids:
-            for role_id in role_ids:
-                assign_rows.append({
-                    "template_id": template_id,
-                    "role_id":     role_id,
-                })
-
-        elif not resolved_user_id and dept_ids and not role_ids:
-            for dept_id in dept_ids:
-                assign_rows.append({
-                    "template_id":   template_id,
-                    "department_id": dept_id,
+                    "user_id":       None,
                 })
 
         if assign_rows:
             supabase.table("template_assignments").insert(assign_rows).execute()
 
-        return jsonify({"message": "Template assigned successfully"}), 200
+        # Build a human-readable summary
+        summary_parts = []
+        if resolved_user_ids: summary_parts.append(f"{len(resolved_user_ids)} user(s)")
+        if role_ids:           summary_parts.append(f"{len(role_ids)} role(s)")
+        if dept_ids:           summary_parts.append(f"{len(dept_ids)} department(s)")
+
+        return jsonify({
+            "message":       f"Template assigned successfully to {', '.join(summary_parts)}.",
+            "rows_inserted": len(assign_rows),
+        }), 200
+
     except Exception as error:
         return jsonify({"error": str(error)}), 400
 
 
+@app.route("/assign-template", methods=["POST"])
+def assign_template():
+    """Create a new assignment (or replace an existing one)."""
+    return _do_assign_template()
+
+
+@app.route("/assign-template", methods=["PUT"])
+def update_template_assignment():
+    """
+    Replace an existing assignment with a new combination.
+    Idempotent — safe to call repeatedly with the same payload.
+    """
+    return _do_assign_template()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# ROLE / DEPARTMENT ROUTES  (unchanged)
+# ROLE / DEPARTMENT ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route("/roles", methods=["GET"])
@@ -706,15 +714,14 @@ def add_department():
         name = request.json.get("name")
         if not name:
             return jsonify({"error": "Name required"}), 400
-        result = supabase.table("departments").insert({"name": name}).execute()
+        result = supabase.table("departments").insert({
+            "name":      name,
+            "branch_id": None,
+        }).execute()
         return jsonify(result.data[0]), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
 
-
-# ── Changed: /users replaces /employees ──────────────────────────────────────
-# Returns id (uuid) and full_name from the users table.
-# The /employees POST route is removed — users are managed externally.
 
 @app.route("/users", methods=["GET"])
 def get_users():
@@ -726,6 +733,41 @@ def get_users():
         return jsonify(
             supabase.table("users").select("id, full_name").execute().data
         ), 200
+    except Exception as error:
+        return jsonify({"error": str(error)}), 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SYNC USER ROUTE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/sync-user", methods=["POST"])
+def sync_user():
+    """
+    Syncs a user from auth into public.users if not already present.
+    Call this on login/session start from the frontend.
+    """
+    try:
+        data      = request.get_json()
+        user_id   = data.get("user_id", "").strip()
+        email     = data.get("email", "")
+        full_name = data.get("full_name") or email
+
+        if not user_id:
+            return jsonify({"error": "user_id is required"}), 400
+
+        existing = supabase.table("users").select("id").eq("id", user_id).execute()
+
+        if existing.data:
+            return jsonify({"message": "User already exists", "synced": False}), 200
+
+        supabase.table("users").insert({
+            "id":        user_id,
+            "email":     email,
+            "full_name": full_name,
+        }).execute()
+
+        return jsonify({"message": "User synced successfully", "synced": True}), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
 

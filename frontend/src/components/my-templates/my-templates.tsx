@@ -124,7 +124,7 @@ const KPI_BADGES: Record<string, KpiBadge> = {
     hint: "Appraiser enters directly",
   },
 
-  // ── LEGACY — backward compat with templates saved before the rename ────────
+  // ── LEGACY — backward compat with templates  ────────
   standard: {
     bg: "#eff6ff", color: "#1e40af", border: "#bfdbfe",
     label: "Financial Achievement",
@@ -158,18 +158,13 @@ const CONTROL_BADGES: Record<string, { bg: string; color: string; border: string
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface MyTemplatesProps {
-  /**
-   * Pass the user's uuid from your auth context / role layout.
-   * This must match users.id in Supabase (uuid).
-   * Falls back to NEXT_PUBLIC_DEV_USER_ID for local dev without a real login.
-   */
+
   userId?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function MyTemplates({ userId: userIdProp }: MyTemplatesProps) {
-  // Resolve userId: prop → env var (dev fallback only)
-  // When you integrate real auth, pass the uuid from your session as the prop.
+
   const userId =
     userIdProp ||
     process.env.NEXT_PUBLIC_DEV_USER_ID ||
@@ -189,7 +184,6 @@ export function MyTemplates({ userId: userIdProp }: MyTemplatesProps) {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        // ── Changed: query param is now user_id (uuid) ────────────────────────
         const res = await fetch(
           `${API_BASE}/my-templates?user_id=${encodeURIComponent(userId)}`
         );
