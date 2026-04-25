@@ -88,7 +88,7 @@
 }
 
 /* ─── Period Wrapper ──────────────────────────────────────────────────────── */
-/* This big outer div changes tint per freeze period. Cards inside stay white. */
+
 
 .periodWrapper {
   border-radius: var(--tdb-radius-xl);
@@ -98,9 +98,11 @@
 }
 
 /* Open: transparent — page bg shows through naturally */
+
 .periodOpen {
-  background: transparent;
-  border-color: transparent;
+  background: #ffffff;
+  border-color: var(--tdb-border);
+  box-shadow: var(--tdb-shadow-card);
 }
 
 /* Grace: warm amber — clear "heads up" signal */
@@ -122,7 +124,7 @@
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24px;
-  gap: var(--tdb-space-lg);
+  gap: var(--tdb-blue-border);;
 }
 
 .pageTitle {
@@ -130,7 +132,7 @@
   font-weight: 700;
   color: var(--tdb-text-primary);
   letter-spacing: -0.3px;
-  margin: 0 0 6px;
+  margin: 10px 0 6px;
 }
 
 .pageSubtitleMain {
@@ -211,11 +213,7 @@
 .statusPillFrozen { background: var(--tdb-frozen-bg); color: var(--tdb-frozen-text); border-color: var(--tdb-frozen-border); }
 
 /* ─── Banners — solid coloured with white text ───────────────────────────── */
-/*
- *   Frozen  → dark navy  #1E3A8A  (same as frozen milestone)
- *   Grace   → amber      #F5A623
- *   Warning → coral      #E8735A
- */
+
 
 .banner {
   display: flex;
@@ -239,8 +237,8 @@
 }
 
 /* White text on solid backgrounds */
-.bannerTitle { font-weight: 600; font-size: 14px; color: #fff; margin-bottom: 3px; }
-.bannerText  { font-size: 13px; color: rgba(255,255,255,0.88); line-height: 1.55; }
+.bannerTitle { font-weight: 400; font-size: 13px; color: #fff; margin-bottom: 3px; }
+.bannerText  { font-size: 12px; color: rgba(255,255,255,0.88); line-height: 1.55; }
 .bannerText strong { color: #fff; }
 
 /* Frozen — deep navy, matches frozen milestone box */
@@ -365,15 +363,7 @@
 }
 
 /* ─── Milestone Boxes — solid coloured, white text ──────────────────────── */
-/*
- * Colour key (dashboard chart palette):
- *   Cycle Start       → light blue    #89B4F8  (soft, not too dark)
- *   Objective Setting → teal          #2EC4B6
- *   Grace             → amber         #F5A623
- *   Frozen            → dark blue     #1E3A8A  (deep navy, clearly "locked")
- *   Mid-Year Review   → coral         #E8735A
- *   Year-End Review   → purple        #9B8EC4
- */
+
 
 .milestoneGrid {
   display: grid;

@@ -144,36 +144,45 @@ export default function TemplateDashboardBase({ level }: TemplateDashboardBasePr
   // ── Duplicate ──────────────────────────────────────────────────────────────
 
 
-  const handleDuplicateTemplate = async (template: TemplateRecord) => {
-    if (!permissions.canCreate) {
-      toast.error("Templates are frozen — duplication not permitted right now.");
-      return;
-    }
-    setIsDuplicating(template.id);
-    try {
-      const payload = {
-        name:         `${template.name} (Copy)`,
-        description:  template.description ?? "",
-        max_score:    template.max_score ?? 5,
-        categories:   template.categories ?? [],
-        totalWeight:  template.total_weight ?? 0,
-        lastModified: new Date().toISOString(),
-      };
-      const res = await fetch(`${API_BASE}/templates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Duplicate failed");
-      const created = await res.json();
-      setTemplates((prev) => [created, ...prev]);
-      toast.success(`"${template.name}" Duplicated Successfully`);
-    } catch (err: any) {
-      toast.error(err.message ?? "Could not Duplicate Template");
-    } finally {
-      setIsDuplicating(null);
-    }
-  };
+ const handleDuplicateTemplate = async (template: TemplateRecord) => {
+  if (!permissions.canCreate) {
+    toast.error("Templates are frozen — duplication not permitted right now.");
+    return;
+  }
+
+  const previousTemplates = [...templates];
+  setIsDuplicating(template.id);
+  toast.info("Duplicating template…");
+
+  try {
+    const payload = {
+      name:         `${template.name} (Copy)`,
+      description:  template.description ?? "",
+      max_score:    template.max_score ?? 5,
+      categories:   template.categories ?? [],
+      totalWeight:  template.total_weight ?? 0,
+      lastModified: new Date().toISOString(),
+    };
+    const res = await fetch(`${API_BASE}/templates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Duplicate failed");
+
+    // Refetch full list so duplicated template appears with all server data
+    const tmplRes = await fetch(`${API_BASE}/templates`);
+    if (tmplRes.ok) setTemplates(await tmplRes.json());
+
+    toast.success(`"${template.name}" Duplicated Successfully`);
+  } catch (err: any) {
+    console.error("Duplicate failed:", err);
+    setTemplates(previousTemplates); // rollback on error
+    toast.error(err.message ?? "Could not Duplicate Template");
+  } finally {
+    setIsDuplicating(null);
+  }
+};
 
 
   // ── Delete ─────────────────────────────────────────────────────────────────
@@ -422,7 +431,7 @@ function PmsCycleTimeline({
       <div className={styles.timelineSectionHeader}>
         <div className={styles.timelineSectionTitleGroup}>
           <TrendingUp size={15} color="#3b82f6" />
-          <span className={styles.timelineSectionTitle}>PMS Cycle Timeline</span>
+          <span className={styles.timelineSectionTitle}>Templates across the PMS Cycle</span>
           <span className={styles.timelineSectionTag}>
             {freezeDates.pmsYearStart.getFullYear()} / {freezeDates.pmsYearStart.getFullYear() + 1}
           </span>
@@ -537,7 +546,7 @@ function StatusBanner({
         </div>
         <div>
           <div className={styles.bannerTitle}>
-            {isHqAdmin ? "Grace Period Active — You May Still Edit" : "Grace Period Active — HQ Admin Only"}
+            {isHqAdmin ? "Grace Period Active — You retain access to Manage templates" : "Grace Period Active — HQ Admin Only"}
           </div>
           <div className={styles.bannerText}>
             Objective-setting window closed{" "}
@@ -577,11 +586,11 @@ function StatusBanner({
       <Unlock size={18} color="#3b82f6" />
     </div>
     <div>
-      <div className={styles.bannerTitle}>Templates Open for Editing</div>
+      <div className={styles.bannerTitle}>The Objective setting period has begun</div>
       <div className={styles.bannerText}>
         Objective-setting window is open until{" "}
         <strong style={{ color: "#1e40af" }}>{formatDate(freezeDates.objectiveSettingEnd)}</strong>
-        {" "}— <strong>{daysRemaining} days remaining</strong>. All Authorized Roles may create and modify templates freely.
+        {" "} <strong>{daysRemaining} days remaining</strong> New templates are now active for Objective Management
       </div>
     </div>
   </div>
