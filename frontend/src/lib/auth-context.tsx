@@ -47,59 +47,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const activeDemoRole = demoRole || localStorage.getItem('demo-role');
 
-        if (activeDemoRole === 'country_admin') {
-          setUser({
-            id: 'demo-country-admin',
-            email: 'admin@pms.demo',
-            full_name: 'Country Admin User',
-            role: 'country_admin',
-            assigned_country_id: '550e8400-e29b-41d4-a716-446655440001'
-          });
-          setLoading(false);
-          return;
-        } else if (activeDemoRole === 'hq_admin') {
-          setUser({
-            id: 'demo-hq-admin',
-            email: 'hq@pms.demo',
-            full_name: 'HQ Admin User',
-            role: 'hq_admin',
-          });
-          setLoading(false);
-          return;
-        } else if (activeDemoRole === 'branch_admin') {
-          setUser({
-            id: 'demo-branch-admin',
-            email: 'branch@pms.demo',
-            full_name: 'Branch Admin User',
-            role: 'branch_admin',
-            iata_branch_code: 'IND-DL',
-          });
-          setLoading(false);
-          return;
-        } else if (activeDemoRole === 'dept_admin') {
-          setUser({
-            id: 'demo-dept-admin',
-            email: 'dept@pms.demo',
-            full_name: 'Dept Admin User',
-            role: 'dept_admin',
-            iata_branch_code: 'IND-DL',
-            department_id: 'a0000001-0000-0000-0000-000000000000',
-          });
-          setLoading(false);
-          return;
-        } else if (activeDemoRole === 'sub_dept_admin') {
-          setUser({
-            id: 'demo-sub-dept-admin',
-            email: 'subdept@pms.demo',
-            full_name: 'Sub Dept Admin User',
-            role: 'sub_dept_admin',
-            iata_branch_code: 'IND-DL',
-            department_id: 'a0000001-0000-0000-0000-000000000000',
-            sub_department_id: 'b0000001-0000-0000-0000-000000000000',
-          });
-          setLoading(false);
-          return;
-        }
+     if (activeDemoRole) {
+  const { data: demoUser } = await supabase
+    .from('users')
+    .select('*')
+    .eq('role', activeDemoRole)
+    .limit(1)
+    .single();
+
+  if (demoUser) {
+    setUser(demoUser);
+    setLoading(false);
+    return;
+  }
+}
         // --- END DEMO MODE ---
 
         // Get Supabase auth user

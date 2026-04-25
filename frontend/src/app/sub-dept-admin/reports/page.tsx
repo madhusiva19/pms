@@ -64,18 +64,28 @@ export default function SubDeptAdminReportsPage() {
   const [search, setSearch] = useState('');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'sub_dept_admin')) router.push('/');
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (!authLoading && user?.sub_department_id) {
-      employeesApi.getBySubDepartment(user.sub_department_id)
-        .then(emps => setEmployees(emps))
-        .catch(console.error)
-        .finally(() => setLoading(false));
+    if (authLoading) return;
+    if (!user?.sub_department_id) {
+      setError('Sub-department not assigned to your account. Please contact your administrator.');
+      setLoading(false);
+      return;
     }
+    setLoading(true);
+    setError(null);
+    employeesApi.getBySubDepartment(user.sub_department_id)
+      .then(emps => setEmployees(emps ?? []))
+      .catch(err => {
+        console.error('Error fetching employees:', err);
+        setError('Failed to load employees. Please try again.');
+      })
+      .finally(() => setLoading(false));
   }, [user?.sub_department_id, authLoading]);
 
   if (authLoading || loading) return (
@@ -119,19 +129,28 @@ export default function SubDeptAdminReportsPage() {
           />
         </div>
 
+        {/* Error state */}
+        {error && (
+          <div className="flex flex-col items-center justify-center py-20 bg-red-50 rounded-2xl border border-dashed border-red-200">
+            <p className="text-red-500 font-medium">{error}</p>
+          </div>
+        )}
+
         {/* Employee Cards */}
-        {filtered.length > 0 ? (
+        {!error && filtered.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((employee) => (
               <EmployeeCard key={employee.id} employee={employee} />
             ))}
           </div>
-        ) : (
+        ) : !error && (
           <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <User className="w-6 h-6 text-gray-400" />
             </div>
-            <p className="text-gray-500 font-medium">No employees found matching "{search}"</p>
+            <p className="text-gray-500 font-medium">
+              {search ? `No employees found matching "${search}"` : 'No employees found for your sub-department'}
+            </p>
           </div>
         )}
 

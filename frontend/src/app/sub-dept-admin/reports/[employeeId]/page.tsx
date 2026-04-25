@@ -2,7 +2,7 @@
 
 /**
  * Sub Dept Admin — Report Detail Page
- * Same UI as HQ Admin report detail, branch-level data from DB
+ * Shows team performance across the year (H1 + H2 together)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -34,8 +34,6 @@ import {
 } from '@/services/api';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
 
-import type { ReportType } from '@/types';
-
 type DownloadStatus = 'idle' | 'generating' | 'success' | 'failed';
 
 export default function SubDeptAdminReportDetailPage() {
@@ -43,15 +41,18 @@ export default function SubDeptAdminReportDetailPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const employeeId = params?.employeeId as string;
+
   const [empName, setEmpName] = useState('Employee');
-  const [activeTab, setActiveTab] = useState<ReportType>('mid_year');
   const [teamScores, setTeamScores] = useState<TeamScoreEntry[]>([]);
+
+  // Combined metrics — uses mid_year for total/top, both periods for employee score
   const [metrics, setMetrics] = useState<{
     total_evaluated: number;
-    avg_score: number;
     top_performers: number;
-    employee_score: number | null;
+    employee_mid_year: number | null;
+    employee_year_end: number | null;
   } | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
 
@@ -62,14 +63,14 @@ export default function SubDeptAdminReportDetailPage() {
     { text: 'Focus mid-level employees in the 3.0–3.5 band on skill development to push them into higher ratings.' },
   ];
 
-  const fallbackInsight = activeTab === 'mid_year'
-    ? 'Distribution follows a normal curve with slight right skew. Top 18% performers exceed 4.5 rating. Recommend targeted development programs for the lower 15%'
-    : 'Year-end performance shows improvement across all bands. Top performers increased by 37%. Distribution normalized successfully with 21% in exceptional category';
+  const overallInsight = 'Year-over-year team performance shows progression. Compare mid-year and year-end scores to identify employees who improved, stayed stable, or need support.';
 
+  // Auth guard
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'sub_dept_admin')) router.push('/');
   }, [user, authLoading, router]);
 
+  // Fetch employee name
   useEffect(() => {
     if (employeeId) {
       employeesApi.getById(employeeId)
@@ -78,6 +79,7 @@ export default function SubDeptAdminReportDetailPage() {
     }
   }, [employeeId]);
 
+  // Fetch team scores (mid-year + year-end together)
   useEffect(() => {
     if (!user?.sub_department_id || !employeeId) return;
     setLoading(true);
@@ -102,25 +104,42 @@ export default function SubDeptAdminReportDetailPage() {
       .finally(() => setLoading(false));
   }, [user?.sub_department_id, employeeId]);
 
-  // Fetch dynamic metrics scoped to the user's sub-department + this employee
+  // Fetch metrics for both periods
   useEffect(() => {
     if (!user?.sub_department_id || !employeeId) return;
     setMetrics(null);
-    metricsApi.get({
-      period_type: activeTab,
-      year: 2026,
-      scope: 'sub_department',
-      scope_id: String(user.sub_department_id),
-      employee_id: employeeId,
-    })
-      .then(setMetrics)
+
+    Promise.all([
+      metricsApi.get({
+        period_type: 'mid_year',
+        year: 2026,
+        scope: 'sub_department',
+        scope_id: String(user.sub_department_id),
+        employee_id: employeeId,
+      }),
+      metricsApi.get({
+        period_type: 'year_end',
+        year: 2026,
+        scope: 'sub_department',
+        scope_id: String(user.sub_department_id),
+        employee_id: employeeId,
+      }),
+    ])
+      .then(([midYearMetrics, yearEndMetrics]) => {
+        setMetrics({
+          total_evaluated: Math.max(midYearMetrics.total_evaluated, yearEndMetrics.total_evaluated),
+          top_performers: Math.max(midYearMetrics.top_performers, yearEndMetrics.top_performers),
+          employee_mid_year: midYearMetrics.employee_score,
+          employee_year_end: yearEndMetrics.employee_score,
+        });
+      })
       .catch(console.error);
-  }, [user?.sub_department_id, employeeId, activeTab]);
+  }, [user?.sub_department_id, employeeId]);
 
   const handleDownload = async () => {
     try {
       setDownloadStatus('generating');
-      const fileName = `${empName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-2026.pdf`;
+      const fileName = `${empName}-Performance-2026.pdf`;
       await new Promise(resolve => setTimeout(resolve, 800));
       await downloadReportAsPDF('report-content', fileName);
       setDownloadStatus('success');
@@ -148,7 +167,11 @@ export default function SubDeptAdminReportDetailPage() {
     }
   };
 
-  if (authLoading) return <div className="flex items-center justify-center p-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+  if (authLoading) return (
+    <div className="flex items-center justify-center p-20">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+    </div>
+  );
   if (!user || user.role !== 'sub_dept_admin') return null;
 
   if (loading) {
@@ -158,6 +181,17 @@ export default function SubDeptAdminReportDetailPage() {
       </div>
     );
   }
+
+  // Format employee score string for display
+  const employeeScoreDisplay = () => {
+    if (!metrics) return 'N/A';
+    const mid = metrics.employee_mid_year;
+    const end = metrics.employee_year_end;
+    if (mid === null && end === null) return 'N/A';
+    if (mid !== null && end !== null) return `${mid.toFixed(2)} / ${end.toFixed(2)}`;
+    if (mid !== null) return `${mid.toFixed(2)} / —`;
+    return `— / ${end?.toFixed(2)}`;
+  };
 
   return (
     <main className="flex-1 p-2 bg-[#F9FAFB] min-h-screen overflow-y-auto">
@@ -182,7 +216,7 @@ export default function SubDeptAdminReportDetailPage() {
                 Performance Reports
               </h1>
               <p className="text-[15px] text-[#4A5565]">
-                {empName} - Mid-Year &amp; Year-End Analytics
+                {empName} — Mid-Year & Year-End 2026 Analytics
               </p>
             </div>
 
@@ -224,39 +258,18 @@ export default function SubDeptAdminReportDetailPage() {
           </div>
         </div>
 
-        {/* ── Tab Switcher ── */}
-        <div className="flex bg-[#F3F4F6] p-[3px] rounded-xl w-fit">
-          <button
-            onClick={() => setActiveTab('mid_year')}
-            className={`px-[57px] py-[3.8px] text-[13.3px] font-medium rounded-xl transition-all ${activeTab === 'mid_year'
-              ? 'bg-white text-[#1E293B] shadow-sm'
-              : 'text-[#1E293B] hover:bg-gray-200/60'
-              }`}
-          >
-            Mid-Year Report
-          </button>
-          <button
-            onClick={() => setActiveTab('year_end')}
-            className={`px-[58px] py-[3.8px] text-[13px] font-medium rounded-xl transition-all ${activeTab === 'year_end'
-              ? 'bg-white text-[#1E293B] shadow-sm'
-              : 'text-[#1E293B] hover:bg-gray-200/60'
-              }`}
-          >
-            Year-End Report
-          </button>
-        </div>
-
         {/* ── Report Content ── */}
         <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
 
+          {/* Empty state */}
           {metrics && metrics.total_evaluated === 0 && (
             <div className="flex flex-col items-center justify-center p-20 text-center bg-[#F9FAFB] rounded-lg border border-dashed border-gray-200">
-              <p className="text-[#64748B] text-[15px] font-medium">No {activeTab === 'mid_year' ? 'mid-year' : 'year-end'} report data found for {empName}.</p>
+              <p className="text-[#64748B] text-[15px] font-medium">No performance data found for {empName}.</p>
               <p className="text-[#94A3B8] text-[13px] mt-1">Please ensure the data is loaded in the database.</p>
             </div>
           )}
 
-          {/* Metric Cards — dynamic (sub_dept_admin uses Score instead of Avg Score) */}
+          {/* Metric Cards — Total Evaluated, Score (Mid / End), Top Performers */}
           {metrics && metrics.total_evaluated > 0 && (
             <div className="grid grid-cols-3 gap-4">
               <MetricCard
@@ -269,9 +282,9 @@ export default function SubDeptAdminReportDetailPage() {
                 iconBgColor="#FFFFFF"
               />
               <MetricCard
-                title="Score"
-                value={metrics.employee_score !== null ? metrics.employee_score.toFixed(2) : 'N/A'}
-                subtitle={`${empName}'s ${activeTab === 'mid_year' ? 'mid-year' : 'year-end'} score`}
+                title="Score (Mid / End)"
+                value={employeeScoreDisplay()}
+                subtitle={`${empName}'s mid-year and year-end score`}
                 subtitleColor="text-[#00A63E]"
                 icon={TrendingUp}
                 iconColor="#0092B8"
@@ -289,26 +302,24 @@ export default function SubDeptAdminReportDetailPage() {
             </div>
           )}
 
-          {/* Team Score Bar Chart */}
+          {/* Team Score Bar Chart — both periods together */}
           {teamScores.length > 0 && (
             <SubDeptScoreBarChart
               data={teamScores}
               currentEmployeeId={employeeId}
               title="Team Performance Scores"
-              subtitle={`Mid-Year & Year-End 2026 — selected employee highlighted in blue`}
+              subtitle="Mid-Year & Year-End 2026 — selected employee highlighted"
             />
           )}
 
           {/* AI Insight strip */}
           <AIInsightCard
-            insight={fallbackInsight}
-            type={activeTab === 'year_end' ? 'success' : 'info'}
+            insight={overallInsight}
+            type="info"
           />
 
-          {/* Bottom Section: Recommendations */}
-          {activeTab === 'mid_year' && (
-            <AIRecommendationsList recommendations={recommendations} />
-          )}
+          {/* Recommendations */}
+          <AIRecommendationsList recommendations={recommendations} />
 
         </div>
 

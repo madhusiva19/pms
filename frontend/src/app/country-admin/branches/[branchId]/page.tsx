@@ -31,7 +31,7 @@ import CreateReportModal from '@/components/CreateReportModal';
 import {
   branchDashboardApi,
   bellCurveApi,
-  branchComparisonApi,
+  comparisonLiveApi,
   branchInsightsApi,
   branchesApi,
   metricsApi,
@@ -164,15 +164,12 @@ export default function BranchReportPage() {
         console.log('⚠️ No active report found for:', activeTab);
       }
 
-      if (activeTab === 'year_end') {
-        console.log('🔍 Fetching comparison data...');
-        const comparison = await branchComparisonApi.getByBranch(
-          branchId,
-          summaryData.year_end?.report_year
-        );
-        console.log('✅ Comparison data:', comparison);
-        setComparisonData(comparison);
-      }
+      const comparison = await comparisonLiveApi.get({
+        year: 2026,
+        scope: 'branch',
+        scope_id: branchId,
+      });
+      setComparisonData(comparison);
     } catch (err: any) {
       console.error('❌ Error fetching data:', err);
       console.error('Error details:', err.response?.data || err.message);
@@ -298,8 +295,6 @@ export default function BranchReportPage() {
     );
   }
 
-  const activeReport = activeTab === 'mid_year' ? summary?.mid_year : summary?.year_end;
-
   return (
     <main className="flex-1 p-2 bg-[#F9FAFB] min-h-screen overflow-y-auto">
       <div className="flex flex-col gap-8 max-w-[1225px]">
@@ -404,13 +399,6 @@ export default function BranchReportPage() {
         ───────────────────────────────────────── */}
         <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
 
-          {!activeReport && (
-            <div className="flex flex-col items-center justify-center p-20 text-center bg-[#F9FAFB] rounded-lg border border-dashed border-gray-200">
-              <p className="text-[#64748B] text-[15px] font-medium">No {activeTab === 'mid_year' ? 'mid-year' : 'year-end'} report data found for {branch.name}.</p>
-              <p className="text-[#94A3B8] text-[13px] mt-1">Please ensure the data is loaded in the database.</p>
-            </div>
-          )}
-
           {/* ── Metric Cards — dynamic ── */}
           {metrics && (
             <div className="grid grid-cols-3 gap-4">
@@ -477,17 +465,19 @@ export default function BranchReportPage() {
             </div>
           )}
 
-          {/* ── Bottom Section: Recommendations OR Comparison ── */}
-          {activeTab === 'mid_year' ? (
+          {/* Recommendations (mid-year only) */}
+          {activeTab === 'mid_year' && (
             <AIRecommendationsList recommendations={recommendations} />
-          ) : (
-            comparisonData.length > 0 && (
-              <ComparisonChart
-                data={comparisonData}
-                title="Mid-Year vs Year-End Comparison"
-                subtitle="Performance progression across categories"
-              />
-            )
+          )}
+
+
+           {/* Comparison chart — always shown when data available */}
+          {activeTab === 'year_end' && comparisonData.length > 0 && (
+            <ComparisonChart
+              data={comparisonData as any}
+              title="Mid-Year vs Year-End Comparison"
+              subtitle="Performance progression across categories"
+            />
           )}
 
         </div>

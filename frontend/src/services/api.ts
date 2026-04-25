@@ -122,6 +122,19 @@ export const metricsApi = {
   },
 };
 
+// ── Comparison Live (dynamic, from performance_summaries) ────────────────────
+
+export const comparisonLiveApi = {
+  get: async (params: {
+    year: number;
+    scope: 'country' | 'branch' | 'department' | 'sub_department';
+    scope_id: string;
+  }): Promise<any[]> => {
+    const res: AxiosResponse = await apiClient.get('/comparison-live', { params });
+    return res.data.data;
+  },
+};
+
 // ── Performance Comparison ────────────────────────────────────────────────────
 
 export const comparisonApi = {
