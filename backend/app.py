@@ -1576,7 +1576,7 @@ def get_sub_department(sub_dept_id: str):
 @app.route('/api/employees/sub-dept/<sub_dept_id>', methods=['GET'])
 def get_employees_by_sub_dept(sub_dept_id: str):
     try:
-        response = supabase.table('users').select('*').eq('sub_department_id', sub_dept_id).order('full_name').execute()
+        response = supabase.table('users').select('*').eq('sub_department_id', sub_dept_id).eq('role', 'employee').order('full_name').execute()
         return jsonify({'success': True, 'data': response.data}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1912,6 +1912,90 @@ def get_report_metrics():
         import traceback
         error_detail = traceback.format_exc()
         print(f"[report-metrics] ERROR: {e}\n{error_detail}")
+        return jsonify({'success': False, 'error': str(e), 'detail': error_detail}), 500
+
+
+# ============================================================================
+# COMPARISON LIVE (Dynamic — computed from performance_summaries for both periods)
+# ============================================================================
+
+@app.route('/api/comparison-live', methods=['GET'])
+def get_comparison_live():
+    """
+    Get dynamic mid-year vs year-end comparison from performance_summaries.
+
+    Query Parameters:
+        - year: e.g. 2026
+        - scope: 'country' | 'branch' | 'department' | 'sub_department'
+        - scope_id: UUID of the scoped entity
+    """
+    try:
+        year     = int(request.args.get('year', datetime.now().year))
+        scope    = request.args.get('scope', 'country')
+        scope_id = request.args.get('scope_id')
+
+        if not scope_id:
+            return jsonify({'success': False, 'error': 'scope_id is required'}), 400
+
+        # Resolve employee IDs based on scope
+        if scope == 'country':
+            users = supabase.table('users').select('id').eq('country_id', scope_id).eq('role', 'employee').execute()
+        elif scope == 'branch':
+            users = supabase.table('users').select('id').eq('branch_id', scope_id).eq('role', 'employee').execute()
+        elif scope == 'department':
+            users = supabase.table('users').select('id').eq('department_id', scope_id).eq('role', 'employee').execute()
+        elif scope == 'sub_department':
+            users = supabase.table('users').select('id').eq('sub_department_id', scope_id).eq('role', 'employee').execute()
+        else:
+            return jsonify({'success': False, 'error': 'Invalid scope'}), 400
+
+        emp_ids = [u['id'] for u in users.data]
+
+        if not emp_ids:
+            return jsonify({'success': True, 'data': []}), 200
+
+        # Fetch scores for both periods
+        h1_records = (
+            supabase.table('performance_summaries')
+            .select('total_score')
+            .eq('year', year)
+            .eq('period', 'H1')
+            .in_('user_id', emp_ids)
+            .execute()
+        )
+        h2_records = (
+            supabase.table('performance_summaries')
+            .select('total_score')
+            .eq('year', year)
+            .eq('period', 'H2')
+            .in_('user_id', emp_ids)
+            .execute()
+        )
+
+        h1_dist = calculate_bell_curve_from_scores(h1_records.data)
+        h2_dist = calculate_bell_curve_from_scores(h2_records.data)
+
+        h1_by_range = {d['rating_range']: d['employee_count'] for d in h1_dist}
+        h2_by_range = {d['rating_range']: d['employee_count'] for d in h2_dist}
+
+        rating_ranges = ['1.0-1.5', '1.5-2.0', '2.0-2.5', '2.5-3.0',
+                         '3.0-3.5', '3.5-4.0', '4.0-4.5', '4.5-5.0']
+        comparison = [
+            {
+                'rating_range': rr,
+                'mid_year_count': h1_by_range.get(rr, 0),
+                'year_end_count': h2_by_range.get(rr, 0),
+                'comparison_year': year,
+            }
+            for rr in rating_ranges
+        ]
+
+        return jsonify({'success': True, 'data': comparison}), 200
+
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[comparison-live] ERROR: {e}\n{error_detail}")
         return jsonify({'success': False, 'error': str(e), 'detail': error_detail}), 500
 
 

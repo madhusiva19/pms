@@ -32,7 +32,7 @@ import {
   branchByCodeApi,
   branchDashboardApi,
   bellCurveApi,
-  branchComparisonApi,
+  comparisonLiveApi,
   branchInsightsApi,
   subDepartmentsApi,
   metricsApi,
@@ -124,16 +124,17 @@ export default function DeptAdminReportDetailPage() {
       });
       setMetrics(metricsData);
 
-      if (activeReport) {
-        // Fetch live bell curve from performance_summaries for this sub-department
-        const bellCurve = await bellCurveApi.getLive({
-          period_type: activeTab,
-          year: 2026,
-          scope: 'sub_department',
-          scope_id: subDeptId,
-        });
-        setBellCurveData(bellCurve as any);
+      // Bell curve — always fetch, independent of activeReport
+      const bellCurve = await bellCurveApi.getLive({
+        period_type: activeTab,
+        year: 2026,
+        scope: 'sub_department',
+        scope_id: subDeptId,
+      });
+      setBellCurveData(bellCurve as any);
 
+      // Insights — still gated on activeReport (uses legacy report table IDs)
+      if (activeReport) {
         const insightsData = await branchInsightsApi.getByReport(activeReport.id);
         if (insightsData && insightsData.length > 0) {
           setInsights(insightsData);
@@ -151,13 +152,13 @@ export default function DeptAdminReportDetailPage() {
         }
       }
 
-      if (activeTab === 'year_end') {
-        const comparison = await branchComparisonApi.getByBranch(
-          branchData.id,
-          summaryData.year_end?.report_year
-        );
-        setComparisonData(comparison);
-      }
+      // Comparison — always fetch live data for both periods
+      const comparison = await comparisonLiveApi.get({
+        year: 2026,
+        scope: 'sub_department',
+        scope_id: subDeptId,
+      });
+      setComparisonData(comparison);
     } catch (err) {
       setError('Failed to load report data. Please try again.');
       console.error('Error fetching data:', err);
@@ -211,8 +212,6 @@ export default function DeptAdminReportDetailPage() {
       default: return 'bg-[#2563EB] hover:bg-[#1D4ED8]';
     }
   };
-
-  const activeReport = activeTab === 'mid_year' ? summary?.mid_year : summary?.year_end;
 
   if (authLoading) return <div className="flex items-center justify-center p-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
   if (!user || user.role !== 'dept_admin') return null;
@@ -364,15 +363,6 @@ export default function DeptAdminReportDetailPage() {
         {/* ── Report Content ── */}
         <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
 
-          {!activeReport && (
-            <div className="flex flex-col items-center justify-center p-20 text-center bg-[#F9FAFB] rounded-lg border border-dashed border-gray-200">
-              <p className="text-[#64748B] text-[15px] font-medium">No {activeTab === 'mid_year' ? 'mid-year' : 'year-end'} report data found for {teamName}.</p>
-              <p className="text-[#94A3B8] text-[13px] mt-1">Please ensure the data is loaded in the database.</p>
-            </div>
-          )}
-
-          
-
           {/* Bell Curve Chart */}
           {bellCurveData.length > 0 && (
             <BellCurveChart
@@ -399,18 +389,21 @@ export default function DeptAdminReportDetailPage() {
             </div>
           )}
 
-          {/* Bottom Section: Recommendations OR Comparison */}
-          {activeTab === 'mid_year' ? (
+          {/* Recommendations (mid-year only) */}
+          {activeTab === 'mid_year' && (
             <AIRecommendationsList recommendations={recommendations} />
-          ) : (
-            comparisonData.length > 0 && (
-              <ComparisonChart
-                data={comparisonData as any}
-                title="Mid-Year vs Year-End Comparison"
-                subtitle="Performance progression across categories"
-              />
-            )
           )}
+
+           {/* Comparison chart — always shown when data available */}
+                    {activeTab === 'year_end' && comparisonData.length > 0 && (
+                      <ComparisonChart
+                        data={comparisonData as any}
+                        title="Mid-Year vs Year-End Comparison"
+                        subtitle="Performance progression across categories"
+                      />
+                    )}
+                    
+          
 
         </div>
 

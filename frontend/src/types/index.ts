@@ -217,7 +217,7 @@ export interface Department {
   name: string;
   code: string;
   total_employees: number;
-  dept_admin_name?: string;
+  dept_admin_name?: string | number;
   created_at: string;
 }
 
@@ -291,8 +291,8 @@ export interface Employee {
   designation?: string;
   emp_id?: string;              // human-readable code e.g. EMP-0001
   department?: string;
-  department_id?: number;       // INT in new schema
-  sub_department_id?: number;   // INT in new schema
+  department_id?: string;       // UUID
+  sub_department_id?: string;   // UUID
   branch_id?: string;           // UUID
   country_id?: string;          // UUID
   manager_id?: string;
