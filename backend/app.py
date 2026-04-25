@@ -1745,6 +1745,177 @@ def get_bell_curve_live():
 
 
 # ============================================================================
+# REPORT METRICS (Dynamic — calculated from performance_summaries + bell curve)
+# ============================================================================
+
+@app.route('/api/report-metrics', methods=['GET'])
+def get_report_metrics():
+    """
+    Get total_evaluated, avg_score (weighted by bell curve midpoints), and
+    top_performers metrics dynamically for a given scope.
+
+    Query Parameters:
+        - period_type: 'mid_year' or 'year_end'
+        - year: e.g. 2026
+        - scope: 'country' | 'branch' | 'department' | 'sub_department' | 'employee'
+        - scope_id: UUID/INT of the scoped entity
+        - employee_id: (optional, for sub_dept_admin) — if provided, also returns
+                       this employee's score
+    """
+    try:
+        period_type = request.args.get('period_type', 'mid_year')
+        year        = int(request.args.get('year', datetime.now().year))
+        scope       = request.args.get('scope', 'country')
+        scope_id    = request.args.get('scope_id')
+        employee_id = request.args.get('employee_id')  # optional
+
+        if not scope_id:
+            return jsonify({'success': False, 'error': 'scope_id is required'}), 400
+
+        # Map frontend period names to DB period values
+        period_map = {'mid_year': 'H1', 'year_end': 'H2'}
+        db_period = period_map.get(period_type, period_type)
+
+        # Resolve employee IDs based on scope (same logic as bell-curve-live)
+        if scope == 'country':
+            users = (
+                supabase.table('users')
+                .select('id')
+                .eq('country_id', scope_id)
+                .eq('role', 'employee')
+                .execute()
+            )
+            emp_ids = [u['id'] for u in users.data]
+
+        elif scope == 'branch':
+            users = (
+                supabase.table('users')
+                .select('id')
+                .eq('branch_id', scope_id)
+                .eq('role', 'employee')
+                .execute()
+            )
+            emp_ids = [u['id'] for u in users.data]
+
+        elif scope == 'department':
+            users = (
+                supabase.table('users')
+                .select('id')
+                .eq('department_id', scope_id)
+                .eq('role', 'employee')
+                .execute()
+            )
+            emp_ids = [u['id'] for u in users.data]
+
+        elif scope == 'sub_department':
+            users = (
+                supabase.table('users')
+                .select('id')
+                .eq('sub_department_id', scope_id)
+                .eq('role', 'employee')
+                .execute()
+            )
+            emp_ids = [u['id'] for u in users.data]
+
+        elif scope == 'employee':
+            emp_ids = [scope_id]
+
+        else:
+            return jsonify({'success': False, 'error': 'Invalid scope'}), 400
+
+        if not emp_ids:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'total_evaluated': 0,
+                    'avg_score': 0.0,
+                    'top_performers': 0,
+                    'employee_score': None
+                }
+            }), 200
+
+        # Fetch performance_summaries for these users
+        summaries = (
+            supabase.table('performance_summaries')
+            .select('user_id, total_score, period, year')
+            .eq('year', year)
+            .eq('period', db_period)
+            .in_('user_id', emp_ids)
+            .execute()
+        )
+
+        records = summaries.data or []
+        scores = [float(r['total_score']) for r in records if r.get('total_score') is not None]
+
+        # 1. Total Evaluated — count of users with scores
+        total_evaluated = len(scores)
+
+        # 2. Avg Score — weighted average using bell curve midpoints
+        bell_curve_buckets = [
+            (1.0, 1.5, 1.25),
+            (1.5, 2.0, 1.75),
+            (2.0, 2.5, 2.25),
+            (2.5, 3.0, 2.75),
+            (3.0, 3.5, 3.25),
+            (3.5, 4.0, 3.75),
+            (4.0, 4.5, 4.25),
+            (4.5, 5.0, 4.75),
+        ]
+
+        weighted_sum = 0.0
+        total_count = 0
+        top_performers = 0
+
+        for low, high, midpoint in bell_curve_buckets:
+            if high == 5.0:
+                bucket_scores = [s for s in scores if low <= s <= high]
+            else:
+                bucket_scores = [s for s in scores if low <= s < high]
+
+            count = len(bucket_scores)
+            weighted_sum += midpoint * count
+            total_count += count
+
+            # Top performers = count in highest bucket (4.5-5.0)
+            if low == 4.5:
+                top_performers = count
+
+        avg_score = round(weighted_sum / total_count, 2) if total_count > 0 else 0.0
+
+        # 3. Optional: employee_score for sub_dept_admin
+        employee_score = None
+        if employee_id:
+            emp_summary = (
+                supabase.table('performance_summaries')
+                .select('total_score')
+                .eq('user_id', employee_id)
+                .eq('year', year)
+                .eq('period', db_period)
+                .limit(1)
+                .execute()
+            )
+            if emp_summary.data and len(emp_summary.data) > 0:
+                ts = emp_summary.data[0].get('total_score')
+                employee_score = float(ts) if ts is not None else None
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_evaluated': total_evaluated,
+                'avg_score': avg_score,
+                'top_performers': top_performers,
+                'employee_score': employee_score
+            }
+        }), 200
+
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[report-metrics] ERROR: {e}\n{error_detail}")
+        return jsonify({'success': False, 'error': str(e), 'detail': error_detail}), 500
+
+
+# ============================================================================
 # PERFORMANCE RECORDS
 # ============================================================================
 
