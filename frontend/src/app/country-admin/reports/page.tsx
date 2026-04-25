@@ -29,28 +29,19 @@ export default function CountryAdminReportsPage() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    const fetchBranches = async () => {
-      try {
-        if (!user?.assigned_country_id) {
-          console.error('Country admin without assigned country');
-          setBranches([]);
-          return;
-        }
-
-        setLoading(true);
-        const data = await branchesApi.getByCountry(user.assigned_country_id, searchTerm);
-        setBranches(data || []);
-      } catch (error) {
-        console.error('Error fetching branches:', error);
-        setBranches([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (!authLoading && user?.assigned_country_id) {
-      fetchBranches();
+    if (authLoading) return;
+    if (!user?.assigned_country_id) {
+      setLoading(false);
+      return;
     }
+    setLoading(true);
+    branchesApi.getByCountry(user.assigned_country_id, searchTerm)
+      .then(data => setBranches(data || []))
+      .catch(err => {
+        console.error('Error fetching branches:', err);
+        setBranches([]);
+      })
+      .finally(() => setLoading(false));
   }, [user?.assigned_country_id, authLoading, searchTerm]);
 
   if (authLoading) {

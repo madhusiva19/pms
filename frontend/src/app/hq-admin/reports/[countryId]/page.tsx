@@ -32,7 +32,7 @@ import CreateReportModal from '@/components/CreateReportModal';
 import {
   dashboardApi,
   bellCurveApi,
-  comparisonApi,
+  comparisonLiveApi,
   insightsApi,
   countriesApi,
   metricsApi,
@@ -143,13 +143,12 @@ export default function CountryReportPage() {
         }
       }
 
-      if (activeTab === 'year_end') {
-        const comparison = await comparisonApi.getByCountry(
-          countryId,
-          summaryData.year_end?.report_year
-        );
-        setComparisonData(comparison);
-      }
+      const comparison = await comparisonLiveApi.get({
+        year: 2026,
+        scope: 'country',
+        scope_id: countryId,
+      });
+      setComparisonData(comparison);
     } catch (err) {
       setError('Failed to load report data. Please try again.');
       console.error('Error fetching data:', err);
@@ -250,8 +249,6 @@ export default function CountryReportPage() {
     }
   };
   // ── END NEW ──────────────────────────────────────────────────────────
-
-  const activeReport = activeTab === 'mid_year' ? summary?.mid_year : summary?.year_end;
 
   if (loading) {
     return (
@@ -420,15 +417,6 @@ export default function CountryReportPage() {
         ───────────────────────────────────────── */}
         <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
 
-          {!activeReport && (
-            <div className="flex flex-col items-center justify-center p-20 text-center bg-[#F9FAFB] rounded-lg border border-dashed border-gray-200">
-              <p className="text-[#64748B] text-[15px] font-medium">No {activeTab === 'mid_year' ? 'mid-year' : 'year-end'} report data found for {country.name}.</p>
-              <p className="text-[#94A3B8] text-[13px] mt-1">Please ensure the data is loaded in the database.</p>
-            </div>
-          )}
-
-         
-
           {/* ── Bell Curve Chart ── */}
           {bellCurveData.length > 0 && (
             <BellCurveChart
@@ -456,18 +444,20 @@ export default function CountryReportPage() {
             </div>
           )}
 
-          {/* ── Bottom Section: Recommendations OR Comparison — unchanged ── */}
-          {activeTab === 'mid_year' ? (
+          {/* Recommendations (mid-year only) */}
+          {activeTab === 'mid_year' && (
             <AIRecommendationsList recommendations={recommendations} />
-          ) : (
-            comparisonData.length > 0 && (
-              <ComparisonChart
-                data={comparisonData}
-                title="Mid-Year vs Year-End Comparison"
-                subtitle="Performance progression across categories"
-              />
-            )
           )}
+
+          {/* Comparison chart — always shown when data available */}
+          {activeTab === 'year_end' && comparisonData.length > 0 && (
+            <ComparisonChart
+              data={comparisonData as any}
+              title="Mid-Year vs Year-End Comparison"
+              subtitle="Performance progression across categories"
+            />
+          )}
+          
 
         </div>
         {/* ── End printable area ── */}

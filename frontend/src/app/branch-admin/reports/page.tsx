@@ -22,19 +22,29 @@ export default function BranchAdminReportsPage() {
   const [search, setSearch] = useState('');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'branch_admin')) router.push('/');
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (!authLoading && user?.iata_branch_code) {
-      branchByCodeApi.get(user.iata_branch_code)
-        .then(branch => departmentsApi.getByBranch(branch.id))
-        .then(depts => setDepartments(depts))
-        .catch(console.error)
-        .finally(() => setLoading(false));
+    if (authLoading) return;
+    if (!user?.iata_branch_code) {
+      setError('Branch code not assigned to your account. Please contact your administrator.');
+      setLoading(false);
+      return;
     }
+    setLoading(true);
+    setError(null);
+    branchByCodeApi.get(user.iata_branch_code)
+      .then(branch => departmentsApi.getByBranch(branch.id))
+      .then(depts => setDepartments(depts ?? []))
+      .catch((err) => {
+        console.error('Failed to load departments:', err);
+        setError('Failed to load departments. Please try again.');
+      })
+      .finally(() => setLoading(false));
   }, [user?.iata_branch_code, authLoading]);
 
   if (authLoading || loading) {
@@ -83,19 +93,30 @@ export default function BranchAdminReportsPage() {
           />
         </div>
 
-        {/* Department Cards — same grid as HQ Admin countries grid */}
-        {filtered.length > 0 ? (
+        {/* Error state */}
+        {error && (
+          <div className="flex flex-col items-center justify-center py-20 bg-red-50 rounded-2xl border border-dashed border-red-200">
+            <p className="text-red-500 font-medium">{error}</p>
+          </div>
+        )}
+
+        {/* Department Cards */}
+        {!error && filtered.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((dept) => (
               <DepartmentCard key={dept.id} department={dept} />
             ))}
           </div>
-        ) : (
+        )}
+
+        {!error && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <Briefcase className="w-6 h-6 text-gray-400" />
             </div>
-            <p className="text-gray-500 font-medium">No departments found matching &quot;{search}&quot;</p>
+            <p className="text-gray-500 font-medium">
+              {search ? `No departments found matching "${search}"` : 'No departments found for your branch'}
+            </p>
           </div>
         )}
 

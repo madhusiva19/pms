@@ -5,7 +5,7 @@
  * Shows teams/sub-departments as cards for selection
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronRight, Search, BarChart3, Users, User, Building } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
@@ -64,18 +64,28 @@ export default function DeptAdminReportsPage() {
   const [search, setSearch] = useState('');
   const [teams, setTeams] = useState<SubDepartment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'dept_admin')) router.push('/');
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (!authLoading && user?.department_id) {
-      subDepartmentsApi.getByDepartment(user.department_id)
-        .then(subdepts => setTeams(subdepts))
-        .catch(console.error)
-        .finally(() => setLoading(false));
+    if (authLoading) return;
+    if (!user?.department_id) {
+      setError('Department not assigned to your account. Please contact your administrator.');
+      setLoading(false);
+      return;
     }
+    setLoading(true);
+    setError(null);
+    subDepartmentsApi.getByDepartment(user.department_id)
+      .then(subdepts => setTeams(subdepts ?? []))
+      .catch(err => {
+        console.error('Error fetching sub-departments:', err);
+        setError('Failed to load sub-departments. Please try again.');
+      })
+      .finally(() => setLoading(false));
   }, [user?.department_id, authLoading]);
 
   if (authLoading || loading) return (
@@ -118,19 +128,30 @@ export default function DeptAdminReportsPage() {
           />
         </div>
 
+        {/* Error state */}
+        {error && (
+          <div className="flex flex-col items-center justify-center py-20 bg-red-50 rounded-2xl border border-dashed border-red-200">
+            <p className="text-red-500 font-medium">{error}</p>
+          </div>
+        )}
+
         {/* Team Cards */}
-        {filtered.length > 0 ? (
+        {!error && filtered.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((team) => (
               <TeamCard key={team.id} team={team} />
             ))}
           </div>
-        ) : (
+        )}
+
+        {!error && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <BarChart3 className="w-6 h-6 text-gray-400" />
             </div>
-            <p className="text-gray-500 font-medium">No sub departments found matching "{search}"</p>
+            <p className="text-gray-500 font-medium">
+              {search ? `No sub departments found matching "${search}"` : 'No sub departments found for your department'}
+            </p>
           </div>
         )}
 
