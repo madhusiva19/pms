@@ -1,7 +1,5 @@
 "use client";
 
-
-
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Select from "react-select";
@@ -188,7 +186,7 @@ interface CategoryRow {
   objectives:   ObjectiveRow[];
 }
 
-// ── Changed: User shape from /users endpoint ──────────────────────────────────
+// ── User shape from /users endpoint ──────────────────────────────────────────
 interface UserOption {
   id:        string;   // uuid
   full_name: string;
@@ -544,6 +542,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   );
   const isReadOnly = isViewMode || (!permissions.canEdit && !!editId);
 
+
   // ── Form state ─────────────────────────────────────────────────────────────
   const [templateName,         setTemplateName]         = useState("");
   const [description,          setDescription]          = useState("");
@@ -551,14 +550,11 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   const [categories,           setCategories]           = useState<CategoryRow[]>(INITIAL_CATEGORIES);
   const [roles,                setRoles]                = useState<any[]>([]);
   const [departments,          setDepartments]          = useState<any[]>([]);
-
-  // ── Changed: users list (id uuid + full_name) replaces employees ───────────
   const [users,                setUsers]                = useState<UserOption[]>([]);
-  // ── Changed: selectedUser stores uuid string (users.id) ───────────────────
   const [selectedUser,         setSelectedUser]         = useState<string | null>(null);
-
   const [selectedRoles,        setSelectedRoles]        = useState<number[]>([]);
-  const [selectedDepartments,  setSelectedDepartments]  = useState<number[]>([]);
+  // ── Changed: uuid strings instead of ints ─────────────────────────────────
+  const [selectedDepartments,  setSelectedDepartments]  = useState<string[]>([]);
   const [showCancelConfirm,    setShowCancelConfirm]    = useState(false);
   const [isPageLoading,        setIsPageLoading]        = useState(!!editId);
   const [newObjKey,            setNewObjKey]            = useState<string | null>(null);
@@ -585,7 +581,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         const [rolesRes, deptsRes, usersRes] = await Promise.all([
           fetch(`${API_BASE}/roles`),
           fetch(`${API_BASE}/departments`),
-          // ── Changed: fetch /users instead of /employees ────────────────────
           fetch(`${API_BASE}/users`),
         ]);
         if (!rolesRes.ok || !deptsRes.ok || !usersRes.ok) {
@@ -596,7 +591,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         ]);
         setRoles(rolesData);
         setDepartments(deptsData);
-        // ── Changed: store users (id + full_name) ─────────────────────────────
         setUsers(usersData);
       } catch (err) {
         console.error("Master data load error:", err);
@@ -632,10 +626,9 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           })),
         );
         setSelectedRoles(tmpl.assignedRolesIds?.map(Number) ?? []);
-        setSelectedDepartments(tmpl.assignedDepartmentsIds?.map(Number) ?? []);
+        // ── Changed: departments are now uuid strings — no Number() cast ──────
+        setSelectedDepartments(tmpl.assignedDepartmentsIds?.map(String) ?? []);
 
-        // ── Changed: assignedEmployeeIds now holds uuid strings ───────────────
-        // The first assigned user_id (uuid) is stored directly — no PK lookup needed.
         const assignedUserUuid = tmpl.assignedEmployeeIds?.[0];
         if (assignedUserUuid) {
           setSelectedUser(String(assignedUserUuid));
@@ -767,7 +760,8 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
       if (!res.ok) throw new Error("Department creation failed");
       const created = await res.json();
       setDepartments((prev) => [...prev, created]);
-      setSelectedDepartments((prev) => [...prev, created.id]);
+      // ── Changed: created.id is now a uuid string ───────────────────────────
+      setSelectedDepartments((prev) => [...prev, String(created.id)]);
       toast.success(`Department "${name}" created`);
     } catch (err) {
       console.error("Department create error:", err);
@@ -840,15 +834,14 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         resolvedId = created.id;
       }
 
-      // ── Changed: send user_id (uuid) instead of emp_id ────────────────────
       const assignRes = await fetch(`${API_BASE}/assign-template`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
           template_id:    resolvedId,
           role_ids:       selectedRoles,
-          department_ids: selectedDepartments,
-          user_id:        selectedUser,   // uuid string or null
+          department_ids: selectedDepartments,  // uuid strings
+          user_id:        selectedUser,          // uuid string or null
         }),
       });
       if (!assignRes.ok) {
@@ -857,7 +850,8 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
       }
 
       toast.success(editId ? "Template Updated Successfully!" : "Template Created & Assigned Successfully!");
-      router.push("/hq-admin/templates");
+      router.push("/hq-admin/template-management");
+      window.scrollTo({ top: 0, behavior: "instant" });
     } catch (err: any) {
       console.error("Save error:", err);
       toast.error(err.message ?? "Failed to save template");
@@ -992,7 +986,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
             )}
           </div>
 
-          {/* ── Changed: user selection — shows only full_name ─────────────── */}
           <div>
             <label className={styles.formFieldLabel}>
               Assign to Employee
@@ -1008,8 +1001,8 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                 return option.label.toLowerCase().includes(inputValue.toLowerCase());
               }}
               options={users.map((u) => ({
-                value: u.id,           // uuid — sent to backend as user_id
-                label: u.full_name,    // displayed in dropdown
+                value: u.id,
+                label: u.full_name,
               }))}
               value={
                 selectedUser !== null
@@ -1498,13 +1491,18 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               isMulti
               isDisabled={isReadOnly}
               placeholder="Type to create or select departments…"
-              options={departments.map((d: any) => ({ value: d.id, label: d.name }))}
+              // ── d.id is now a uuid string ──────────────────────────────────
+              options={departments.map((d: any) => ({ value: String(d.id), label: d.name }))}
               styles={baseSelectStyles}
               value={selectedDepartments.map((id) => ({
                 value: id,
-                label: departments.find((d: any) => d.id === id)?.name ?? "",
+                // ── Changed: compare as strings on both sides ───────────────
+                label: departments.find((d: any) => String(d.id) === String(id))?.name ?? "",
               }))}
-              onChange={(opts: any) => setSelectedDepartments(opts ? opts.map((o: any) => o.value) : [])}
+              onChange={(opts: any) =>
+                // ── Changed: store as string uuids ─────────────────────────
+                setSelectedDepartments(opts ? opts.map((o: any) => String(o.value)) : [])
+              }
               onCreateOption={handleCreateDepartment}
               formatCreateLabel={(val: string) => `Create department: "${val}"`}
             />
@@ -1514,7 +1512,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           </div>
         </div>
 
-        {/* ── Changed: read-only summary uses full_name ─────────────────────── */}
+        {/* ── Read-only summary ─────────────────────────────────────────────── */}
         {isReadOnly && (selectedRoles.length > 0 || selectedDepartments.length > 0 || selectedUser) && (
           <div className={styles.assignmentSummary}>
             {selectedUser && (
@@ -1548,7 +1546,8 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                 <span className={styles.assignmentSummaryLabel}>Departments</span>
                 <div className={styles.assignmentSummaryTags}>
                   {selectedDepartments.map((id) => {
-                    const d = departments.find((x: any) => x.id === id);
+                    // ── Changed: compare as strings on both sides ────────────
+                    const d = departments.find((x: any) => String(x.id) === String(id));
                     return d ? (
                       <span key={id} className={styles.assignmentSummaryBadge} style={{ background: "#fef3c7", color: "#92400e", borderColor: "#fde68a" }}>
                         {d.name}
@@ -1567,7 +1566,8 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         <div className={styles.cancelBtnWrapper}>
           <button
             className={styles.cancelBtn}
-            onClick={() => isReadOnly ? router.back() : setShowCancelConfirm((prev) => !prev)}
+            onClick={() => isReadOnly ? (router.push("/hq-admin/template-management"), 
+            window.scrollTo({ top: 0, behavior: "instant" })) : setShowCancelConfirm((prev) => !prev)}
           >
             {isReadOnly ? "← Back" : "Cancel"}
           </button>
@@ -1581,7 +1581,8 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                 </button>
                 <button
                   className={styles.cancelConfirmDiscardBtn}
-                  onClick={() => { setShowCancelConfirm(false); router.back(); }}
+                  onClick={() => { setShowCancelConfirm(false); router.push("/hq-admin/template-management"); 
+                  window.scrollTo({ top: 0, behavior: "instant" }); }}
                 >
                   Discard
                 </button>
