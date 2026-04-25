@@ -35,6 +35,7 @@ import {
   branchComparisonApi,
   branchInsightsApi,
   subDepartmentsApi,
+  metricsApi,
 } from '@/services/api';
 import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
@@ -71,6 +72,11 @@ export default function DeptAdminReportDetailPage() {
   const [bellCurveData, setBellCurveData] = useState<BranchBellCurveData[]>([]);
   const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison[]>([]);
   const [insights, setInsights] = useState<BranchAIInsight[]>([]);
+  const [metrics, setMetrics] = useState<{
+    total_evaluated: number;
+    avg_score: number;
+    top_performers: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,6 +105,7 @@ export default function DeptAdminReportDetailPage() {
       setBellCurveData([]);
       setComparisonData([]);
       setInsights([]);
+      setMetrics(null);
 
       const branchData = await branchByCodeApi.get(user!.iata_branch_code!);
       setBranch(branchData);
@@ -107,6 +114,15 @@ export default function DeptAdminReportDetailPage() {
       setSummary(summaryData);
 
       const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
+
+      // Fetch dynamic metrics scoped to this sub-department
+      const metricsData = await metricsApi.get({
+        period_type: activeTab,
+        year: 2026,
+        scope: 'sub_department',
+        scope_id: subDeptId,
+      });
+      setMetrics(metricsData);
 
       if (activeReport) {
         // Fetch live bell curve from performance_summaries for this sub-department
@@ -311,6 +327,39 @@ export default function DeptAdminReportDetailPage() {
             Year-End Report
           </button>
         </div>
+        
+          {/* Metric Cards — dynamic */}
+          {metrics && (
+            <div className="grid grid-cols-3 gap-4">
+              <MetricCard
+                title="Total Evaluated"
+                value={metrics.total_evaluated}
+                subtitle="In team"
+                subtitleColor="text-[#6A7282]"
+                icon={Users}
+                iconColor="#155DFC"
+                iconBgColor="#FFFFFF"
+              />
+              <MetricCard
+                title="Avg Score"
+                value={metrics.avg_score.toFixed(2)}
+                subtitle="Calculated from distribution"
+                subtitleColor="text-[#00A63E]"
+                icon={TrendingUp}
+                iconColor="#0092B8"
+                iconBgColor="#FFFFFF"
+              />
+              <MetricCard
+                title="Top Performers"
+                value={metrics.top_performers}
+                subtitle="Rating ≥ 4.5"
+                subtitleColor="text-[#6A7282]"
+                icon={Award}
+                iconColor="#4F39F6"
+                iconBgColor="#FFFFFF"
+              />
+            </div>
+          )}
 
         {/* ── Report Content ── */}
         <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
@@ -322,44 +371,7 @@ export default function DeptAdminReportDetailPage() {
             </div>
           )}
 
-          {/* Metric Cards */}
-          {activeReport && (
-            <div className="grid grid-cols-3 gap-4">
-              <MetricCard
-                title="Evaluated"
-                value={activeReport.total_evaluated}
-                subtitle={
-                  activeTab === 'year_end'
-                    ? '100% completion'
-                    : `out of ${branch.total_employees}`
-                }
-                subtitleColor={activeTab === 'year_end' ? 'text-[#00A63E]' : 'text-[#6A7282]'}
-                icon={Users}
-                iconColor="#155DFC"
-                iconBgColor="#FFFFFF"
-              />
-              <MetricCard
-                title="Avg Score"
-                value={activeReport.avg_score.toFixed(1)}
-                subtitle={
-                  activeTab === 'year_end' ? '+0.2 from mid-year' : '+0.2 from last period'
-                }
-                subtitleColor="text-[#00A63E]"
-                icon={TrendingUp}
-                iconColor="#0092B8"
-                iconBgColor="#FFFFFF"
-              />
-              <MetricCard
-                title="Top Performers"
-                value={activeReport.top_performers}
-                subtitle="Rating ≥ 4.5"
-                subtitleColor="text-[#6A7282]"
-                icon={Award}
-                iconColor="#4F39F6"
-                iconBgColor="#FFFFFF"
-              />
-            </div>
-          )}
+          
 
           {/* Bell Curve Chart */}
           {bellCurveData.length > 0 && (

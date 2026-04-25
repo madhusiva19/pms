@@ -34,6 +34,7 @@ import {
   branchComparisonApi,
   branchInsightsApi,
   branchesApi,
+  metricsApi,
 } from '@/services/api';
 import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
@@ -62,6 +63,11 @@ export default function BranchReportPage() {
   const [bellCurveData, setBellCurveData] = useState<BranchBellCurveData[]>([]);
   const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison[]>([]);
   const [insights, setInsights] = useState<BranchAIInsight[]>([]);
+  const [metrics, setMetrics] = useState<{
+    total_evaluated: number;
+    avg_score: number;
+    top_performers: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
@@ -125,6 +131,15 @@ export default function BranchReportPage() {
       });
       console.log('✅ Bell curve data:', bellCurve);
       setBellCurveData(bellCurve as any);
+
+      // Fetch dynamic metrics for the branch
+      const metricsData = await metricsApi.get({
+        period_type: activeTab,
+        year: 2026,
+        scope: 'branch',
+        scope_id: branchId,
+      });
+      setMetrics(metricsData);
 
       if (activeReport) {
         console.log('🔍 Fetching insights...');
@@ -396,12 +411,12 @@ export default function BranchReportPage() {
             </div>
           )}
 
-          {/* ── Metric Cards ── */}
-          {activeReport && (
+          {/* ── Metric Cards — dynamic ── */}
+          {metrics && (
             <div className="grid grid-cols-3 gap-4">
               <MetricCard
-                title="Evaluated"
-                value={activeReport.total_evaluated}
+                title="Total Evaluated"
+                value={metrics.total_evaluated}
                 subtitle={
                   activeTab === 'year_end'
                     ? '100% completion'
@@ -415,10 +430,8 @@ export default function BranchReportPage() {
 
               <MetricCard
                 title="Avg Score"
-                value={activeReport.avg_score.toFixed(1)}
-                subtitle={
-                  activeTab === 'year_end' ? '+0.2 from mid-year' : '+0.2 from last period'
-                }
+                value={metrics.avg_score.toFixed(2)}
+                subtitle="Calculated from distribution"
                 subtitleColor="text-[#00A63E]"
                 icon={TrendingUp}
                 iconColor="#0092B8"
@@ -427,7 +440,7 @@ export default function BranchReportPage() {
 
               <MetricCard
                 title="Top Performers"
-                value={activeReport.top_performers}
+                value={metrics.top_performers}
                 subtitle="Rating ≥ 4.5"
                 subtitleColor="text-[#6A7282]"
                 icon={Award}

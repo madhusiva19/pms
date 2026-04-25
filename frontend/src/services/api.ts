@@ -102,6 +102,26 @@ export const bellCurveApi = {
   },
 };
 
+// ── Report Metrics (live) ────────────────────────────────────────────────────
+
+export const metricsApi = {
+  get: async (params: {
+    period_type: 'mid_year' | 'year_end';
+    year: number;
+    scope: 'country' | 'branch' | 'department' | 'sub_department' | 'employee';
+    scope_id: string;
+    employee_id?: string;
+  }): Promise<{
+    total_evaluated: number;
+    avg_score: number;
+    top_performers: number;
+    employee_score: number | null;
+  }> => {
+    const res: AxiosResponse = await apiClient.get('/report-metrics', { params });
+    return res.data.data;
+  },
+};
+
 // ── Performance Comparison ────────────────────────────────────────────────────
 
 export const comparisonApi = {

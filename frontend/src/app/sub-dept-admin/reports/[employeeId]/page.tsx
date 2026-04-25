@@ -30,6 +30,7 @@ import type { TeamScoreEntry } from '@/components/SubDeptScoreBarChart';
 import {
   employeesApi,
   performanceSummariesApi,
+  metricsApi,
 } from '@/services/api';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
 
@@ -45,6 +46,12 @@ export default function SubDeptAdminReportDetailPage() {
   const [empName, setEmpName] = useState('Employee');
   const [activeTab, setActiveTab] = useState<ReportType>('mid_year');
   const [teamScores, setTeamScores] = useState<TeamScoreEntry[]>([]);
+  const [metrics, setMetrics] = useState<{
+    total_evaluated: number;
+    avg_score: number;
+    top_performers: number;
+    employee_score: number | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
 
@@ -95,17 +102,20 @@ export default function SubDeptAdminReportDetailPage() {
       .finally(() => setLoading(false));
   }, [user?.sub_department_id, employeeId]);
 
-  // Compute metric cards from teamScores for the active tab
-  const activeScores = teamScores.filter(s =>
-    activeTab === 'mid_year' ? s.midYearScore !== undefined : s.yearEndScore !== undefined
-  );
-  const totalEvaluated = activeScores.length;
-  const avgScore = totalEvaluated > 0
-    ? activeScores.reduce((sum, s) => sum + (activeTab === 'mid_year' ? s.midYearScore! : s.yearEndScore!), 0) / totalEvaluated
-    : 0;
-  const topPerformers = activeScores.filter(s =>
-    (activeTab === 'mid_year' ? s.midYearScore! : s.yearEndScore!) >= 4.5
-  ).length;
+  // Fetch dynamic metrics scoped to the user's sub-department + this employee
+  useEffect(() => {
+    if (!user?.sub_department_id || !employeeId) return;
+    setMetrics(null);
+    metricsApi.get({
+      period_type: activeTab,
+      year: 2026,
+      scope: 'sub_department',
+      scope_id: String(user.sub_department_id),
+      employee_id: employeeId,
+    })
+      .then(setMetrics)
+      .catch(console.error);
+  }, [user?.sub_department_id, employeeId, activeTab]);
 
   const handleDownload = async () => {
     try {
@@ -239,29 +249,29 @@ export default function SubDeptAdminReportDetailPage() {
         {/* ── Report Content ── */}
         <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
 
-          {totalEvaluated === 0 && (
+          {metrics && metrics.total_evaluated === 0 && (
             <div className="flex flex-col items-center justify-center p-20 text-center bg-[#F9FAFB] rounded-lg border border-dashed border-gray-200">
               <p className="text-[#64748B] text-[15px] font-medium">No {activeTab === 'mid_year' ? 'mid-year' : 'year-end'} report data found for {empName}.</p>
               <p className="text-[#94A3B8] text-[13px] mt-1">Please ensure the data is loaded in the database.</p>
             </div>
           )}
 
-          {/* Metric Cards */}
-          {totalEvaluated > 0 && (
+          {/* Metric Cards — dynamic (sub_dept_admin uses Score instead of Avg Score) */}
+          {metrics && metrics.total_evaluated > 0 && (
             <div className="grid grid-cols-3 gap-4">
               <MetricCard
-                title="Evaluated"
-                value={totalEvaluated}
-                subtitle={`out of ${teamScores.length}`}
+                title="Total Evaluated"
+                value={metrics.total_evaluated}
+                subtitle="In sub-department"
                 subtitleColor="text-[#6A7282]"
                 icon={Users}
                 iconColor="#155DFC"
                 iconBgColor="#FFFFFF"
               />
               <MetricCard
-                title="Avg Score"
-                value={avgScore.toFixed(1)}
-                subtitle={activeTab === 'year_end' ? '+0.2 from mid-year' : '+0.2 from last period'}
+                title="Score"
+                value={metrics.employee_score !== null ? metrics.employee_score.toFixed(2) : 'N/A'}
+                subtitle={`${empName}'s ${activeTab === 'mid_year' ? 'mid-year' : 'year-end'} score`}
                 subtitleColor="text-[#00A63E]"
                 icon={TrendingUp}
                 iconColor="#0092B8"
@@ -269,7 +279,7 @@ export default function SubDeptAdminReportDetailPage() {
               />
               <MetricCard
                 title="Top Performers"
-                value={topPerformers}
+                value={metrics.top_performers}
                 subtitle="Rating ≥ 4.5"
                 subtitleColor="text-[#6A7282]"
                 icon={Award}

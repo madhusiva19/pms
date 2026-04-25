@@ -103,7 +103,7 @@ export default function DeptAdminReportsPage() {
         {/* Title */}
         <div>
           <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Performance Reports</h1>
-          <p className="text-[15px] text-[#4A5565] mt-1">Select a team to view detailed performance metrics and generate reports.</p>
+          <p className="text-[15px] text-[#4A5565] mt-1">Select a sub department to view detailed performance metrics and generate reports.</p>
         </div>
 
         {/* Search */}
@@ -111,7 +111,7 @@ export default function DeptAdminReportsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
           <input
             type="text"
-            placeholder="Search team…"
+            placeholder="Search sub department…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-11 pl-10 pr-4 bg-white border border-[#E2E8F0] rounded-xl text-[14px] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10 focus:border-[#2563EB] transition-all"
@@ -130,7 +130,7 @@ export default function DeptAdminReportsPage() {
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <BarChart3 className="w-6 h-6 text-gray-400" />
             </div>
-            <p className="text-gray-500 font-medium">No teams found matching "{search}"</p>
+            <p className="text-gray-500 font-medium">No sub departments found matching "{search}"</p>
           </div>
         )}
 

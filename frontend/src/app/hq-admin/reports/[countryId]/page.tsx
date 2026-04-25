@@ -35,6 +35,7 @@ import {
   comparisonApi,
   insightsApi,
   countriesApi,
+  metricsApi,
 } from '@/services/api';
 import { reportRequestApi } from '@/services/reportRequestApi';  // ← NEW
 import { downloadReportAsPDF } from '@/utils/downloadReport';    // ← NEW
@@ -63,6 +64,11 @@ export default function CountryReportPage() {
   const [bellCurveData, setBellCurveData] = useState<BellCurveData[]>([]);
   const [comparisonData, setComparisonData] = useState<PerformanceComparison[]>([]);
   const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [metrics, setMetrics] = useState<{
+    total_evaluated: number;
+    avg_score: number;
+    top_performers: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,6 +114,15 @@ export default function CountryReportPage() {
         scope_id: countryId,
       });
       setBellCurveData(bellCurve);
+
+      // Fetch dynamic metrics (total_evaluated, avg_score, top_performers)
+      const metricsData = await metricsApi.get({
+        period_type: activeTab,
+        year: 2026,
+        scope: 'country',
+        scope_id: countryId,
+      });
+      setMetrics(metricsData);
 
       if (activeReport) {
         const insightsData = await insightsApi.getByReport(activeReport.id);
@@ -360,6 +375,44 @@ export default function CountryReportPage() {
             Year-End Report
           </button>
         </div>
+         {/* ── Metric Cards — dynamic ── */}
+          {metrics && (
+            <div className="grid grid-cols-3 gap-4">
+              <MetricCard
+                title="Total Evaluated"
+                value={metrics.total_evaluated}
+                subtitle={
+                  activeTab === 'year_end'
+                    ? '100% completion'
+                    : `out of ${country.total_employees}`
+                }
+                subtitleColor={activeTab === 'year_end' ? 'text-[#00A63E]' : 'text-[#6A7282]'}
+                icon={Users}
+                iconColor="#155DFC"
+                iconBgColor="#FFFFFF"
+              />
+
+              <MetricCard
+                title="Avg Score"
+                value={metrics.avg_score.toFixed(2)}
+                subtitle="Calculated from distribution"
+                subtitleColor="text-[#00A63E]"
+                icon={TrendingUp}
+                iconColor="#0092B8"
+                iconBgColor="#FFFFFF"
+              />
+
+              <MetricCard
+                title="Top Performers"
+                value={metrics.top_performers}
+                subtitle="Rating ≥ 4.5"
+                subtitleColor="text-[#6A7282]"
+                icon={Award}
+                iconColor="#4F39F6"
+                iconBgColor="#FFFFFF"
+              />
+            </div>
+          )}
 
         {/* ─────────────────────────────────────────
             PRINTABLE AREA → becomes the PDF
@@ -374,46 +427,7 @@ export default function CountryReportPage() {
             </div>
           )}
 
-          {/* ── Metric Cards — unchanged ── */}
-          {activeReport && (
-            <div className="grid grid-cols-3 gap-4">
-              <MetricCard
-                title="Evaluated"
-                value={activeReport.total_evaluated}
-                subtitle={
-                  activeTab === 'year_end'
-                    ? '100% completion'
-                    : `out of ${country.total_employees}`
-                }
-                subtitleColor={activeTab === 'year_end' ? 'text-[#00A63E]' : 'text-[#6A7282]'}
-                icon={Users}
-                iconColor="#155DFC"
-                iconBgColor="#FFFFFF"
-              />
-
-              <MetricCard
-                title="Avg Score"
-                value={activeReport.avg_score.toFixed(1)}
-                subtitle={
-                  activeTab === 'year_end' ? '+0.2 from mid-year' : '+0.2 from last period'
-                }
-                subtitleColor="text-[#00A63E]"
-                icon={TrendingUp}
-                iconColor="#0092B8"
-                iconBgColor="#FFFFFF"
-              />
-
-              <MetricCard
-                title="Top Performers"
-                value={activeReport.top_performers}
-                subtitle="Rating ≥ 4.5"
-                subtitleColor="text-[#6A7282]"
-                icon={Award}
-                iconColor="#4F39F6"
-                iconBgColor="#FFFFFF"
-              />
-            </div>
-          )}
+         
 
           {/* ── Bell Curve Chart ── */}
           {bellCurveData.length > 0 && (
