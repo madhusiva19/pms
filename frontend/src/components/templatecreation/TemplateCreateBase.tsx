@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   Eye, Lock, Unlock,
   Settings2, Sliders, Plus, Trash2,
-  TrendingUp, TrendingDown, SlidersHorizontal,
+  TrendingUp, TrendingDown, SlidersHorizontal, X,
 } from "lucide-react";
 import {
   computeFreezeDates,
@@ -21,12 +21,12 @@ import styles from "./TemplateCreateBase.module.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
 
-// ─── Domain constants — named, no magic numbers ───────────────────────────────
+// ─── Domain constants ─────────────────────────────────────────────────────────
 
 const DEFAULT_MAX_SCORE    = 5;
 const MAX_SCORE_OPTIONS    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
-// ─── KPI Scale Options — grouped (Interpolated / Bracket / Manual) ────────────
+// ─── KPI Scale Options ────────────────────────────────────────────────────────
 
 const KPI_SCALE_OPTIONS = [
   {
@@ -161,8 +161,6 @@ function resolveKpiOption(value: string | undefined) {
   );
 }
 
-// ─── Control options ──────────────────────────────────────────────────────────
-
 const CONTROL_OPTIONS = [
   { value: "Locked",   label: "Locked",   badge: { bg: "#eff6ff", color: "#1e40af", border: "#bfdbfe" } },
   { value: "Editable", label: "Editable", badge: { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" } },
@@ -186,10 +184,25 @@ interface CategoryRow {
   objectives:   ObjectiveRow[];
 }
 
-// ── User shape from /users endpoint ──────────────────────────────────────────
 interface UserOption {
-  id:        string;   // uuid
+  id:        string;
   full_name: string;
+}
+
+// ── Department now carries code + branch_id so we can display & filter properly
+interface DepartmentOption {
+  id:        string;  // uuid
+  name:      string;
+  code:      string | null;
+  branch_id: string | null;
+}
+
+// ── Branch for filtering — matches branches table: id, code, name, country_id
+interface BranchOption {
+  id:         string;  // uuid
+  name:       string;
+  code:       string | null;
+  country_id: string | null;  // uuid FK to countries table
 }
 
 interface TemplateCreateBaseProps {
@@ -435,10 +448,7 @@ function makeDefaultObjective(
   weight:      number | null = null,
   kpiMaxScore: number | null = null,
 ): ObjectiveRow {
-  return {
-    name, kpiScale, weight, control,
-    mandatory: true, kpiMaxScore,
-  };
+  return { name, kpiScale, weight, control, mandatory: true, kpiMaxScore };
 }
 
 // ─── Initial category seed data ───────────────────────────────────────────────
@@ -526,6 +536,163 @@ function migrateObjective(obj: any): ObjectiveRow {
   };
 }
 
+// ─── New Department Modal ─────────────────────────────────────────────────────
+// Shows when the user types a new department name in CreatableSelect
+
+interface NewDeptModalProps {
+  initialName: string;
+  branches:    BranchOption[];
+  onConfirm:   (name: string, code: string, branchId: string | null) => Promise<void>;
+  onCancel:    () => void;
+}
+
+function NewDeptModal({ initialName, branches, onConfirm, onCancel }: NewDeptModalProps) {
+  const [name,     setName]     = useState(initialName);
+  const [code,     setCode]     = useState("");
+  const [branchId, setBranchId] = useState<string | null>(null);
+  const [saving,   setSaving]   = useState(false);
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { toast.error("Department name is required"); return; }
+    if (!code.trim()) { toast.error("Department code is required (e.g. FIA, FES, COT)"); return; }
+    setSaving(true);
+    try {
+      await onConfirm(name.trim(), code.trim().toUpperCase(), branchId);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999,
+      background: "rgba(15,23,42,0.45)", backdropFilter: "blur(2px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{
+        background: "#fff", borderRadius: "16px", padding: "28px 32px",
+        width: "420px", maxWidth: "90vw",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+        border: "1px solid #e2e8f0",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
+            Create New Department
+          </h3>
+          <button
+            onClick={onCancel}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Department Name */}
+        <div style={{ marginBottom: "16px" }}>
+          <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+            Department Name <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Forwarding Import Air"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              border: "1px solid #e2e8f0", borderRadius: "8px",
+              padding: "9px 12px", fontSize: "13px", fontWeight: "500",
+              outline: "none", color: "#1e293b",
+            }}
+            autoFocus
+          />
+        </div>
+
+        {/* Department Code */}
+        <div style={{ marginBottom: "16px" }}>
+          <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+            Department Code <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="e.g. FIA, FES, COT, BRN"
+            maxLength={10}
+            style={{
+              width: "100%", boxSizing: "border-box",
+              border: "1px solid #e2e8f0", borderRadius: "8px",
+              padding: "9px 12px", fontSize: "13px", fontWeight: "700",
+              outline: "none", color: "#1e40af", letterSpacing: "0.5px",
+            }}
+          />
+          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#94a3b8" }}>
+            Short code used to link financial data (e.g. GP/Revenue from your ERP system)
+          </p>
+        </div>
+
+        {/* Branch */}
+        {branches.length > 0 && (
+          <div style={{ marginBottom: "20px" }}>
+            <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+              Branch <span style={{ fontSize: "10px", color: "#94a3b8", textTransform: "none", fontWeight: "500" }}>(optional)</span>
+            </label>
+            <select
+              value={branchId ?? ""}
+              onChange={(e) => setBranchId(e.target.value || null)}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                border: "1px solid #e2e8f0", borderRadius: "8px",
+                padding: "9px 12px", fontSize: "13px", fontWeight: "500",
+                outline: "none", color: branchId ? "#1e293b" : "#94a3b8",
+                background: "#fff",
+              }}
+            >
+              <option value="">— No branch —</option>
+              {branches.map((b) => {
+                // Show: CODE — Name (country_id if present)
+                const countryTag = b.country_id ? ` [${b.country_id}]` : "";
+                const label = b.code
+                  ? `${b.code} — ${b.name}${countryTag}`
+                  : `${b.name}${countryTag}`;
+                return (
+                  <option key={b.id} value={b.id}>
+                    {label}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "8px 18px", borderRadius: "8px",
+              border: "1px solid #e2e8f0", background: "#f8fafc",
+              color: "#64748b", fontWeight: "700", fontSize: "13px", cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            style={{
+              padding: "8px 20px", borderRadius: "8px",
+              border: "none", background: saving ? "#94a3b8" : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+              color: "#fff", fontWeight: "700", fontSize: "13px",
+              cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >
+            {saving ? "Creating…" : "Create Department"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProps) {
@@ -542,29 +709,37 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   );
   const isReadOnly = isViewMode || (!permissions.canEdit && !!editId);
 
-
   // ── Form state ─────────────────────────────────────────────────────────────
   const [templateName,         setTemplateName]         = useState("");
   const [description,          setDescription]          = useState("");
   const [maxScore,             setMaxScore]             = useState<number>(DEFAULT_MAX_SCORE);
   const [categories,           setCategories]           = useState<CategoryRow[]>(INITIAL_CATEGORIES);
   const [roles,                setRoles]                = useState<any[]>([]);
-  const [departments,          setDepartments]          = useState<any[]>([]);
+  const [departments,          setDepartments]          = useState<DepartmentOption[]>([]);
+  const [branches,             setBranches]             = useState<BranchOption[]>([]);
   const [users,                setUsers]                = useState<UserOption[]>([]);
   const [selectedUser,         setSelectedUser]         = useState<string | null>(null);
   const [selectedRoles,        setSelectedRoles]        = useState<number[]>([]);
-  // ── Changed: uuid strings instead of ints ─────────────────────────────────
   const [selectedDepartments,  setSelectedDepartments]  = useState<string[]>([]);
   const [showCancelConfirm,    setShowCancelConfirm]    = useState(false);
   const [isPageLoading,        setIsPageLoading]        = useState(!!editId);
   const [newObjKey,            setNewObjKey]            = useState<string | null>(null);
+
+  // ── Department modal state ─────────────────────────────────────────────────
+  const [deptModal, setDeptModal] = useState<{ open: boolean; initialName: string }>({
+    open: false, initialName: "",
+  });
+
+  // ── Branch filter for department dropdown ──────────────────────────────────
+  // Scopes the department list to a specific branch so admins don't confuse
+  // same-named departments (e.g. "Forwarding Import Air" in CMB vs TUP).
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string | null>(null);
 
   // ── Memoised react-select styles ───────────────────────────────────────────
   const baseSelectStyles  = useMemo(() => buildBaseSelectStyles(), []);
   const tableSelectStyles = useMemo(() => buildTableSelectStyles(), []);
   const kpiSelectStyles   = useMemo(() => buildKpiSelectStyles(), []);
 
-  // ── Grouped options for KPI scale select ───────────────────────────────────
   const kpiScaleGroupedOptions = useMemo(
     () =>
       KPI_SCALE_GROUPS.map((g) => ({
@@ -578,10 +753,11 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   useEffect(() => {
     const loadMasterData = async () => {
       try {
-        const [rolesRes, deptsRes, usersRes] = await Promise.all([
+        const [rolesRes, deptsRes, usersRes, branchesRes] = await Promise.all([
           fetch(`${API_BASE}/roles`),
           fetch(`${API_BASE}/departments`),
           fetch(`${API_BASE}/users`),
+          fetch(`${API_BASE}/branches`),
         ]);
         if (!rolesRes.ok || !deptsRes.ok || !usersRes.ok) {
           throw new Error("One or more master data requests failed");
@@ -592,6 +768,20 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         setRoles(rolesData);
         setDepartments(deptsData);
         setUsers(usersData);
+
+        // Branches — gracefully skip if table doesn't exist yet (non-200 or empty)
+        if (branchesRes.ok) {
+          const branchesData: BranchOption[] = await branchesRes.json();
+          // Normalise: ensure country_id is present (backend always sends it now)
+          setBranches(
+            branchesData.map((b) => ({
+              id:         String(b.id),
+              name:       b.name,
+              code:       b.code ?? null,
+              country_id: b.country_id ?? null,
+            }))
+          );
+        }
       } catch (err) {
         console.error("Master data load error:", err);
         toast.error("Failed to load roles and departments");
@@ -626,13 +816,10 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           })),
         );
         setSelectedRoles(tmpl.assignedRolesIds?.map(Number) ?? []);
-        // ── Changed: departments are now uuid strings — no Number() cast ──────
         setSelectedDepartments(tmpl.assignedDepartmentsIds?.map(String) ?? []);
 
         const assignedUserUuid = tmpl.assignedEmployeeIds?.[0];
-        if (assignedUserUuid) {
-          setSelectedUser(String(assignedUserUuid));
-        }
+        if (assignedUserUuid) setSelectedUser(String(assignedUserUuid));
 
         if (isViewMode) toast.info("Viewing Template — Read-only mode");
       } catch (err) {
@@ -730,7 +917,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
     [],
   );
 
-  // ── Role / department creation ─────────────────────────────────────────────
+  // ── Role creation ──────────────────────────────────────────────────────────
 
   const handleCreateRole = async (name: string) => {
     try {
@@ -750,24 +937,59 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
     }
   };
 
-  const handleCreateDepartment = async (name: string) => {
+  // ── Department creation via modal ──────────────────────────────────────────
+  // When user types a new dept name in CreatableSelect, open the modal instead
+  // of immediately creating, so we can also collect code + branch.
+
+  const handleDeptCreateInit = (inputValue: string) => {
+    setDeptModal({ open: true, initialName: inputValue });
+  };
+
+  const handleDeptModalConfirm = async (
+    name: string,
+    code: string,
+    branchId: string | null,
+  ) => {
     try {
       const res = await fetch(`${API_BASE}/departments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, code, branch_id: branchId }),
       });
-      if (!res.ok) throw new Error("Department creation failed");
-      const created = await res.json();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Department creation failed");
+      }
+      const created: DepartmentOption = await res.json();
       setDepartments((prev) => [...prev, created]);
-      // ── Changed: created.id is now a uuid string ───────────────────────────
       setSelectedDepartments((prev) => [...prev, String(created.id)]);
-      toast.success(`Department "${name}" created`);
-    } catch (err) {
-      console.error("Department create error:", err);
-      toast.error("Failed to create department");
+      toast.success(`Department "${name}" (${code}) created`);
+      setDeptModal({ open: false, initialName: "" });
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to create department");
+      // Keep modal open so user can fix the error
     }
   };
+
+  // ── Build department options for react-select ──────────────────────────────
+  // Show "[CODE] Name · BranchCode" so admins can distinguish same-named depts.
+  // When a branch filter is active, only show departments from that branch.
+
+  const departmentSelectOptions = useMemo(
+    () =>
+      departments
+        .filter((d) => !selectedBranchFilter || d.branch_id === selectedBranchFilter)
+        .map((d) => {
+          const branch = branches.find((b) => b.id === d.branch_id);
+          const label = [
+            d.code ? `[${d.code}]` : null,
+            d.name,
+            branch ? `· ${branch.code ?? branch.name}` : null,
+          ].filter(Boolean).join(" ");
+          return { value: String(d.id), label };
+        }),
+    [departments, branches, selectedBranchFilter],
+  );
 
   // ── Validation ─────────────────────────────────────────────────────────────
 
@@ -840,8 +1062,8 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         body:    JSON.stringify({
           template_id:    resolvedId,
           role_ids:       selectedRoles,
-          department_ids: selectedDepartments,  // uuid strings
-          user_id:        selectedUser,          // uuid string or null
+          department_ids: selectedDepartments,
+          user_id:        selectedUser,
         }),
       });
       if (!assignRes.ok) {
@@ -881,6 +1103,16 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
 
   return (
     <div className={styles.pageWrapper}>
+
+      {/* ── Department creation modal ── */}
+      {deptModal.open && (
+        <NewDeptModal
+          initialName={deptModal.initialName}
+          branches={branches}
+          onConfirm={handleDeptModalConfirm}
+          onCancel={() => setDeptModal({ open: false, initialName: "" })}
+        />
+      )}
 
       {/* ── Read-only / frozen banner ── */}
       {isReadOnly && (
@@ -1000,10 +1232,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                 if (!inputValue) return true;
                 return option.label.toLowerCase().includes(inputValue.toLowerCase());
               }}
-              options={users.map((u) => ({
-                value: u.id,
-                label: u.full_name,
-              }))}
+              options={users.map((u) => ({ value: u.id, label: u.full_name }))}
               value={
                 selectedUser !== null
                   ? (() => {
@@ -1061,7 +1290,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         {categories.map((cat, catIndex) => (
           <div key={catIndex} className={styles.categoryBlock}>
 
-            {/* Category header */}
             <div className={`${styles.categoryHeader} ${isReadOnly ? styles.categoryHeaderReadOnly : styles.categoryHeaderActive}`}>
               <input
                 className={`${styles.categoryNameInput} ${isReadOnly ? styles.categoryNameInputReadOnly : ""}`}
@@ -1087,7 +1315,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               </div>
             </div>
 
-            {/* Objectives list */}
             <div className={styles.objectivesList}>
               <div className={styles.objHeaderRow}>
                 <div className={styles.objColNum}>#</div>
@@ -1461,9 +1688,65 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
             </svg>
           </div>
           <p className={styles.distributionLogicText}>
-            An employee sees this template if they match <strong>any</strong> of the selected roles, <strong>any</strong> of the selected departments, or are assigned directly by name. A direct employee assignment always takes priority.
+            An employee sees this template if they match <strong>any</strong> of the selected roles, <strong>any</strong> of the selected departments, or are assigned directly by name. A direct employee assignment always takes priority. Departments are shown as <strong>[CODE] Name · Branch</strong> to distinguish departments across branches.
           </p>
         </div>
+
+        {/* Branch filter pills — rendered as a full-width row ABOVE the two-column
+            grid so the Roles select and Departments select stay vertically aligned.
+            The empty left div mirrors the Roles column width. */}
+        {branches.length > 0 && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "24px",
+            marginBottom: "6px",
+          }}>
+            <div /> {/* spacer over Roles column */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={{
+                fontSize: "10px", fontWeight: "700", color: "#94a3b8",
+                textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap",
+              }}>
+                Filter by branch:
+              </span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
+                <button
+                  onClick={() => setSelectedBranchFilter(null)}
+                  style={{
+                    padding: "3px 10px", borderRadius: "20px", fontSize: "11px",
+                    fontWeight: "700", cursor: "pointer", border: "1px solid",
+                    background:  !selectedBranchFilter ? "#1e40af" : "#f8fafc",
+                    color:       !selectedBranchFilter ? "#fff"    : "#64748b",
+                    borderColor: !selectedBranchFilter ? "#1e40af" : "#e2e8f0",
+                    transition: "all 0.12s",
+                  }}
+                >
+                  All
+                </button>
+                {branches.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => setSelectedBranchFilter(
+                      selectedBranchFilter === b.id ? null : b.id
+                    )}
+                    title={b.name}
+                    style={{
+                      padding: "3px 10px", borderRadius: "20px", fontSize: "11px",
+                      fontWeight: "700", cursor: "pointer", border: "1px solid",
+                      background:   selectedBranchFilter === b.id ? "#1e40af" : "#f8fafc",
+                      color:        selectedBranchFilter === b.id ? "#fff"    : "#64748b",
+                      borderColor:  selectedBranchFilter === b.id ? "#1e40af" : "#e2e8f0",
+                      transition: "all 0.12s",
+                    }}
+                  >
+                    {b.code ?? b.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className={styles.distributionGrid}>
           <div>
@@ -1484,35 +1767,72 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
               <p className={styles.fieldHint}>All employees with this role will see the template.</p>
             )}
           </div>
+
           <div>
             <label className={styles.formFieldLabel}>Departments</label>
-            <CreatableSelect
+
+            {/* We use a plain Select (not CreatableSelect) because department
+                creation goes through a modal (to collect code + branch too).
+                A "Create new department…" pseudo-option is appended at the bottom. */}
+            <Select
               instanceId="depts-select"
               isMulti
               isDisabled={isReadOnly}
-              placeholder="Type to create or select departments…"
-              // ── d.id is now a uuid string ──────────────────────────────────
-              options={departments.map((d: any) => ({ value: String(d.id), label: d.name }))}
-              styles={baseSelectStyles}
-              value={selectedDepartments.map((id) => ({
-                value: id,
-                // ── Changed: compare as strings on both sides ───────────────
-                label: departments.find((d: any) => String(d.id) === String(id))?.name ?? "",
-              }))}
-              onChange={(opts: any) =>
-                // ── Changed: store as string uuids ─────────────────────────
-                setSelectedDepartments(opts ? opts.map((o: any) => String(o.value)) : [])
-              }
-              onCreateOption={handleCreateDepartment}
-              formatCreateLabel={(val: string) => `Create department: "${val}"`}
+              placeholder={isReadOnly ? "—" : "Select departments…"}
+              options={[
+                ...departmentSelectOptions,
+                // "Create" pseudo-option at the bottom when not read-only
+                ...(!isReadOnly
+                  ? [{ value: "__create__", label: "+ Create new department…" }]
+                  : []),
+              ]}
+              styles={{
+                ...baseSelectStyles,
+                option: (base: any, { data, isFocused, isSelected }: any) => ({
+                  ...base,
+                  backgroundColor: isSelected
+                    ? "#3b82f6"
+                    : (data as any).value === "__create__"
+                    ? isFocused ? "#f0fdf4" : "#f8fafc"
+                    : isFocused ? "#eff6ff" : "transparent",
+                  color: isSelected
+                    ? "#fff"
+                    : (data as any).value === "__create__"
+                    ? "#166534"
+                    : "#475569",
+                  fontWeight: (data as any).value === "__create__" ? "700" : "500",
+                  borderTop: (data as any).value === "__create__" ? "1px solid #e2e8f0" : "none",
+                  padding: "9px 14px", borderRadius: "8px", cursor: "pointer", fontSize: "13px",
+                }),
+              }}
+              value={selectedDepartments
+                .filter((id) => departmentSelectOptions.some((o) => o.value === id))
+                .map((id) => departmentSelectOptions.find((o) => o.value === id)!)}
+              onChange={(opts: any) => {
+                if (!opts) { setSelectedDepartments([]); return; }
+                const createOpt = opts.find((o: any) => o.value === "__create__");
+                if (createOpt) {
+                  // Filter out the __create__ pseudo-option, then open modal
+                  setSelectedDepartments(
+                    opts.filter((o: any) => o.value !== "__create__").map((o: any) => String(o.value))
+                  );
+                  setDeptModal({ open: true, initialName: "" });
+                } else {
+                  setSelectedDepartments(opts.map((o: any) => String(o.value)));
+                }
+              }}
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+              menuPosition="fixed"
             />
             {!isReadOnly && (
-              <p className={styles.fieldHint}>All employees in this department will see the template.</p>
+              <p className={styles.fieldHint}>
+                All employees in this department will see the template. Department code links to financial data.
+              </p>
             )}
           </div>
         </div>
 
-        {/* ── Read-only summary ─────────────────────────────────────────────── */}
+        {/* ── Read-only summary ── */}
         {isReadOnly && (selectedRoles.length > 0 || selectedDepartments.length > 0 || selectedUser) && (
           <div className={styles.assignmentSummary}>
             {selectedUser && (
@@ -1546,11 +1866,10 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                 <span className={styles.assignmentSummaryLabel}>Departments</span>
                 <div className={styles.assignmentSummaryTags}>
                   {selectedDepartments.map((id) => {
-                    // ── Changed: compare as strings on both sides ────────────
-                    const d = departments.find((x: any) => String(x.id) === String(id));
-                    return d ? (
+                    const opt = departmentSelectOptions.find((o) => o.value === id);
+                    return opt ? (
                       <span key={id} className={styles.assignmentSummaryBadge} style={{ background: "#fef3c7", color: "#92400e", borderColor: "#fde68a" }}>
-                        {d.name}
+                        {opt.label}
                       </span>
                     ) : null;
                   })}
@@ -1566,8 +1885,10 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         <div className={styles.cancelBtnWrapper}>
           <button
             className={styles.cancelBtn}
-            onClick={() => isReadOnly ? (router.push("/hq-admin/template-management"), 
-            window.scrollTo({ top: 0, behavior: "instant" })) : setShowCancelConfirm((prev) => !prev)}
+            onClick={() => isReadOnly
+              ? (router.push("/hq-admin/template-management"), window.scrollTo({ top: 0, behavior: "instant" }))
+              : setShowCancelConfirm((prev) => !prev)
+            }
           >
             {isReadOnly ? "← Back" : "Cancel"}
           </button>
@@ -1581,8 +1902,11 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
                 </button>
                 <button
                   className={styles.cancelConfirmDiscardBtn}
-                  onClick={() => { setShowCancelConfirm(false); router.push("/hq-admin/template-management"); 
-                  window.scrollTo({ top: 0, behavior: "instant" }); }}
+                  onClick={() => {
+                    setShowCancelConfirm(false);
+                    router.push("/hq-admin/template-management");
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                  }}
                 >
                   Discard
                 </button>

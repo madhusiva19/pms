@@ -1,6 +1,5 @@
 // lib/freezeUtils.ts
-// WHY: All time-based and role-based freeze logic lives here.
-// Components call these functions — they never compute dates themselves.
+
 
 import { FREEZE_CONFIG, ROLE_LEVEL_MAP } from "./freezeConfig";
 

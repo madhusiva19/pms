@@ -1,17 +1,5 @@
 /* components/TemplateCreateBase.module.css
- *
- * Design token prefix: --tcb-  (TemplateCreateBase)
- * All layout and style for TemplateCreateBase lives here.
- * No inline style objects in TSX except for truly dynamic values
- * (colors derived at runtime from data, progress bar widths, etc.).
- *
- * Naming: camelCase, component-scoped, descriptive.
- * No magic numbers — all spacing/sizing via CSS custom properties.
- *
- * Training Linkage column removed.
- * Arrows removed from KPI Scale and Control selects — badges are clickable triggers.
- * KPI Scale column is wide enough to display full label text without truncation.
- */
+
 
 /* ─── Design tokens ──────────────────────────────────────────────────────────*/
 :root {

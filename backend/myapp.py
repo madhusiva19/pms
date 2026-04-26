@@ -13,13 +13,17 @@ app = Flask(__name__)
 CORS(app)
 
 # ── Supabase credentials ──────────────────────────────────────────────────────
-SUPABASE_URL = "https://yqdrcdkqwiqtmbyuntwk.supabase.co"
-SUPABASE_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-    ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZHJjZGtxd2lxdG1ieXVudHdrIiwi"
-    "cm9sZSI6ImFub24iLCJpYXQiOjE3NzA5NDkwMzUsImV4cCI6MjA4NjUyNTAzNX0"
-    ".l7tCKgIf2wTNPqRcareeOnHATr-XqF-wS68mzQ1gDZQ"
-)
+import os
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# Load env file
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Create client (only once)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -321,6 +325,76 @@ def open_next_pms_cycle():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# BRANCHES ROUTE  ← NEW
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/branches", methods=["GET"])
+def get_branches():
+    """
+    Returns all branches.
+    Expected branches table columns:
+      id (uuid), code (varchar), name (varchar), country_id (uuid FK to countries),
+      created_at
+    Falls back gracefully if the table doesn't exist yet.
+    """
+    try:
+        result = (
+            supabase.table("branches")
+            .select("id, code, name, country_id")
+            .order("name")
+            .execute()
+        )
+        if result.data:
+            return jsonify(result.data), 200
+
+        # Fallback: derive unique branch stubs from the departments table
+        depts = supabase.table("departments").select("branch_id").execute().data
+        unique_branch_ids = list(set(
+            d["branch_id"] for d in depts if d.get("branch_id")
+        ))
+        return jsonify([
+            {"id": bid, "name": bid, "code": bid, "country_id": None}
+            for bid in unique_branch_ids
+        ]), 200
+
+    except Exception as error:
+        return jsonify({"error": str(error)}), 400
+
+
+@app.route("/branches", methods=["POST"])
+def create_branch():
+    """
+    Creates a new branch.
+    Required: code, name
+    Optional: country_id
+    """
+    try:
+        data       = request.get_json()
+        code       = data.get("code", "").strip().upper()
+        name       = data.get("name", "").strip()
+        country_id = data.get("country_id") or None
+
+        if not code:
+            return jsonify({"error": "Branch code is required"}), 400
+        if not name:
+            return jsonify({"error": "Branch name is required"}), 400
+
+        # Duplicate code check
+        existing = supabase.table("branches").select("id").eq("code", code).execute()
+        if existing.data:
+            return jsonify({"error": f"A branch with code '{code}' already exists."}), 409
+
+        result = supabase.table("branches").insert({
+            "code":       code,
+            "name":       name,
+            "country_id": country_id,
+        }).execute()
+        return jsonify(result.data[0]), 200
+    except Exception as error:
+        return jsonify({"error": str(error)}), 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # TEMPLATE ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -384,7 +458,12 @@ def get_templates():
 
             template["assignedRoles"]          = [r["name"] for r in roles if r["id"] in assigned_role_ids]
             template["assignedRolesIds"]       = assigned_role_ids
-            template["assignedDepartments"]    = [d["name"] for d in departments if d["id"] in assigned_dept_ids]
+            # ── Return full department objects (with code + branch_id) so frontend can display them properly
+            template["assignedDepartments"]    = [
+                {"id": d["id"], "name": d["name"], "code": d.get("code"), "branch_id": d.get("branch_id")}
+                for d in departments if d["id"] in assigned_dept_ids
+            ]
+            template["assignedDepartmentNames"] = [d["name"] for d in departments if d["id"] in assigned_dept_ids]
             template["assignedDepartmentsIds"] = assigned_dept_ids
             template["assignedEmployees"]      = [
                 u["full_name"] for u in users if u["id"] in assigned_user_ids
@@ -470,7 +549,6 @@ def get_my_templates():
     """
     Returns templates assigned to the requesting user.
     Lookup priority: direct user assignment → role → department.
-
     Query param: user_id (uuid string) — the users.id value.
     """
     try:
@@ -527,33 +605,10 @@ def get_my_templates():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ASSIGNMENT ROUTES  (POST = create, PUT = update/replace)
+# ASSIGNMENT ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _do_assign_template():
-    """
-    Core assignment logic shared by POST and PUT handlers.
-
-    Accepts any combination of:
-      - user_ids       (list[uuid str])   ← preferred multi-user field
-      - user_id        (uuid str)         ← legacy single-user field, still supported
-      - role_ids       (list[int])
-      - department_ids (list[uuid str])
-
-    All combinations are valid:
-      user only | role only | department only
-      user + role | user + department | role + department
-      user + role + department
-      multiple of any of the above
-
-    Each dimension is stored as independent rows so get_my_templates()
-    (which matches user → role → department independently) keeps working.
-    Role × Department pairs are also stored as combined rows so employees
-    who belong to both get the template even if neither alone matched.
-
-    PUT and POST both replace all existing assignments for the template
-    (delete-then-insert), making PUT fully idempotent.
-    """
     try:
         level = get_request_level()
         if not can_role_edit(level):
@@ -568,20 +623,17 @@ def _do_assign_template():
         role_ids = data.get("role_ids") or []
         dept_ids = data.get("department_ids") or []
 
-        # Support both legacy single `user_id` and new multi-user `user_ids`
         raw_user_ids: list = []
         if data.get("user_ids"):
             raw_user_ids = [str(u).strip() for u in data["user_ids"] if str(u).strip()]
         elif data.get("user_id") and str(data.get("user_id", "")).strip():
             raw_user_ids = [str(data["user_id"]).strip()]
 
-        # At least one dimension must be provided
         if not raw_user_ids and not role_ids and not dept_ids:
-            return jsonify({
-                "error": "At least one of user_ids, role_ids, or department_ids is required."
-            }), 400
+            # Allow saving template with no assignments — just clear existing
+            supabase.table("template_assignments").delete().eq("template_id", template_id).execute()
+            return jsonify({"message": "Template assignments cleared.", "rows_inserted": 0}), 200
 
-        # ── Validate all supplied user UUIDs exist ────────────────────────────
         resolved_user_ids: list = []
         for candidate in raw_user_ids:
             user_result = (
@@ -599,12 +651,10 @@ def _do_assign_template():
                 }), 404
             resolved_user_ids.append(user_result.data[0]["id"])
 
-        # ── Replace all existing assignments for this template ────────────────
         supabase.table("template_assignments").delete().eq("template_id", template_id).execute()
 
         assign_rows: list = []
 
-        # User-only rows  (one row per user, no role/dept)
         for uid in resolved_user_ids:
             assign_rows.append({
                 "template_id":   template_id,
@@ -613,7 +663,6 @@ def _do_assign_template():
                 "department_id": None,
             })
 
-        # Role-only rows  (one row per role, no user/dept)
         for role_id in role_ids:
             assign_rows.append({
                 "template_id":   template_id,
@@ -622,7 +671,6 @@ def _do_assign_template():
                 "department_id": None,
             })
 
-        # Department-only rows  (one row per dept, no user/role)
         for dept_id in dept_ids:
             assign_rows.append({
                 "template_id":   template_id,
@@ -631,9 +679,6 @@ def _do_assign_template():
                 "role_id":       None,
             })
 
-        # Role × Department combination rows
-        # Allows employees whose role AND department both match to get the template
-        # even if neither individual row alone would catch them via get_my_templates().
         for role_id in role_ids:
             for dept_id in dept_ids:
                 assign_rows.append({
@@ -646,7 +691,6 @@ def _do_assign_template():
         if assign_rows:
             supabase.table("template_assignments").insert(assign_rows).execute()
 
-        # Build a human-readable summary
         summary_parts = []
         if resolved_user_ids: summary_parts.append(f"{len(resolved_user_ids)} user(s)")
         if role_ids:           summary_parts.append(f"{len(role_ids)} role(s)")
@@ -663,16 +707,11 @@ def _do_assign_template():
 
 @app.route("/assign-template", methods=["POST"])
 def assign_template():
-    """Create a new assignment (or replace an existing one)."""
     return _do_assign_template()
 
 
 @app.route("/assign-template", methods=["PUT"])
 def update_template_assignment():
-    """
-    Replace an existing assignment with a new combination.
-    Idempotent — safe to call repeatedly with the same payload.
-    """
     return _do_assign_template()
 
 
@@ -702,21 +741,51 @@ def add_role():
 
 @app.route("/departments", methods=["GET"])
 def get_departments():
+    """
+    Returns all departments.
+    Optionally filter by branch_id: /departments?branch_id=<uuid>
+    Returns id, name, code, branch_id so the frontend can display them properly.
+    """
     try:
-        return jsonify(supabase.table("departments").select("*").execute().data), 200
+        branch_filter = request.args.get("branch_id", "").strip()
+        query = supabase.table("departments").select("id, name, code, branch_id").order("name")
+        if branch_filter:
+            query = query.eq("branch_id", branch_filter)
+        return jsonify(query.execute().data), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
 
 
 @app.route("/departments", methods=["POST"])
 def add_department():
+    """
+    Creates a new department.
+    Required: name, code
+    Optional: branch_id (uuid)
+    """
     try:
-        name = request.json.get("name")
+        data = request.get_json()
+        name      = data.get("name", "").strip()
+        code      = data.get("code", "").strip().upper()
+        branch_id = data.get("branch_id") or None
+
         if not name:
-            return jsonify({"error": "Name required"}), 400
+            return jsonify({"error": "Department name is required"}), 400
+        if not code:
+            return jsonify({"error": "Department code is required"}), 400
+
+        # Check for duplicate code (within same branch if branch_id given)
+        existing_query = supabase.table("departments").select("id").eq("code", code)
+        if branch_id:
+            existing_query = existing_query.eq("branch_id", branch_id)
+        existing = existing_query.execute()
+        if existing.data:
+            return jsonify({"error": f"A department with code '{code}' already exists{' in this branch' if branch_id else ''}."}), 409
+
         result = supabase.table("departments").insert({
             "name":      name,
-            "branch_id": None,
+            "code":      code,
+            "branch_id": branch_id,
         }).execute()
         return jsonify(result.data[0]), 200
     except Exception as error:
@@ -725,10 +794,6 @@ def add_department():
 
 @app.route("/users", methods=["GET"])
 def get_users():
-    """
-    Returns all users with id (uuid) and full_name.
-    Used by the frontend employee-selection dropdown.
-    """
     try:
         return jsonify(
             supabase.table("users").select("id, full_name").execute().data
@@ -743,10 +808,6 @@ def get_users():
 
 @app.route("/sync-user", methods=["POST"])
 def sync_user():
-    """
-    Syncs a user from auth into public.users if not already present.
-    Call this on login/session start from the frontend.
-    """
     try:
         data      = request.get_json()
         user_id   = data.get("user_id", "").strip()
