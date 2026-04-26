@@ -29,8 +29,8 @@ export default function HQAdminTrainingPage() {
         const subRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/subordinate-suggestions/${currentUser.employee_id}`);
         const subData = await subRes.json();
         setSubordinateSuggestions((subData.suggestions || []).map((s: any) => ({
-          id: s.suggestion_id, trainingName: s.training_name, justification: s.justification,
-          status: s.status, submittedBy: s.employees?.full_name || "", submittedByRole: s.employees?.role || "",
+          id: s.id, trainingName: s.training_name, justification: s.justification,
+          status: s.status, submittedBy: s.users?.full_name || "", submittedByRole: s.users?.role || "",
         })));
 
       } catch (err) {
