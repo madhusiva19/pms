@@ -2,9 +2,11 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./profile.module.css";
 import Sidebar from "@/components/sidebar/Sidebar";
+import { refresh } from "next/cache";
 
 // ── Types ──────────────────────────────────────────────
 export type Role =
@@ -84,7 +86,7 @@ export default function ProfileTemplate({
 
   const router = useRouter();
   const config = ROLE_CONFIG[role];
-
+  const { refreshBadges } = useAuth();
   const [achievement, setAchievement] = useState("");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
@@ -159,6 +161,7 @@ export default function ProfileTemplate({
       } else {
         setStatus("success");
         setStatusMsg("Achievement submitted for approval ✅");
+        refreshBadges();
         const date = new Date().toISOString().split("T")[0];
         setSelfAchievements((prev) => [
           { id: data.data?.diary_id || Math.random().toString(36).substr(2, 9), date, content: achievement.trim(), status: "pending" },
@@ -215,6 +218,7 @@ export default function ProfileTemplate({
         );
         setStatus("success");
         setStatusMsg("Entry approved successfully ✅");
+        refreshBadges();
       } else {
         setStatus("error");
         setStatusMsg("Failed to approve entry");
@@ -244,6 +248,7 @@ export default function ProfileTemplate({
         );
         setStatus("success");
         setStatusMsg("Entry rejected ❌");
+        refreshBadges();
       } else {
         setStatus("error");
         setStatusMsg("Failed to reject entry");

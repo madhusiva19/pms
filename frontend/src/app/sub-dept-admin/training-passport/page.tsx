@@ -28,15 +28,15 @@ export default function SubDeptAdminTrainingPage() {
         const suggRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions/${currentUser.employee_id}`);
         const suggData = await suggRes.json();
         setSuggestions((suggData.suggestions || []).map((s: any) => ({
-          id: s.suggestion_id, trainingName: s.training_name, justification: s.justification,
+          id: s.id, trainingName: s.training_name, justification: s.justification,
           status: s.status, supervisorComment: s.supervisor_comment || "",
         })));
 
         const subRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/subordinate-suggestions/${currentUser.employee_id}`);
         const subData = await subRes.json();
         setSubordinateSuggestions((subData.suggestions || []).map((s: any) => ({
-          id: s.suggestion_id, trainingName: s.training_name, justification: s.justification,
-          status: s.status, submittedBy: s.employees?.full_name || "", submittedByRole: s.employees?.role || "",
+          id: s.id, trainingName: s.training_name, justification: s.justification,
+          status: s.status, submittedBy: s.users?.full_name || "", submittedByRole: s.users?.role || "",
         })));
 
       } catch (err) {

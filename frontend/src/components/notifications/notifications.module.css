@@ -185,7 +185,8 @@
   white-space: nowrap;
 }
 
-.markAllBtn:hover { background: #F3F4F6; }
+.markAllBtn:hover 
+{ background: #F3F4F6; }
 
 /* ── Tabs ── */
 .tabRow {

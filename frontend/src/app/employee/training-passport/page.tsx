@@ -27,7 +27,7 @@ export default function EmployeeTrainingPage() {
         const suggRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions/${currentUser.employee_id}`);
         const suggData = await suggRes.json();
         setSuggestions((suggData.suggestions || []).map((s: any) => ({
-          id: s.suggestion_id, trainingName: s.training_name, justification: s.justification,
+          id: s.id, trainingName: s.training_name, justification: s.justification,
           status: s.status, supervisorComment: s.supervisor_comment || "",
         })));
 

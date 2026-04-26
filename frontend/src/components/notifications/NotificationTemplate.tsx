@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import styles from "./notifications.module.css";
@@ -55,6 +56,7 @@ const ROLE_CONFIG: Record<Role, { avatarLabel: string; roleLabel: string }> = {
   "Employee":       { avatarLabel: "EM", roleLabel: "employee" },
 };
 
+
 // ── Cutoff status helpers ──────────────────────────────
 function getCutoffStatus(cutoffDate: string): CutoffStatus {
   const today = new Date();
@@ -76,6 +78,7 @@ const STATUS_STYLES: Record<CutoffStatus, { bg: string; border: string; badge: s
 };
 
 // ── Component ──────────────────────────────────────────
+
 export default function NotificationTemplate({
   role,
   sidebarName,
@@ -85,6 +88,7 @@ export default function NotificationTemplate({
 }: NotificationPageProps) {
   const router = useRouter();
   const config = ROLE_CONFIG[role];
+  const { refreshBadges } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"achievements" | "cutoff">("achievements");
   const [achievementList, setAchievementList] = useState<AchievementNotification[]>(achievementNotifications);
@@ -95,12 +99,15 @@ export default function NotificationTemplate({
   const totalUnread        = unreadAchievements + unreadCutoffs;
 
   // ── Mark achievement as read ──
+  console.log("achievementList:", achievementList);
+console.log("unreadAchievements:", unreadAchievements);
   const markAchievementRead = async (id: string) => {
     setAchievementList((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${id}/read`, {
         method: "PATCH",
       });
+      refreshBadges();
     } catch (err) {
       console.error("Failed to mark as read:", err);
     }
@@ -113,10 +120,15 @@ export default function NotificationTemplate({
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${id}/read`, {
         method: "PATCH",
       });
+      refreshBadges();
     } catch (err) {
       console.error("Failed to mark as read:", err);
     }
   };
+
+  // ── Get user from localStorage ──
+const raw = typeof window !== "undefined" ? localStorage.getItem("pms_user") : null;
+const user = raw ? JSON.parse(raw) : null;
 
   // ── Mark all as read ──
   const markAllRead = async () => {
@@ -132,6 +144,7 @@ export default function NotificationTemplate({
           console.error("Failed to mark as read:", err);
         }
       }
+      refreshBadges();
     } else {
       const unread = cutoffList.filter((n) => !n.isRead);
       setCutoffList((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -147,10 +160,7 @@ export default function NotificationTemplate({
     }
   };
 
-  // ── Get user from localStorage ──
-  const raw = typeof window !== "undefined" ? localStorage.getItem("pms_user") : null;
-  const user = raw ? JSON.parse(raw) : null;
-
+  
   return (
     <div className={styles.shell}>
 

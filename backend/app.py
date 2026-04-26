@@ -37,7 +37,7 @@ class SupabaseClient:
 class SupabaseTable:
     def __init__(self, url, headers, table_name):
         self.url = url
-        self.headers = headers
+        self.headers = dict(headers)
         self.table_name = table_name
         self.params = {}
         self.method = "GET"
@@ -75,15 +75,19 @@ class SupabaseTable:
 
     def execute(self):
         url = f"{self.url}/rest/v1/{self.table_name}"
+
+        # Separate filter params from select params
+        filter_params = {k: v for k, v in self.params.items() if k != "select"}
+        all_params    = self.params
+
         if self.method == "GET":
-            res = req.get(url, headers=self.headers, params=self.params)
+            res = req.get(url, headers=self.headers, params=all_params)
         elif self.method == "POST":
             res = req.post(url, headers=self.headers, json=self.body)
         elif self.method == "PATCH":
-            res = req.patch(url, headers=self.headers, params=self.params, json=self.body)
+            res = req.patch(url, headers=self.headers, params=filter_params, json=self.body)
         elif self.method == "DELETE":
-            res = req.delete(url, headers=self.headers, params=self.params)
-
+            res = req.delete(url, headers=self.headers, params=filter_params)
         class Result:
             pass
 
@@ -115,7 +119,7 @@ USERS = {
         "password_hash": generate_password_hash("HQ@123"),
         "role": "HQ Admin",
         "full_name": "HQ Admin User",
-        "employee_id": "00000000-0000-0000-0000-000000000001",
+        "employee_id": "a0000001-0000-0000-0000-000000000001",
         "org_level": 1,
         "iata_branch_code": "HQ"
     },
@@ -123,7 +127,7 @@ USERS = {
         "password_hash": generate_password_hash("Country@123"),
         "role": "Country Admin",
         "full_name": "Country Admin User",
-        "employee_id": "00000000-0000-0000-0000-000000000002",
+        "employee_id": "a0000001-0000-0000-0000-000000000002",
         "org_level": 2,
         "iata_branch_code": "CMB"
     },
@@ -131,7 +135,7 @@ USERS = {
         "password_hash": generate_password_hash("Branch@123"),
         "role": "Branch Admin",
         "full_name": "Branch Admin User",
-        "employee_id": "00000000-0000-0000-0000-000000000003",
+        "employee_id": "a0000001-0000-0000-0000-000000000003",
         "org_level": 3,
         "iata_branch_code": "CMB"
     },
@@ -139,7 +143,7 @@ USERS = {
         "password_hash": generate_password_hash("Dept@123"),
         "role": "Dept Admin",
         "full_name": "Dept Admin User",
-        "employee_id": "00000000-0000-0000-0000-000000000004",
+        "employee_id": "a0000001-0000-0000-0000-000000000004",
         "org_level": 4,
         "iata_branch_code": "CMB"
     },
@@ -147,7 +151,7 @@ USERS = {
         "password_hash": generate_password_hash("Subdept@123"),
         "role": "Sub Dept Admin",
         "full_name": "Sub Dept Admin User",
-        "employee_id": "00000000-0000-0000-0000-000000000005",
+        "employee_id": "a0000001-0000-0000-0000-000000000005",
         "org_level": 5,
         "iata_branch_code": "CMB"
     },
@@ -155,7 +159,7 @@ USERS = {
         "password_hash": generate_password_hash("Emp@123"),
         "role": "Employee",
         "full_name": "Employee User",
-        "employee_id": "00000000-0000-0000-0000-000000000006",
+        "employee_id": "a0000001-0000-0000-0000-000000000006",
         "org_level": 6,
         "iata_branch_code": "CMB"
     },
@@ -670,7 +674,6 @@ def mark_notification_read(notification_id):
         supabase.table("notifications")\
             .update({
                 "is_read": True,
-                "read_at": datetime.now(timezone.utc).isoformat()
             })\
             .eq("id", notification_id)\
             .execute()
@@ -811,14 +814,38 @@ def get_training_suggestions(employee_id):
 @app.get("/api/training/subordinate-suggestions/<supervisor_id>")
 def get_subordinate_suggestions(supervisor_id):
     try:
+        # Get pending suggestions for this supervisor
         result = supabase.table("training_suggestions")\
-            .select("*, users!training_suggestions_employee_id_fkey(full_name, role)")\
+            .select("*")\
             .eq("supervisor_id", supervisor_id)\
             .eq("status", "pending")\
             .order("created_at", desc=True)\
             .execute()
 
-        return jsonify({"suggestions": result.data}), 200
+        # For each suggestion, fetch the employee name separately
+        suggestions = []
+        for s in result.data:
+            employee_id = s.get("employee_id")
+            full_name = ""
+            role = ""
+            if employee_id:
+                user = supabase.table("users")\
+                    .select("full_name, role")\
+                    .eq("id", employee_id)\
+                    .execute()
+                if user.data:
+                    full_name = user.data[0].get("full_name", "")
+                    role      = user.data[0].get("role", "")
+
+            suggestions.append({
+                **s,
+                "users": {
+                    "full_name": full_name,
+                    "role":      role,
+                }
+            })
+
+        return jsonify({"suggestions": suggestions}), 200
 
     except Exception as e:
         return jsonify({"message": str(e)}), 500
@@ -834,20 +861,34 @@ def review_suggestion(suggestion_id):
         return jsonify({"message": "Action must be approved or rejected"}), 400
 
     try:
-        supabase.table("training_suggestions")\
-            .update({
-                "status":             action,
-                "supervisor_comment": comment,
-                "updated_at":         datetime.now(timezone.utc).isoformat()
-            })\
-            .eq("id", suggestion_id)\
-            .execute()
+        # Direct HTTP PATCH to Supabase REST API
+        url = f"{SUPABASE_URL}/rest/v1/training_suggestions"
+        headers = {
+            "apikey":        SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type":  "application/json",
+            "Prefer":        "return=representation"
+        }
+        params = {"id": f"eq.{suggestion_id}"}
+        body   = {
+            "status":             action,
+            "supervisor_comment": comment,
+            "updated_at":         datetime.now(timezone.utc).isoformat()
+        }
 
-        return jsonify({"message": f"Suggestion {action}"}), 200
+        print(f"DEBUG suggestion_id: {suggestion_id}")
+        print(f"DEBUG action: {action}")
+        response = req.patch(url, headers=headers, params=params, json=body)
+        print(f"DEBUG response status: {response.status_code}")
+        print(f"DEBUG response body: {response.text}")
+
+        if response.status_code in (200, 204):
+            return jsonify({"message": f"Suggestion {action}"}), 200
+        else:
+            return jsonify({"message": f"Failed: {response.text}"}), 400
 
     except Exception as e:
         return jsonify({"message": str(e)}), 500
-
 
 # ════════════════════════════════════════════════════════════════════════════
 # DASHBOARD ROUTES

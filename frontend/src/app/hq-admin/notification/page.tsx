@@ -12,7 +12,7 @@ export default function HQNotificationsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const raw = localStorage.getItem("epms_user");
+    const raw = localStorage.getItem("pms_user");
     if (!raw) { router.push("/login"); return; }
     const currentUser = JSON.parse(raw);
     setUser(currentUser);
