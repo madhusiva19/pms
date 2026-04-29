@@ -33,6 +33,7 @@ import {
   metricsApi,
 } from '@/services/api';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
+import { REPORT_YEAR, DEFAULT_RECOMMENDATIONS, OVERALL_TEAM_INSIGHT } from '@/utils/constants';
 
 type DownloadStatus = 'idle' | 'generating' | 'success' | 'failed';
 
@@ -56,14 +57,6 @@ export default function SubDeptAdminReportDetailPage() {
   const [loading, setLoading] = useState(true);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
 
-  const recommendations = [
-    { text: 'Launch targeted coaching programs for the lower 15% to move them out of the 1.0–2.0 band.' },
-    { text: 'Recognize and reward the high-performing 3.5–4.0 group to maintain their momentum.' },
-    { text: 'Introduce leadership development programs to grow the top performer pool beyond 4.5.' },
-    { text: 'Focus mid-level employees in the 3.0–3.5 band on skill development to push them into higher ratings.' },
-  ];
-
-  const overallInsight = 'Year-over-year team performance shows progression. Compare mid-year and year-end scores to identify employees who improved, stayed stable, or need support.';
 
   // Auth guard
   useEffect(() => {
@@ -87,7 +80,7 @@ export default function SubDeptAdminReportDetailPage() {
       .then(async (emps) => {
         const scores = await Promise.all(
           emps.map(async (emp) => {
-            const records = await performanceSummariesApi.getByUser(emp.id, 2026);
+            const records = await performanceSummariesApi.getByUser(emp.id, REPORT_YEAR);
             const midYear = records.find((r: any) => r.period === 'mid_year');
             const yearEnd = records.find((r: any) => r.period === 'year_end');
             return {
@@ -112,14 +105,14 @@ export default function SubDeptAdminReportDetailPage() {
     Promise.all([
       metricsApi.get({
         period_type: 'mid_year',
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'sub_department',
         scope_id: String(user.sub_department_id),
         employee_id: employeeId,
       }),
       metricsApi.get({
         period_type: 'year_end',
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'sub_department',
         scope_id: String(user.sub_department_id),
         employee_id: employeeId,
@@ -139,7 +132,7 @@ export default function SubDeptAdminReportDetailPage() {
   const handleDownload = async () => {
     try {
       setDownloadStatus('generating');
-      const fileName = `${empName}-Performance-2026.pdf`;
+      const fileName = `${empName}-Performance-${REPORT_YEAR}.pdf`;
       await new Promise(resolve => setTimeout(resolve, 800));
       await downloadReportAsPDF('report-content', fileName);
       setDownloadStatus('success');
@@ -216,7 +209,7 @@ export default function SubDeptAdminReportDetailPage() {
                 Performance Reports
               </h1>
               <p className="text-[15px] text-[#4A5565]">
-                {empName} — Mid-Year & Year-End 2026 Analytics
+                {empName} — Mid-Year & Year-End {REPORT_YEAR} Analytics
               </p>
             </div>
 
@@ -308,18 +301,18 @@ export default function SubDeptAdminReportDetailPage() {
               data={teamScores}
               currentEmployeeId={employeeId}
               title="Team Performance Scores"
-              subtitle="Mid-Year & Year-End 2026 — selected employee highlighted"
+              subtitle={`Mid-Year & Year-End ${REPORT_YEAR} — selected employee highlighted`}
             />
           )}
 
           {/* AI Insight strip */}
           <AIInsightCard
-            insight={overallInsight}
+            insight={OVERALL_TEAM_INSIGHT}
             type="info"
           />
 
           {/* Recommendations */}
-          <AIRecommendationsList recommendations={recommendations} />
+          <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
 
         </div>
 
