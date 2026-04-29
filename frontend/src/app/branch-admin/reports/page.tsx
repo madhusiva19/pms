@@ -7,10 +7,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Search, Briefcase } from 'lucide-react';
+import { Briefcase } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import DepartmentCard from '@/components/DepartmentCard';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import Breadcrumb from '@/components/Breadcrumb';
+import SearchInput from '@/components/SearchInput';
+import EmptyState from '@/components/EmptyState';
 import { branchByCodeApi, departmentsApi } from '@/services/api';
 import type { Department } from '@/types';
 
@@ -47,13 +51,7 @@ export default function BranchAdminReportsPage() {
       .finally(() => setLoading(false));
   }, [user?.iata_branch_code, authLoading]);
 
-  if (authLoading || loading) {
-    return (
-      <div className="flex items-center justify-center p-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-      </div>
-    );
-  }
+  if (authLoading || loading) return <LoadingSpinner />;
   if (!user || user.role !== 'branch_admin') return null;
 
   const filtered = departments.filter((d) =>
@@ -65,11 +63,7 @@ export default function BranchAdminReportsPage() {
       <div className="max-w-[1225px] mx-auto w-full flex flex-col gap-8">
 
         {/* Breadcrumb */}
-        <nav className="flex items-center text-[13px] text-[#64748B]">
-          <a href="/branch-admin/dashboard" className="hover:text-[#1E293B] transition-colors">Home</a>
-          <ChevronRight className="w-3.5 h-3.5 mx-1.5" />
-          <span className="text-[#1E293B] font-medium">Reports</span>
-        </nav>
+        <Breadcrumb items={[{ label: 'Home', href: '/branch-admin/dashboard' }, { label: 'Reports' }]} />
 
         {/* Title */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -82,16 +76,7 @@ export default function BranchAdminReportsPage() {
         </div>
 
         {/* Search */}
-        <div className="relative w-full md:w-[320px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
-          <input
-            type="text"
-            placeholder="Search department…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-11 pl-10 pr-4 bg-white border border-[#E2E8F0] rounded-xl text-[14px] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10 focus:border-[#2563EB] transition-all"
-          />
-        </div>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search department…" />
 
         {/* Error state */}
         {error && (
@@ -110,14 +95,10 @@ export default function BranchAdminReportsPage() {
         )}
 
         {!error && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <Briefcase className="w-6 h-6 text-gray-400" />
-            </div>
-            <p className="text-gray-500 font-medium">
-              {search ? `No departments found matching "${search}"` : 'No departments found for your branch'}
-            </p>
-          </div>
+          <EmptyState
+            icon={Briefcase}
+            message={search ? `No departments found matching "${search}"` : 'No departments found for your branch'}
+          />
         )}
 
       </div>

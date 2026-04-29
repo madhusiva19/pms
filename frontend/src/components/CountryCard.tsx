@@ -48,8 +48,6 @@ export default function CountryCard({ country }: CountryCardProps) {
         </div>
       </div>
 
-      {/* Full-width View Reports button at the bottom */}
-
     </div>
   );
 }

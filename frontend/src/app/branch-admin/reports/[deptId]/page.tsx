@@ -39,6 +39,7 @@ import {
 } from '@/services/api';
 import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
+import { REPORT_YEAR } from '@/utils/constants';
 
 import type {
   Branch,
@@ -50,6 +51,19 @@ import type {
 } from '@/types';
 
 type DownloadStatus = 'idle' | 'requesting' | 'generating' | 'success' | 'failed';
+
+const FALLBACK_INSIGHT_MID_YEAR =
+  'Distribution follows a normal curve with slight right skew. Top 18% performers exceed 4.5 rating. Recommend targeted development programs for the lower 15%';
+
+const FALLBACK_INSIGHT_YEAR_END =
+  'Year-end performance shows improvement across all bands. Top performers increased by 37%. Distribution normalized successfully with 21% in exceptional category';
+
+const DEFAULT_RECOMMENDATIONS = [
+  { text: 'Launch targeted coaching programs for the lower 15% to move them out of the 1.0–2.0 band.' },
+  { text: 'Recognize and reward the high-performing 3.5–4.0 group to maintain their momentum.' },
+  { text: 'Introduce leadership development programs to grow the top performer pool beyond 4.5.' },
+  { text: 'Focus mid-level employees in the 3.0–3.5 band on skill development to push them into higher ratings.' },
+];
 
 export default function BranchAdminReportDetailPage() {
   const params = useParams();
@@ -82,13 +96,6 @@ export default function BranchAdminReportDetailPage() {
 
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
 
-  const recommendations = [
-    { text: 'Launch targeted coaching programs for the lower 15% to move them out of the 1.0–2.0 band.' },
-    { text: 'Recognize and reward the high-performing 3.5–4.0 group to maintain their momentum.' },
-    { text: 'Introduce leadership development programs to grow the top performer pool beyond 4.5.' },
-    { text: 'Focus mid-level employees in the 3.0–3.5 band on skill development to push them into higher ratings.' },
-  ];
-
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'branch_admin')) router.push('/');
   }, [user, authLoading, router]);
@@ -118,7 +125,7 @@ export default function BranchAdminReportDetailPage() {
       // Fetch dynamic metrics scoped to this department
       const metricsData = await metricsApi.get({
         period_type: activeTab,
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'department',
         scope_id: deptId,
       });
@@ -127,7 +134,7 @@ export default function BranchAdminReportDetailPage() {
       // Bell curve — always fetch, independent of activeReport
       const bellCurve = await bellCurveApi.getLive({
         period_type: activeTab,
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'department',
         scope_id: deptId,
       });
@@ -140,8 +147,8 @@ export default function BranchAdminReportDetailPage() {
           setInsights(insightsData);
         } else {
           const fallbackInsight = activeTab === 'mid_year'
-            ? 'Distribution follows a normal curve with slight right skew. Top 18% performers exceed 4.5 rating. Recommend targeted development programs for the lower 15%'
-            : 'Year-end performance shows improvement across all bands. Top performers increased by 37%. Distribution normalized successfully with 21% in exceptional category';
+            ? FALLBACK_INSIGHT_MID_YEAR
+            : FALLBACK_INSIGHT_YEAR_END;
           setInsights([{
             id: 'fallback-insight',
             report_id: activeReport.id,
@@ -154,7 +161,7 @@ export default function BranchAdminReportDetailPage() {
 
       // Comparison — always fetch live data for both periods
       const comparison = await comparisonLiveApi.get({
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'department',
         scope_id: deptId,
       });
@@ -183,7 +190,7 @@ export default function BranchAdminReportDetailPage() {
         console.warn('⚠️ Failed to log report request:', logErr);
       }
       setDownloadStatus('generating');
-      const fileName = `${deptName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-2026.pdf`;
+      const fileName = `${deptName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
       await new Promise(resolve => setTimeout(resolve, 800));
       await downloadReportAsPDF('report-content', fileName);
       setDownloadStatus('success');
@@ -366,7 +373,7 @@ export default function BranchAdminReportDetailPage() {
           {bellCurveData.length > 0 && (
             <BellCurveChart
               data={bellCurveData as any}
-              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year 2026' : 'Year-End 2026'}`}
+              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${REPORT_YEAR}`}
               subtitle={
                 activeTab === 'mid_year'
                   ? 'Performance rating distribution with normalization'
@@ -390,19 +397,19 @@ export default function BranchAdminReportDetailPage() {
 
           {/* Recommendations (mid-year only) */}
           {activeTab === 'mid_year' && (
-            <AIRecommendationsList recommendations={recommendations} />
+            <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
           )}
 
-         {/* Comparison chart — always shown when data available */}
-                   {activeTab === 'year_end' && comparisonData.length > 0 && (
-                     <ComparisonChart
-                       data={comparisonData as any}
-                       title="Mid-Year vs Year-End Comparison"
-                       subtitle="Performance progression across categories"
-                     />
-                   )}
-                   
-         
+          {/* Comparison chart — shown for year-end when data available */}
+          {activeTab === 'year_end' && comparisonData.length > 0 && (
+            <ComparisonChart
+              data={comparisonData as any}
+              title="Mid-Year vs Year-End Comparison"
+              subtitle="Performance progression across categories"
+            />
+          )}
+
+
 
         </div>
 

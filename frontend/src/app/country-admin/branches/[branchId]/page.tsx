@@ -39,6 +39,12 @@ import {
 import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
 import { useAuth } from '@/lib/auth-context';
+import {
+  REPORT_YEAR,
+  DEFAULT_RECOMMENDATIONS,
+  FALLBACK_INSIGHT_MID_YEAR,
+  FALLBACK_INSIGHT_YEAR_END,
+} from '@/utils/constants';
 
 import type {
   BranchDashboardSummary,
@@ -77,12 +83,6 @@ export default function BranchReportPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createReportSuccess, setCreateReportSuccess] = useState(false);
 
-  const recommendations = [
-    { text: 'Launch targeted coaching programs for the lower 15% to move them out of the 1.0–2.0 band.' },
-    { text: 'Recognize and reward the high-performing 3.5–4.0 group to maintain their momentum.' },
-    { text: 'Introduce leadership development programs to grow the top performer pool beyond 4.5.' },
-    { text: 'Focus mid-level employees in the 3.0–3.5 band on skill development to push them into higher ratings.' },
-  ];
 
   // Security check: verify user is country_admin
   useEffect(() => {
@@ -125,7 +125,7 @@ export default function BranchReportPage() {
       // Fetch live bell curve from performance_summaries — independent of activeReport
       const bellCurve = await bellCurveApi.getLive({
         period_type: activeTab,
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'branch',
         scope_id: branchId,
       });
@@ -135,7 +135,7 @@ export default function BranchReportPage() {
       // Fetch dynamic metrics for the branch
       const metricsData = await metricsApi.get({
         period_type: activeTab,
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'branch',
         scope_id: branchId,
       });
@@ -150,8 +150,8 @@ export default function BranchReportPage() {
         } else {
           // Fallback AI insight when database has no records
           const fallbackInsight = activeTab === 'mid_year'
-            ? 'Distribution follows a normal curve with slight right skew. Top 18% performers exceed 4.5 rating. Recommend targeted development programs for the lower 15%'
-            : 'Year-end performance shows improvement across all bands. Top performers increased by 37%. Distribution normalized successfully with 21% in exceptional category';
+            ? FALLBACK_INSIGHT_MID_YEAR
+            : FALLBACK_INSIGHT_YEAR_END;
           setInsights([{
             id: 'fallback-insight',
             report_id: activeReport.id,
@@ -165,7 +165,7 @@ export default function BranchReportPage() {
       }
 
       const comparison = await comparisonLiveApi.get({
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'branch',
         scope_id: branchId,
       });
@@ -209,7 +209,7 @@ export default function BranchReportPage() {
       }
 
       setDownloadStatus('generating');
-      const fileName = `${branch.name}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-2026.pdf`;
+      const fileName = `${branch.name}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
 
       console.log('📥 Generating PDF:', fileName);
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -442,8 +442,7 @@ export default function BranchReportPage() {
           {bellCurveData.length > 0 && (
             <BellCurveChart
               data={bellCurveData}
-              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year 2026' : 'Year-End 2026'
-                }`}
+              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${REPORT_YEAR}`}
               subtitle={
                 activeTab === 'mid_year'
                   ? 'Performance rating distribution with normalization'
@@ -467,7 +466,7 @@ export default function BranchReportPage() {
 
           {/* Recommendations (mid-year only) */}
           {activeTab === 'mid_year' && (
-            <AIRecommendationsList recommendations={recommendations} />
+            <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
           )}
 
 

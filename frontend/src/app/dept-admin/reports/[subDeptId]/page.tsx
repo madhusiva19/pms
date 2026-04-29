@@ -39,6 +39,12 @@ import {
 } from '@/services/api';
 import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
+import {
+  REPORT_YEAR,
+  DEFAULT_RECOMMENDATIONS,
+  FALLBACK_INSIGHT_MID_YEAR,
+  FALLBACK_INSIGHT_YEAR_END,
+} from '@/utils/constants';
 
 import type {
   Branch,
@@ -82,12 +88,6 @@ export default function DeptAdminReportDetailPage() {
 
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
 
-  const recommendations = [
-    { text: 'Launch targeted coaching programs for the lower 15% to move them out of the 1.0–2.0 band.' },
-    { text: 'Recognize and reward the high-performing 3.5–4.0 group to maintain their momentum.' },
-    { text: 'Introduce leadership development programs to grow the top performer pool beyond 4.5.' },
-    { text: 'Focus mid-level employees in the 3.0–3.5 band on skill development to push them into higher ratings.' },
-  ];
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'dept_admin')) router.push('/');
@@ -118,7 +118,7 @@ export default function DeptAdminReportDetailPage() {
       // Fetch dynamic metrics scoped to this sub-department
       const metricsData = await metricsApi.get({
         period_type: activeTab,
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'sub_department',
         scope_id: subDeptId,
       });
@@ -127,7 +127,7 @@ export default function DeptAdminReportDetailPage() {
       // Bell curve — always fetch, independent of activeReport
       const bellCurve = await bellCurveApi.getLive({
         period_type: activeTab,
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'sub_department',
         scope_id: subDeptId,
       });
@@ -140,8 +140,8 @@ export default function DeptAdminReportDetailPage() {
           setInsights(insightsData);
         } else {
           const fallbackInsight = activeTab === 'mid_year'
-            ? 'Distribution follows a normal curve with slight right skew. Top 18% performers exceed 4.5 rating. Recommend targeted development programs for the lower 15%'
-            : 'Year-end performance shows improvement across all bands. Top performers increased by 37%. Distribution normalized successfully with 21% in exceptional category';
+            ? FALLBACK_INSIGHT_MID_YEAR
+            : FALLBACK_INSIGHT_YEAR_END;
           setInsights([{
             id: 'fallback-insight',
             report_id: activeReport.id,
@@ -154,7 +154,7 @@ export default function DeptAdminReportDetailPage() {
 
       // Comparison — always fetch live data for both periods
       const comparison = await comparisonLiveApi.get({
-        year: 2026,
+        year: REPORT_YEAR,
         scope: 'sub_department',
         scope_id: subDeptId,
       });
@@ -183,7 +183,7 @@ export default function DeptAdminReportDetailPage() {
         console.warn('⚠️ Failed to log report request:', logErr);
       }
       setDownloadStatus('generating');
-      const fileName = `${teamName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-2026.pdf`;
+      const fileName = `${teamName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
       await new Promise(resolve => setTimeout(resolve, 800));
       await downloadReportAsPDF('report-content', fileName);
       setDownloadStatus('success');
@@ -367,7 +367,7 @@ export default function DeptAdminReportDetailPage() {
           {bellCurveData.length > 0 && (
             <BellCurveChart
               data={bellCurveData as any}
-              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year 2026' : 'Year-End 2026'}`}
+              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${REPORT_YEAR}`}
               subtitle={
                 activeTab === 'mid_year'
                   ? 'Performance rating distribution with normalization'
@@ -391,19 +391,19 @@ export default function DeptAdminReportDetailPage() {
 
           {/* Recommendations (mid-year only) */}
           {activeTab === 'mid_year' && (
-            <AIRecommendationsList recommendations={recommendations} />
+            <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
           )}
 
-           {/* Comparison chart — always shown when data available */}
-                    {activeTab === 'year_end' && comparisonData.length > 0 && (
-                      <ComparisonChart
-                        data={comparisonData as any}
-                        title="Mid-Year vs Year-End Comparison"
-                        subtitle="Performance progression across categories"
-                      />
-                    )}
-                    
-          
+          {/* Comparison chart — shown for year-end when data available */}
+          {activeTab === 'year_end' && comparisonData.length > 0 && (
+            <ComparisonChart
+              data={comparisonData as any}
+              title="Mid-Year vs Year-End Comparison"
+              subtitle="Performance progression across categories"
+            />
+          )}
+
+
 
         </div>
 

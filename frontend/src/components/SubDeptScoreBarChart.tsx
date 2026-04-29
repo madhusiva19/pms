@@ -12,6 +12,7 @@ import {
   Legend,
   Cell,
 } from 'recharts';
+import { serialize } from 'v8';
 
 export interface TeamScoreEntry {
   employeeId: string;
@@ -53,13 +54,13 @@ export default function SubDeptScoreBarChart({
 
       {/* Chart */}
       <div className="px-6 pt-4 pb-5">
-        <div style={{ height: 380, width: '100%' }}>
+        <div style={{ height: 380, width: '80%' }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={chartData}
               margin={{ top: 8, right: 8, left: 0, bottom: 30 }}
-              barGap={4}              // small gap between H1 and H2 bars for same employee
-              barCategoryGap="20%"    // larger gap between different employees
+              barGap={3}              // small gap between H1 and H2 bars for same employee
+              barCategoryGap="0.5"    // larger gap between different employees
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
               <XAxis
@@ -86,7 +87,7 @@ export default function SubDeptScoreBarChart({
                   borderRadius: '8px',
                   fontSize: '13px',
                 }}
-                cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+                cursor={{ fill: 'rgba(0,0,0,0.04)' } }
                 labelFormatter={(label, payload) => {
                   const item: any = payload?.[0]?.payload;
                   return item?.fullName ?? label;
@@ -97,7 +98,7 @@ export default function SubDeptScoreBarChart({
               />
 
               {/* Mid-Year bar */}
-              <Bar dataKey="midYear" name="Mid-Year" radius={[3, 3, 0, 0]}>
+              <Bar dataKey="midYear" name="Mid-Year" radius={[3, 3, 0, 0]} barSize={30}>
                 {chartData.map((entry, index) => (
                   <Cell
                     key={`mid-${index}`}
@@ -107,7 +108,7 @@ export default function SubDeptScoreBarChart({
               </Bar>
 
               {/* Year-End bar */}
-              <Bar dataKey="yearEnd" name="Year-End" radius={[3, 3, 0, 0]}>
+              <Bar dataKey="yearEnd" name="Year-End" radius={[3, 3, 0, 0]} barSize={30}>
                 {chartData.map((entry, index) => (
                   <Cell
                     key={`end-${index}`}
