@@ -1,5 +1,5 @@
 """
-app.py — PMS Template Management Backend
+app.py — PMS Template Management Backend 
 
 """
 
@@ -8,26 +8,20 @@ from flask_cors import CORS
 from supabase import create_client, Client
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
+import os
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 CORS(app)
 
 # ── Supabase credentials ──────────────────────────────────────────────────────
-import os
-from dotenv import load_dotenv
-from supabase import create_client, Client
-
-# Load env file
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-# Create client (only once)
-
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ── Freeze constants (mirror lib/freezeConfig.ts exactly) ────────────────────
+# ── Freeze constants ──────────────────────────────────────────────────────────
 OBJECTIVE_SETTING_MONTHS = 12
 GRACE_PERIOD_DAYS        = 15
 PMS_START_MONTH          = 7
@@ -36,10 +30,25 @@ DEFAULT_MAX_SCORE        = 5
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STARTUP SYNC
+# STARTUP SYNC  ← FIXED
+#
+# Old behaviour: always overwrote DB dates with constants on every startup.
+# New behaviour:
+#   1. If the active cycle already has objective_setting_end / grace_period_end
+#      in the DB → those are HQ Admin's edited dates, NEVER overwrite them.
+#   2. If the active cycle is missing those dates (e.g. newly created row) →
+#      calculate from constants and save them once.
+#   3. If there is NO active cycle at all → create one from constants.
+#   4. If the active cycle's PMS year has ended (grace_end has passed) →
+#      auto-create next year's cycle using the SAME date offsets that HQ Admin
+#      set (i.e. derive the gap/duration from the old cycle, not from constants).
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sync_cycle_dates_from_constants() -> None:
+    """
+    Called once at startup. Ensures an active PMS cycle exists with valid dates.
+    Never overwrites dates that were explicitly edited by HQ Admin.
+    """
     try:
         result = (
             supabase.table("pms_cycles")
@@ -50,13 +59,31 @@ def sync_cycle_dates_from_constants() -> None:
             .execute()
         )
 
+        # ── No active cycle at all → create one from constants ────────────
         if not result.data:
-            print("⚠️  sync_cycle_dates_from_constants: no active cycle found — skipping.")
+            _create_cycle_from_constants()
             return
 
-        cycle     = result.data[0]
-        pms_start = datetime.fromisoformat(cycle["pms_start"]).date()
+        cycle = result.data[0]
 
+        # ── Active cycle exists — check if dates are already set ──────────
+        has_objective_end = bool(cycle.get("objective_setting_end"))
+        has_grace_end     = bool(cycle.get("grace_period_end"))
+
+        if has_objective_end and has_grace_end:
+            # Dates already exist (either from constants or HQ Admin edits)
+            # DO NOT overwrite — respect whatever is in the DB
+            print(
+                f"✅ sync: cycle {cycle['pms_year']} already has dates "
+                f"(objective_end={cycle['objective_setting_end']}, "
+                f"grace_end={cycle['grace_period_end']}) — skipping overwrite."
+            )
+            # But still check if this cycle has expired and we need to roll over
+            _maybe_rollover_cycle(cycle)
+            return
+
+        # ── Dates are missing → fill them in from constants (first-time setup) ─
+        pms_start     = datetime.fromisoformat(cycle["pms_start"]).date()
         objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
         grace_end     = objective_end + timedelta(days=GRACE_PERIOD_DAYS)
 
@@ -66,12 +93,105 @@ def sync_cycle_dates_from_constants() -> None:
         }).eq("id", cycle["id"]).execute()
 
         print(
-            f"✅ sync_cycle_dates_from_constants: cycle {cycle['pms_year']} updated → "
-            f"objective_end={objective_end}, grace_end={grace_end}"
+            f"✅ sync: filled missing dates for cycle {cycle['pms_year']} "
+            f"→ objective_end={objective_end}, grace_end={grace_end}"
         )
+
+        _maybe_rollover_cycle({**cycle, "objective_setting_end": objective_end.isoformat(), "grace_period_end": grace_end.isoformat()})
 
     except Exception as error:
         print(f"❌ sync_cycle_dates_from_constants failed: {error}")
+
+
+def _create_cycle_from_constants() -> None:
+    """Creates a fresh active PMS cycle using the hard-coded constants."""
+    today     = date.today()
+    year      = today.year
+    pms_start = date(year, PMS_START_MONTH, PMS_START_DAY)
+    if today < pms_start:
+        pms_start = date(year - 1, PMS_START_MONTH, PMS_START_DAY)
+
+    objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
+    grace_end     = objective_end + timedelta(days=GRACE_PERIOD_DAYS)
+
+    supabase.table("pms_cycles").insert({
+        "pms_year":              pms_start.year,
+        "pms_start":             pms_start.isoformat(),
+        "objective_setting_end": objective_end.isoformat(),
+        "grace_period_end":      grace_end.isoformat(),
+        "is_active":             True,
+        "created_at":            datetime.now().isoformat(),
+    }).execute()
+
+    print(f"✅ sync: created new cycle {pms_start.year} from constants.")
+
+
+def _maybe_rollover_cycle(cycle: dict) -> None:
+    """
+    If the active cycle's grace period has ended, automatically create the
+    next year's cycle using the SAME date offsets that HQ Admin configured
+    (not the hard-coded constants), so edited patterns carry forward.
+    """
+    try:
+        grace_end_str = cycle.get("grace_period_end") or cycle.get("grace_end")
+        if not grace_end_str:
+            return
+
+        grace_end = datetime.fromisoformat(grace_end_str).date()
+        today     = date.today()
+
+        if today <= grace_end:
+            # Cycle is still active — nothing to do
+            return
+
+        # ── Cycle has expired → derive offsets from HQ Admin's edited dates ─
+        pms_start     = datetime.fromisoformat(cycle["pms_start"]).date()
+        objective_end = datetime.fromisoformat(cycle["objective_setting_end"]).date()
+
+        # Calculate the actual durations HQ Admin set (may differ from constants)
+        objective_duration_months = (
+            (objective_end.year - pms_start.year) * 12
+            + (objective_end.month - pms_start.month)
+        )
+        grace_duration_days = (grace_end - objective_end).days
+
+        # Next cycle starts exactly one year after the old pms_start
+        next_pms_start     = date(pms_start.year + 1, pms_start.month, pms_start.day)
+        next_objective_end = next_pms_start + relativedelta(months=objective_duration_months)
+        next_grace_end     = next_objective_end + timedelta(days=grace_duration_days)
+
+        # Check if next cycle already exists
+        existing = (
+            supabase.table("pms_cycles")
+            .select("id")
+            .eq("pms_year", next_pms_start.year)
+            .execute()
+        )
+        if existing.data:
+            print(f"✅ rollover: cycle {next_pms_start.year} already exists — skipping.")
+            return
+
+        # Deactivate old cycle and create the new one
+        supabase.table("pms_cycles").update({"is_active": False}).eq("id", cycle["id"]).execute()
+
+        supabase.table("pms_cycles").insert({
+            "pms_year":              next_pms_start.year,
+            "pms_start":             next_pms_start.isoformat(),
+            "objective_setting_end": next_objective_end.isoformat(),
+            "grace_period_end":      next_grace_end.isoformat(),
+            "is_active":             True,
+            "created_at":            datetime.now().isoformat(),
+        }).execute()
+
+        print(
+            f"✅ rollover: auto-created cycle {next_pms_start.year} "
+            f"using HQ Admin's offsets "
+            f"({objective_duration_months}m objective window, {grace_duration_days}d grace) "
+            f"→ objective_end={next_objective_end}, grace_end={next_grace_end}"
+        )
+
+    except Exception as error:
+        print(f"❌ _maybe_rollover_cycle failed: {error}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -185,6 +305,7 @@ def get_active_pms_cycle_route():
                 "pms_start":          dates["pms_start"].isoformat(),
                 "objective_end":      dates["objective_end"].isoformat(),
                 "grace_end":          dates["grace_end"].isoformat(),
+                "objective_setting_end": dates["objective_end"].isoformat(),
                 "grace_period_end":   dates["grace_end"].isoformat(),
                 "mid_year_review":    None,
                 "year_end_review":    None,
@@ -196,11 +317,12 @@ def get_active_pms_cycle_route():
         dates = compute_freeze_dates_from_cycle(cycle)
         return jsonify({
             **cycle,
-            "objective_end":    dates["objective_end"].isoformat(),
-            "grace_end":        dates["grace_end"].isoformat(),
-            "grace_period_end": dates["grace_end"].isoformat(),
-            "freeze_status":    get_freeze_status(),
-            "source":           "database",
+            "objective_end":         dates["objective_end"].isoformat(),
+            "grace_end":             dates["grace_end"].isoformat(),
+            "objective_setting_end": dates["objective_end"].isoformat(),
+            "grace_period_end":      dates["grace_end"].isoformat(),
+            "freeze_status":         get_freeze_status(),
+            "source":                "database",
         }), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
@@ -325,18 +447,11 @@ def open_next_pms_cycle():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# BRANCHES ROUTE  ← NEW
+# BRANCHES ROUTE
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route("/branches", methods=["GET"])
 def get_branches():
-    """
-    Returns all branches.
-    Expected branches table columns:
-      id (uuid), code (varchar), name (varchar), country_id (uuid FK to countries),
-      created_at
-    Falls back gracefully if the table doesn't exist yet.
-    """
     try:
         result = (
             supabase.table("branches")
@@ -347,7 +462,6 @@ def get_branches():
         if result.data:
             return jsonify(result.data), 200
 
-        # Fallback: derive unique branch stubs from the departments table
         depts = supabase.table("departments").select("branch_id").execute().data
         unique_branch_ids = list(set(
             d["branch_id"] for d in depts if d.get("branch_id")
@@ -363,11 +477,6 @@ def get_branches():
 
 @app.route("/branches", methods=["POST"])
 def create_branch():
-    """
-    Creates a new branch.
-    Required: code, name
-    Optional: country_id
-    """
     try:
         data       = request.get_json()
         code       = data.get("code", "").strip().upper()
@@ -379,7 +488,6 @@ def create_branch():
         if not name:
             return jsonify({"error": "Branch name is required"}), 400
 
-        # Duplicate code check
         existing = supabase.table("branches").select("id").eq("code", code).execute()
         if existing.data:
             return jsonify({"error": f"A branch with code '{code}' already exists."}), 409
@@ -431,44 +539,57 @@ def save_template():
 @app.route("/templates", methods=["GET"])
 def get_templates():
     try:
-        templates   = supabase.table("templates").select("*").execute().data
-        mapping     = supabase.table("template_assignments").select("*").execute().data
-        roles       = supabase.table("roles").select("*").execute().data
-        departments = supabase.table("departments").select("*").execute().data
-        users       = supabase.table("users").select("id, full_name").execute().data
+        templates    = supabase.table("templates").select("*").execute().data
+        mapping      = supabase.table("template_assignments").select("*").execute().data
+        designations = supabase.table("designations").select("*").execute().data
+        departments  = supabase.table("departments").select("*").execute().data
+        branches     = supabase.table("branches").select("id, code, name").execute().data
+        users        = supabase.table("users").select("id, full_name").execute().data
 
         for template in templates:
             if "template_content" in template:
                 template["categories"] = template.pop("template_content")
 
             t_id = template["id"]
+            t_assignments = [m for m in mapping if m["template_id"] == t_id]
 
-            assigned_role_ids = list(set([
-                m["role_id"] for m in mapping
-                if m["template_id"] == t_id and m.get("role_id")
-            ]))
-            assigned_dept_ids = list(set([
-                m["department_id"] for m in mapping
-                if m["template_id"] == t_id and m.get("department_id")
-            ]))
-            assigned_user_ids = list(set([
-                m["user_id"] for m in mapping
-                if m["template_id"] == t_id and m.get("user_id")
-            ]))
+            assigned_designation_ids = list(set(
+                m["designation_id"] for m in t_assignments if m.get("designation_id")
+            ))
+            assigned_dept_ids = list(set(
+                str(m["department_id"]) for m in t_assignments if m.get("department_id")
+            ))
+            assigned_branch_ids = list(set(
+                str(m["branch_id"]) for m in t_assignments if m.get("branch_id")
+            ))
+            assigned_user_ids = list(set(
+                str(m["user_id"]) for m in t_assignments if m.get("user_id")
+            ))
 
-            template["assignedRoles"]          = [r["name"] for r in roles if r["id"] in assigned_role_ids]
-            template["assignedRolesIds"]       = assigned_role_ids
-            # ── Return full department objects (with code + branch_id) so frontend can display them properly
-            template["assignedDepartments"]    = [
-                {"id": d["id"], "name": d["name"], "code": d.get("code"), "branch_id": d.get("branch_id")}
-                for d in departments if d["id"] in assigned_dept_ids
+            template["assignedDesignations"]     = [r["name"] for r in designations if r["id"] in assigned_designation_ids]
+            template["assignedDesignationIds"]   = assigned_designation_ids
+            template["assignedDepartments"]      = [
+                {"id": str(d["id"]), "name": d["name"], "code": d.get("code"), "branch_id": str(d["branch_id"]) if d.get("branch_id") else None}
+                for d in departments if str(d["id"]) in assigned_dept_ids
             ]
-            template["assignedDepartmentNames"] = [d["name"] for d in departments if d["id"] in assigned_dept_ids]
-            template["assignedDepartmentsIds"] = assigned_dept_ids
-            template["assignedEmployees"]      = [
-                u["full_name"] for u in users if u["id"] in assigned_user_ids
+            template["assignedDepartmentNames"]  = [d["name"] for d in departments if str(d["id"]) in assigned_dept_ids]
+            template["assignedDepartmentsIds"]   = assigned_dept_ids
+            template["assignedBranches"]         = [
+                {"id": str(b["id"]), "name": b["name"], "code": b.get("code")}
+                for b in branches if str(b["id"]) in assigned_branch_ids
             ]
-            template["assignedEmployeeIds"]    = assigned_user_ids
+            template["assignedBranchIds"]        = assigned_branch_ids
+            template["assignedEmployees"]        = [u["full_name"] for u in users if str(u["id"]) in assigned_user_ids]
+            template["assignedEmployeeIds"]      = assigned_user_ids
+            template["assignedRules"]            = [
+                {
+                    "designation_id": m.get("designation_id"),
+                    "department_id":  str(m["department_id"]) if m.get("department_id") else None,
+                    "branch_id":      str(m["branch_id"])     if m.get("branch_id")     else None,
+                    "user_id":        str(m["user_id"])       if m.get("user_id")       else None,
+                }
+                for m in t_assignments
+            ]
 
             if template.get("max_score") is None:
                 template["max_score"] = DEFAULT_MAX_SCORE
@@ -541,16 +662,11 @@ def delete_template(template_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MY-TEMPLATES ROUTE (Employee / User view)
+# MY-TEMPLATES ROUTE
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route("/my-templates", methods=["GET"])
 def get_my_templates():
-    """
-    Returns templates assigned to the requesting user.
-    Lookup priority: direct user assignment → role → department.
-    Query param: user_id (uuid string) — the users.id value.
-    """
     try:
         user_id_param = request.args.get("user_id", "").strip()
         if not user_id_param:
@@ -558,48 +674,57 @@ def get_my_templates():
 
         user_result = (
             supabase.table("users")
-            .select("id, full_name, role_id, department_id")
+            .select("id, full_name, designation_id, department_id, branch_id")
             .eq("id", user_id_param)
             .execute()
         )
 
         if not user_result.data:
-            return jsonify({
-                "error": f"No user found with id '{user_id_param}'."
-            }), 404
+            return jsonify({"error": f"No user found with id '{user_id_param}'."}), 404
 
-        user          = user_result.data[0]
-        user_pk       = user["id"]
-        role_id       = user.get("role_id")
-        department_id = user.get("department_id")
+        user = user_result.data[0]
+        user_pk        = str(user["id"])
+        designation_id = int(user["designation_id"]) if user.get("designation_id") else None
+        department_id  = str(user["department_id"])  if user.get("department_id")  else None
+        branch_id      = str(user["branch_id"])      if user.get("branch_id")      else None
 
         all_assignments = supabase.table("template_assignments").select("*").execute().data
-
         matched_template_ids: set = set()
-        for assignment in all_assignments:
-            if assignment.get("user_id") == user_pk:
-                matched_template_ids.add(assignment["template_id"])
+
+        for a in all_assignments:
+            if a.get("user_id") and str(a["user_id"]) == user_pk:
+                matched_template_ids.add(a["template_id"])
                 continue
-            if role_id and assignment.get("role_id") == role_id:
-                matched_template_ids.add(assignment["template_id"])
+
+            rule_desig  = int(a["designation_id"]) if a.get("designation_id") else None
+            rule_dept   = str(a["department_id"])  if a.get("department_id")  else None
+            rule_branch = str(a["branch_id"])      if a.get("branch_id")      else None
+
+            if rule_desig is None and rule_dept is None and rule_branch is None:
                 continue
-            if department_id and assignment.get("department_id") == department_id:
-                matched_template_ids.add(assignment["template_id"])
-                continue
+
+            designation_ok = (rule_desig  is None) or (designation_id is not None and rule_desig  == designation_id)
+            dept_ok        = (rule_dept   is None) or (department_id  is not None and rule_dept   == department_id)
+            branch_ok      = (rule_branch is None) or (branch_id      is not None and rule_branch == branch_id)
+
+            if designation_ok and dept_ok and branch_ok:
+                matched_template_ids.add(a["template_id"])
 
         if not matched_template_ids:
             return jsonify([]), 200
 
         all_templates = supabase.table("templates").select("*").execute().data
-
-        my_templates = []
+        my_templates  = []
         for t in all_templates:
             if t["id"] in matched_template_ids:
                 if "template_content" in t:
                     t["categories"] = t.pop("template_content")
+                if t.get("max_score") is None:
+                    t["max_score"] = DEFAULT_MAX_SCORE
                 my_templates.append(t)
 
         return jsonify(my_templates), 200
+
     except Exception as error:
         return jsonify({"error": str(error)}), 400
 
@@ -620,86 +745,71 @@ def _do_assign_template():
         if not template_id:
             return jsonify({"error": "template_id is required"}), 400
 
-        role_ids = data.get("role_ids") or []
-        dept_ids = data.get("department_ids") or []
-
-        raw_user_ids: list = []
-        if data.get("user_ids"):
-            raw_user_ids = [str(u).strip() for u in data["user_ids"] if str(u).strip()]
-        elif data.get("user_id") and str(data.get("user_id", "")).strip():
-            raw_user_ids = [str(data["user_id"]).strip()]
-
-        if not raw_user_ids and not role_ids and not dept_ids:
-            # Allow saving template with no assignments — just clear existing
-            supabase.table("template_assignments").delete().eq("template_id", template_id).execute()
-            return jsonify({"message": "Template assignments cleared.", "rows_inserted": 0}), 200
-
-        resolved_user_ids: list = []
-        for candidate in raw_user_ids:
-            user_result = (
-                supabase.table("users")
-                .select("id")
-                .eq("id", candidate)
-                .execute()
-            )
-            if not user_result.data:
-                return jsonify({
-                    "error": (
-                        f"User with id '{candidate}' not found. "
-                        "Make sure the uuid matches what is stored in the users table."
-                    )
-                }), 404
-            resolved_user_ids.append(user_result.data[0]["id"])
-
         supabase.table("template_assignments").delete().eq("template_id", template_id).execute()
 
         assign_rows: list = []
 
-        for uid in resolved_user_ids:
-            assign_rows.append({
-                "template_id":   template_id,
-                "user_id":       uid,
-                "role_id":       None,
-                "department_id": None,
-            })
+        if data.get("rules"):
+            for rule in data["rules"]:
+                row: dict = {"template_id": template_id}
+                if rule.get("user_id"):
+                    uid = str(rule["user_id"]).strip()
+                    u   = supabase.table("users").select("id").eq("id", uid).execute()
+                    if not u.data:
+                        return jsonify({"error": f"User '{uid}' not found."}), 404
+                    row = {"template_id": template_id, "user_id": uid, "designation_id": None, "department_id": None, "branch_id": None}
+                else:
+                    row = {
+                        "template_id":    template_id,
+                        "user_id":        None,
+                        "designation_id": rule.get("designation_id") or None,
+                        "department_id":  rule.get("department_id")  or None,
+                        "branch_id":      rule.get("branch_id")      or None,
+                    }
+                if all(row.get(k) is None for k in ("user_id", "designation_id", "department_id", "branch_id")):
+                    continue
+                assign_rows.append(row)
+        else:
+            designation_ids = data.get("designation_ids") or []
+            dept_ids        = [str(d) for d in (data.get("department_ids") or []) if d]
+            raw_user        = str(data.get("user_id", "")).strip()
 
-        for role_id in role_ids:
-            assign_rows.append({
-                "template_id":   template_id,
-                "role_id":       role_id,
-                "user_id":       None,
-                "department_id": None,
-            })
+            if raw_user:
+                u = supabase.table("users").select("id").eq("id", raw_user).execute()
+                if not u.data:
+                    return jsonify({"error": f"User '{raw_user}' not found."}), 404
+                assign_rows.append({"template_id": template_id, "user_id": raw_user, "designation_id": None, "department_id": None, "branch_id": None})
 
-        for dept_id in dept_ids:
-            assign_rows.append({
-                "template_id":   template_id,
-                "department_id": dept_id,
-                "user_id":       None,
-                "role_id":       None,
-            })
+            if not designation_ids and not dept_ids:
+                return jsonify({"message": "Template assignments cleared.", "rows_inserted": 0}), 200
 
-        for role_id in role_ids:
-            for dept_id in dept_ids:
-                assign_rows.append({
-                    "template_id":   template_id,
-                    "role_id":       role_id,
-                    "department_id": dept_id,
-                    "user_id":       None,
-                })
+            dept_branch_map: dict = {}
+            if dept_ids:
+                dept_rows = supabase.table("departments").select("id, branch_id").in_("id", dept_ids).execute().data
+                for dr in dept_rows:
+                    dept_branch_map[str(dr["id"])] = str(dr["branch_id"]) if dr.get("branch_id") else None
+
+            if dept_ids and designation_ids:
+                for desig_id in designation_ids:
+                    for did in dept_ids:
+                        assign_rows.append({"template_id": template_id, "designation_id": desig_id, "department_id": did, "branch_id": dept_branch_map.get(did), "user_id": None})
+            elif designation_ids:
+                for desig_id in designation_ids:
+                    assign_rows.append({"template_id": template_id, "designation_id": desig_id, "department_id": None, "branch_id": None, "user_id": None})
+            elif dept_ids:
+                for did in dept_ids:
+                    assign_rows.append({"template_id": template_id, "designation_id": None, "department_id": did, "branch_id": dept_branch_map.get(did), "user_id": None})
 
         if assign_rows:
             supabase.table("template_assignments").insert(assign_rows).execute()
 
-        summary_parts = []
-        if resolved_user_ids: summary_parts.append(f"{len(resolved_user_ids)} user(s)")
-        if role_ids:           summary_parts.append(f"{len(role_ids)} role(s)")
-        if dept_ids:           summary_parts.append(f"{len(dept_ids)} department(s)")
+        direct_users = sum(1 for r in assign_rows if r.get("user_id"))
+        rule_rows    = len(assign_rows) - direct_users
+        parts        = []
+        if direct_users: parts.append(f"{direct_users} direct user(s)")
+        if rule_rows:    parts.append(f"{rule_rows} designation/dept rule(s)")
 
-        return jsonify({
-            "message":       f"Template assigned successfully to {', '.join(summary_parts)}.",
-            "rows_inserted": len(assign_rows),
-        }), 200
+        return jsonify({"message": f"Template assigned: {', '.join(parts) or 'no rules'}.", "rows_inserted": len(assign_rows)}), 200
 
     except Exception as error:
         return jsonify({"error": str(error)}), 400
@@ -716,24 +826,24 @@ def update_template_assignment():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ROLE / DEPARTMENT ROUTES
+# ROLE / DEPARTMENT / USER ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.route("/roles", methods=["GET"])
-def get_roles():
+@app.route("/designations", methods=["GET"])
+def get_designations():
     try:
-        return jsonify(supabase.table("roles").select("*").execute().data), 200
+        return jsonify(supabase.table("designations").select("*").execute().data), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
 
 
-@app.route("/roles", methods=["POST"])
-def add_role():
+@app.route("/designations", methods=["POST"])
+def add_designation():
     try:
         name = request.json.get("name")
         if not name:
             return jsonify({"error": "Name required"}), 400
-        result = supabase.table("roles").insert({"name": name}).execute()
+        result = supabase.table("designations").insert({"name": name}).execute()
         return jsonify(result.data[0]), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
@@ -741,11 +851,6 @@ def add_role():
 
 @app.route("/departments", methods=["GET"])
 def get_departments():
-    """
-    Returns all departments.
-    Optionally filter by branch_id: /departments?branch_id=<uuid>
-    Returns id, name, code, branch_id so the frontend can display them properly.
-    """
     try:
         branch_filter = request.args.get("branch_id", "").strip()
         query = supabase.table("departments").select("id, name, code, branch_id").order("name")
@@ -758,13 +863,8 @@ def get_departments():
 
 @app.route("/departments", methods=["POST"])
 def add_department():
-    """
-    Creates a new department.
-    Required: name, code
-    Optional: branch_id (uuid)
-    """
     try:
-        data = request.get_json()
+        data      = request.get_json()
         name      = data.get("name", "").strip()
         code      = data.get("code", "").strip().upper()
         branch_id = data.get("branch_id") or None
@@ -774,7 +874,6 @@ def add_department():
         if not code:
             return jsonify({"error": "Department code is required"}), 400
 
-        # Check for duplicate code (within same branch if branch_id given)
         existing_query = supabase.table("departments").select("id").eq("code", code)
         if branch_id:
             existing_query = existing_query.eq("branch_id", branch_id)
@@ -782,11 +881,7 @@ def add_department():
         if existing.data:
             return jsonify({"error": f"A department with code '{code}' already exists{' in this branch' if branch_id else ''}."}), 409
 
-        result = supabase.table("departments").insert({
-            "name":      name,
-            "code":      code,
-            "branch_id": branch_id,
-        }).execute()
+        result = supabase.table("departments").insert({"name": name, "code": code, "branch_id": branch_id}).execute()
         return jsonify(result.data[0]), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
@@ -795,16 +890,10 @@ def add_department():
 @app.route("/users", methods=["GET"])
 def get_users():
     try:
-        return jsonify(
-            supabase.table("users").select("id, full_name").execute().data
-        ), 200
+        return jsonify(supabase.table("users").select("id, full_name, branch_id, department_id, designation_id").execute().data), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SYNC USER ROUTE
-# ─────────────────────────────────────────────────────────────────────────────
 
 @app.route("/sync-user", methods=["POST"])
 def sync_user():
@@ -818,19 +907,63 @@ def sync_user():
             return jsonify({"error": "user_id is required"}), 400
 
         existing = supabase.table("users").select("id").eq("id", user_id).execute()
-
         if existing.data:
             return jsonify({"message": "User already exists", "synced": False}), 200
 
-        supabase.table("users").insert({
-            "id":        user_id,
-            "email":     email,
-            "full_name": full_name,
-        }).execute()
-
+        supabase.table("users").insert({"id": user_id, "email": email, "full_name": full_name}).execute()
         return jsonify({"message": "User synced successfully", "synced": True}), 200
     except Exception as error:
         return jsonify({"error": str(error)}), 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEBUG ROUTE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/debug-user/<user_id>", methods=["GET"])
+def debug_user(user_id):
+    try:
+        user = supabase.table("users").select("id, full_name, designation_id, department_id, branch_id").eq("id", user_id).execute().data
+        if not user:
+            return jsonify({"error": "user not found"}), 404
+
+        assignments = supabase.table("template_assignments").select("*").execute().data
+        u           = user[0]
+        designation_id = int(u["designation_id"]) if u.get("designation_id") else None
+        dept_id        = str(u["department_id"])  if u.get("department_id")  else None
+        branch_id      = str(u["branch_id"])      if u.get("branch_id")      else None
+
+        matches = []
+        for a in assignments:
+            a_desig  = int(a["designation_id"]) if a.get("designation_id") else None
+            a_dept   = str(a["department_id"])  if a.get("department_id")  else None
+            a_branch = str(a["branch_id"])      if a.get("branch_id")      else None
+            a_user   = str(a["user_id"])        if a.get("user_id")        else None
+
+            matched_by = []
+            if a_user and a_user == str(u["id"]):
+                matched_by.append("direct_user")
+            else:
+                if a_desig is None and a_dept is None and a_branch is None:
+                    pass
+                else:
+                    designation_ok = (a_desig  is None) or (designation_id is not None and a_desig  == designation_id)
+                    dept_ok        = (a_dept   is None) or (dept_id        is not None and a_dept   == dept_id)
+                    branch_ok      = (a_branch is None) or (branch_id      is not None and a_branch == branch_id)
+                    if designation_ok and dept_ok and branch_ok:
+                        matched_by.append(f"rule(desig={a_desig},dept={a_dept},branch={a_branch})")
+
+            if matched_by:
+                matches.append({"template_id": a["template_id"], "matched_by": matched_by, "assignment": a})
+
+        return jsonify({
+            "user": {"id": str(u["id"]), "full_name": u["full_name"], "designation_id": designation_id, "dept_id": dept_id, "branch_id": branch_id},
+            "total_assignments": len(assignments),
+            "matched_templates": matches,
+            "all_assignments_sample": assignments[:10],
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
 # ─────────────────────────────────────────────────────────────────────────────
