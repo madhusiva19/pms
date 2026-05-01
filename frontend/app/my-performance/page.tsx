@@ -105,7 +105,7 @@ function CustomXAxisTick(props: {
 // ── Main Component ─────────────────────────────────────────────────
 export default function MyPerformancePage() {
   const searchParams = useSearchParams();
-  const employeeId = searchParams.get('employee') ?? 'your-default-user-uuid';
+  const employeeId = searchParams.get('employee') ?? 'aaaaaaaa-0001-0001-0001-000000000001';
 
   const [selectedPeriod, setSelectedPeriod] = useState<'H1' | 'H2'>('H1');
   const [showDetail, setShowDetail]         = useState(false);
