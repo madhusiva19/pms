@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
+print("KEY PREFIX:", os.getenv("SUPABASE_KEY", "MISSING")[:20]) 
 
 app = Flask(__name__)
 CORS(app)
@@ -29,8 +30,8 @@ def get_templates():
         result = supabase.table('templates').select('*').execute()
         return jsonify(result.data)
     except Exception as e:
+        print(f"[ERROR] get_templates: {e}")  # ADD THIS LINE
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/templates/<int:template_id>', methods=['GET'])
 def get_template(template_id):
