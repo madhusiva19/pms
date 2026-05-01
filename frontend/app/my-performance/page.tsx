@@ -1,9 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 import Link from 'next/link';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -26,17 +24,12 @@ interface Category {
 interface PerformanceData {
   employee: { id: string; name: string; designation: string; department: string };
   period: string; year: number;
-  // API returns 'final_score' (after our fix). Support both keys for safety.
   final_score: number;
   max_score: number;
   categories: Category[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
-// Only chart objectives that have a meaningful % value:
-//   achievement_pct  → Revenue, GP, Direct Cost, GP Ops, GP Margin, GPTW
-//   raw_actual_x100  → NPS, 360 Feedback, Retention
-// EXCLUDE: raw_actual (Internal Audit, DPAM Ops, WIP) and manual
 const isChartable = (obj: Objective) =>
   obj.scale_type === 'interpolated' &&
   (obj.input_type === 'achievement_pct' || obj.input_type === 'raw_actual_x100') &&
@@ -55,11 +48,8 @@ function formatVal(val: number | null, inputType?: string | null): string {
   return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-// ── FIX: extract final_score safely from API response ──────────────
 function getFinalScore(d: PerformanceData | null): number | undefined {
   if (!d) return undefined;
-  // API now returns 'final_score'. Fallback to 'total_score' for any
-  // cached/legacy responses that still use the old key name.
   return (d as unknown as Record<string, number>)['final_score']
     ?? (d as unknown as Record<string, number>)['total_score'];
 }
@@ -108,22 +98,24 @@ function CustomXAxisTick(props: {
 // ── Main Component ─────────────────────────────────────────────────
 export default function MyPerformancePage() {
   const searchParams = useSearchParams();
-  // ✅ REPLACE WITH THIS
-const searchParams = useSearchParams();
-const supabase = createClientComponentClient();
-const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
-useEffect(() => {
-  const idFromUrl = searchParams.get('employee');
-  if (idFromUrl) {
-    setEmployeeId(idFromUrl);
-    return;
-  }
-  // Fall back to logged-in user's ID
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    setEmployeeId(session?.user?.id ?? null);
-  });
-}, [searchParams]);
+  // ✅ FIX: Get real user ID from auth, or from URL param for managers viewing others
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const idFromUrl = searchParams.get('employee');
+    if (idFromUrl) {
+      setEmployeeId(idFromUrl);
+      return;
+    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setEmployeeId(session?.user?.id ?? 'aaaaaaaa-0001-0001-0001-000000000001');
+    });
+  }, [searchParams]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<'H1' | 'H2'>('H1');
   const [showDetail, setShowDetail]         = useState(false);
@@ -146,6 +138,9 @@ useEffect(() => {
   };
 
   useEffect(() => {
+    // ✅ FIX: Don't fetch until we have a real employeeId
+    if (!employeeId) return;
+
     setDataH1(null);
     setDataH2(null);
     setShowDetail(false);
@@ -155,13 +150,9 @@ useEffect(() => {
     Promise.all([fetchPeriod(employeeId, 'H1'), fetchPeriod(employeeId, 'H2')])
       .then(([h1, h2]) => {
         if (cancelled) return;
-        if (employeeId === 1) {
-          setDataH1(h1 ?? FALLBACK_H1);
-          setDataH2(h2 ?? FALLBACK_H2);
-        } else {
-          setDataH1(h1);
-          setDataH2(h2);
-        }
+        // ✅ FIX: Removed broken `employeeId === 1` check (string never equals number)
+        setDataH1(h1);
+        setDataH2(h2);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -178,7 +169,6 @@ useEffect(() => {
         let pct: number;
 
         if (obj.input_type === 'raw_actual_x100') {
-          // e.g. NPS = 0.2755 stored → display as 27.55 on the chart
           if (obj.actual != null) {
             pct = parseFloat((obj.actual * 100).toFixed(1));
           } else if (obj.achievement_pct != null) {
@@ -187,8 +177,6 @@ useEffect(() => {
             pct = 0;
           }
         } else {
-          // achievement_pct type — compute from target/actual first for accuracy,
-          // fall back to the pre-computed achievement_pct field from the API.
           if (obj.actual != null && obj.target != null && obj.target !== 0) {
             pct = parseFloat(((obj.actual / obj.target) * 100).toFixed(1));
           } else if (obj.achievement_pct != null) {
@@ -212,13 +200,11 @@ useEffect(() => {
 
   const noData = !loading && data === null;
 
-  // ── Supervisor Feedback ─────────────────────────────────────────
   const supervisorFeedback = {
     H1: `Revenue held close to target at 99% and GP Personal Sales was outstanding. However, GP Achievement and GP Margin both fell below threshold — these are the priority focus areas for H2. WIP at 21 days needs an urgent resolution plan. Overall a solid base, but margin recovery is critical.`,
     H2: `A strong rebound. Revenue above target, WIP reduced from 21 to 6.5 days, and GP Operations at 106% are all notable improvements. GPTW and GP Margin remain development areas, but the overall trajectory is positive. Confident in continued progress.`,
   };
 
-  // ── AI Recommendations ──────────────────────────────────────────
   const aiRecommendations = {
     H1: [
       'GP and GP Margin are both below the 90% floor, capping their ratings at 1.0 and costing ~0.15 off your total. Prioritising margin recovery in H2 is the single highest-impact action available.',
@@ -248,7 +234,7 @@ useEffect(() => {
             <p style={{ fontSize: 15, color: C.textSub, margin: 0 }}>
               {loading ? 'Loading...' : data?.employee?.name
                 ? `${data.employee.name} · ${data.employee.designation}`
-                : `Employee #${employeeId}`}
+                : employeeId ? `Employee #${employeeId}` : 'Not signed in'}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -273,14 +259,22 @@ useEffect(() => {
           </div>
         </div>
 
-        {noData && (
+        {/* Not signed in state */}
+        {!loading && !employeeId && (
+          <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>You are not signed in.</p>
+            <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 8 }}>Please sign in to view your performance data.</p>
+          </div>
+        )}
+
+        {noData && employeeId && (
           <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
             <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>No performance data found for employee #{employeeId} in 2025.</p>
             <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 8 }}>Make sure performance records exist in the database for this employee.</p>
           </div>
         )}
 
-        {!noData && (
+        {!noData && employeeId && (
           <>
             {/* Score Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
@@ -619,105 +613,3 @@ useEffect(() => {
     </div>
   );
 }
-
-// ── Fallback data — GM Operations template, used when API returns nothing for employee id=1 ──
-
-const EMPLOYEE = { id: 'your-kasun-perera-uuid', name: 'Kasun Perera', designation: 'Operations Manager', department: 'Operations' };
-
-const FALLBACK_H1: PerformanceData = {
-  employee: EMPLOYEE,
-  period: 'H1', year: 2025, final_score: 2.3900, max_score: 5.0,
-  categories: [
-    {
-      category_name: 'Financial Focus', category_weight: 30, category_score: 0.6327, max_possible: 1.50,
-      objectives: [
-        { objective_id: 101, objective_name: 'Revenue Achievement',        weight: 10,  control_type: 'Locked',   target: 4910.70, actual: 4863.10, manual_rating: null, achievement_pct: 99.03,  rating: 2.8061, score: 0.2806, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-        { objective_id: 102, objective_name: 'GP Achievement',             weight: 10,  control_type: 'Locked',   target:  527.52, actual:  454.82, manual_rating: null, achievement_pct: 86.22,  rating: 1.0000, score: 0.1000, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-        { objective_id: 103, objective_name: 'Optimize Direct Cost',       weight: 3.3, control_type: 'Editable', target: 4383.18, actual: 4408.32, manual_rating: null, achievement_pct: 99.43,  rating: 2.8859, score: 0.0952, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-        { objective_id: 104, objective_name: 'Achievement of GP (Operations)', weight: 3.4, control_type: 'Editable', target:  558.88, actual:  575.69, manual_rating: null, achievement_pct: 103.01, rating: 3.6016, score: 0.1224, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-        { objective_id: 105, objective_name: 'GP Margin (Ops) Overall',    weight: 3.3, control_type: 'Editable', target:   0.1074, actual:  0.0935, manual_rating: null, achievement_pct: 87.06,  rating: 1.0000, score: 0.0330, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-      ],
-    },
-    {
-      category_name: 'Customer Focus', category_weight: 30, category_score: 0.7010, max_possible: 1.50,
-      objectives: [
-        { objective_id: 106, objective_name: 'NPS Index',                                    weight: 10, control_type: 'Locked',   target: 0.35,  actual: 0.2755, manual_rating: null, achievement_pct: null, rating: 2.0067, score: 0.2007, scale_type: 'interpolated', input_type: 'raw_actual_x100', ll: 20,   ul: 50,   log_column: 'Col L NPS/CCR', status: 'approved' },
-        { objective_id: 107, objective_name: 'Complaints on service failures',               weight: 10, control_type: 'Locked',   target: null,  actual: null,   manual_rating: 2.11, achievement_pct: null, rating: 2.1100, score: 0.2110, scale_type: 'manual',        input_type: null,              ll: null, ul: null, log_column: 'Manual',        status: 'approved' },
-        { objective_id: 108, objective_name: 'Monthly Idea Generation',                      weight: 3,  control_type: 'Editable', target: null,  actual: null,   manual_rating: 2.0,  achievement_pct: null, rating: 2.0000, score: 0.0600, scale_type: 'manual',        input_type: null,              ll: null, ul: null, log_column: 'Manual',        status: 'approved' },
-        { objective_id: 109, objective_name: 'GP on Personal Sales done by Individual',     weight: 4,  control_type: 'Editable', target: null,  actual: null,   manual_rating: 5.0,  achievement_pct: null, rating: 5.0000, score: 0.2000, scale_type: 'manual',        input_type: null,              ll: null, ul: null, log_column: 'Manual',        status: 'approved' },
-        { objective_id: 110, objective_name: 'No. of Qualified Sales leads',                weight: 3,  control_type: 'Editable', target: null,  actual: null,   manual_rating: 1.0,  achievement_pct: null, rating: 1.0000, score: 0.0300, scale_type: 'manual',        input_type: null,              ll: null, ul: null, log_column: 'Manual',        status: 'approved' },
-      ],
-    },
-    {
-      category_name: 'Human Resources Focus', category_weight: 15, category_score: 0.4390, max_possible: 0.75,
-      objectives: [
-        { objective_id: 111, objective_name: '360 Feedback (Automated)', weight: 5, control_type: 'Locked',   target: 0.85, actual: 0.7589, manual_rating: null, achievement_pct: null,  rating: 3.1780, score: 0.1589, scale_type: 'interpolated', input_type: 'raw_actual_x100', ll: 65, ul: 85,  log_column: 'Col J EES/360',   status: 'approved' },
-        { objective_id: 112, objective_name: 'Dept. Retention',          weight: 5, control_type: 'Editable', target: 0.85, actual: 0.9300, manual_rating: null, achievement_pct: null,  rating: 4.6000, score: 0.2300, scale_type: 'interpolated', input_type: 'raw_actual_x100', ll: 75, ul: 95,  log_column: 'Col N Retention', status: 'approved' },
-        { objective_id: 113, objective_name: 'GPTW Score',               weight: 5, control_type: 'Editable', target: 0.85, actual: 0.6900, manual_rating: null, achievement_pct: 81.18, rating: 1.0000, score: 0.0500, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90, ul: 110, log_column: 'Col B Financial', status: 'approved' },
-      ],
-    },
-    {
-      category_name: 'Process Focus', category_weight: 20, category_score: 0.4580, max_possible: 1.00,
-      objectives: [
-        { objective_id: 114, objective_name: 'Internal Audit-Positive Assurance Score', weight: 10, control_type: 'Locked',   target: 90,   actual: 82.80, manual_rating: null, achievement_pct: null, rating: 3.0800, score: 0.3080, scale_type: 'interpolated', input_type: 'raw_actual', ll: 75,   ul: 90,   log_column: 'Col P DPAM Overall', status: 'approved' },
-        { objective_id: 115, objective_name: 'DPAM Operations Score',                   weight: 5,  control_type: 'Editable', target: 17.4, actual: 11.80, manual_rating: null, achievement_pct: null, rating: 2.0000, score: 0.1000, scale_type: 'bracket',       input_type: 'raw_actual', ll: null, ul: null, log_column: 'Ops Score bracket',  status: 'approved' },
-        { objective_id: 116, objective_name: 'WIP (Total Ops)',                         weight: 5,  control_type: 'Editable', target: 5,    actual: 21.00, manual_rating: null, achievement_pct: null, rating: 1.0000, score: 0.0500, scale_type: 'bracket',       input_type: 'raw_actual', ll: null, ul: null, log_column: 'WIP bracket',        status: 'approved' },
-      ],
-    },
-    {
-      category_name: 'Personal Assessment', category_weight: 5, category_score: 0.1600, max_possible: 0.25,
-      objectives: [
-        { objective_id: 117, objective_name: 'HOD Evaluation', weight: 5, control_type: 'Editable', target: null, actual: null, manual_rating: 3.2, achievement_pct: null, rating: 3.2000, score: 0.1600, scale_type: 'manual', input_type: null, ll: null, ul: null, log_column: 'Manual', status: 'approved' },
-      ],
-    },
-  ],
-};
-
-const FALLBACK_H2: PerformanceData = {
-  employee: EMPLOYEE,
-  period: 'H2', year: 2025, final_score: 3.0859, max_score: 5.0,
-  categories: [
-    {
-      category_name: 'Financial Focus', category_weight: 30, category_score: 0.8037, max_possible: 1.50,
-      objectives: [
-        { objective_id: 101, objective_name: 'Revenue Achievement',           weight: 10,  control_type: 'Locked',   target: 5150.00, actual: 5242.70, manual_rating: null, achievement_pct: 101.80, rating: 3.3600, score: 0.3360, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-        { objective_id: 102, objective_name: 'GP Achievement',                weight: 10,  control_type: 'Locked',   target:  555.00, actual:  513.38, manual_rating: null, achievement_pct: 92.50,  rating: 1.5000, score: 0.1500, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-        { objective_id: 103, objective_name: 'Optimize Direct Cost',          weight: 3.3, control_type: 'Editable', target: 4465.00, actual: 4424.35, manual_rating: null, achievement_pct: 100.92, rating: 3.1840, score: 0.1051, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-        { objective_id: 104, objective_name: 'Achievement of GP (Operations)', weight: 3.4, control_type: 'Editable', target:  590.00, actual:  626.58, manual_rating: null, achievement_pct: 106.20, rating: 4.2400, score: 0.1442, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-        { objective_id: 105, objective_name: 'GP Margin (Ops) Overall',       weight: 3.3, control_type: 'Editable', target:   0.1120, actual:  0.1068, manual_rating: null, achievement_pct: 95.36,  rating: 2.0720, score: 0.0684, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90,  ul: 110, log_column: 'Col B Financial', status: 'approved' },
-      ],
-    },
-    {
-      category_name: 'Customer Focus', category_weight: 30, category_score: 0.8593, max_possible: 1.50,
-      objectives: [
-        { objective_id: 106, objective_name: 'NPS Index',                                   weight: 10, control_type: 'Locked',   target: 0.35,  actual: 0.3120, manual_rating: null, achievement_pct: null, rating: 2.4933, score: 0.2493, scale_type: 'interpolated', input_type: 'raw_actual_x100', ll: 20,   ul: 50,   log_column: 'Col L NPS/CCR', status: 'approved' },
-        { objective_id: 107, objective_name: 'Complaints on service failures',              weight: 10, control_type: 'Locked',   target: null,  actual: null,   manual_rating: 3.0,  achievement_pct: null, rating: 3.0000, score: 0.3000, scale_type: 'manual',        input_type: null,              ll: null, ul: null, log_column: 'Manual',        status: 'approved' },
-        { objective_id: 108, objective_name: 'Monthly Idea Generation',                     weight: 3,  control_type: 'Editable', target: null,  actual: null,   manual_rating: 3.0,  achievement_pct: null, rating: 3.0000, score: 0.0900, scale_type: 'manual',        input_type: null,              ll: null, ul: null, log_column: 'Manual',        status: 'approved' },
-        { objective_id: 109, objective_name: 'GP on Personal Sales done by Individual',    weight: 4,  control_type: 'Editable', target: null,  actual: null,   manual_rating: 4.0,  achievement_pct: null, rating: 4.0000, score: 0.1600, scale_type: 'manual',        input_type: null,              ll: null, ul: null, log_column: 'Manual',        status: 'approved' },
-        { objective_id: 110, objective_name: 'No. of Qualified Sales leads',               weight: 3,  control_type: 'Editable', target: null,  actual: null,   manual_rating: 2.0,  achievement_pct: null, rating: 2.0000, score: 0.0600, scale_type: 'manual',        input_type: null,              ll: null, ul: null, log_column: 'Manual',        status: 'approved' },
-      ],
-    },
-    {
-      category_name: 'Human Resources Focus', category_weight: 15, category_score: 0.5663, max_possible: 0.75,
-      objectives: [
-        { objective_id: 111, objective_name: '360 Feedback (Automated)', weight: 5, control_type: 'Locked',   target: 0.85, actual: 0.8210, manual_rating: null, achievement_pct: null,  rating: 4.4200, score: 0.2210, scale_type: 'interpolated', input_type: 'raw_actual_x100', ll: 65, ul: 85,  log_column: 'Col J EES/360',   status: 'approved' },
-        { objective_id: 112, objective_name: 'Dept. Retention',          weight: 5, control_type: 'Editable', target: 0.85, actual: 0.9100, manual_rating: null, achievement_pct: null,  rating: 4.2000, score: 0.2100, scale_type: 'interpolated', input_type: 'raw_actual_x100', ll: 75, ul: 95,  log_column: 'Col N Retention', status: 'approved' },
-        { objective_id: 113, objective_name: 'GPTW Score',               weight: 5, control_type: 'Editable', target: 0.85, actual: 0.8035, manual_rating: null, achievement_pct: 94.53, rating: 1.9060, score: 0.0953, scale_type: 'interpolated', input_type: 'achievement_pct', ll: 90, ul: 110, log_column: 'Col B Financial', status: 'approved' },
-      ],
-    },
-    {
-      category_name: 'Process Focus', category_weight: 20, category_score: 0.7567, max_possible: 1.00,
-      objectives: [
-        { objective_id: 114, objective_name: 'Internal Audit-Positive Assurance Score', weight: 10, control_type: 'Locked',   target: 90,   actual: 86.50, manual_rating: null, achievement_pct: null, rating: 4.0667, score: 0.4067, scale_type: 'interpolated', input_type: 'raw_actual', ll: 75,   ul: 90,   log_column: 'Col P DPAM Overall', status: 'approved' },
-        { objective_id: 115, objective_name: 'DPAM Operations Score',                   weight: 5,  control_type: 'Editable', target: 17.4, actual: 19.80, manual_rating: null, achievement_pct: null, rating: 3.0000, score: 0.1500, scale_type: 'bracket',       input_type: 'raw_actual', ll: null, ul: null, log_column: 'Ops Score bracket',  status: 'approved' },
-        { objective_id: 116, objective_name: 'WIP (Total Ops)',                         weight: 5,  control_type: 'Editable', target: 5,    actual: 6.50,  manual_rating: null, achievement_pct: null, rating: 3.0000, score: 0.1500, scale_type: 'bracket',       input_type: 'raw_actual', ll: null, ul: null, log_column: 'WIP bracket',        status: 'approved' },
-      ],
-    },
-    {
-      category_name: 'Personal Assessment', category_weight: 5, category_score: 0.1900, max_possible: 0.25,
-      objectives: [
-        { objective_id: 117, objective_name: 'HOD Evaluation', weight: 5, control_type: 'Editable', target: null, actual: null, manual_rating: 3.8, achievement_pct: null, rating: 3.8000, score: 0.1900, scale_type: 'manual', input_type: null, ll: null, ul: null, log_column: 'Manual', status: 'approved' },
-      ],
-    },
-  ],
-};
