@@ -1,6 +1,9 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -105,7 +108,22 @@ function CustomXAxisTick(props: {
 // ── Main Component ─────────────────────────────────────────────────
 export default function MyPerformancePage() {
   const searchParams = useSearchParams();
-  const employeeId = searchParams.get('employee') ?? 'aaaaaaaa-0001-0001-0001-000000000001';
+  // ✅ REPLACE WITH THIS
+const searchParams = useSearchParams();
+const supabase = createClientComponentClient();
+const [employeeId, setEmployeeId] = useState<string | null>(null);
+
+useEffect(() => {
+  const idFromUrl = searchParams.get('employee');
+  if (idFromUrl) {
+    setEmployeeId(idFromUrl);
+    return;
+  }
+  // Fall back to logged-in user's ID
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setEmployeeId(session?.user?.id ?? null);
+  });
+}, [searchParams]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<'H1' | 'H2'>('H1');
   const [showDetail, setShowDetail]         = useState(false);
