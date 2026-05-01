@@ -15,8 +15,6 @@ supabase = create_client(
     os.getenv("SUPABASE_KEY")
 )
 
-# Admin hierarchy: HQ Admin -> Country Admin -> Branch Admin -> Dept Admin -> Sub Dept Admin -> Employee
-# Replace with the actual UUID of the HQ Admin user from your auth.users table
 LOCKED_ADMIN_UUID = os.getenv("LOCKED_ADMIN_UUID", "your-admin-user-uuid-here")
 
 
@@ -30,7 +28,7 @@ def get_templates():
         result = supabase.table('templates').select('*').execute()
         return jsonify(result.data)
     except Exception as e:
-        print(f"[ERROR] get_templates: {e}")  # ADD THIS LINE
+        print(f"[ERROR] get_templates: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/templates/<int:template_id>', methods=['GET'])
@@ -101,7 +99,7 @@ def delete_objective(template_id, obj_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EMPLOYEES  (reads from users table — user_id is UUID string throughout)
+# EMPLOYEES
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/employees', methods=['GET'])
@@ -148,6 +146,7 @@ def search_employees():
 
         return jsonify(result)
     except Exception as e:
+        print(f"[ERROR] search_employees: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -245,16 +244,11 @@ def get_assignments(template_id):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # KPI SCALE CATALOGUE
-# Derived live from kpi_scale_mappings joined to objectives.
-# Each unique kpi_scale value on objectives becomes one catalogue entry.
-# scale_type / input_type / ll / ul / inverse come from the real mapping rows.
-# label and group_name are resolved via local SCALE_META (display strings only).
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/kpi-scales', methods=['GET'])
 def get_kpi_scales():
     try:
-        # Human-readable label + UI group for each scale key
         SCALE_META = {
             'financial_achievement': ('Financial Achievement',        'Interpolated'),
             'to_gp_contribution':    ('T/O & GP Contribution',        'Interpolated'),
@@ -270,22 +264,19 @@ def get_kpi_scales():
             'individual_sales_gp':   ('Individual Sales GP',          'Bracket'),
             'manual':                ('Manual Rating (1-5)',           'Manual'),
         }
-        SORT_ORDER = list(SCALE_META.keys())  # Python 3.7+ preserves insertion order
+        SORT_ORDER = list(SCALE_META.keys())
 
-        # Step 1 — all objectives that have a kpi_scale assigned
         obj_rows = supabase.table('objectives') \
             .select('id, kpi_scale') \
             .not_.is_('kpi_scale', 'null') \
             .execute().data or []
 
-        # Build: kpi_scale -> [objective_id, ...]
         scale_to_obj_ids: dict = {}
         for o in obj_rows:
             sk = o.get('kpi_scale')
             if sk:
                 scale_to_obj_ids.setdefault(sk, []).append(o['id'])
 
-        # Step 2 — fetch mappings for all those objective ids in one query
         all_obj_ids = [oid for ids in scale_to_obj_ids.values() for oid in ids]
         mapping_rows = []
         if all_obj_ids:
@@ -294,10 +285,8 @@ def get_kpi_scales():
                 .in_('objective_id', all_obj_ids) \
                 .execute().data or []
 
-        # Index: objective_id -> mapping row
         mapping_by_obj = {m['objective_id']: m for m in mapping_rows}
 
-        # Step 3 — one catalogue entry per unique kpi_scale key
         seen: set = set()
         catalogue = []
 
@@ -306,7 +295,6 @@ def get_kpi_scales():
                 continue
             seen.add(scale_key)
 
-            # First representative mapping row for this scale key
             mapping = next(
                 (mapping_by_obj[oid] for oid in obj_ids if oid in mapping_by_obj),
                 {}
@@ -325,8 +313,6 @@ def get_kpi_scales():
                 'sort_order': SORT_ORDER.index(scale_key) if scale_key in SORT_ORDER else 99,
             })
 
-        # Step 4 — fill in any SCALE_META entries not yet covered by objectives
-        #           so the frontend picker always shows the complete list
         for scale_key, (label, group_name) in SCALE_META.items():
             if scale_key not in seen:
                 catalogue.append({
@@ -361,7 +347,6 @@ def compute_interpolated_rating(value: float, ll: float, ul: float) -> float:
 
 
 def compute_bracket_rating(actual: float, rules: list, inverse: bool) -> float:
-    # DB column is max_val (NOT max_value) — critical fix
     sorted_rules = sorted(rules, key=lambda r: (r['max_val'] is None, r['max_val'] or 0))
     for rule in sorted_rules:
         if rule['max_val'] is None or actual <= rule['max_val']:
@@ -461,8 +446,6 @@ def _load_scale_meta():
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPER: upsert total score into performance_summaries
-# performance_records does NOT have a total_score column — it lives in
-# performance_summaries which has the perf_summary_unique constraint.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _patch_total_score(user_id: str, year: int, period: str) -> float:
@@ -486,7 +469,7 @@ def _patch_total_score(user_id: str, year: int, period: str) -> float:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PERFORMANCE ROUTES  (user_id is UUID string throughout)
+# PERFORMANCE ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/performance/<user_id>/periods', methods=['GET'])
@@ -520,17 +503,11 @@ def get_performance(user_id, year, period):
 
         user = user_res.data
 
-        profile_res = supabase.table('profiles') \
-            .select('full_name, designation') \
-            .eq('user_id', user_id) \
-            .limit(1) \
-            .execute()
-        profile = profile_res.data[0] if profile_res.data else {}
-
+        # ✅ FIX: Use users table directly — profiles table does not exist
         emp_data = {
             'id':          user['id'],
-            'name':        profile.get('full_name') or user.get('full_name', ''),
-            'designation': profile.get('designation') or user.get('designation', ''),
+            'name':        user.get('full_name', ''),
+            'designation': user.get('designation', ''),
             'department':  str(user.get('department_id', '')),
         }
 
@@ -643,7 +620,7 @@ def get_performance_summary(user_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EVALUATOR ROUTES  (user_id is UUID string)
+# EVALUATOR ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/evaluator/submit', methods=['POST'])
