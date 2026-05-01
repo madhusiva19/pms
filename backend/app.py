@@ -14,13 +14,13 @@ supabase = create_client(
     os.getenv("SUPABASE_KEY")
 )
 
-# ── Change 1: This is now a UUID string, not an int ───────────────
-# Replace with the actual uuid of the locked admin user from your users table
+# Admin hierarchy: HQ Admin -> Country Admin -> Branch Admin -> Dept Admin -> Sub Dept Admin -> Employee
+# Replace with the actual UUID of the HQ Admin user from your auth.users table
 LOCKED_ADMIN_UUID = os.getenv("LOCKED_ADMIN_UUID", "your-admin-user-uuid-here")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TEMPLATES (unchanged)
+# TEMPLATES
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/templates', methods=['GET'])
@@ -100,7 +100,7 @@ def delete_objective(template_id, obj_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EMPLOYEES (now reads from users + profiles)
+# EMPLOYEES  (reads from users table — user_id is UUID string throughout)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/employees', methods=['GET'])
@@ -109,9 +109,6 @@ def search_employees():
     if not query:
         return jsonify([])
     try:
-        # ── Change 2: query users table, join profiles for full_name ──
-        # users.full_name is the display name; profiles has extra detail
-        # We search users whose manager_id matches the locked admin uuid
         user_res = supabase.table('users') \
             .select('id, full_name, designation') \
             .ilike('full_name', f'%{query}%') \
@@ -125,7 +122,6 @@ def search_employees():
 
         user_ids = [u['id'] for u in users]
 
-        # ── Change 3: template_assignments now uses user_id (uuid) ───
         assign_res = supabase.table('template_assignments') \
             .select('user_id, template_id, templates(id, name)') \
             .in_('user_id', user_ids) \
@@ -142,11 +138,11 @@ def search_employees():
         for u in users:
             a = assign_by_user.get(u['id'])
             result.append({
-                'id':                   u['id'],          # uuid string
-                'name':                 u['full_name'],
-                'designation':          u.get('designation', ''),
-                'current_template_id':  a['template_id']   if a else None,
-                'current_template_name':a['template_name'] if a else None,
+                'id':                    u['id'],
+                'name':                  u['full_name'],
+                'designation':           u.get('designation', ''),
+                'current_template_id':   a['template_id']   if a else None,
+                'current_template_name': a['template_name'] if a else None,
             })
 
         return jsonify(result)
@@ -155,7 +151,6 @@ def search_employees():
 
 
 @app.route('/api/employees/<user_id>/assignment', methods=['GET'])
-# ── Change 4: path param is now a uuid string, no <int:> converter ──
 def get_employee_assignment(user_id):
     try:
         result = supabase.table('template_assignments') \
@@ -186,7 +181,6 @@ def assign_employees(template_id):
         if not body:
             return jsonify({'error': 'Invalid payload'}), 400
 
-        # ── Change 5: IDs are uuid strings now, no int() cast ────────
         requested_ids = [str(uid) for uid in body.get('employee_ids', [])]
 
         if LOCKED_ADMIN_UUID in requested_ids:
@@ -231,7 +225,6 @@ def assign_employees(template_id):
 @app.route('/api/templates/<int:template_id>/assignments', methods=['GET'])
 def get_assignments(template_id):
     try:
-        # ── Change 6: join users instead of employees ─────────────────
         result = supabase.table('template_assignments') \
             .select('user_id, users(id, full_name, designation)') \
             .eq('template_id', template_id).execute()
@@ -250,22 +243,112 @@ def get_assignments(template_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# KPI SCALE CATALOGUE (unchanged)
+# KPI SCALE CATALOGUE
+# Derived live from kpi_scale_mappings joined to objectives.
+# Each unique kpi_scale value on objectives becomes one catalogue entry.
+# scale_type / input_type / ll / ul / inverse come from the real mapping rows.
+# label and group_name are resolved via local SCALE_META (display strings only).
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/kpi-scales', methods=['GET'])
 def get_kpi_scales():
     try:
-        result = supabase.table('kpi_scale_catalogue') \
-            .select('scale_key, label, group_name, scale_type, input_type, ll, ul, inverse, sort_order') \
-            .order('sort_order').execute()
-        return jsonify(result.data)
+        # Human-readable label + UI group for each scale key
+        SCALE_META = {
+            'financial_achievement': ('Financial Achievement',        'Interpolated'),
+            'to_gp_contribution':    ('T/O & GP Contribution',        'Interpolated'),
+            'effective_sales_ratio': ('Effective Sales Ratio',        'Interpolated'),
+            'individual_gp_margin':  ('Individual GP Margin %',       'Interpolated'),
+            'ees_360':               ('EES / 360 Degree Feedback',    'Interpolated'),
+            'nps_ccr':               ('NPS / CCR Score',              'Interpolated'),
+            'employee_retention':    ('Employee Retention',           'Interpolated'),
+            'overall_dpam':          ('Overall DPAM Score',           'Interpolated'),
+            'statutory_legal_dpam':  ('Statutory & Legal Compliance', 'Bracket'),
+            'wip_score':             ('WIP Score (Days)',              'Bracket'),
+            'operations_score':      ('Operations Score / DPAM Ops',  'Bracket'),
+            'individual_sales_gp':   ('Individual Sales GP',          'Bracket'),
+            'manual':                ('Manual Rating (1-5)',           'Manual'),
+        }
+        SORT_ORDER = list(SCALE_META.keys())  # Python 3.7+ preserves insertion order
+
+        # Step 1 — all objectives that have a kpi_scale assigned
+        obj_rows = supabase.table('objectives') \
+            .select('id, kpi_scale') \
+            .not_.is_('kpi_scale', 'null') \
+            .execute().data or []
+
+        # Build: kpi_scale -> [objective_id, ...]
+        scale_to_obj_ids: dict = {}
+        for o in obj_rows:
+            sk = o.get('kpi_scale')
+            if sk:
+                scale_to_obj_ids.setdefault(sk, []).append(o['id'])
+
+        # Step 2 — fetch mappings for all those objective ids in one query
+        all_obj_ids = [oid for ids in scale_to_obj_ids.values() for oid in ids]
+        mapping_rows = []
+        if all_obj_ids:
+            mapping_rows = supabase.table('kpi_scale_mappings') \
+                .select('objective_id, scale_type, input_type, ll, ul, inverse') \
+                .in_('objective_id', all_obj_ids) \
+                .execute().data or []
+
+        # Index: objective_id -> mapping row
+        mapping_by_obj = {m['objective_id']: m for m in mapping_rows}
+
+        # Step 3 — one catalogue entry per unique kpi_scale key
+        seen: set = set()
+        catalogue = []
+
+        for scale_key, obj_ids in scale_to_obj_ids.items():
+            if scale_key in seen:
+                continue
+            seen.add(scale_key)
+
+            # First representative mapping row for this scale key
+            mapping = next(
+                (mapping_by_obj[oid] for oid in obj_ids if oid in mapping_by_obj),
+                {}
+            )
+
+            label, group_name = SCALE_META.get(scale_key, (scale_key, 'Other'))
+            catalogue.append({
+                'scale_key':  scale_key,
+                'label':      label,
+                'group_name': group_name,
+                'scale_type': mapping.get('scale_type'),
+                'input_type': mapping.get('input_type'),
+                'll':         mapping.get('ll'),
+                'ul':         mapping.get('ul'),
+                'inverse':    mapping.get('inverse', False),
+                'sort_order': SORT_ORDER.index(scale_key) if scale_key in SORT_ORDER else 99,
+            })
+
+        # Step 4 — fill in any SCALE_META entries not yet covered by objectives
+        #           so the frontend picker always shows the complete list
+        for scale_key, (label, group_name) in SCALE_META.items():
+            if scale_key not in seen:
+                catalogue.append({
+                    'scale_key':  scale_key,
+                    'label':      label,
+                    'group_name': group_name,
+                    'scale_type': None,
+                    'input_type': None,
+                    'll':         None,
+                    'ul':         None,
+                    'inverse':    False,
+                    'sort_order': SORT_ORDER.index(scale_key),
+                })
+
+        catalogue.sort(key=lambda x: x['sort_order'])
+        return jsonify(catalogue)
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# KPI RATING ENGINE (unchanged — pure calculation, no DB column names)
+# KPI RATING ENGINE
 # ─────────────────────────────────────────────────────────────────────────────
 
 def compute_interpolated_rating(value: float, ll: float, ul: float) -> float:
@@ -277,9 +360,10 @@ def compute_interpolated_rating(value: float, ll: float, ul: float) -> float:
 
 
 def compute_bracket_rating(actual: float, rules: list, inverse: bool) -> float:
-    sorted_rules = sorted(rules, key=lambda r: (r['max_value'] is None, r['max_value'] or 0))
+    # DB column is max_val (NOT max_value) — critical fix
+    sorted_rules = sorted(rules, key=lambda r: (r['max_val'] is None, r['max_val'] or 0))
     for rule in sorted_rules:
-        if rule['max_value'] is None or actual <= rule['max_value']:
+        if rule['max_val'] is None or actual <= rule['max_val']:
             return rule['rating']
     return sorted_rules[-1]['rating']
 
@@ -355,7 +439,7 @@ def compute_achievement_pct(record: dict, mapping: dict):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HELPER: load scale metadata (unchanged)
+# HELPER: load scale metadata from DB
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _load_scale_meta():
@@ -375,36 +459,36 @@ def _load_scale_meta():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HELPER: patch total_score — now uses user_id uuid
+# HELPER: upsert total score into performance_summaries
+# performance_records does NOT have a total_score column — it lives in
+# performance_summaries which has the perf_summary_unique constraint.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _patch_total_score(user_id: str, year: int, period: str) -> float:
-    # ── Change 7: column is user_id (uuid), not employee_id (int) ────
     records = supabase.table('performance_records') \
-        .select('id, score') \
+        .select('score') \
         .eq('user_id', user_id) \
         .eq('year', year) \
         .eq('period', period) \
         .execute().data or []
 
     total = round(sum(float(r.get('score') or 0) for r in records), 4)
-    ids   = [r['id'] for r in records]
 
-    if ids:
-        supabase.table('performance_records') \
-            .update({'total_score': total}) \
-            .in_('id', ids) \
-            .execute()
+    supabase.table('performance_summaries').upsert({
+        'user_id':     user_id,
+        'year':        year,
+        'period':      period,
+        'total_score': total,
+    }, on_conflict='user_id,year,period').execute()
 
     return total
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PERFORMANCE ROUTES — user_id replaces employee_id throughout
+# PERFORMANCE ROUTES  (user_id is UUID string throughout)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/performance/<user_id>/periods', methods=['GET'])
-# ── Change 8: no <int:> — uuid string path param ─────────────────
 def get_periods(user_id):
     try:
         result = supabase.table('performance_records') \
@@ -425,7 +509,6 @@ def get_periods(user_id):
 @app.route('/api/performance/<user_id>/<int:year>/<period>', methods=['GET'])
 def get_performance(user_id, year, period):
     try:
-        # ── Change 9: fetch from users table, join profiles ───────────
         user_res = supabase.table('users') \
             .select('id, full_name, designation, department_id') \
             .eq('id', user_id) \
@@ -435,7 +518,7 @@ def get_performance(user_id, year, period):
             return jsonify({'error': 'User not found'}), 404
 
         user = user_res.data
-        # Optionally fetch profile for extra fields
+
         profile_res = supabase.table('profiles') \
             .select('full_name, designation') \
             .eq('user_id', user_id) \
@@ -519,8 +602,8 @@ def get_performance(user_id, year, period):
                 cats_map[cname]['max_possible'] + (item['weight'] / 100) * 5, 4)
 
         category_list = list(cats_map.values())
-        final_score = round(sum(c['category_score'] for c in category_list), 4)
-        max_score   = round(sum(c['max_possible']   for c in category_list), 4)
+        final_score   = round(sum(c['category_score'] for c in category_list), 4)
+        max_score     = round(sum(c['max_possible']   for c in category_list), 4)
 
         return jsonify({
             'employee':    emp_data,
@@ -559,15 +642,14 @@ def get_performance_summary(user_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EVALUATOR ROUTES — user_id uuid
+# EVALUATOR ROUTES  (user_id is UUID string)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/evaluator/submit', methods=['POST'])
 def evaluator_submit():
     try:
         body         = request.get_json()
-        # ── Change 10: these are now uuid strings ─────────────────────
-        user_id      = body.get('user_id')       # was employee_id
+        user_id      = body.get('user_id')
         evaluator_id = body.get('evaluator_id')
         year         = body.get('year')
         period       = body.get('period')
@@ -586,7 +668,7 @@ def evaluator_submit():
             if not obj_id or manual_rating is None:
                 continue
             if not (1.0 <= float(manual_rating) <= 5.0):
-                return jsonify({'error': f'Rating for objective {obj_id} must be 1–5'}), 400
+                return jsonify({'error': f'Rating for objective {obj_id} must be 1-5'}), 400
 
             obj     = obj_by_id.get(obj_id, {})
             mapping = mappings_by_obj.get(obj_id, {})
@@ -630,11 +712,11 @@ def evaluator_submit():
 @app.route('/api/sync/actuals', methods=['POST'])
 def sync_actuals():
     try:
-        body        = request.get_json()
-        user_id     = body.get('user_id')       # was employee_id
-        year        = body.get('year')
-        period      = body.get('period')
-        records_in  = body.get('records', [])
+        body       = request.get_json()
+        user_id    = body.get('user_id')
+        year       = body.get('year')
+        period     = body.get('period')
+        records_in = body.get('records', [])
 
         if not all([user_id, year, period, records_in]):
             return jsonify({'error': 'Missing required fields'}), 400
@@ -689,7 +771,7 @@ def sync_actuals():
 @app.route('/api/evaluator/pending', methods=['GET'])
 def get_pending_evaluations():
     try:
-        user_id = request.args.get('user_id')  # was employee_id
+        user_id = request.args.get('user_id')
         year    = request.args.get('year', 2025)
         period  = request.args.get('period', 'H1')
 
@@ -703,10 +785,16 @@ def get_pending_evaluations():
             if m.get('scale_type') == 'manual'
         ]
 
-        existing = supabase.table('performance_records').select('objective_id, manual_rating') \
-            .eq('user_id', user_id).eq('year', year) \
-            .eq('period', period).execute()
-        existing_ids = {r['objective_id'] for r in existing.data if r.get('manual_rating') is not None}
+        existing = supabase.table('performance_records') \
+            .select('objective_id, manual_rating') \
+            .eq('user_id', user_id) \
+            .eq('year', year) \
+            .eq('period', period) \
+            .execute()
+        existing_ids = {
+            r['objective_id'] for r in existing.data
+            if r.get('manual_rating') is not None
+        }
 
         pending = []
         for obj_id in manual_obj_ids:
@@ -750,7 +838,6 @@ def backfill_scores():
                 'score':  score,
             }).eq('id', rec['id']).execute()
 
-            # ── Change 11: group by user_id (uuid), not employee_id ───
             period_keys.add((rec['user_id'], rec['year'], rec['period']))
             updated += 1
 
