@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-print("KEY PREFIX:", os.getenv("SUPABASE_KEY", "MISSING")[:20]) 
+print("KEY PREFIX:", os.getenv("SUPABASE_KEY", "MISSING")[:20])
 
 app = Flask(__name__)
 CORS(app)
@@ -15,7 +15,10 @@ supabase = create_client(
     os.getenv("SUPABASE_KEY")
 )
 
-LOCKED_ADMIN_UUID = os.getenv("LOCKED_ADMIN_UUID", "your-admin-user-uuid-here")
+# TODO: replace with real auth UUID once auth is integrated.
+# This must match the id in the users table for the admin/demo user.
+# Set LOCKED_ADMIN_UUID in your .env file.
+LOCKED_ADMIN_UUID = os.getenv("LOCKED_ADMIN_UUID", "aaaaaaaa-0001-0001-0001-000000000001")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -30,6 +33,7 @@ def get_templates():
     except Exception as e:
         print(f"[ERROR] get_templates: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/templates/<int:template_id>', methods=['GET'])
 def get_template(template_id):
@@ -503,7 +507,6 @@ def get_performance(user_id, year, period):
 
         user = user_res.data
 
-        # ✅ FIX: Use users table directly — profiles table does not exist
         emp_data = {
             'id':          user['id'],
             'name':        user.get('full_name', ''),
