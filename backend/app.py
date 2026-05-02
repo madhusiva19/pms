@@ -833,5 +833,72 @@ def backfill_scores():
         return jsonify({'error': str(e)}), 500
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SUPERVISOR FEEDBACK
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/feedback/<user_id>/<int:year>/<period>', methods=['GET'])
+def get_supervisor_feedback(user_id, year, period):
+    try:
+        eval_res = supabase.table('evaluations') \
+            .select('id, evaluator_id, users!evaluations_evaluator_id_fkey(full_name, designation)') \
+            .eq('user_id', user_id) \
+            .eq('year', year) \
+            .eq('period', period) \
+            .limit(1) \
+            .execute()
+
+        if not eval_res.data:
+            return jsonify({'feedback': None, 'evaluator': None})
+
+        evaluation = eval_res.data[0]
+        eval_id    = evaluation['id']
+        evaluator  = evaluation.get('users') or {}
+
+        feedback_res = supabase.table('feedback') \
+            .select('comment, rating') \
+            .eq('evaluation_id', eval_id) \
+            .order('created_at', desc=True) \
+            .limit(1) \
+            .execute()
+
+        feedback = feedback_res.data[0] if feedback_res.data else {}
+
+        return jsonify({
+            'feedback': feedback.get('comment'),
+            'rating':   feedback.get('rating'),
+            'evaluator': {
+                'name':        evaluator.get('full_name', 'Supervisor'),
+                'designation': evaluator.get('designation', ''),
+            } if evaluator else None,
+        })
+
+    except Exception as e:
+        print(f"[ERROR] get_supervisor_feedback: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI RECOMMENDATIONS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/recommendations/<user_id>/<int:year>/<period>', methods=['GET'])
+def get_recommendations(user_id, year, period):
+    try:
+        result = supabase.table('performance_ai_recommendations') \
+            .select('insight_text, insight_type, sort_order') \
+            .eq('user_id', user_id) \
+            .eq('year', year) \
+            .eq('period', period) \
+            .order('sort_order') \
+            .execute()
+
+        return jsonify(result.data or [])
+
+    except Exception as e:
+        print(f"[ERROR] get_recommendations: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
