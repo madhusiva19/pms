@@ -462,7 +462,7 @@ def _patch_total_score(user_id: str, year: int, period: str) -> float:
 
     total = round(sum(float(r.get('score') or 0) for r in records), 4)
 
-    # ── 1. Always write to performance_summaries ──────────────────────────────
+    # 1. Update performance_summaries
     supabase.table('performance_summaries').upsert({
         'user_id':     user_id,
         'year':        year,
@@ -470,8 +470,7 @@ def _patch_total_score(user_id: str, year: int, period: str) -> float:
         'total_score': total,
     }, on_conflict='user_id,year,period').execute()
 
-    # ── 2. Sync to evaluations.overall_score ─────────────────────────────────
-    #    Update if an evaluation row already exists, otherwise create one.
+    # 2. Sync to evaluations.overall_score automatically
     eval_res = supabase.table('evaluations') \
         .select('id') \
         .eq('user_id', user_id) \
@@ -487,12 +486,12 @@ def _patch_total_score(user_id: str, year: int, period: str) -> float:
             .execute()
     else:
         supabase.table('evaluations').insert({
-            'user_id':      user_id,
-            'evaluator_id': user_id,
-            'period':       period,
-            'year':         year,
+            'user_id':       user_id,
+            'evaluator_id':  user_id,
+            'period':        period,
+            'year':          year,
             'overall_score': total,
-            'status':       'completed',
+            'status':        'completed',
         }).execute()
 
     return total
@@ -929,6 +928,82 @@ def get_recommendations(user_id, year, period):
         return jsonify({'error': str(e)}), 500
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PMS CYCLE — editing window check
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/pms-cycle/current', methods=['GET'])
+def get_current_pms_cycle():
+    """
+    Returns the active PMS cycle and whether template editing is currently allowed.
+    Editing is allowed when:
+      - is_active = true
+      - today >= objective_setting_start
+      - today <= grace_period_end  (falls back to objective_setting_end if null)
+    """
+    try:
+        from datetime import date
+
+        result = supabase.table('pms_cycles') \
+            .select('*') \
+            .eq('is_active', True) \
+            .order('pms_year', desc=True) \
+            .limit(1) \
+            .execute()
+
+        if not result.data:
+            return jsonify({
+                'cycle':          None,
+                'editing_open':   False,
+                'reason':         'No active PMS cycle found',
+            })
+
+        cycle = result.data[0]
+        today = date.today()
+
+        obj_start = cycle.get('objective_setting_start')
+        obj_end   = cycle.get('objective_setting_end')
+        grace_end = cycle.get('grace_period_end') or obj_end  # fallback
+
+        # Parse dates safely
+        def parse_date(d):
+            if not d:
+                return None
+            return date.fromisoformat(str(d)[:10])
+
+        start = parse_date(obj_start)
+        end   = parse_date(grace_end)
+
+        if not start or not end:
+            return jsonify({
+                'cycle':        cycle,
+                'editing_open': False,
+                'reason':       'Objective setting dates not configured by Group Admin',
+            })
+
+        editing_open = start <= today <= end
+
+        reason = None
+        if not editing_open:
+            if today < start:
+                reason = f'Objective setting window opens on {start.strftime("%d %b %Y")}'
+            else:
+                reason = f'Objective setting window closed on {end.strftime("%d %b %Y")}'
+
+        return jsonify({
+            'cycle':                   cycle,
+            'editing_open':            editing_open,
+            'reason':                  reason,
+            'objective_setting_start': obj_start,
+            'objective_setting_end':   obj_end,
+            'grace_period_end':        cycle.get('grace_period_end'),
+            'today':                   today.isoformat(),
+        })
+
+    except Exception as e:
+        print(f"[ERROR] get_current_pms_cycle: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-    
