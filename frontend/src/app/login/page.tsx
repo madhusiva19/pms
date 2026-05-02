@@ -20,28 +20,33 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:5000/api/auth/login", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
+      console.log("Login response:", data);
 
       if (!res.ok) {
         alert(data.message || "Login failed");
         return;
       }
 
-      if (data.redirectTo) {
+      if (data.redirect) {
         const userData = {
-          id:               data.employee_id,
-          employee_id:      data.employee_id,
-          full_name:        data.full_name,
-          email:            data.email,
-          org_level:        data.org_level,
-          role:             data.role,
-          iata_branch_code: data.iata_branch_code,
+          id:               data.user.id,
+          employee_id:      data.user.id,
+          full_name:        data.user.full_name,
+          email:            data.user.email,
+          org_level:        data.user.org_level,
+          role:             data.user.role,
+          iata_branch_code: data.user.iata_branch_code,
+          country_id:       data.user.country_id,
+          branch_id:        data.user.branch_id,
+          dept_id:          data.user.dept_id,
+          sub_dept_id:      data.user.sub_dept_id,
         };
 
         // Save to localStorage
@@ -50,7 +55,7 @@ export default function LoginPage() {
         // Update auth context so Sidebar updates immediately
         setUser(userData);
 
-        router.push(data.redirectTo);
+        router.push(data.redirect);
       } else {
         alert("Login successful, but no dashboard path was found for your role.");
       }

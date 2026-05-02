@@ -52,7 +52,7 @@ export default function HQAdminProfilePage() {
           (diaryJson.supervisor_entries || []).map((e: any) => ({
             id: e.id,
             date: e.entry_date,
-            supervisorName: e.author_id,
+            supervisorName: e.author_name,
             comment: e.entry_text,
           }))
         );
@@ -79,9 +79,9 @@ export default function HQAdminProfilePage() {
         sidebarName={user.full_name.split(" ")[0]}
         profile={{
           fullName: profileData.full_name,
-          dob: "1988-04-22",
-          joinedDate: "2018-06-15",
-          designation: profileData.role,
+          dob: profileData.date_of_birth  ? new Date(profileData.date_of_birth).toLocaleDateString("en-GB").replace(/\//g, "-") : "Not set",
+          joinedDate: profileData.date_joined ? new Date(profileData.date_joined).toLocaleDateString("en-GB").replace(/\//g, "-") : "Not set",
+          designation: profileData.designation,
           email: profileData.email,
         }}
         dashboardPath="/hq-admin/dashboard"
