@@ -12,8 +12,6 @@ interface Template {
 
 const API = 'http://127.0.0.1:5000';
 
-
-
 export default function TemplatesListPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -164,7 +162,6 @@ export default function TemplatesListPage() {
         {!loading && !error && (
           <div style={{ marginBottom: 32, maxWidth: 520 }} ref={searchRef}>
             <div style={{ position: 'relative' }}>
-              {/* Search icon */}
               <svg style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 1 }}
                 width="18" height="18" viewBox="0 0 20 20" fill="none">
                 <circle cx="8.5" cy="8.5" r="5.5" stroke="#A0ABBB" strokeWidth="1.67"/>
@@ -180,7 +177,6 @@ export default function TemplatesListPage() {
                 placeholder="Search templates…"
               />
 
-              {/* Clear button */}
               {inputVal && (
                 <button onClick={handleClear} style={{
                   position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
@@ -194,7 +190,6 @@ export default function TemplatesListPage() {
                 </button>
               )}
 
-              {/* Suggestions dropdown */}
               {showDropdown && suggestions.length > 0 && (
                 <div style={{
                   position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
@@ -215,6 +210,7 @@ export default function TemplatesListPage() {
                   ))}
                 </div>
               )}
+
               {showDropdown && inputVal.trim().length > 0 && suggestions.length === 0 && (
                 <div style={{
                   position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
@@ -222,7 +218,7 @@ export default function TemplatesListPage() {
                   borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.09)',
                   zIndex: 200, padding: '12px 16px', fontSize: 13, color: '#A0ABBB',
                 }}>
-                  No templates match "{inputVal}"
+                  No templates match &quot;{inputVal}&quot;
                 </div>
               )}
             </div>
@@ -272,7 +268,7 @@ export default function TemplatesListPage() {
         {!loading && !error && inputVal.trim() && displayed.length === 0 && (
           <div style={{ textAlign: 'center', padding: '56px 24px' }}>
             <p style={{ fontSize: 15, fontWeight: 600, color: '#1E293B', margin: '0 0 6px' }}>No templates found</p>
-            <p style={{ fontSize: 13, color: '#94A3B8', margin: '0 0 16px' }}>No match for "<strong>{inputVal}</strong>"</p>
+            <p style={{ fontSize: 13, color: '#94A3B8', margin: '0 0 16px' }}>No match for &quot;<strong>{inputVal}</strong>&quot;</p>
             <button onClick={handleClear} style={{
               padding: '8px 20px', borderRadius: 6, border: '1px solid #BFDBFE',
               background: '#EFF6FF', color: '#2563EB', fontWeight: 500,
@@ -306,7 +302,6 @@ function getAbbr(name: string): string {
 function TemplateCard({ tmpl, index }: { tmpl: Template; index: number }) {
   const [hovered, setHovered] = useState(false);
   const [assignedCount, setAssignedCount] = useState<number | null>(null);
-  const abbr = getAbbr(tmpl.name);
 
   useEffect(() => {
     fetch(`${API}/api/templates/${tmpl.id}/assignments`)
@@ -314,6 +309,8 @@ function TemplateCard({ tmpl, index }: { tmpl: Template; index: number }) {
       .then(data => { if (Array.isArray(data)) setAssignedCount(data.length); })
       .catch(() => setAssignedCount(0));
   }, [tmpl.id]);
+
+  const isFrozen = tmpl.status === 'frozen';
 
   return (
     <div
@@ -337,8 +334,8 @@ function TemplateCard({ tmpl, index }: { tmpl: Template; index: number }) {
     >
       <div style={{ padding: '23.8px', display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
 
-        {/* Icon + Name row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        {/* Icon + Name row — icon always blue */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
           <div style={{
             width: 56, height: 56, borderRadius: 12,
             background: '#EFF6FF', flexShrink: 0,
@@ -350,13 +347,40 @@ function TemplateCard({ tmpl, index }: { tmpl: Template; index: number }) {
               <path d="M12 16H20M12 20H20M12 24H16" stroke="#155DFC" strokeWidth="1.6" strokeLinecap="round"/>
             </svg>
           </div>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: '#101828', lineHeight: '26px', flex: 1, minWidth: 0 }}>
+          <h3 style={{
+            margin: 0, fontSize: 17, fontWeight: 600,
+            color: '#101828', lineHeight: '26px', flex: 1, minWidth: 0,
+          }}>
             {tmpl.name}
           </h3>
         </div>
 
-        {/* Meta rows — below both icon and name */}
+        {/* Meta rows */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+          {/* Status badge */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke={isFrozen ? '#D97706' : '#16A34A'}
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ flexShrink: 0 }}>
+              {isFrozen
+                ? <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>
+                : <path d="M20 6L9 17l-5-5" />
+              }
+            </svg>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center',
+              padding: '2px 10px', borderRadius: 6,
+              fontSize: 11, fontWeight: 500,
+              background: isFrozen ? '#FEF3C7' : '#DCFCE7',
+              color: isFrozen ? '#92400E' : '#166534',
+              border: `1px solid ${isFrozen ? '#FDE68A' : '#BBF7D0'}`,
+            }}>
+              {isFrozen ? 'Frozen' : 'Active'}
+            </span>
+          </div>
+
           {/* Made by */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
@@ -367,6 +391,7 @@ function TemplateCard({ tmpl, index }: { tmpl: Template; index: number }) {
               Made by {tmpl.created_by || 'Group Admin'}
             </span>
           </div>
+
           {/* Assigned count */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
@@ -376,16 +401,21 @@ function TemplateCard({ tmpl, index }: { tmpl: Template; index: number }) {
               <path d="M8 13c0-1.66 2.015-3 4.5-3s4.5 1.34 4.5 3" stroke="#94A3B8" strokeWidth="1.4" strokeLinecap="round"/>
             </svg>
             {assignedCount === null ? (
-              <div style={{ height: 11, width: 90, borderRadius: 4, background: 'linear-gradient(90deg,#E8EEF8 25%,#F0F4FA 50%,#E8EEF8 75%)', backgroundSize: '400px 100%', animation: 'shimmer 1.4s infinite' }} />
+              <div style={{
+                height: 11, width: 90, borderRadius: 4,
+                background: 'linear-gradient(90deg,#E8EEF8 25%,#F0F4FA 50%,#E8EEF8 75%)',
+                backgroundSize: '400px 100%', animation: 'shimmer 1.4s infinite',
+              }} />
             ) : (
               <span style={{ fontSize: 12.7, color: '#94A3B8', lineHeight: '20px' }}>
                 {assignedCount} {assignedCount === 1 ? 'employee' : 'employees'} assigned
               </span>
             )}
           </div>
+
         </div>
 
-        {/* Full-width CTA button */}
+        {/* CTA button */}
         <Link href={`/view-template/${tmpl.id}`} className="view-btn">
           View Template
         </Link>
