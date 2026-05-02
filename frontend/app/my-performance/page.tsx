@@ -1,14 +1,13 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
 import Link from 'next/link';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { ChevronDown, ChevronUp } from 'lucide-react';
- 
+
 // ── Types ──────────────────────────────────────────────────────────
 interface Objective {
   objective_id: number; objective_name: string; category_name: string;
@@ -28,39 +27,42 @@ interface PerformanceData {
   max_score: number;
   categories: Category[];
 }
- 
+
 // ── Helpers ────────────────────────────────────────────────────────
 const isChartable = (obj: Objective) =>
   obj.scale_type === 'interpolated' &&
   (obj.input_type === 'achievement_pct' || obj.input_type === 'raw_actual_x100') &&
   (obj.actual !== null || obj.achievement_pct !== null);
- 
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
- 
+
+// Demo UUID — swap to session?.user?.id once auth is integrated
+const DEMO_USER_ID = 'aaaaaaaa-0001-0001-0001-000000000001';
+
 const C = {
   blue: '#155DFC', blueBg: '#EFF6FF', pageBg: '#F8F9FC', border: '#E2E8F0',
   textMain: '#101828', textSub: '#4A5565', textMuted: '#64748B', textDark: '#1E293B', green: '#00A63E',
 };
- 
+
 function formatVal(val: number | null, inputType?: string | null): string {
   if (val === null) return '—';
   if (inputType === 'raw_actual_x100') return (val * 100).toFixed(1) + '%';
   return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
- 
+
 function getFinalScore(d: PerformanceData | null): number | undefined {
   if (!d) return undefined;
   return (d as unknown as Record<string, number>)['final_score']
     ?? (d as unknown as Record<string, number>)['total_score'];
 }
- 
+
 function isValidData(d: unknown): d is PerformanceData {
   if (!d || typeof d !== 'object') return false;
   const p = d as PerformanceData;
   return Array.isArray(p.categories) && p.categories.length > 0 &&
     p.categories.some(c => Array.isArray(c.objectives) && c.objectives.length > 0);
 }
- 
+
 function ChartSkeleton() {
   return (
     <div style={{ height: 420, display: 'flex', alignItems: 'flex-end', gap: 12, padding: '20px 24px 0', paddingBottom: 8 }}>
@@ -70,7 +72,7 @@ function ChartSkeleton() {
     </div>
   );
 }
- 
+
 function CustomXAxisTick(props: {
   x?: number; y?: number; payload?: { value: string };
 }) {
@@ -94,37 +96,33 @@ function CustomXAxisTick(props: {
     </g>
   );
 }
- 
+
 // ── Main Component ─────────────────────────────────────────────────
 export default function MyPerformancePage() {
   const searchParams = useSearchParams();
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
- 
-  // ✅ FIX: Get real user ID from auth, or from URL param for managers viewing others
+
+  // Auth is handled by another team member.
+  // For now: use ?employee=UUID from URL, else fall back to demo UUID.
+  // TODO: replace DEMO_USER_ID with session?.user?.id once auth is integrated.
   const [employeeId, setEmployeeId] = useState<string | null>(null);
- 
+
   useEffect(() => {
     const idFromUrl = searchParams.get('employee');
     if (idFromUrl) {
       setEmployeeId(idFromUrl);
       return;
     }
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setEmployeeId(session?.user?.id ?? null);
-    });
+    setEmployeeId(DEMO_USER_ID);
   }, [searchParams]);
- 
+
   const [selectedPeriod, setSelectedPeriod] = useState<'H1' | 'H2'>('H1');
   const [showDetail, setShowDetail]         = useState(false);
   const [openCats, setOpenCats]             = useState<Record<string, boolean>>({});
- 
+
   const [dataH1, setDataH1] = useState<PerformanceData | null>(null);
   const [dataH2, setDataH2] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
- 
+
   const fetchPeriod = async (empId: string, period: 'H1' | 'H2'): Promise<PerformanceData | null> => {
     try {
       const res = await fetch(`${API_BASE}/api/performance/${empId}/2025/${period}`);
@@ -136,38 +134,38 @@ export default function MyPerformancePage() {
       return null;
     }
   };
- 
+
   useEffect(() => {
-    // ✅ FIX: Don't fetch until we have a real employeeId
     if (!employeeId) return;
- 
+
     setDataH1(null);
     setDataH2(null);
     setShowDetail(false);
     setOpenCats({});
     setLoading(true);
     let cancelled = false;
+
     Promise.all([fetchPeriod(employeeId, 'H1'), fetchPeriod(employeeId, 'H2')])
       .then(([h1, h2]) => {
         if (cancelled) return;
-        // ✅ FIX: Removed broken `employeeId === 1` check (string never equals number)
         setDataH1(h1);
         setDataH2(h2);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
+
     return () => { cancelled = true; };
   }, [employeeId]);
- 
+
   const data       = selectedPeriod === 'H1' ? dataH1 : dataH2;
   const categories = data?.categories ?? [];
   const toggle     = (n: string) => setOpenCats(p => ({ ...p, [n]: !p[n] }));
- 
+
   const chartData = useMemo(() => {
     if (!data) return [];
     return data.categories.flatMap(cat =>
       cat.objectives.filter(isChartable).map(obj => {
         let pct: number;
- 
+
         if (obj.input_type === 'raw_actual_x100') {
           if (obj.actual != null) {
             pct = parseFloat((obj.actual * 100).toFixed(1));
@@ -185,7 +183,7 @@ export default function MyPerformancePage() {
             pct = 0;
           }
         }
- 
+
         return {
           name:        obj.objective_name,
           fullName:    obj.objective_name,
@@ -197,10 +195,10 @@ export default function MyPerformancePage() {
       })
     );
   }, [data]);
- 
+
   const noData = !loading && data === null;
- 
-  // ── Dynamic supervisor feedback + AI recommendations ───────────────
+
+  // ── Supervisor feedback + AI recommendations ───────────────────
   const [supervisorFeedback, setSupervisorFeedback] = useState<{
     feedback: string | null;
     evaluator: { name: string; designation: string } | null;
@@ -208,7 +206,7 @@ export default function MyPerformancePage() {
   const [recommendations, setRecommendations] = useState<
     { insight_text: string; insight_type: string }[]
   >([]);
- 
+
   useEffect(() => {
     if (!employeeId) return;
     fetch(`${API_BASE}/api/feedback/${employeeId}/2025/${selectedPeriod}`)
@@ -216,18 +214,18 @@ export default function MyPerformancePage() {
     fetch(`${API_BASE}/api/recommendations/${employeeId}/2025/${selectedPeriod}`)
       .then(r => r.json()).then(setRecommendations).catch(() => setRecommendations([]));
   }, [employeeId, selectedPeriod]);
- 
+
   return (
     <div style={{ minHeight: '100vh', background: C.pageBg, fontFamily: 'Inter, sans-serif' }}>
       <div style={{ padding: '24px' }}>
- 
+
         {/* Breadcrumb */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, fontSize: 13, color: C.textMuted, alignItems: 'center' }}>
           <Link href="/dashboard" style={{ color: C.textMuted, textDecoration: 'none' }}>Home</Link>
           <span>›</span>
           <span style={{ color: C.textDark }}>My Performance</span>
         </div>
- 
+
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
@@ -259,22 +257,15 @@ export default function MyPerformancePage() {
             </div>
           </div>
         </div>
- 
-        {/* Not signed in state */}
-        {!loading && !employeeId && (
-          <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
-            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>You are not signed in.</p>
-            <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 8 }}>Please sign in to view your performance data.</p>
-          </div>
-        )}
- 
+
+        {/* No data state */}
         {noData && employeeId && (
           <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
-            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>No performance data found for employee #{employeeId} in 2025.</p>
-            <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 8 }}>Make sure performance records exist in the database for this employee.</p>
+            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>No performance data found for this employee in 2025.</p>
+            <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 8 }}>Make sure performance records exist in the database.</p>
           </div>
         )}
- 
+
         {!noData && employeeId && (
           <>
             {/* Score Cards */}
@@ -316,7 +307,7 @@ export default function MyPerformancePage() {
                 );
               })}
             </div>
- 
+
             {/* Performance Breakdown Chart */}
             <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 24 }}>
               <div style={{ padding: '20px 24px 8px' }}>
@@ -330,7 +321,7 @@ export default function MyPerformancePage() {
                   </span>
                 </p>
               </div>
- 
+
               <div style={{ paddingLeft: 24, paddingRight: 24, paddingTop: 8 }}>
                 {loading || chartData.length === 0 ? (
                   <ChartSkeleton />
@@ -413,7 +404,7 @@ export default function MyPerformancePage() {
                     </BarChart>
                   </ResponsiveContainer>
                 )}
- 
+
                 {/* Legend */}
                 <div style={{ display: 'flex', gap: 20, justifyContent: 'center', paddingBottom: 16 }}>
                   {[{ color: '#216BEB', label: 'Below 100%' }, { color: '#10B981', label: 'Above 100%' }].map(l => (
@@ -424,7 +415,7 @@ export default function MyPerformancePage() {
                   ))}
                 </div>
               </div>
- 
+
               {/* Toggle breakdown */}
               <div style={{ padding: '0 24px 20px' }}>
                 <button onClick={() => setShowDetail(d => !d)} style={{
@@ -438,7 +429,7 @@ export default function MyPerformancePage() {
                   {showDetail ? 'Collapse Objective Breakdown' : 'View Full Objective Breakdown'}
                 </button>
               </div>
- 
+
               {/* Full breakdown table */}
               {showDetail && !loading && data && (
                 <div style={{ borderTop: `1px solid ${C.border}` }}>
@@ -474,7 +465,7 @@ export default function MyPerformancePage() {
                             : <ChevronDown size={15} color="#1D4ED8" />}
                         </div>
                       </div>
- 
+
                       {openCats[cat.category_name] && (
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
@@ -550,7 +541,7 @@ export default function MyPerformancePage() {
                       )}
                     </div>
                   ))}
- 
+
                   {/* Grand total */}
                   <div style={{
                     background: '#1E40AF', padding: '10px 24px',
@@ -569,7 +560,7 @@ export default function MyPerformancePage() {
                 </div>
               )}
             </div>
- 
+
             {/* Supervisor Feedback */}
             <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 24 }}>
               <div style={{ padding: '20px 24px 8px' }}>
@@ -586,7 +577,7 @@ export default function MyPerformancePage() {
                 </div>
               </div>
             </div>
- 
+
             {/* AI Recommendations */}
             <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12 }}>
               <div style={{ padding: '20px 24px 0' }}>
