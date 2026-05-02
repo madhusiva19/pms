@@ -39,8 +39,24 @@ interface Employee {
   current_template_id:   number | null;
   current_template_name: string | null;
 }
-const LOCKED_ADMIN_UUID = process.env.NEXT_PUBLIC_LOCKED_ADMIN_UUID ?? '';
+interface PmsCycle {
+  id: number;
+  pms_year: number;
+  pms_start: string | null;
+  objective_setting_start: string | null;
+  objective_setting_end: string | null;
+  grace_period_end: string | null;
+  is_active: boolean;
+}
+interface CycleState {
+  cycle: PmsCycle | null;
+  editing_open: boolean;
+  reason: string | null;
+  objective_setting_end?: string | null;
+  grace_period_end?: string | null;
+}
 
+const LOCKED_ADMIN_UUID = process.env.NEXT_PUBLIC_LOCKED_ADMIN_UUID ?? '';
 
 // ─── Normaliser ───────────────────────────────────────────────────
 function normalizeTemplate(raw: unknown): Template | null {
@@ -206,6 +222,10 @@ export default function ViewTemplatePage() {
   const [weightError, setWeightError]       = useState('');
   const [objectiveError, setObjectiveError] = useState('');
 
+  // PMS Cycle state
+  const [cycleState, setCycleState]         = useState<CycleState | null>(null);
+  const [cycleLoading, setCycleLoading]     = useState(true);
+
   const [assignedEmployees, setAssignedEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee]   = useState<Employee | null>(null);
   const [empSearch, setEmpSearch]           = useState('');
@@ -247,6 +267,15 @@ export default function ViewTemplatePage() {
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setAssignedEmployees(d); })
       .catch(() => {});
+
+    // Fetch PMS cycle to determine if editing is allowed
+    fetch(`${API}/api/pms-cycle/current`)
+      .then(r => r.json())
+      .then(d => { setCycleState(d); setCycleLoading(false); })
+      .catch(() => {
+        setCycleState({ cycle: null, editing_open: false, reason: 'Could not load PMS cycle' });
+        setCycleLoading(false);
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId]);
 
@@ -352,14 +381,10 @@ export default function ViewTemplatePage() {
     setEditedData(u);
   };
 
-  // ── FIX: Locked objectives cannot be deleted ──────────────────
   const handleDeleteObjective = async (ci: number, oi: number) => {
     const u = [...editedData];
     const obj = u[ci].objectives[oi];
-
-    // Prevent deletion of locked objectives
     if (obj.control_type === 'Locked') return;
-
     if (!obj.isNew) {
       try { await fetch(`${API}/api/templates/${templateId}/objectives/${obj.id}`, { method: 'DELETE' }); } catch {}
     }
@@ -410,6 +435,14 @@ export default function ViewTemplatePage() {
     verticalAlign: 'middle' as const, ...extra,
   });
   const initials = (n: string) => n.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+  // ── Derive edit permission from cycle + template status ───────
+  const isFrozen      = template?.status !== 'active';
+  const editingOpen   = cycleState?.editing_open ?? false;
+  const canEdit       = !isFrozen && editingOpen;
+  const editBlockedReason = isFrozen
+    ? 'This template has been frozen by the Group Admin'
+    : cycleState?.reason ?? 'Editing window is not open';
 
   // ── Loading / error ───────────────────────────────────────────
   if (loading) return (
@@ -467,10 +500,30 @@ export default function ViewTemplatePage() {
             <Link href="/view-template" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 6, background: '#F8F9FC', textDecoration: 'none', fontSize: 13, color: '#1E293B' }}>
               <ArrowLeft size={14} />Back
             </Link>
-            {!editMode
-              ? <button onClick={handleEdit} style={{ padding: '8px 20px', background: '#2563EB', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#fff' }}>Edit Template</button>
-              : <button onClick={handleCancel} style={{ padding: '8px 16px', borderRadius: 6, background: '#F1F5F9', border: '1px solid #E2E8F0', cursor: 'pointer', fontSize: 13, color: '#1E293B', fontWeight: 600 }}>Cancel</button>
-            }
+
+            {/* Edit button — gated by PMS cycle window and template status */}
+            {!editMode ? (
+              <div
+                title={!canEdit ? editBlockedReason : undefined}
+                style={{ display: 'inline-block' }}
+              >
+                <button
+                  onClick={canEdit ? handleEdit : undefined}
+                  style={{
+                    padding: '8px 20px', borderRadius: 6, border: 'none',
+                    fontSize: 13, fontWeight: 500, color: '#fff',
+                    background: cycleLoading ? '#CBD5E1' : isFrozen ? '#94A3B8' : canEdit ? '#2563EB' : '#94A3B8',
+                    cursor: canEdit ? 'pointer' : 'not-allowed',
+                    opacity: cycleLoading ? 0.6 : 1,
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  {cycleLoading ? 'Loading…' : isFrozen ? '🔒 Frozen' : 'Edit Template'}
+                </button>
+              </div>
+            ) : (
+              <button onClick={handleCancel} style={{ padding: '8px 16px', borderRadius: 6, background: '#F1F5F9', border: '1px solid #E2E8F0', cursor: 'pointer', fontSize: 13, color: '#1E293B', fontWeight: 600 }}>Cancel</button>
+            )}
           </div>
         </div>
 
@@ -486,7 +539,10 @@ export default function ViewTemplatePage() {
               <div key={i}>
                 <div style={{ fontSize: 11, color: '#4A5565', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
                 {s.badge
-                  ? <span style={{ background: '#2563EB', color: '#fff', padding: '2px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500 }}>{s.badge}</span>
+                  ? <span style={{
+                      background: s.badge === 'active' ? '#2563EB' : '#64748B',
+                      color: '#fff', padding: '2px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                    }}>{s.badge}</span>
                   : <div style={{ fontSize: 20, fontWeight: 600, color: '#1E293B' }}>{s.value}</div>
                 }
               </div>
@@ -598,7 +654,6 @@ export default function ViewTemplatePage() {
                                 : <ScaleBadge value={obj.kpi_scale} />
                               }
                             </td>
-                            {/* ── FIX: Only show delete button for non-locked objectives ── */}
                             {editMode && (
                               <td style={tdStyle('center')}>
                                 {!isLocked && (
@@ -663,7 +718,6 @@ export default function ViewTemplatePage() {
                 </button>
               </div>
 
-              {/* Search results dropdown */}
               {showDropdown && empResults.length > 0 && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 90, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.10)', zIndex: 100, maxHeight: 220, overflowY: 'auto', marginTop: 4 }}>
                   {empResults.map((emp, i) => {
@@ -698,7 +752,6 @@ export default function ViewTemplatePage() {
               )}
             </div>
 
-            {/* Conflict confirmation box */}
             {showConflictBox && conflictEmployee && (
               <div style={{ border: '1px solid #FDE68A', background: '#FFFBEB', borderRadius: 10, padding: '13px 15px', marginBottom: 12 }}>
                 <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: 10 }}>
@@ -726,7 +779,6 @@ export default function ViewTemplatePage() {
               </div>
             )}
 
-            {/* Success / error */}
             {assignMsg === 'success' && (
               <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: 12.5, color: '#16A34A' }}>
                 ✅ Employee assigned successfully
@@ -738,7 +790,6 @@ export default function ViewTemplatePage() {
               </div>
             )}
 
-            {/* Assigned employees list */}
             {assignedEmployees.length > 0 && (
               <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}>
                 <button onClick={() => setShowAllocated(p => !p)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#F8FAFF', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#1E293B' }}>
