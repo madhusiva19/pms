@@ -15,9 +15,6 @@ supabase = create_client(
     os.getenv("SUPABASE_KEY")
 )
 
-# TODO: replace with real auth UUID once auth is integrated.
-# This must match the id in the users table for the admin/demo user.
-# Set LOCKED_ADMIN_UUID in your .env file.
 LOCKED_ADMIN_UUID = os.getenv("LOCKED_ADMIN_UUID", "aaaaaaaa-0001-0001-0001-000000000001")
 
 
@@ -418,10 +415,8 @@ def compute_achievement_pct(record: dict, mapping: dict):
             return round((target / actual) * 100, 2) if actual != 0 else None
         else:
             return round((actual / target) * 100, 2)
-
     elif input_type == 'raw_actual_x100':
         return round(actual * 100, 2)
-
     elif input_type == 'raw_actual':
         return round(actual, 2)
 
@@ -462,7 +457,6 @@ def _patch_total_score(user_id: str, year: int, period: str) -> float:
 
     total = round(sum(float(r.get('score') or 0) for r in records), 4)
 
-    # 1. Update performance_summaries
     supabase.table('performance_summaries').upsert({
         'user_id':     user_id,
         'year':        year,
@@ -470,7 +464,6 @@ def _patch_total_score(user_id: str, year: int, period: str) -> float:
         'total_score': total,
     }, on_conflict='user_id,year,period').execute()
 
-    # 2. Sync to evaluations.overall_score automatically
     eval_res = supabase.table('evaluations') \
         .select('id') \
         .eq('user_id', user_id) \
@@ -531,7 +524,6 @@ def get_performance(user_id, year, period):
             return jsonify({'error': 'User not found'}), 404
 
         user = user_res.data
-
         emp_data = {
             'id':          user['id'],
             'name':        user.get('full_name', ''),
@@ -629,7 +621,6 @@ def get_performance(user_id, year, period):
 def get_performance_summary(user_id):
     try:
         year = int(request.args.get('year', 2025))
-
         records = supabase.table('performance_records') \
             .select('period, score') \
             .eq('user_id', user_id) \
@@ -653,6 +644,10 @@ def get_performance_summary(user_id):
 
 @app.route('/api/evaluator/submit', methods=['POST'])
 def evaluator_submit():
+    """
+    Saves manual ratings into performance_records.manual_rating column.
+    Creates or updates the record using upsert on the unique constraint.
+    """
     try:
         body         = request.get_json()
         user_id      = body.get('user_id')
@@ -673,8 +668,11 @@ def evaluator_submit():
 
             if not obj_id or manual_rating is None:
                 continue
-            if not (1.0 <= float(manual_rating) <= 5.0):
-                return jsonify({'error': f'Rating for objective {obj_id} must be 1-5'}), 400
+
+            manual_rating = round(float(manual_rating), 2)
+
+            if not (1.0 <= manual_rating <= 5.0):
+                return jsonify({'error': f'Rating for objective {obj_id} must be between 1.00 and 5.00'}), 400
 
             obj     = obj_by_id.get(obj_id, {})
             mapping = mappings_by_obj.get(obj_id, {})
@@ -683,9 +681,9 @@ def evaluator_submit():
                 return jsonify({'error': f'Objective {obj_id} is not a manual-rated KPI'}), 400
 
             weight = float(obj.get('weight', 0))
-            rating = float(manual_rating)
-            score  = round(rating * (weight / 100), 4)
+            score  = round(manual_rating * (weight / 100), 4)
 
+            # upsert into performance_records — stores in manual_rating column
             supabase.table('performance_records').upsert({
                 'user_id':       user_id,
                 'objective_id':  obj_id,
@@ -693,8 +691,8 @@ def evaluator_submit():
                 'year':          year,
                 'target':        None,
                 'actual':        None,
-                'manual_rating': rating,
-                'rating':        rating,
+                'manual_rating': manual_rating,  # stored in manual_rating column
+                'rating':        manual_rating,
                 'score':         score,
                 'status':        'approved',
             }, on_conflict='user_id,objective_id,period,year').execute()
@@ -712,6 +710,52 @@ def evaluator_submit():
 
     except Exception as e:
         print(f"[ERROR] evaluator_submit: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/evaluator/pending', methods=['GET'])
+def get_pending_evaluations():
+    try:
+        user_id = request.args.get('user_id')
+        year    = request.args.get('year', 2025)
+        period  = request.args.get('period', 'H1')
+
+        if not user_id:
+            return jsonify({'error': 'user_id required'}), 400
+
+        mappings_by_obj, _, obj_by_id, cat_by_id = _load_scale_meta()
+
+        manual_obj_ids = [
+            obj_id for obj_id, m in mappings_by_obj.items()
+            if m.get('scale_type') == 'manual'
+        ]
+
+        existing = supabase.table('performance_records') \
+            .select('objective_id, manual_rating') \
+            .eq('user_id', user_id) \
+            .eq('year', year) \
+            .eq('period', period) \
+            .execute()
+        existing_ids = {
+            r['objective_id'] for r in existing.data
+            if r.get('manual_rating') is not None
+        }
+
+        pending = []
+        for obj_id in manual_obj_ids:
+            if obj_id not in existing_ids:
+                obj = obj_by_id.get(obj_id, {})
+                cat = cat_by_id.get(obj.get('category_id', 0), {})
+                pending.append({
+                    'objective_id':   obj_id,
+                    'objective_name': obj.get('name', ''),
+                    'category_name':  cat.get('name', ''),
+                    'weight':         obj.get('weight', 0),
+                })
+
+        return jsonify({'pending': pending, 'count': len(pending)})
+
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
@@ -766,57 +810,10 @@ def sync_actuals():
             synced += 1
 
         total = _patch_total_score(user_id, year, period)
-
         return jsonify({'success': True, 'synced': synced, 'total_score': total})
 
     except Exception as e:
         print(f"[ERROR] sync_actuals: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/evaluator/pending', methods=['GET'])
-def get_pending_evaluations():
-    try:
-        user_id = request.args.get('user_id')
-        year    = request.args.get('year', 2025)
-        period  = request.args.get('period', 'H1')
-
-        if not user_id:
-            return jsonify({'error': 'user_id required'}), 400
-
-        mappings_by_obj, _, obj_by_id, cat_by_id = _load_scale_meta()
-
-        manual_obj_ids = [
-            obj_id for obj_id, m in mappings_by_obj.items()
-            if m.get('scale_type') == 'manual'
-        ]
-
-        existing = supabase.table('performance_records') \
-            .select('objective_id, manual_rating') \
-            .eq('user_id', user_id) \
-            .eq('year', year) \
-            .eq('period', period) \
-            .execute()
-        existing_ids = {
-            r['objective_id'] for r in existing.data
-            if r.get('manual_rating') is not None
-        }
-
-        pending = []
-        for obj_id in manual_obj_ids:
-            if obj_id not in existing_ids:
-                obj = obj_by_id.get(obj_id, {})
-                cat = cat_by_id.get(obj.get('category_id', 0), {})
-                pending.append({
-                    'objective_id':   obj_id,
-                    'objective_name': obj.get('name', ''),
-                    'category_name':  cat.get('name', ''),
-                    'weight':         obj.get('weight', 0),
-                })
-
-        return jsonify({'pending': pending, 'count': len(pending)})
-
-    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
@@ -858,6 +855,225 @@ def backfill_scores():
 
     except Exception as e:
         print(f"[ERROR] backfill_scores: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EVALUATOR TEAM
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/evaluator/<evaluator_id>/team', methods=['GET'])
+def get_evaluator_team(evaluator_id):
+    """
+    Returns all users who report directly to the evaluator.
+    """
+    try:
+        result = supabase.table('users') \
+            .select('id, full_name, designation, emp_id') \
+            .eq('manager_id', evaluator_id) \
+            .execute()
+
+        if not result.data:
+            return jsonify([])
+
+        team     = result.data
+        user_ids = [u['id'] for u in team]
+
+        assign_res = supabase.table('template_assignments') \
+            .select('user_id, template_id, templates(id, name)') \
+            .in_('user_id', user_ids) \
+            .execute()
+
+        assign_by_user = {}
+        for row in (assign_res.data or []):
+            assign_by_user[row['user_id']] = {
+                'template_id':   row['template_id'],
+                'template_name': row['templates']['name'] if row.get('templates') else None,
+            }
+
+        enriched = []
+        for u in team:
+            a = assign_by_user.get(u['id'])
+            enriched.append({
+                'id':            u['id'],
+                'full_name':     u['full_name'],
+                'designation':   u.get('designation', ''),
+                'emp_id':        u.get('emp_id', ''),
+                'template_id':   a['template_id']   if a else None,
+                'template_name': a['template_name'] if a else None,
+            })
+
+        return jsonify(enriched)
+
+    except Exception as e:
+        print(f"[ERROR] get_evaluator_team: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MANUAL OBJECTIVES FOR A USER
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/manual-objectives/<user_id>', methods=['GET'])
+def get_manual_objectives(user_id):
+    """
+    Returns all manual objectives for a user based on their assigned template,
+    along with any existing manual_rating already saved in performance_records.
+    """
+    try:
+        year   = request.args.get('year',   2026, type=int)
+        period = request.args.get('period', 'H1')
+
+        # get template assignment
+        assign_res = supabase.table('template_assignments') \
+            .select('template_id') \
+            .eq('user_id', user_id) \
+            .limit(1) \
+            .execute()
+
+        if not assign_res.data:
+            return jsonify({'error': 'No template assigned to this user'}), 404
+
+        template_id = assign_res.data[0]['template_id']
+
+        # get categories for this template
+        cat_res = supabase.table('categories') \
+            .select('id, name') \
+            .eq('template_id', template_id) \
+            .order('id') \
+            .execute()
+
+        categories = cat_res.data or []
+        cat_ids    = [c['id'] for c in categories]
+        cat_map    = {c['id']: c['name'] for c in categories}
+
+        if not cat_ids:
+            return jsonify([])
+
+        # get only manual objectives for this template
+        obj_res = supabase.table('objectives') \
+            .select('id, name, weight, category_id, kpi_scale') \
+            .in_('category_id', cat_ids) \
+            .eq('kpi_scale', 'manual') \
+            .order('id') \
+            .execute()
+
+        objectives = obj_res.data or []
+        if not objectives:
+            return jsonify([])
+
+        obj_ids = [o['id'] for o in objectives]
+
+        # fetch existing manual_rating values from performance_records
+        rec_res = supabase.table('performance_records') \
+            .select('objective_id, manual_rating') \
+            .eq('user_id', user_id) \
+            .eq('year', year) \
+            .eq('period', period) \
+            .in_('objective_id', obj_ids) \
+            .execute()
+
+        # map objective_id → manual_rating (from performance_records table)
+        existing = {
+            r['objective_id']: r['manual_rating']
+            for r in (rec_res.data or [])
+            if r.get('manual_rating') is not None
+        }
+
+        result = []
+        for obj in objectives:
+            result.append({
+                'objective_id':   obj['id'],
+                'objective_name': obj['name'],
+                'category_id':    obj['category_id'],
+                'category_name':  cat_map.get(obj['category_id'], ''),
+                'weight':         float(obj.get('weight', 0)),
+                'kpi_scale':      obj.get('kpi_scale', 'manual'),
+                'manual_rating':  existing.get(obj['id']),  # pre-fill from performance_records
+            })
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[ERROR] get_manual_objectives: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RATING PERIODS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/rating-periods/current', methods=['GET'])
+def get_current_rating_period():
+    """
+    Returns the currently active rating window from rating_periods table.
+    rating_open = true when today is between rating_start and rating_end.
+    Completely independent from pms_cycles table.
+    """
+    try:
+        from datetime import date
+
+        result = supabase.table('rating_periods') \
+            .select('*') \
+            .eq('is_active', True) \
+            .execute()
+
+        if not result.data:
+            return jsonify({
+                'rating_open':   False,
+                'active_period': None,
+                'reason':        'No active rating periods configured',
+            })
+
+        today = date.today()
+
+        def parse_date(d):
+            if not d:
+                return None
+            return date.fromisoformat(str(d)[:10])
+
+        # check if today falls within any active rating window
+        active = None
+        for rp in result.data:
+            start = parse_date(rp['rating_start'])
+            end   = parse_date(rp['rating_end'])
+            if start and end and start <= today <= end:
+                active = rp
+                break
+
+        if not active:
+            # find next upcoming window to show helpful message
+            upcoming = None
+            for rp in result.data:
+                start = parse_date(rp['rating_start'])
+                if start and today < start:
+                    if upcoming is None or start < parse_date(upcoming['rating_start']):
+                        upcoming = rp
+
+            if upcoming:
+                reason = f"Rating window opens on {parse_date(upcoming['rating_start']).strftime('%d %b %Y')}"
+            else:
+                reason = 'Rating window has closed for this cycle'
+
+            return jsonify({
+                'rating_open':   False,
+                'active_period': None,
+                'reason':        reason,
+                'periods':       result.data,
+            })
+
+        return jsonify({
+            'rating_open':   True,
+            'active_period': active['period'],
+            'pms_year':      active['pms_year'],
+            'rating_start':  active['rating_start'],
+            'rating_end':    active['rating_end'],
+            'reason':        None,
+            'periods':       result.data,
+        })
+
+    except Exception as e:
+        print(f"[ERROR] get_current_rating_period: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -934,13 +1150,6 @@ def get_recommendations(user_id, year, period):
 
 @app.route('/api/pms-cycle/current', methods=['GET'])
 def get_current_pms_cycle():
-    """
-    Returns the active PMS cycle and whether template editing is currently allowed.
-    Editing is allowed when:
-      - is_active = true
-      - today >= objective_setting_start
-      - today <= grace_period_end  (falls back to objective_setting_end if null)
-    """
     try:
         from datetime import date
 
@@ -953,9 +1162,9 @@ def get_current_pms_cycle():
 
         if not result.data:
             return jsonify({
-                'cycle':          None,
-                'editing_open':   False,
-                'reason':         'No active PMS cycle found',
+                'cycle':        None,
+                'editing_open': False,
+                'reason':       'No active PMS cycle found',
             })
 
         cycle = result.data[0]
@@ -963,9 +1172,8 @@ def get_current_pms_cycle():
 
         obj_start = cycle.get('objective_setting_start')
         obj_end   = cycle.get('objective_setting_end')
-        grace_end = cycle.get('grace_period_end') or obj_end  # fallback
+        grace_end = cycle.get('grace_period_end') or obj_end
 
-        # Parse dates safely
         def parse_date(d):
             if not d:
                 return None
@@ -1007,3 +1215,4 @@ def get_current_pms_cycle():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+    
