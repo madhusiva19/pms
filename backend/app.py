@@ -462,12 +462,38 @@ def _patch_total_score(user_id: str, year: int, period: str) -> float:
 
     total = round(sum(float(r.get('score') or 0) for r in records), 4)
 
+    # ── 1. Always write to performance_summaries ──────────────────────────────
     supabase.table('performance_summaries').upsert({
         'user_id':     user_id,
         'year':        year,
         'period':      period,
         'total_score': total,
     }, on_conflict='user_id,year,period').execute()
+
+    # ── 2. Sync to evaluations.overall_score ─────────────────────────────────
+    #    Update if an evaluation row already exists, otherwise create one.
+    eval_res = supabase.table('evaluations') \
+        .select('id') \
+        .eq('user_id', user_id) \
+        .eq('year', year) \
+        .eq('period', period) \
+        .limit(1) \
+        .execute()
+
+    if eval_res.data:
+        supabase.table('evaluations') \
+            .update({'overall_score': total, 'status': 'completed'}) \
+            .eq('id', eval_res.data[0]['id']) \
+            .execute()
+    else:
+        supabase.table('evaluations').insert({
+            'user_id':      user_id,
+            'evaluator_id': user_id,
+            'period':       period,
+            'year':         year,
+            'overall_score': total,
+            'status':       'completed',
+        }).execute()
 
     return total
 
@@ -905,3 +931,4 @@ def get_recommendations(user_id, year, period):
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+    
