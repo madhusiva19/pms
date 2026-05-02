@@ -94,12 +94,14 @@ export default function ProfileTemplate({
   const [selfAchievements, setSelfAchievements] = useState<SelfAchievement[]>(initialSelfAchievements);
   const [supervisorCommentsList, setSupervisorCommentsList] = useState<SupervisorComment[]>(initialSupervisorComments);
 
-  const initials = profile.fullName
+  const initials = profile?.fullName
+    ? profile.fullName
     .split(" ")
-    .map((w) => w[0])
+    .map((w: string) => w[0])
     .slice(0, 2)
     .join("")
-    .toUpperCase();
+    .toUpperCase()
+    : "??";
 
   // ── Save (HQ Admin own profile only) ──
   const handleSave = async () => {

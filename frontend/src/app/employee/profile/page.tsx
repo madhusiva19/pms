@@ -33,7 +33,7 @@ export default function EmployeeProfilePage() {
           id: e.id, date: e.entry_date, content: e.entry_text, status: e.status,
         })));
         setSupervisorEntries((diaryJson.supervisor_entries || []).map((e: any) => ({
-          id: e.id, date: e.entry_date, supervisorName: e.author_id, comment: e.entry_text,
+          id: e.id, date: e.entry_date, supervisorName: e.author_name, comment: e.entry_text,
         })));
       } catch (err) {
         console.error("Failed to fetch data:", err);
@@ -57,9 +57,9 @@ export default function EmployeeProfilePage() {
         sidebarName={user.full_name.split(" ")[0]}
         profile={{
           fullName: profileData.full_name,
-          dob: "1995-05-18",
-          joinedDate: "2023-04-01",
-          designation: profileData.role,
+          dob: profileData.date_of_birth  ? new Date(profileData.date_of_birth).toLocaleDateString("en-GB").replace(/\//g, "-") : "Not set",
+          joinedDate: profileData.date_joined ? new Date(profileData.date_joined).toLocaleDateString("en-GB").replace(/\//g, "-") : "Not set",
+          designation: profileData.designation,
           email: profileData.email,
           branch: profileData.iata_branch_code,
           department: "Air Freight",
