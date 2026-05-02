@@ -508,18 +508,34 @@ export default function ViewTemplatePage() {
                 style={{ display: 'inline-block' }}
               >
                 <button
-                  onClick={canEdit ? handleEdit : undefined}
-                  style={{
-                    padding: '8px 20px', borderRadius: 6, border: 'none',
-                    fontSize: 13, fontWeight: 500, color: '#fff',
-                    background: cycleLoading ? '#CBD5E1' : isFrozen ? '#94A3B8' : canEdit ? '#2563EB' : '#94A3B8',
-                    cursor: canEdit ? 'pointer' : 'not-allowed',
-                    opacity: cycleLoading ? 0.6 : 1,
-                    transition: 'background 0.15s',
-                  }}
-                >
-                  {cycleLoading ? 'Loading…' : isFrozen ? '🔒 Frozen' : 'Edit Template'}
-                </button>
+  onClick={canEdit ? handleEdit : undefined}
+  style={{
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '8px 20px', borderRadius: 6,
+    fontSize: 13, fontWeight: 500,
+    cursor: canEdit ? 'pointer' : 'not-allowed',
+    opacity: cycleLoading ? 0.6 : 1,
+    transition: 'background 0.15s',
+    ...(cycleLoading
+      ? { background: '#CBD5E1', color: '#fff', border: 'none' }
+      : isFrozen
+      ? { background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }
+      : canEdit
+      ? { background: '#2563EB', color: '#fff', border: 'none' }
+      : { background: '#94A3B8', color: '#fff', border: 'none' }),
+  }}
+>
+  {isFrozen && !cycleLoading && (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.5"
+      strokeLinecap="round" strokeLinejoin="round"
+    >
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  )}
+  {cycleLoading ? 'Loading…' : isFrozen ? 'Template locked' : 'Edit Template'}
+</button>
               </div>
             ) : (
               <button onClick={handleCancel} style={{ padding: '8px 16px', borderRadius: 6, background: '#F1F5F9', border: '1px solid #E2E8F0', cursor: 'pointer', fontSize: 13, color: '#1E293B', fontWeight: 600 }}>Cancel</button>
@@ -540,8 +556,8 @@ export default function ViewTemplatePage() {
                 <div style={{ fontSize: 11, color: '#4A5565', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
                 {s.badge
                   ? <span style={{
-                      background: s.badge === 'active' ? '#2563EB' : '#64748B',
-                      color: '#fff', padding: '2px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                      background: s.badge === 'active' ? '#2563EB' : '#FEF3C7',
+                      color: template.status === 'active' ? '#fff' : '#92400E', padding: '2px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
                     }}>{s.badge}</span>
                   : <div style={{ fontSize: 20, fontWeight: 600, color: '#1E293B' }}>{s.value}</div>
                 }
