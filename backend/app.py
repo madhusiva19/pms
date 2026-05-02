@@ -7,7 +7,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import os
 import re
-from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
 
@@ -15,8 +14,8 @@ app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000"]}})
 
 # ── Supabase client ──────────────────────────────────────────────────────────
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL      = os.getenv("SUPABASE_URL")
+SUPABASE_KEY      = os.getenv("SUPABASE_KEY")
 
 import requests as req
 
@@ -25,40 +24,41 @@ class SupabaseClient:
         self.url = url
         self.key = key
         self.headers = {
-            "apikey": key,
+            "apikey":        key,
             "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation"
+            "Content-Type":  "application/json",
+            "Prefer":        "return=representation"
         }
 
     def table(self, table_name):
         return SupabaseTable(self.url, self.headers, table_name)
 
+
 class SupabaseTable:
     def __init__(self, url, headers, table_name):
-        self.url = url
-        self.headers = dict(headers)
+        self.url        = url
+        self.headers    = dict(headers)
         self.table_name = table_name
-        self.params = {}
-        self.method = "GET"
-        self.body = None
-        self._count = None
+        self.params     = {}
+        self.method     = "GET"
+        self.body       = None
+        self._count     = None
 
     def select(self, columns="*", count=None):
         self.params["select"] = columns
         if count == "exact":
             self.headers = {**self.headers, "Prefer": "count=exact"}
-            self._count = True
+            self._count  = True
         return self
 
     def insert(self, data):
         self.method = "POST"
-        self.body = data
+        self.body   = data
         return self
 
     def update(self, data):
         self.method = "PATCH"
-        self.body = data
+        self.body   = data
         return self
 
     def delete(self):
@@ -76,7 +76,6 @@ class SupabaseTable:
     def execute(self):
         url = f"{self.url}/rest/v1/{self.table_name}"
 
-        # Separate filter params from select params
         filter_params = {k: v for k, v in self.params.items() if k != "select"}
         all_params    = self.params
 
@@ -88,6 +87,7 @@ class SupabaseTable:
             res = req.patch(url, headers=self.headers, params=filter_params, json=self.body)
         elif self.method == "DELETE":
             res = req.delete(url, headers=self.headers, params=filter_params)
+
         class Result:
             pass
 
@@ -99,7 +99,6 @@ class SupabaseTable:
         except:
             result.data = []
 
-        # Handle count
         if self._count:
             content_range = res.headers.get("Content-Range", "")
             try:
@@ -111,79 +110,8 @@ class SupabaseTable:
 
         return result
 
+
 supabase = SupabaseClient(SUPABASE_URL, SUPABASE_KEY)
-
-# ── Dummy users ──────────────────────────────────────────────────────────────
-USERS = {
-    "hqadmin@dgl.com": {
-        "password_hash": generate_password_hash("HQ@123"),
-        "role": "HQ Admin",
-        "full_name": "HQ Admin User",
-        "employee_id": "a0000001-0000-0000-0000-000000000001",
-        "org_level": 1,
-        "iata_branch_code": "HQ"
-    },
-    "countryadmin@dgl.com": {
-        "password_hash": generate_password_hash("Country@123"),
-        "role": "Country Admin",
-        "full_name": "Country Admin User",
-        "employee_id": "a0000001-0000-0000-0000-000000000002",
-        "org_level": 2,
-        "iata_branch_code": "CMB"
-    },
-    "branchadmin@dgl.com": {
-        "password_hash": generate_password_hash("Branch@123"),
-        "role": "Branch Admin",
-        "full_name": "Branch Admin User",
-        "employee_id": "a0000001-0000-0000-0000-000000000003",
-        "org_level": 3,
-        "iata_branch_code": "CMB"
-    },
-    "deptadmin@dgl.com": {
-        "password_hash": generate_password_hash("Dept@123"),
-        "role": "Dept Admin",
-        "full_name": "Dept Admin User",
-        "employee_id": "a0000001-0000-0000-0000-000000000004",
-        "org_level": 4,
-        "iata_branch_code": "CMB"
-    },
-    "subdeptadmin@dgl.com": {
-        "password_hash": generate_password_hash("Subdept@123"),
-        "role": "Sub Dept Admin",
-        "full_name": "Sub Dept Admin User",
-        "employee_id": "a0000001-0000-0000-0000-000000000005",
-        "org_level": 5,
-        "iata_branch_code": "CMB"
-    },
-    "employee@dgl.com": {
-        "password_hash": generate_password_hash("Emp@123"),
-        "role": "Employee",
-        "full_name": "Employee User",
-        "employee_id": "a0000001-0000-0000-0000-000000000006",
-        "org_level": 6,
-        "iata_branch_code": "CMB"
-    },
-}
-
-# ── Role redirects ───────────────────────────────────────────────────────────
-ROLE_REDIRECTS = {
-    "HQ Admin":       "/hq-admin/dashboard",
-    "Country Admin":  "/country-admin/dashboard",
-    "Branch Admin":   "/branch-admin/dashboard",
-    "Dept Admin":     "/dept-admin/dashboard",
-    "Sub Dept Admin": "/sub-dept-admin/dashboard",
-    "Employee":       "/employee/profile",
-}
-
-# ── Role keys for frontend sidebar ───────────────────────────────────────────
-ROLE_KEYS = {
-    "HQ Admin":       "hq_admin",
-    "Country Admin":  "country_admin",
-    "Branch Admin":   "branch_admin",
-    "Dept Admin":     "dept_admin",
-    "Sub Dept Admin": "sub_dept_admin",
-    "Employee":       "employee",
-}
 
 # ── Role profile paths ───────────────────────────────────────────────────────
 ROLE_PROFILE_PATHS = {
@@ -194,10 +122,6 @@ ROLE_PROFILE_PATHS = {
     5: "/sub-dept-admin/profile",
     6: "/employee/profile",
 }
-
-def is_valid_email(email):
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -222,8 +146,6 @@ def send_cutoff_notification(recipient_org_level: int, title: str, message: str)
                 "action_link":  None,
             }).execute()
 
-        print(f"✅ Cutoff notification sent to org_level {recipient_org_level}")
-
     except Exception as e:
         print(f"❌ Failed to send cutoff notification: {str(e)}")
 
@@ -244,8 +166,6 @@ def send_all_users_notification(title: str, message: str):
                 "triggered_by": "system",
                 "action_link":  None,
             }).execute()
-
-        print("✅ Notification sent to all users")
 
     except Exception as e:
         print(f"❌ Failed to send all users notification: {str(e)}")
@@ -332,7 +252,7 @@ def test_db():
 @app.get("/api/debug-env")
 def debug_env():
     return jsonify({
-        "url": os.getenv("SUPABASE_URL"),
+        "url":       os.getenv("SUPABASE_URL"),
         "key_exists": bool(os.getenv("SUPABASE_KEY"))
     }), 200
 
@@ -343,29 +263,100 @@ def debug_env():
 
 @app.post("/api/auth/login")
 def login():
-    data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
+    try:
+        body     = request.get_json()
+        email    = body.get("email", "").strip().lower()
+        password = body.get("password", "").strip()
 
-    if not email or not password:
-        return jsonify({"message": "Email and password are required"}), 400
-    if not is_valid_email(email):
-        return jsonify({"message": "Invalid email format"}), 400
+        if not email or not password:
+            return jsonify({"message": "Email and password are required"}), 400
 
-    user = USERS.get(email)
-    if not user or not check_password_hash(user["password_hash"], password):
-        return jsonify({"message": "Invalid email or password"}), 401
+        # Step 1 — Authenticate with Supabase Auth
+        auth_res = req.post(
+            f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+            headers={
+                "apikey":       SUPABASE_KEY,
+                "Content-Type": "application/json"
+            },
+            json={"email": email, "password": password}
+        )
 
-    return jsonify({
-        "message":          "Login successful",
-        "employee_id":      user["employee_id"],
-        "full_name":        user["full_name"],
-        "email":            email,
-        "org_level":        user["org_level"],
-        "role":             ROLE_KEYS.get(user["role"]),
-        "iata_branch_code": user["iata_branch_code"],
-        "redirectTo":       ROLE_REDIRECTS.get(user["role"])
-    }), 200
+        if auth_res.status_code != 200:
+            return jsonify({"message": "Invalid email or password"}), 401
+
+        auth_data = auth_res.json()
+        auth_id   = auth_data.get("user", {}).get("id")
+
+        if not auth_id:
+            return jsonify({"message": "Authentication failed"}), 401
+
+        # Step 2 — Fetch user profile from users table
+        user_res = supabase.table("users")\
+            .select("*")\
+            .eq("id", auth_id)\
+            .execute()
+
+        if not user_res.data:
+            return jsonify({"message": "User profile not found"}), 404
+
+        user      = user_res.data[0]
+        role      = user.get("role")
+        org_level = user.get("org_level")
+
+        role_redirects = {
+            "hq_admin":       "/hq-admin/dashboard",
+            "country_admin":  "/country-admin/dashboard",
+            "branch_admin":   "/branch-admin/dashboard",
+            "dept_admin":     "/dept-admin/dashboard",
+            "sub_dept_admin": "/sub-dept-admin/dashboard",
+            "employee":       "/employee/profile",  # employees have no dashboard
+        }
+
+        redirect = role_redirects.get(role, "/employee/profile")
+
+        return jsonify({
+            "message":  "Login successful",
+            "redirect": redirect,
+            "user": {
+                "id":               auth_id,
+                "email":            user.get("email"),
+                "full_name":        user.get("full_name"),
+                "role":             role,
+                "org_level":        org_level,
+                "iata_branch_code": user.get("iata_branch_code"),
+                "country_id":       user.get("assigned_country_id"),
+                "branch_id":        user.get("branch_id"),
+                "dept_id":          user.get("department_id"),
+                "sub_dept_id":      user.get("sub_department_id"),
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+
+@app.post("/api/auth/forgot-password")
+def forgot_password():
+    try:
+        body  = request.get_json()
+        email = body.get("email", "").strip().lower()
+
+        if not email:
+            return jsonify({"message": "Email is required"}), 400
+
+        res = req.post(
+            f"{SUPABASE_URL}/auth/v1/recover",
+            headers={
+                "apikey":       SUPABASE_KEY,
+                "Content-Type": "application/json"
+            },
+            json={"email": email}
+        )
+
+        return jsonify({"message": "Password reset email sent if account exists"}), 200
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -376,14 +367,19 @@ def login():
 def get_profile(employee_id):
     try:
         result = supabase.table("users")\
-            .select("*")\
+            .select("*, designations!fk_designation(name)")\
             .eq("id", employee_id)\
             .execute()
 
         if not result.data:
             return jsonify({"message": "User not found"}), 404
 
-        return jsonify({"profile": result.data[0]}), 200
+        profile = result.data[0]
+        # Flatten designation name
+        if profile.get("designations"):
+            profile["designation"] = profile["designations"]["name"]
+
+        return jsonify({"profile": profile}), 200
 
     except Exception as e:
         return jsonify({"message": str(e)}), 500
@@ -409,6 +405,16 @@ def get_diary(employee_id):
             .eq("author_type", "supervisor")\
             .order("created_at", desc=True)\
             .execute()
+        
+        # Fetch supervisor names
+        for entry in supervisor_entries.data:
+            author_id = entry.get("author_id")
+            if author_id:
+                author = supabase.table("users")\
+                    .select("full_name")\
+                    .eq("id", author_id)\
+                    .execute()
+                entry["author_name"] = author.data[0]["full_name"] if author.data else "Unknown"
 
         return jsonify({
             "self_entries":       self_entries.data,
@@ -421,11 +427,11 @@ def get_diary(employee_id):
 
 @app.post("/api/diary/save")
 def save_diary():
-    data = request.get_json(silent=True) or {}
+    data        = request.get_json(silent=True) or {}
     employee_id = (data.get("employee_id") or "").strip()
     description = (data.get("description") or "").strip()
-    entry_date  = (data.get("entry_date") or "").strip()
-    cycle_id    = (data.get("cycle_id") or "").strip()
+    entry_date  = (data.get("entry_date")  or "").strip()
+    cycle_id    = (data.get("cycle_id")    or "").strip()
 
     if not employee_id or not description or not entry_date:
         return jsonify({"message": "employee_id, description and entry_date are required"}), 400
@@ -443,7 +449,7 @@ def save_diary():
 
         return jsonify({
             "message": "Diary entry saved",
-            "data": result.data[0] if result.data else {}
+            "data":    result.data[0] if result.data else {}
         }), 201
 
     except Exception as e:
@@ -452,11 +458,11 @@ def save_diary():
 
 @app.post("/api/diary/submit")
 def submit_diary():
-    data = request.get_json(silent=True) or {}
+    data        = request.get_json(silent=True) or {}
     employee_id = (data.get("employee_id") or "").strip()
     description = (data.get("description") or "").strip()
-    entry_date  = (data.get("entry_date") or "").strip()
-    cycle_id    = (data.get("cycle_id") or "").strip()
+    entry_date  = (data.get("entry_date")  or "").strip()
+    cycle_id    = (data.get("cycle_id")    or "").strip()
 
     if not employee_id or not description or not entry_date:
         return jsonify({"message": "employee_id, description and entry_date are required"}), 400
@@ -490,35 +496,41 @@ def submit_diary():
 
                 if supervisor.data:
                     supervisor_level = supervisor.data[0]["org_level"]
-                    base_path  = ROLE_PROFILE_PATHS.get(supervisor_level, "/")
-                    action_url = f"{base_path}?employee_id={employee_id}"
+                    base_path        = ROLE_PROFILE_PATHS.get(supervisor_level, "/")
+                    action_url       = f"{base_path}?employee_id={employee_id}"
 
-                    supabase.table("notifications").insert({
-                        "receiver_id":  supervisor_id,
-                        "type":         "diary_approval",
-                        "title":        full_name,
-                        "message":      description,
-                        "triggered_by": "system",
-                        "action_link":  action_url,
-                    }).execute()
+                    try:
+                        notif_result = supabase.table("notifications").insert({
+                            "receiver_id":  supervisor_id,
+                            "type":         "diary_approval",
+                            "title":        full_name,
+                            "message":      description,
+                            "triggered_by": "system",
+                            "action_link":  action_url,
+                        }).execute()
+                        print(f"DEBUG supervisor_id: {supervisor_id}")
+                        print(f"DEBUG notif_result: {notif_result.data}")
+                    except Exception as notif_err:
+                        print(f"DEBUG notif_error: {str(notif_err)}")
 
         return jsonify({
             "message": "Diary entry submitted for approval",
-            "data": result.data[0] if result.data else {}
+            "data":    result.data[0] if result.data else {}
         }), 201
 
     except Exception as e:
+        print(f"DEBUG submit_diary error: {str(e)}")
         return jsonify({"message": str(e)}), 500
 
 
 @app.post("/api/diary/supervisor")
 def add_supervisor_diary():
-    data = request.get_json(silent=True) or {}
-    employee_id   = (data.get("employee_id") or "").strip()
+    data          = request.get_json(silent=True) or {}
+    employee_id   = (data.get("employee_id")   or "").strip()
     supervisor_id = (data.get("supervisor_id") or "").strip()
-    description   = (data.get("description") or "").strip()
-    entry_date    = (data.get("entry_date") or "").strip()
-    cycle_id      = (data.get("cycle_id") or "").strip()
+    description   = (data.get("description")   or "").strip()
+    entry_date    = (data.get("entry_date")     or "").strip()
+    cycle_id      = (data.get("cycle_id")       or "").strip()
 
     if not employee_id or not supervisor_id or not description or not entry_date:
         return jsonify({"message": "All fields are required"}), 400
@@ -536,7 +548,7 @@ def add_supervisor_diary():
 
         return jsonify({
             "message": "Supervisor comment added",
-            "data": result.data[0] if result.data else {}
+            "data":    result.data[0] if result.data else {}
         }), 201
 
     except Exception as e:
@@ -545,7 +557,7 @@ def add_supervisor_diary():
 
 @app.patch("/api/diary/<diary_id>/approve")
 def approve_diary(diary_id):
-    data = request.get_json(silent=True) or {}
+    data        = request.get_json(silent=True) or {}
     reviewer_id = (data.get("reviewer_id") or "").strip()
 
     try:
@@ -592,7 +604,7 @@ def approve_diary(diary_id):
 
 @app.patch("/api/diary/<diary_id>/reject")
 def reject_diary(diary_id):
-    data = request.get_json(silent=True) or {}
+    data        = request.get_json(silent=True) or {}
     reviewer_id = (data.get("reviewer_id") or "").strip()
 
     try:
@@ -671,14 +683,22 @@ def get_notifications(employee_id):
 @app.patch("/api/notifications/<notification_id>/read")
 def mark_notification_read(notification_id):
     try:
-        supabase.table("notifications")\
-            .update({
-                "is_read": True,
-            })\
-            .eq("id", notification_id)\
-            .execute()
+        url = f"{SUPABASE_URL}/rest/v1/notifications"
+        headers = {
+            "apikey":        SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type":  "application/json",
+            "Prefer":        "return=representation"
+        }
+        params = {"id": f"eq.{notification_id}"}
+        body   = {"is_read": True}
 
-        return jsonify({"message": "Marked as read"}), 200
+        response = req.patch(url, headers=headers, params=params, json=body)
+
+        if response.status_code in (200, 204):
+            return jsonify({"message": "Marked as read"}), 200
+        else:
+            return jsonify({"message": f"Failed: {response.text}"}), 400
 
     except Exception as e:
         return jsonify({"message": str(e)}), 500
@@ -730,12 +750,12 @@ def get_training_attended(employee_id):
 
 @app.post("/api/training/attended")
 def add_training_attended():
-    data = request.get_json(silent=True) or {}
-    employee_id      = (data.get("employee_id") or "").strip()
-    programme_name   = (data.get("programme_name") or "").strip()
-    training_date    = (data.get("training_date") or "").strip()
+    data             = request.get_json(silent=True) or {}
+    employee_id      = (data.get("employee_id")      or "").strip()
+    programme_name   = (data.get("programme_name")   or "").strip()
+    training_date    = (data.get("training_date")    or "").strip()
     trainer_provider = (data.get("trainer_provider") or "").strip()
-    cycle_id         = (data.get("cycle_id") or "").strip()
+    cycle_id         = (data.get("cycle_id")         or "").strip()
 
     if not employee_id or not programme_name or not training_date or not trainer_provider:
         return jsonify({"message": "All fields are required"}), 400
@@ -752,7 +772,7 @@ def add_training_attended():
 
         return jsonify({
             "message": "Training record added",
-            "data": result.data[0] if result.data else {}
+            "data":    result.data[0] if result.data else {}
         }), 201
 
     except Exception as e:
@@ -761,8 +781,8 @@ def add_training_attended():
 
 @app.post("/api/training/suggestions")
 def add_training_suggestion():
-    data = request.get_json(silent=True) or {}
-    employee_id   = (data.get("employee_id") or "").strip()
+    data          = request.get_json(silent=True) or {}
+    employee_id   = (data.get("employee_id")   or "").strip()
     training_name = (data.get("training_name") or "").strip()
     justification = (data.get("justification") or "").strip()
 
@@ -789,7 +809,7 @@ def add_training_suggestion():
 
         return jsonify({
             "message": "Suggestion submitted",
-            "data": result.data[0] if result.data else {}
+            "data":    result.data[0] if result.data else {}
         }), 201
 
     except Exception as e:
@@ -814,7 +834,6 @@ def get_training_suggestions(employee_id):
 @app.get("/api/training/subordinate-suggestions/<supervisor_id>")
 def get_subordinate_suggestions(supervisor_id):
     try:
-        # Get pending suggestions for this supervisor
         result = supabase.table("training_suggestions")\
             .select("*")\
             .eq("supervisor_id", supervisor_id)\
@@ -822,12 +841,11 @@ def get_subordinate_suggestions(supervisor_id):
             .order("created_at", desc=True)\
             .execute()
 
-        # For each suggestion, fetch the employee name separately
         suggestions = []
         for s in result.data:
             employee_id = s.get("employee_id")
-            full_name = ""
-            role = ""
+            full_name   = ""
+            role        = ""
             if employee_id:
                 user = supabase.table("users")\
                     .select("full_name, role")\
@@ -853,15 +871,14 @@ def get_subordinate_suggestions(supervisor_id):
 
 @app.patch("/api/training/suggestions/<suggestion_id>")
 def review_suggestion(suggestion_id):
-    data = request.get_json(silent=True) or {}
-    action  = (data.get("action") or "").strip()
+    data    = request.get_json(silent=True) or {}
+    action  = (data.get("action")  or "").strip()
     comment = (data.get("comment") or "").strip()
 
     if action not in ("approved", "rejected"):
         return jsonify({"message": "Action must be approved or rejected"}), 400
 
     try:
-        # Direct HTTP PATCH to Supabase REST API
         url = f"{SUPABASE_URL}/rest/v1/training_suggestions"
         headers = {
             "apikey":        SUPABASE_KEY,
@@ -876,11 +893,7 @@ def review_suggestion(suggestion_id):
             "updated_at":         datetime.now(timezone.utc).isoformat()
         }
 
-        print(f"DEBUG suggestion_id: {suggestion_id}")
-        print(f"DEBUG action: {action}")
         response = req.patch(url, headers=headers, params=params, json=body)
-        print(f"DEBUG response status: {response.status_code}")
-        print(f"DEBUG response body: {response.text}")
 
         if response.status_code in (200, 204):
             return jsonify({"message": f"Suggestion {action}"}), 200
@@ -890,6 +903,7 @@ def review_suggestion(suggestion_id):
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
+
 # ════════════════════════════════════════════════════════════════════════════
 # DASHBOARD ROUTES
 # ════════════════════════════════════════════════════════════════════════════
@@ -898,53 +912,73 @@ def review_suggestion(suggestion_id):
 def get_dashboard_stats(employee_id):
     try:
         user = supabase.table("users")\
-            .select("org_level, iata_branch_code")\
+            .select("org_level, iata_branch_code, assigned_country_id, branch_id, department_id, sub_department_id")\
             .eq("id", employee_id)\
             .execute()
 
         if not user.data:
             return jsonify({"message": "User not found"}), 404
 
-        org_level = user.data[0]["org_level"]
-        stats = {}
+        u         = user.data[0]
+        org_level  = u["org_level"]
+        country_id = u.get("assigned_country_id")
+        branch_id  = u.get("branch_id")
+        dept_id    = u.get("department_id")
+        stats      = {}
 
         if org_level == 1:
-            countries  = supabase.table("countries").select("id", count="exact").execute()
-            employees  = supabase.table("users").select("id", count="exact").eq("org_level", 6).execute()
-            branches   = supabase.table("branches").select("id", count="exact").execute()
+            # HQ Admin — global counts
+            countries = supabase.table("countries").select("id", count="exact").execute()
+            branches  = supabase.table("branches").select("id", count="exact").execute()
+            employees = supabase.table("users").select("id", count="exact").eq("org_level", 6).execute()
             stats = {
                 "Total Countries": countries.count or 0,
+                "Total Branches":  branches.count  or 0,
                 "Total Employees": employees.count or 0,
-                "Total Branches":  branches.count or 0,
             }
 
         elif org_level == 2:
-            branches    = supabase.table("branches").select("id", count="exact").execute()
-            employees   = supabase.table("users").select("id", count="exact").eq("org_level", 6).execute()
-            departments = supabase.table("departments").select("id", count="exact").execute()
+            # Country Admin — filter by country
+            branches  = supabase.table("branches").select("id", count="exact").eq("country_id", country_id).execute()
+            depts     = supabase.table("departments").select("id", count="exact").execute()
+            # Count all users in this country (org levels 3,4,5,6)
+            emp3 = supabase.table("users").select("id", count="exact").eq("org_level", 3).eq("assigned_country_id", country_id).execute()
+            emp4 = supabase.table("users").select("id", count="exact").eq("org_level", 4).eq("assigned_country_id", country_id).execute()
+            emp5 = supabase.table("users").select("id", count="exact").eq("org_level", 5).eq("assigned_country_id", country_id).execute()
+            emp6 = supabase.table("users").select("id", count="exact").eq("org_level", 6).eq("assigned_country_id", country_id).execute()
+            total_employees = (emp3.count or 0) + (emp4.count or 0) + (emp5.count or 0) + (emp6.count or 0)
             stats = {
                 "Total Branches":    branches.count or 0,
-                "Total Employees":   employees.count or 0,
-                "Total Departments": departments.count or 0,
+                "Total Employees":   total_employees,
+                "Total Departments": emp4.count or 0,
             }
 
         elif org_level == 3:
-            departments = supabase.table("departments").select("id", count="exact").execute()
-            employees   = supabase.table("users").select("id", count="exact").eq("org_level", 6).execute()
+            # Branch Admin — filter by branch
+            depts = supabase.table("departments").select("id", count="exact").eq("branch_id", branch_id).execute()
+            emp4  = supabase.table("users").select("id", count="exact").eq("org_level", 4).eq("branch_id", branch_id).execute()
+            emp5  = supabase.table("users").select("id", count="exact").eq("org_level", 5).eq("branch_id", branch_id).execute()
+            emp6  = supabase.table("users").select("id", count="exact").eq("org_level", 6).eq("branch_id", branch_id).execute()
+            subdepts = supabase.table("sub_departments").select("id", count="exact").execute()
+            total_employees = (emp4.count or 0) + (emp5.count or 0) + (emp6.count or 0)
             stats = {
-                "Total Departments": departments.count or 0,
-                "Total Employees":   employees.count or 0,
-                "Total Sub-Depts":   0,
+                "Total Departments": depts.count    or 0,
+                "Total Employees":   total_employees,
+                "Total Sub-Depts":   emp5.count     or 0,
             }
 
         elif org_level == 4:
-            employees = supabase.table("users").select("id", count="exact").eq("org_level", 6).execute()
+            # Dept Admin — filter by department
+            subdepts = supabase.table("sub_departments").select("id", count="exact").eq("department_id", dept_id).execute()
+            emp5     = supabase.table("users").select("id", count="exact").eq("org_level", 5).eq("department_id", dept_id).execute()
+            emp6     = supabase.table("users").select("id", count="exact").eq("org_level", 6).eq("department_id", dept_id).execute()
             stats = {
-                "Total Sub-Departments": 0,
-                "Total Employees":       employees.count or 0,
+                "Total Sub-Departments": subdepts.count or 0,
+                "Total Employees":       emp6.count     or 0,
             }
 
         elif org_level == 5:
+            # Sub Dept Admin — only their direct reports
             employees = supabase.table("users")\
                 .select("id", count="exact")\
                 .eq("manager_id", employee_id)\
@@ -958,11 +992,10 @@ def get_dashboard_stats(employee_id):
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
-
 # ════════════════════════════════════════════════════════════════════════════
 # RUN SERVER — MUST BE LAST
 # ════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    #start_scheduler()
+    # start_scheduler()  # Uncomment in production
     app.run(host="127.0.0.1", port=5000, debug=True)
