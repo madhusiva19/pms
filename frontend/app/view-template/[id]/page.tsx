@@ -35,7 +35,7 @@ interface Objective {
 interface Category { id: number; name: string; weight: number; type: string; objectives: Objective[]; }
 interface Template  { id: number; name: string; description: string; status: string; created_by: string; categories: Category[]; }
 interface Employee {
-  id: string; name: string; designation: string;   // uuid string
+  id: string; name: string; designation: string;
   current_template_id:   number | null;
   current_template_name: string | null;
 }
@@ -216,7 +216,6 @@ export default function ViewTemplatePage() {
   const [assignMsg, setAssignMsg]           = useState('');
   const [showAllocated, setShowAllocated]   = useState(false);
 
-  // ── Conflict notification state ───────────────────────────────
   const [conflictEmployee, setConflictEmployee] = useState<Employee | null>(null);
   const [showConflictBox, setShowConflictBox]   = useState(false);
 
@@ -284,7 +283,6 @@ export default function ViewTemplatePage() {
     setShowConflictBox(false); setConflictEmployee(null);
   };
 
-  // Called when Assign button is clicked — checks for conflict first
   const handleAssign = () => {
     if (!selectedEmployee) return;
     setAssignMsg('');
@@ -299,7 +297,6 @@ export default function ViewTemplatePage() {
     commitAssign(selectedEmployee);
   };
 
-  // Commits the API call — called directly when no conflict, or after confirm
   const commitAssign = async (emp: Employee) => {
     setShowConflictBox(false); setConflictEmployee(null);
     setAssigning(true); setAssignMsg('');
@@ -318,7 +315,7 @@ export default function ViewTemplatePage() {
     setTimeout(() => setAssignMsg(''), 3500);
   };
 
-  const handleRemoveEmployee = async (id: number) => {
+  const handleRemoveEmployee = async (id: string) => {
     const newList = assignedEmployees.filter(e => e.id !== id);
     try {
       await fetch(`${API}/api/templates/${templateId}/assign`, {
@@ -355,9 +352,14 @@ export default function ViewTemplatePage() {
     setEditedData(u);
   };
 
+  // ── FIX: Locked objectives cannot be deleted ──────────────────
   const handleDeleteObjective = async (ci: number, oi: number) => {
     const u = [...editedData];
     const obj = u[ci].objectives[oi];
+
+    // Prevent deletion of locked objectives
+    if (obj.control_type === 'Locked') return;
+
     if (!obj.isNew) {
       try { await fetch(`${API}/api/templates/${templateId}/objectives/${obj.id}`, { method: 'DELETE' }); } catch {}
     }
@@ -495,7 +497,7 @@ export default function ViewTemplatePage() {
         {/* Edit mode banner */}
         {editMode && (
           <div style={{ background: '#FEF9C3', border: '1px solid #FDE047', borderRadius: 8, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#854D0E' }}>
-            <strong>Edit Mode</strong> — Locked objective weights cannot be changed. New objectives require name, weight, control type, and KPI scale. Total weight must equal <strong>100%</strong>.
+            <strong>Edit Mode</strong> — Locked objectives cannot be deleted or have their weights changed. New objectives require name, weight, control type, and KPI scale. Total weight must equal <strong>100%</strong>.
           </div>
         )}
 
@@ -545,8 +547,7 @@ export default function ViewTemplatePage() {
                           <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8, marginRight: 2 }}>GAP </span>
                           <span style={{ color: editMode && !gapOk ? '#FDE047' : '#fff' }}>{catSum}%</span>
                         </td>
-                        <td style={tdStyle('center')}>
-                        </td>
+                        <td style={tdStyle('center')} />
                         <td style={tdStyle('left')} />
                         {editMode && (
                           <td style={tdStyle('center')}>
@@ -597,11 +598,14 @@ export default function ViewTemplatePage() {
                                 : <ScaleBadge value={obj.kpi_scale} />
                               }
                             </td>
+                            {/* ── FIX: Only show delete button for non-locked objectives ── */}
                             {editMode && (
                               <td style={tdStyle('center')}>
-                                <button onClick={() => handleDeleteObjective(ci, oi)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', padding: 4, borderRadius: 4, display: 'inline-flex', alignItems: 'center' }}>
-                                  <Trash2 size={15} />
-                                </button>
+                                {!isLocked && (
+                                  <button onClick={() => handleDeleteObjective(ci, oi)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', padding: 4, borderRadius: 4, display: 'inline-flex', alignItems: 'center' }}>
+                                    <Trash2 size={15} />
+                                  </button>
+                                )}
                               </td>
                             )}
                           </tr>
@@ -676,7 +680,6 @@ export default function ViewTemplatePage() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, fontWeight: 500, color: '#1E293B' }}>{emp.name}</div>
                         </div>
-                        {/* ⚠ Conflict badge — already on a different template */}
                         {hasConflict && (
                           <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 20, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', whiteSpace: 'nowrap', flexShrink: 0 }}>
                             ⚠ On {emp.current_template_name ?? `Template ${emp.current_template_id}`}
@@ -695,7 +698,7 @@ export default function ViewTemplatePage() {
               )}
             </div>
 
-            {/* ── Conflict confirmation box ─────────────────────── */}
+            {/* Conflict confirmation box */}
             {showConflictBox && conflictEmployee && (
               <div style={{ border: '1px solid #FDE68A', background: '#FFFBEB', borderRadius: 10, padding: '13px 15px', marginBottom: 12 }}>
                 <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: 10 }}>
