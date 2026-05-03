@@ -34,19 +34,19 @@ export default function CountryAdminReportsPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user?.assigned_country_id) {
+    if (!user?.country_id) {
       setLoading(false);
       return;
     }
     setLoading(true);
-    branchesApi.getByCountry(user.assigned_country_id, searchTerm)
+    branchesApi.getByCountry(user.country_id, searchTerm)
       .then(data => setBranches(data || []))
       .catch(err => {
         console.error('Error fetching branches:', err);
         setBranches([]);
       })
       .finally(() => setLoading(false));
-  }, [user?.assigned_country_id, authLoading, searchTerm]);
+  }, [user?.country_id, authLoading, searchTerm]);
 
   if (authLoading) {
     return <LoadingSpinner />;

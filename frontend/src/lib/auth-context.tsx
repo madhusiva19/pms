@@ -9,7 +9,7 @@ export interface User {
   email: string;
   full_name: string;
   role: UserRole;
-  assigned_country_id?: string;   // For country_admin only
+  country_id?: string;   // For country_admin only
   iata_branch_code?: string;      // For branch_admin
   department_id?: string;         // For dept_admin
   sub_department_id?: string;
@@ -47,20 +47,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const activeDemoRole = demoRole || localStorage.getItem('demo-role');
 
-     if (activeDemoRole) {
-  const { data: demoUser } = await supabase
-    .from('users')
-    .select('*')
-    .eq('role', activeDemoRole)
-    .limit(1)
-    .single();
+        // ?demo-email= targets a specific user (bypasses role-based lookup)
+        const demoEmail = urlParams.get('demo-email');
+        if (demoEmail) {
+          localStorage.setItem('demo-email', demoEmail);
+        }
+        const activeDemoEmail = demoEmail || localStorage.getItem('demo-email');
 
-  if (demoUser) {
-    setUser(demoUser);
-    setLoading(false);
-    return;
-  }
-}
+        if (activeDemoEmail) {
+          const { data: demoUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', activeDemoEmail)
+            .single();
+          if (demoUser) {
+            setUser(demoUser);
+            setLoading(false);
+            return;
+          }
+        }
+
+        if (activeDemoRole) {
+          const { data: demoUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq('role', activeDemoRole)
+            .limit(1)
+            .single();
+
+          if (demoUser) {
+            setUser(demoUser);
+            setLoading(false);
+            return;
+          }
+        }
         // --- END DEMO MODE ---
 
         // Get Supabase auth user
@@ -95,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: authUser.email || '',
             full_name: authUser.user_metadata?.full_name || 'HQ Admin',
             role: 'hq_admin',
-            assigned_country_id: undefined
+            country_id: undefined
           });
         } else if (userProfile) {
           setUser(userProfile);

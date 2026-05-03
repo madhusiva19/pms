@@ -38,7 +38,7 @@ export default function SubDepartmentCard({ subDepartment, deptId }: SubDepartme
             </div>
             {subDepartment.sub_dept_admin_name && (
               <div className="flex items-center gap-2 text-[13px] text-[#4A5565]">
-                <User className="w-4 h-4 flex-shrink-0" />
+                <span>Admin Name: </span>
                 <span>{subDepartment.sub_dept_admin_name}</span>
               </div>
             )}

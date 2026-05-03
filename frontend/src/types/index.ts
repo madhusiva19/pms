@@ -302,7 +302,6 @@ export interface Employee {
 
   // Legacy aliases kept for backward compatibility
   name?: string;
-  assigned_country_id?: string;
   employee_id?: string;         // maps to emp_id
 }
 
