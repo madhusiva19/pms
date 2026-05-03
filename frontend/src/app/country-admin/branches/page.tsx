@@ -35,14 +35,14 @@ export default function BranchesListingPage() {
   useEffect(() => {
     const fetchBranches = async () => {
       try {
-        if (!user?.assigned_country_id) {
+        if (!user?.country_id) {
           console.error('Country admin without assigned country');
           setBranches([]);
           return;
         }
 
         setLoading(true);
-        const data = await branchesApi.getByCountry(user.assigned_country_id, searchTerm);
+        const data = await branchesApi.getByCountry(user.country_id, searchTerm);
         setBranches(data || []);
       } catch (error) {
         console.error('Error fetching branches:', error);
@@ -52,10 +52,10 @@ export default function BranchesListingPage() {
       }
     };
 
-    if (!authLoading && user?.assigned_country_id) {
+    if (!authLoading && user?.country_id) {
       fetchBranches();
     }
-  }, [user?.assigned_country_id, authLoading, searchTerm]);
+  }, [user?.country_id, authLoading, searchTerm]);
 
   if (authLoading) {
     return <LoadingSpinner />;

@@ -36,7 +36,7 @@ export default function BranchCard({ branch }: BranchCardProps) {
               <span>{branch.total_employees.toLocaleString()} Employees</span>
             </div>
             <div className="flex items-center gap-2 text-[13px] text-[#4A5565]">
-              <Hash className="w-4 h-4 flex-shrink-0" />
+              <span>Branch code :</span>
               <span>{branch.code}</span>
             </div>
             <Link
