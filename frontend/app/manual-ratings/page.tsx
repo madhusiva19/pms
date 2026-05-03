@@ -103,11 +103,22 @@ export default function ManualRatingsPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
+  // ── Inline real-time validation on every keystroke ───────────────
   const handleRatingChange = (objId: number, val: string) => {
     setRatings(prev => ({ ...prev, [objId]: val }));
-    setErrors(prev => ({ ...prev, [objId]: '' }));
     setSubmitMsg('');
     setIsDirty(true);
+
+    if (!val || val.trim() === '') {
+      setErrors(prev => ({ ...prev, [objId]: '' }));
+    } else {
+      const num = parseFloat(val);
+      if (isNaN(num) || num < 1 || num > 5) {
+        setErrors(prev => ({ ...prev, [objId]: 'Invalid' }));
+      } else {
+        setErrors(prev => ({ ...prev, [objId]: '' }));
+      }
+    }
   };
 
   const validate = (): boolean => {
@@ -116,18 +127,12 @@ export default function ManualRatingsPage() {
     objectives.forEach(obj => {
       const val = ratings[obj.objective_id];
       if (!val || val.trim() === '') {
-        newErrors[obj.objective_id] = 'Rating is required';
+        newErrors[obj.objective_id] = 'Invalid';
         valid = false;
       } else {
         const num = parseFloat(val);
-        if (isNaN(num)) {
-          newErrors[obj.objective_id] = 'Must be a valid number';
-          valid = false;
-        } else if (num < 1) {
-          newErrors[obj.objective_id] = 'Cannot be less than 1.00';
-          valid = false;
-        } else if (num > 5) {
-          newErrors[obj.objective_id] = 'Cannot be more than 5.00';
+        if (isNaN(num) || num < 1 || num > 5) {
+          newErrors[obj.objective_id] = 'Invalid';
           valid = false;
         }
       }
@@ -145,7 +150,10 @@ export default function ManualRatingsPage() {
 
   const handleSubmit = async () => {
     setSubmitMsg('');
-    if (!validate()) return;
+    if (!validate()) {
+      setSubmitMsg('error');
+      return;
+    }
     setSaving(true);
     try {
       const ratingsList = objectives.map(obj => ({
@@ -459,7 +467,7 @@ export default function ManualRatingsPage() {
           </div>
         </div>
 
-        {/* Success / error messages */}
+        {/* Success message */}
         {submitMsg === 'success' && (
           <div style={{
             background:   '#F0FDF4',
@@ -477,7 +485,28 @@ export default function ManualRatingsPage() {
             Ratings submitted successfully! Redirecting to My Team…
           </div>
         )}
-        {submitMsg !== '' && submitMsg !== 'success' && (
+
+        {/* Validation error — shown when Submit clicked with invalid/missing ratings */}
+        {submitMsg === 'error' && (
+          <div style={{
+            background:   '#FEF2F2',
+            border:       '1px solid #FECACA',
+            borderRadius: 8,
+            padding:      '12px 16px',
+            marginBottom: 16,
+            fontSize:     13,
+            color:        '#DC2626',
+            display:      'flex',
+            alignItems:   'center',
+            gap:          8,
+          }}>
+            <AlertTriangle size={15} />
+            Please fix the invalid ratings before submitting.
+          </div>
+        )}
+
+        {/* API / network error message */}
+        {submitMsg !== '' && submitMsg !== 'success' && submitMsg !== 'error' && (
           <div style={{
             background:   '#FEF2F2',
             border:       '1px solid #FECACA',
