@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Sidebar from '../components/Sidebar';
+import { AuthProvider } from '@/lib/auth-context';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -11,10 +12,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body style={{ margin: 0, padding: 0, background: '#F9FAFB' }}>
-        <Sidebar />
-        <div style={{ marginLeft: '256px', minHeight: '100vh' }}>
-          {children}
-        </div>
+        <AuthProvider>
+          <div style={{ display: 'flex', minHeight: '100vh' }}>
+            <Sidebar />
+            <main style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+              {children}
+            </main>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );
