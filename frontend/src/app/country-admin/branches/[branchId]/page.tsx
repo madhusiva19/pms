@@ -48,8 +48,6 @@ import {
 
 import type {
   BranchDashboardSummary,
-  BranchBellCurveData,
-  BranchPerformanceComparison,
   BranchAIInsight,
   Branch,
   ReportType,
@@ -66,8 +64,8 @@ export default function BranchReportPage() {
   const [branch, setBranch] = useState<Branch | null>(null);
   const [summary, setSummary] = useState<BranchDashboardSummary | null>(null);
   const [activeTab, setActiveTab] = useState<ReportType>('mid_year');
-  const [bellCurveData, setBellCurveData] = useState<BranchBellCurveData[]>([]);
-  const [comparisonData, setComparisonData] = useState<BranchPerformanceComparison[]>([]);
+  const [bellCurveData, setBellCurveData] = useState<any[]>([]);
+  const [comparisonData, setComparisonData] = useState<any[]>([]);
   const [insights, setInsights] = useState<BranchAIInsight[]>([]);
   const [metrics, setMetrics] = useState<{
     total_evaluated: number;
