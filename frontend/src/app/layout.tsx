@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { Suspense } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { AuthProvider } from '@/lib/auth-context';
 import './globals.css';
@@ -19,14 +20,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>
-          <div className="flex h-screen bg-[#F8F9FC] overflow-hidden">
-            <Sidebar />
-            <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden pt-8 pb-12 px-10">
-              {children}
-            </main>
-          </div>
-        </AuthProvider>
+        <Suspense>
+          <AuthProvider>
+            <div className="flex h-screen bg-[#F8F9FC] overflow-hidden">
+              <Sidebar />
+              <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden pt-8 pb-12 px-10">
+                {children}
+              </main>
+            </div>
+          </AuthProvider>
+        </Suspense>
       </body>
     </html>
   );

@@ -86,14 +86,6 @@ export interface BranchPerformanceReport {
   updated_at: string;
 }
 
-export interface BranchBellCurveData {
-  id: string;
-  report_id: string;
-  rating_range: string;
-  employee_count: number;
-  percentage: number;
-  created_at: string;
-}
 
 export interface BranchPerformanceComparison {
   id: string;
