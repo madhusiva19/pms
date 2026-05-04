@@ -87,16 +87,6 @@ export interface BranchPerformanceReport {
 }
 
 
-export interface BranchPerformanceComparison {
-  id: string;
-  branch_id: string;
-  country_id: string;
-  rating_range: string;
-  mid_year_count: number;
-  year_end_count: number;
-  comparison_year: number;
-  created_at: string;
-}
 
 export interface BranchAIInsight {
   id: string;
