@@ -802,8 +802,8 @@ function StatusBanner({
         <div className={styles.bannerText}>
           Window open until{" "}
           <strong style={{ color: "#1e40af" }}>{formatDate(freezeDates.objectiveSettingEnd)}</strong>
-          {" "}
-          <strong>{daysRemaining} days remaining</strong>{" "}
+          {" ─── "}
+          <strong style={{ color: "#1eaf3d" }}>{daysRemaining} days remaining.</strong>{" "}
           {isHqAdmin
             ? "New templates are active for Objective Management"
             : "You can edit Editable objectives only"}
