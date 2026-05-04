@@ -13,7 +13,6 @@ import type {
   DashboardSummary,
   Branch,
   BranchPerformanceReport,
-  BranchPerformanceComparison,
   BranchAIInsight,
   BranchDashboardSummary,
   Department,
@@ -207,23 +206,7 @@ export const branchReportsApi = {
 
 
 
-// ── Branch Comparison ─────────────────────────────────────────────────────────
 
-export const branchComparisonApi = {
-  getByBranch: async (branchId: string, year?: number): Promise<BranchPerformanceComparison[]> => {
-    const res: AxiosResponse = await apiClient.get(`/branch-comparison/${branchId}`, { params: { year } });
-    return res.data.data;
-  },
-  create: async (data: {
-    branch_id: string;
-    country_id: string;
-    comparison_year: number;
-    comparisons: Array<{ rating_range: string; mid_year_count: number; year_end_count: number }>;
-  }): Promise<BranchPerformanceComparison[]> => {
-    const res: AxiosResponse = await apiClient.post('/branch-comparison', data);
-    return res.data.data;
-  },
-};
 
 // ── Branch AI Insights ────────────────────────────────────────────────────────
 
@@ -366,7 +349,7 @@ export default {
   branches: branchesApi,
   branchReports: branchReportsApi,
 
-  branchComparison: branchComparisonApi,
+
   branchInsights: branchInsightsApi,
   branchDashboard: branchDashboardApi,
   savedReports: savedReportsApi,
