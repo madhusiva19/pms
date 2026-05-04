@@ -17,10 +17,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import type { PerformanceComparison } from '@/types';
-
-// ── Format A: from reports/[countryId]/page.tsx ──
-// PerformanceComparison[] → { rating_range, mid_year_count, year_end_count }
+// ── Format A: from live comparison API (comparisonLiveApi) ──
+// { rating_range, mid_year_count, year_end_count }
+interface LiveComparisonItem {
+  rating_range: string;
+  mid_year_count: number;
+  year_end_count: number;
+}
 
 // ── Format B: from saved-reports page ──
 // { current: number[], previous: number[], labels: string[] }
@@ -31,7 +34,7 @@ interface FormatB {
   labels: string[];
 }
 
-type ComparisonData = PerformanceComparison[] | FormatB;
+type ComparisonData = LiveComparisonItem[] | FormatB;
 
 interface ComparisonChartProps {
   data: ComparisonData;

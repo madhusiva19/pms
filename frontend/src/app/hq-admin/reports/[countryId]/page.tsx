@@ -49,7 +49,6 @@ import {
 import type {
   DashboardSummary,
   BellCurveData,
-  PerformanceComparison,
   AIInsight,
   Country,
   ReportType,
@@ -68,7 +67,7 @@ export default function CountryReportPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [activeTab, setActiveTab] = useState<ReportType>('mid_year');
   const [bellCurveData, setBellCurveData] = useState<BellCurveData[]>([]);
-  const [comparisonData, setComparisonData] = useState<PerformanceComparison[]>([]);
+  const [comparisonData, setComparisonData] = useState<any[]>([]);
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [metrics, setMetrics] = useState<{
     total_evaluated: number;
