@@ -13,7 +13,6 @@ import type {
   DashboardSummary,
   Branch,
   BranchPerformanceReport,
-  BranchBellCurveData,
   BranchPerformanceComparison,
   BranchAIInsight,
   BranchDashboardSummary,
@@ -77,20 +76,10 @@ export const reportsApi = {
   },
 };
 
-// ── Bell Curve ────────────────────────────────────────────────────────────────
+// ── Bell Curve (live from performance_summaries) ─────────────────────────────
 
 export const bellCurveApi = {
-  getByReport: async (reportId: string): Promise<BellCurveData[]> => {
-    const res: AxiosResponse = await apiClient.get(`/bell-curve/${reportId}`);
-    return res.data.data;
-  },
-  create: async (data: {
-    report_id: string;
-    distributions: Array<{ rating_range: string; employee_count: number }>;
-  }): Promise<BellCurveData[]> => {
-    const res: AxiosResponse = await apiClient.post('/bell-curve', data);
-    return res.data.data;
-  },
+  /** Fetches live bell curve distribution computed from performance_summaries.total_score */
   getLive: async (params: {
     period_type: 'mid_year' | 'year_end';
     year: number;
@@ -216,21 +205,7 @@ export const branchReportsApi = {
   },
 };
 
-// ── Branch Bell Curve ─────────────────────────────────────────────────────────
 
-export const branchBellCurveApi = {
-  getByReport: async (reportId: string): Promise<BranchBellCurveData[]> => {
-    const res: AxiosResponse = await apiClient.get(`/branch-bell-curve/${reportId}`);
-    return res.data.data;
-  },
-  create: async (data: {
-    report_id: string;
-    distributions: Array<{ rating_range: string; employee_count: number }>;
-  }): Promise<BranchBellCurveData[]> => {
-    const res: AxiosResponse = await apiClient.post('/branch-bell-curve', data);
-    return res.data.data;
-  },
-};
 
 // ── Branch Comparison ─────────────────────────────────────────────────────────
 
@@ -390,7 +365,7 @@ export default {
   dashboard: dashboardApi,
   branches: branchesApi,
   branchReports: branchReportsApi,
-  branchBellCurve: branchBellCurveApi,
+
   branchComparison: branchComparisonApi,
   branchInsights: branchInsightsApi,
   branchDashboard: branchDashboardApi,

@@ -30,7 +30,7 @@ const countryAdminNavItems: NavItem[] = [
   { name: 'Dashboard', href: '/country-admin/dashboard', icon: LayoutDashboard },
   { name: 'Template Management', href: '/country-admin/templates', icon: FileText },
   { name: 'My Team', href: '/country-admin/team', icon: Users },
-  { name: 'My Performance', href: '/country-admin/performance', icon: TrendingUp },
+  { name: 'My Performance', href: '/country-admin/my-performance', icon: TrendingUp },
   { name: 'Reports', href: '/country-admin/reports', icon: FileText },
   { name: 'Notification', href: '/country-admin/notification', icon: Bell },
   { name: 'Training Log', href: '/country-admin/training', icon: LucideFileBarChart },
@@ -42,7 +42,7 @@ const branchAdminNavItems: NavItem[] = [
   { name: 'Dashboard', href: '/branch-admin/dashboard', icon: LayoutDashboard },
   { name: 'Template Management', href: '/branch-admin/templates', icon: FileText },
   { name: 'My Team', href: '/branch-admin/team', icon: Users },
-  { name: 'My Performance', href: '/branch-admin/performance', icon: TrendingUp },
+  { name: 'My Performance', href: '/branch-admin/my-performance', icon: TrendingUp },
   { name: 'Reports', href: '/branch-admin/reports', icon: FileText },
   { name: 'notification', href: '/branch-admin/notification', icon: Bell },
   { name: 'Training Log', href: '/branch-admin/training', icon: LucideFileBarChart },
@@ -54,7 +54,7 @@ const deptAdminNavItems: NavItem[] = [
   { name: 'Dashboard', href: '/dept-admin/dashboard', icon: LayoutDashboard },
   { name: 'Template Management', href: '/dept-admin/templates', icon: FileText },
   { name: 'My Team', href: '/dept-admin/team', icon: Users },
-  { name: 'My Performance', href: '/dept-admin/performance', icon: TrendingUp },
+  { name: 'My Performance', href: '/dept-admin/my-performance', icon: TrendingUp },
   { name: 'Reports', href: '/dept-admin/reports', icon: FileText },
   { name: 'Notification', href: '/dept-admin/notification', icon: Bell },
   { name: 'Training Log', href: '/dept-admin/training', icon: LucideFileBarChart },
@@ -66,7 +66,7 @@ const subDeptAdminNavItems: NavItem[] = [
   { name: 'Dashboard', href: '/sub-dept-admin/dashboard', icon: LayoutDashboard },
   { name: 'Template Management', href: '/sub-dept-admin/templates', icon: FileText },
   { name: 'My Team', href: '/sub-dept-admin/team', icon: Users },
-  { name: 'My Performance', href: '/sub-dept-admin/performance', icon: TrendingUp },
+  { name: 'My Performance', href: '/sub-dept-admin/my-performance', icon: TrendingUp },
   { name: 'Reports', href: '/sub-dept-admin/reports', icon: FileText },
   { name: 'Notification', href: '/sub-dept-admin/notification', icon: Bell },
   { name: 'Training Log', href: '/sub-dept-admin/training', icon: LucideFileBarChart },
@@ -74,7 +74,7 @@ const subDeptAdminNavItems: NavItem[] = [
 ];
 
 const employeeNavItems: NavItem[] = [
-  { name: 'My Performance', href: '/employee/performance', icon: TrendingUp },
+  { name: 'My Performance', href: '/employee/my-performance', icon: TrendingUp },
   { name: 'Training Log', href: '/employee/training', icon: LucideFileBarChart },
   { name: 'My Profile', href: '/employee/profile', icon: User },
 ];
