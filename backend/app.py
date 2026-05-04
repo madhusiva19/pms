@@ -1216,3 +1216,6 @@ def get_current_pms_cycle():
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
     
+@app.route('/api/routes')
+def list_routes():
+    return jsonify([str(rule) for rule in app.url_map.iter_rules()])
