@@ -138,9 +138,13 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const Icon = item.icon;
           // exact match OR sub-page match (e.g. /hq-admin/template-management/create)
+          // Replace the isActive line with this:
           const isActive =
-            pathname === item.href ||
-            pathname?.startsWith(item.href + '/');
+          pathname === item.href ||
+          pathname?.startsWith(item.href + '/') ||
+          // Template Management should also highlight on create-template pages
+          (item.href.includes('template-management') &&
+          pathname?.includes('create-template'));
 
           return (
             <Link
