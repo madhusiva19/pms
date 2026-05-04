@@ -1,87 +1,207 @@
 'use client';
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
-import { LayoutDashboard, FileText, Users, BarChart3, LogOut, TrendingUp } from 'lucide-react';
 
-const navItems = [
-  { href: '/dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
-  { href: '/view-template',   label: 'Template Management', icon: FileText },
-  { href: '/my-performance',  label: 'My Performance',      icon: TrendingUp },
-  { href: '/team',            label: 'My Team',             icon: Users },
-  { href: '/reports',         label: 'Reports',             icon: BarChart3 },
+import React from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  LayoutDashboard,
+  FileText,
+  Users,
+  LogOut,
+  TrendingUp,
+  Bell,
+  LucideFileBarChart,
+  User,
+  BarChart3,
+} from 'lucide-react';
+import Image from 'next/image';
+import { useAuth } from '@/lib/auth-context';
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+}
+
+// ── HQ Admin — Level 1
+const hqAdminNavItems: NavItem[] = [
+  { name: 'Dashboard',           href: '/hq-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/hq-admin/template-management', icon: FileText           },
+  { name: 'My Team',             href: '/hq-admin/team',                icon: Users              },
+  { name: 'Reports',             href: '/hq-admin/reports',             icon: BarChart3          },
+  { name: 'Notifications',       href: '/hq-admin/notification',        icon: Bell               },
+  { name: 'My Profile',          href: '/hq-admin/profile',             icon: User               },
 ];
+
+// ── Country Admin — Level 2
+const countryAdminNavItems: NavItem[] = [
+  { name: 'Dashboard',           href: '/country-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/country-admin/template-management', icon: FileText           },
+  { name: 'My Team',             href: '/country-admin/team',                icon: Users              },
+  { name: 'My Performance',      href: '/country-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Reports',             href: '/country-admin/reports',             icon: BarChart3          },
+  { name: 'Notifications',       href: '/country-admin/notification',        icon: Bell               },
+  { name: 'Training Log',        href: '/country-admin/training',            icon: LucideFileBarChart },
+  { name: 'My Profile',          href: '/country-admin/profile',             icon: User               },
+];
+
+// ── Branch Admin — Level 3
+const branchAdminNavItems: NavItem[] = [
+  { name: 'Dashboard',           href: '/branch-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/branch-admin/template-management', icon: FileText           },
+  { name: 'My Team',             href: '/branch-admin/team',                icon: Users              },
+  { name: 'My Performance',      href: '/branch-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Reports',             href: '/branch-admin/reports',             icon: BarChart3          },
+  { name: 'Notifications',       href: '/branch-admin/notification',        icon: Bell               },
+  { name: 'Training Log',        href: '/branch-admin/training',            icon: LucideFileBarChart },
+  { name: 'My Profile',          href: '/branch-admin/profile',             icon: User               },
+];
+
+// ── Dept Admin — Level 4
+const deptAdminNavItems: NavItem[] = [
+  { name: 'Dashboard',           href: '/dept-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/dept-admin/template-management', icon: FileText           },
+  { name: 'My Team',             href: '/dept-admin/team',                icon: Users              },
+  { name: 'My Performance',      href: '/dept-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Reports',             href: '/dept-admin/reports',             icon: BarChart3          },
+  { name: 'Notifications',       href: '/dept-admin/notification',        icon: Bell               },
+  { name: 'Training Log',        href: '/dept-admin/training',            icon: LucideFileBarChart },
+  { name: 'My Profile',          href: '/dept-admin/profile',             icon: User               },
+];
+
+// ── Sub Dept Admin — Level 5
+const subDeptAdminNavItems: NavItem[] = [
+  { name: 'Dashboard',           href: '/sub-dept-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/sub-dept-admin/template-management', icon: FileText           },
+  { name: 'My Team',             href: '/sub-dept-admin/team',                icon: Users              },
+  { name: 'My Performance',      href: '/sub-dept-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Reports',             href: '/sub-dept-admin/reports',             icon: BarChart3          },
+  { name: 'Notifications',       href: '/sub-dept-admin/notification',        icon: Bell               },
+  { name: 'Training Log',        href: '/sub-dept-admin/training',            icon: LucideFileBarChart },
+  { name: 'My Profile',          href: '/sub-dept-admin/profile',             icon: User               },
+];
+
+// ── Employee — Level 6
+const employeeNavItems: NavItem[] = [
+  { name: 'Dashboard',      href: '/employee/dashboard',       icon: LayoutDashboard    },
+  { name: 'My Performance', href: '/employee/my-performance',  icon: TrendingUp         },
+  { name: 'Notifications',  href: '/employee/notification',    icon: Bell               },
+  { name: 'Training Log',   href: '/employee/training',        icon: LucideFileBarChart },
+  { name: 'My Profile',     href: '/employee/profile',         icon: User               },
+];
+
+function getNavItems(role: string | undefined): NavItem[] {
+  switch (role) {
+    case 'hq_admin':       return hqAdminNavItems;
+    case 'country_admin':  return countryAdminNavItems;
+    case 'branch_admin':   return branchAdminNavItems;
+    case 'dept_admin':     return deptAdminNavItems;
+    case 'sub_dept_admin': return subDeptAdminNavItems;
+    case 'employee':       return employeeNavItems;
+    default:               return [];
+  }
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  hq_admin:       'HQ Admin',
+  country_admin:  'Country Admin',
+  branch_admin:   'Branch Admin',
+  dept_admin:     'Dept Admin',
+  sub_dept_admin: 'Sub Dept Admin',
+  employee:       'Employee',
+};
 
 export default function Sidebar() {
   const pathname = usePathname();
-  return (
-    <aside style={{ width: '256px', minHeight: '100vh', background: '#1C398E', display: 'flex', flexDirection: 'column', position: 'fixed', left: 0, top: 0 }}>
+  const router   = useRouter();
+  const { user } = useAuth();
 
-      {/* ── Logo Section ── */}
-      <div style={{ height: '97px', padding: '20px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
-        <div style={{ width: '139px', height: '55px', position: 'relative' }}>
+  const navItems = getNavItems(user?.role);
+
+  const userInitials = user?.full_name
+    ?.split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || '?';
+
+  const userName = user?.full_name || 'User';
+  const userRole = user?.role    || '';
+
+  const handleLogout = () => {
+    localStorage.removeItem('demo-role');
+    localStorage.removeItem('demo-email');
+    router.push('/');
+  };
+
+  return (
+    <aside className="w-[251px] bg-[#1E3A8A] h-screen sticky top-0 flex flex-col text-white flex-shrink-0">
+
+      {/* ── Logo ─────────────────────────────────────────────────── */}
+      <div className="h-[100px] px-0 py-0 flex justify-left items-start">
+        <div className="w-[139px] h-[68px] relative">
           <Image
-            src="/pmslogo.png"
+            src="/Dart_Logo_new.png"
             alt="DGL PMS Logo"
             fill
-            style={{ objectFit: 'contain', objectPosition: 'left' }}
+            className="object-contain object-left"
             priority
           />
         </div>
       </div>
 
-      {/* ── Divider ── */}
-      <div style={{ height: '1px', background: '#1E40AF' }} />
+      {/* ── Divider ──────────────────────────────────────────────── */}
+      <div className="h-[5px] p-1.5 border-t border-[#1E40AF] flex flex-col gap-1" />
 
-      {/* ── Nav ── */}
-      <nav style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto' }}>
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname?.startsWith(href + '/');
-          return (
-            <Link key={href} href={href} style={{
-              display: 'flex', alignItems: 'center', gap: '12px',
-              padding: '0 16px', height: '48px', borderRadius: '8px',
-              textDecoration: 'none',
-              background: active ? '#3B82F6' : 'transparent',
-              color: active ? '#FFFFFF' : '#DBEAFE',
-              fontSize: '15px', fontFamily: 'Inter',
-              transition: 'background 0.15s',
-            }}>
-              <Icon size={20} style={{ flexShrink: 0 }} />
-              <span>{label}</span>
-            </Link>
-          );
-        })}
+      {/* ── Nav ──────────────────────────────────────────────────── */}
+      <nav className="flex-1 px-4 py-4 overflow-y-auto">
+        <ul className="flex flex-col gap-1.5">
+          {navItems.map((item) => {
+            const Icon     = item.icon;
+            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+            return (
+              <li key={item.name}>
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 rounded-lg transition-colors h-[46px] ${
+                    isActive
+                      ? 'bg-[#3B82F6] text-white'
+                      : 'text-[#DBEAFE] hover:bg-[#1E40AF]'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-[13px] font-normal leading-6">{item.name}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
 
-      {/* ── User Profile ── */}
-      <div style={{ padding: '16px', borderTop: '1px solid #1E40AF', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '40px', height: '40px', borderRadius: '50%', background: '#3B82F6',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 700, fontSize: '13px', flexShrink: 0,
-          }}>KP</div>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ color: '#FFFFFF', fontWeight: 600, fontSize: '14px', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Kasun Perera</p>
-            <p style={{ color: '#BEDBFF', fontSize: '12px', margin: 0 }}>Admin</p>
+      {/* ── User Profile ─────────────────────────────────────────── */}
+      <div className="p-4 border-t border-[#1E40AF] flex flex-col gap-4 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-semibold text-gray-700">{userInitials}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-medium leading-6 text-white truncate">
+              {userName}
+            </p>
+            <p className="text-[10px] font-normal leading-4 text-[#BEDBFF] capitalize truncate">
+              {ROLE_LABELS[userRole] ?? userRole.replace(/_/g, ' ')}
+            </p>
           </div>
         </div>
         <button
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '0 12px', height: '36px', borderRadius: '6px',
-            background: 'transparent', border: 'none',
-            color: '#DBEAFE', cursor: 'pointer', width: '100%',
-            fontSize: '13.5px', fontWeight: 500,
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#1E40AF')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-3 py-2 w-full rounded-md hover:bg-[#1E40AF] transition-colors h-[36px]"
         >
-          <LogOut size={16} style={{ flexShrink: 0 }} />
-          Logout
+          <LogOut className="w-4 h-4 text-[#DBEAFE] flex-shrink-0" />
+          <span className="text-[13.5px] font-medium text-[#DBEAFE] text-center">Logout</span>
         </button>
       </div>
+
     </aside>
   );
 }
