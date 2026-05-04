@@ -8,7 +8,6 @@ import type {
   Country,
   PerformanceReport,
   BellCurveData,
-  PerformanceComparison,
   AIInsight,
   DashboardSummary,
   Branch,
@@ -123,22 +122,7 @@ export const comparisonLiveApi = {
   },
 };
 
-// ── Performance Comparison ────────────────────────────────────────────────────
 
-export const comparisonApi = {
-  getByCountry: async (countryId: string, year?: number): Promise<PerformanceComparison[]> => {
-    const res: AxiosResponse = await apiClient.get(`/comparison/${countryId}`, { params: { year } });
-    return res.data.data;
-  },
-  create: async (data: {
-    country_id: string;
-    comparison_year: number;
-    comparisons: Array<{ rating_range: string; mid_year_count: number; year_end_count: number }>;
-  }): Promise<PerformanceComparison[]> => {
-    const res: AxiosResponse = await apiClient.post('/comparison', data);
-    return res.data.data;
-  },
-};
 
 // ── AI Insights ───────────────────────────────────────────────────────────────
 
@@ -343,7 +327,7 @@ export default {
   countries: countriesApi,
   reports: reportsApi,
   bellCurve: bellCurveApi,
-  comparison: comparisonApi,
+
   insights: insightsApi,
   dashboard: dashboardApi,
   branches: branchesApi,
