@@ -59,6 +59,10 @@ fix_missing.py
 fix_subdept_ids.py
 fix_emails.py
 created_users.json
+assign_subdepts.py
+create_cus_das.py
+fix_designations.py
+
 
 
 # Translations

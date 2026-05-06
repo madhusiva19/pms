@@ -324,7 +324,7 @@ def login():
                 "role":             role,
                 "org_level":        org_level,
                 "iata_branch_code": user.get("iata_branch_code"),
-                "country_id":       user.get("assigned_country_id"),
+                "country_id":       user.get("country_id"),
                 "branch_id":        user.get("branch_id"),
                 "dept_id":          user.get("department_id"),
                 "sub_dept_id":      user.get("sub_department_id"),
@@ -912,7 +912,7 @@ def review_suggestion(suggestion_id):
 def get_dashboard_stats(employee_id):
     try:
         user = supabase.table("users")\
-            .select("org_level, iata_branch_code, assigned_country_id, branch_id, department_id, sub_department_id")\
+            .select("org_level, iata_branch_code, country_id, branch_id, department_id, sub_department_id")\
             .eq("id", employee_id)\
             .execute()
 
@@ -921,7 +921,7 @@ def get_dashboard_stats(employee_id):
 
         u         = user.data[0]
         org_level  = u["org_level"]
-        country_id = u.get("assigned_country_id")
+        country_id = u.get("country_id")
         branch_id  = u.get("branch_id")
         dept_id    = u.get("department_id")
         stats      = {}
@@ -942,10 +942,10 @@ def get_dashboard_stats(employee_id):
             branches  = supabase.table("branches").select("id", count="exact").eq("country_id", country_id).execute()
             depts     = supabase.table("departments").select("id", count="exact").execute()
             # Count all users in this country (org levels 3,4,5,6)
-            emp3 = supabase.table("users").select("id", count="exact").eq("org_level", 3).eq("assigned_country_id", country_id).execute()
-            emp4 = supabase.table("users").select("id", count="exact").eq("org_level", 4).eq("assigned_country_id", country_id).execute()
-            emp5 = supabase.table("users").select("id", count="exact").eq("org_level", 5).eq("assigned_country_id", country_id).execute()
-            emp6 = supabase.table("users").select("id", count="exact").eq("org_level", 6).eq("assigned_country_id", country_id).execute()
+            emp3 = supabase.table("users").select("id", count="exact").eq("org_level", 3).eq("country_id", country_id).execute()
+            emp4 = supabase.table("users").select("id", count="exact").eq("org_level", 4).eq("country_id", country_id).execute()
+            emp5 = supabase.table("users").select("id", count="exact").eq("org_level", 5).eq("country_id", country_id).execute()
+            emp6 = supabase.table("users").select("id", count="exact").eq("org_level", 6).eq("country_id", country_id).execute()
             total_employees = (emp3.count or 0) + (emp4.count or 0) + (emp5.count or 0) + (emp6.count or 0)
             stats = {
                 "Total Branches":    branches.count or 0,
