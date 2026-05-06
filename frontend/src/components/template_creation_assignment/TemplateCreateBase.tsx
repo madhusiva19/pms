@@ -487,7 +487,8 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
         // Standard rules
         const ruleRoleIds  = [...new Set<number>(rules.filter(r => r.designation_id && !r.scope && !r.country_id).map(r => Number(r.designation_id)))];
         const ruleDeptIds  = [...new Set<string>(rules.filter(r => r.department_id).map(r => String(r.department_id)))];
-        const directUsers  = [...new Set<string>(rules.filter(r => r.user_id).map(r => String(r.user_id)))];
+        // NEW — read from the dedicated direct-user list returned by the backend:
+const directUsers = [...new Set<string>((tmpl.assignedDirectUserIds ?? []).map(String))];
 
         setSelectedDesignations(ruleRoleIds);
         setSelectedDepartments(ruleDeptIds);

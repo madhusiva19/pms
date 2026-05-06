@@ -21,7 +21,7 @@ const hqAdminNavItems: NavItem[] = [
   { name: 'Template Management', href: '/hq-admin/template-management',  icon: FileText           },
   { name: 'My Team',             href: '/hq-admin/team',                 icon: Users              },
   { name: 'Reports',             href: '/hq-admin/reports',              icon: FileText           },
-  { name: 'Notifications',       href: '/hq-admin/notification',         icon: Bell               },
+  { name: 'Notifications',       href: '/hq-admin/notifications',        icon: Bell               },
   { name: 'Training Passport',   href: '/hq-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/hq-admin/profile',              icon: User               },
 ];
@@ -33,7 +33,7 @@ const countryAdminNavItems: NavItem[] = [
   { name: 'My Team',             href: '/country-admin/team',                 icon: Users              },
   { name: 'My Performance',      href: '/country-admin/performance',          icon: TrendingUp         },
   { name: 'Reports',             href: '/country-admin/reports',              icon: FileText           },
-  { name: 'Notifications',       href: '/country-admin/notification',         icon: Bell               },
+  { name: 'Notifications',       href: '/country-admin/notifications',         icon: Bell               },
   { name: 'Training Passport',   href: '/country-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/country-admin/profile',              icon: User               },
 ];
@@ -45,7 +45,7 @@ const branchAdminNavItems: NavItem[] = [
   { name: 'My Team',             href: '/branch-admin/team',                 icon: Users              },
   { name: 'My Performance',      href: '/branch-admin/performance',          icon: TrendingUp         },
   { name: 'Reports',             href: '/branch-admin/reports',              icon: FileText           },
-  { name: 'Notifications',       href: '/branch-admin/notification',         icon: Bell               },
+  { name: 'Notifications',       href: '/branch-admin/notifications',         icon: Bell               },
   { name: 'Training Passport',   href: '/branch-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/branch-admin/profile',              icon: User               },
 ];
@@ -57,7 +57,7 @@ const deptAdminNavItems: NavItem[] = [
   { name: 'My Team',             href: '/dept-admin/team',                 icon: Users              },
   { name: 'My Performance',      href: '/dept-admin/performance',          icon: TrendingUp         },
   { name: 'Reports',             href: '/dept-admin/reports',              icon: FileText           },
-  { name: 'Notifications',       href: '/dept-admin/notification',         icon: Bell               },
+  { name: 'Notifications',       href: '/dept-admin/notifications',         icon: Bell               },
   { name: 'Training Passport',   href: '/dept-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/dept-admin/profile',              icon: User               },
 ];
@@ -69,7 +69,7 @@ const subDeptAdminNavItems: NavItem[] = [
   { name: 'My Team',             href: '/sub-dept-admin/team',                 icon: Users              },
   { name: 'My Performance',      href: '/sub-dept-admin/performance',          icon: TrendingUp         },
   { name: 'Reports',             href: '/sub-dept-admin/reports',              icon: FileText           },
-  { name: 'Notifications',       href: '/sub-dept-admin/notification',         icon: Bell               },
+  { name: 'Notifications',       href: '/sub-dept-admin/notifications',         icon: Bell               },
   { name: 'Training Passport',   href: '/sub-dept-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/sub-dept-admin/profile',              icon: User               },
 ];
@@ -77,7 +77,7 @@ const subDeptAdminNavItems: NavItem[] = [
 // ── Employee — Level 6
 const employeeNavItems: NavItem[] = [
   { name: 'My Performance',    href: '/employee/performance',        icon: TrendingUp         },
-  { name: 'Notifications',     href: '/employee/notification',       icon: Bell               },
+  { name: 'Notifications',     href: '/employee/notifications',      icon: Bell               },
   { name: 'Training Passport', href: '/employee/training-passport',  icon: LucideFileBarChart },
   { name: 'My Profile',        href: '/employee/profile',            icon: User               },
 ];
