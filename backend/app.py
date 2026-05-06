@@ -109,8 +109,9 @@ def search_employees():
     if not query:
         return jsonify([])
     try:
+        # ── CHANGED: join designations table ──────────────────────────
         user_res = supabase.table('users') \
-            .select('id, full_name, designation') \
+            .select('id, full_name, designation_id, designations(name)') \
             .ilike('full_name', f'%{query}%') \
             .eq('manager_id', LOCKED_ADMIN_UUID) \
             .limit(10) \
@@ -140,7 +141,8 @@ def search_employees():
             result.append({
                 'id':                    u['id'],
                 'name':                  u['full_name'],
-                'designation':           u.get('designation', ''),
+                # ── CHANGED ──────────────────────────────────────────
+                'designation':           (u.get('designations') or {}).get('name', ''),
                 'current_template_id':   a['template_id']   if a else None,
                 'current_template_name': a['template_name'] if a else None,
             })
@@ -226,8 +228,9 @@ def assign_employees(template_id):
 @app.route('/api/templates/<int:template_id>/assignments', methods=['GET'])
 def get_assignments(template_id):
     try:
+        # ── CHANGED: join designations through users ───────────────────
         result = supabase.table('template_assignments') \
-            .select('user_id, users(id, full_name, designation)') \
+            .select('user_id, users(id, full_name, designation_id, designations(name))') \
             .eq('template_id', template_id).execute()
         employees = []
         for row in result.data:
@@ -236,7 +239,8 @@ def get_assignments(template_id):
                 employees.append({
                     'id':          u['id'],
                     'name':        u['full_name'],
-                    'designation': u.get('designation', ''),
+                    # ── CHANGED ──────────────────────────────────────
+                    'designation': (u.get('designations') or {}).get('name', ''),
                 })
         return jsonify(employees)
     except Exception as e:
@@ -515,8 +519,9 @@ def get_periods(user_id):
 @app.route('/api/performance/<user_id>/<int:year>/<period>', methods=['GET'])
 def get_performance(user_id, year, period):
     try:
+        # ── CHANGED: join designations and departments tables ──────────
         user_res = supabase.table('users') \
-            .select('id, full_name, designation, department_id') \
+            .select('id, full_name, designation_id, department_id, designations(name), departments(name)') \
             .eq('id', user_id) \
             .single() \
             .execute()
@@ -527,8 +532,9 @@ def get_performance(user_id, year, period):
         emp_data = {
             'id':          user['id'],
             'name':        user.get('full_name', ''),
-            'designation': user.get('designation', ''),
-            'department':  str(user.get('department_id', '')),
+            # ── CHANGED ──────────────────────────────────────────────
+            'designation': (user.get('designations') or {}).get('name', ''),
+            'department':  (user.get('departments') or {}).get('name', ''),
         }
 
         records = supabase.table('performance_records').select('*') \
@@ -644,10 +650,6 @@ def get_performance_summary(user_id):
 
 @app.route('/api/evaluator/submit', methods=['POST'])
 def evaluator_submit():
-    """
-    Saves manual ratings into performance_records.manual_rating column.
-    Creates or updates the record using upsert on the unique constraint.
-    """
     try:
         body         = request.get_json()
         user_id      = body.get('user_id')
@@ -683,7 +685,6 @@ def evaluator_submit():
             weight = float(obj.get('weight', 0))
             score  = round(manual_rating * (weight / 100), 4)
 
-            # upsert into performance_records — stores in manual_rating column
             supabase.table('performance_records').upsert({
                 'user_id':       user_id,
                 'objective_id':  obj_id,
@@ -691,7 +692,7 @@ def evaluator_submit():
                 'year':          year,
                 'target':        None,
                 'actual':        None,
-                'manual_rating': manual_rating,  # stored in manual_rating column
+                'manual_rating': manual_rating,
                 'rating':        manual_rating,
                 'score':         score,
                 'status':        'approved',
@@ -864,12 +865,10 @@ def backfill_scores():
 
 @app.route('/api/evaluator/<evaluator_id>/team', methods=['GET'])
 def get_evaluator_team(evaluator_id):
-    """
-    Returns all users who report directly to the evaluator.
-    """
     try:
+        # ── CHANGED: join designations table ──────────────────────────
         result = supabase.table('users') \
-            .select('id, full_name, designation, emp_id') \
+            .select('id, full_name, designation_id, emp_id, designations(name)') \
             .eq('manager_id', evaluator_id) \
             .execute()
 
@@ -897,7 +896,8 @@ def get_evaluator_team(evaluator_id):
             enriched.append({
                 'id':            u['id'],
                 'full_name':     u['full_name'],
-                'designation':   u.get('designation', ''),
+                # ── CHANGED ──────────────────────────────────────────
+                'designation':   (u.get('designations') or {}).get('name', ''),
                 'emp_id':        u.get('emp_id', ''),
                 'template_id':   a['template_id']   if a else None,
                 'template_name': a['template_name'] if a else None,
@@ -916,15 +916,10 @@ def get_evaluator_team(evaluator_id):
 
 @app.route('/api/manual-objectives/<user_id>', methods=['GET'])
 def get_manual_objectives(user_id):
-    """
-    Returns all manual objectives for a user based on their assigned template,
-    along with any existing manual_rating already saved in performance_records.
-    """
     try:
         year   = request.args.get('year',   2026, type=int)
         period = request.args.get('period', 'H1')
 
-        # get template assignment
         assign_res = supabase.table('template_assignments') \
             .select('template_id') \
             .eq('user_id', user_id) \
@@ -936,7 +931,6 @@ def get_manual_objectives(user_id):
 
         template_id = assign_res.data[0]['template_id']
 
-        # get categories for this template
         cat_res = supabase.table('categories') \
             .select('id, name') \
             .eq('template_id', template_id) \
@@ -950,7 +944,6 @@ def get_manual_objectives(user_id):
         if not cat_ids:
             return jsonify([])
 
-        # get only manual objectives for this template
         obj_res = supabase.table('objectives') \
             .select('id, name, weight, category_id, kpi_scale') \
             .in_('category_id', cat_ids) \
@@ -964,7 +957,6 @@ def get_manual_objectives(user_id):
 
         obj_ids = [o['id'] for o in objectives]
 
-        # fetch existing manual_rating values from performance_records
         rec_res = supabase.table('performance_records') \
             .select('objective_id, manual_rating') \
             .eq('user_id', user_id) \
@@ -973,7 +965,6 @@ def get_manual_objectives(user_id):
             .in_('objective_id', obj_ids) \
             .execute()
 
-        # map objective_id → manual_rating (from performance_records table)
         existing = {
             r['objective_id']: r['manual_rating']
             for r in (rec_res.data or [])
@@ -989,7 +980,7 @@ def get_manual_objectives(user_id):
                 'category_name':  cat_map.get(obj['category_id'], ''),
                 'weight':         float(obj.get('weight', 0)),
                 'kpi_scale':      obj.get('kpi_scale', 'manual'),
-                'manual_rating':  existing.get(obj['id']),  # pre-fill from performance_records
+                'manual_rating':  existing.get(obj['id']),
             })
 
         return jsonify(result)
@@ -1005,11 +996,6 @@ def get_manual_objectives(user_id):
 
 @app.route('/api/rating-periods/current', methods=['GET'])
 def get_current_rating_period():
-    """
-    Returns the currently active rating window from rating_periods table.
-    rating_open = true when today is between rating_start and rating_end.
-    Completely independent from pms_cycles table.
-    """
     try:
         from datetime import date
 
@@ -1032,7 +1018,6 @@ def get_current_rating_period():
                 return None
             return date.fromisoformat(str(d)[:10])
 
-        # check if today falls within any active rating window
         active = None
         for rp in result.data:
             start = parse_date(rp['rating_start'])
@@ -1042,7 +1027,6 @@ def get_current_rating_period():
                 break
 
         if not active:
-            # find next upcoming window to show helpful message
             upcoming = None
             for rp in result.data:
                 start = parse_date(rp['rating_start'])
@@ -1084,8 +1068,9 @@ def get_current_rating_period():
 @app.route('/api/feedback/<user_id>/<int:year>/<period>', methods=['GET'])
 def get_supervisor_feedback(user_id, year, period):
     try:
+        # ── CHANGED: join designations through evaluator user ──────────
         eval_res = supabase.table('evaluations') \
-            .select('id, evaluator_id, users!evaluations_evaluator_id_fkey(full_name, designation)') \
+            .select('id, evaluator_id, users!evaluations_evaluator_id_fkey(full_name, designation_id, designations(name))') \
             .eq('user_id', user_id) \
             .eq('year', year) \
             .eq('period', period) \
@@ -1113,7 +1098,8 @@ def get_supervisor_feedback(user_id, year, period):
             'rating':   feedback.get('rating'),
             'evaluator': {
                 'name':        evaluator.get('full_name', 'Supervisor'),
-                'designation': evaluator.get('designation', ''),
+                # ── CHANGED ──────────────────────────────────────────
+                'designation': (evaluator.get('designations') or {}).get('name', ''),
             } if evaluator else None,
         })
 
@@ -1145,7 +1131,7 @@ def get_recommendations(user_id, year, period):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PMS CYCLE — editing window check
+# PMS CYCLE
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/pms-cycle/current', methods=['GET'])
@@ -1215,7 +1201,26 @@ def get_current_pms_cycle():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-    
+
+
 @app.route('/api/routes')
 def list_routes():
     return jsonify([str(rule) for rule in app.url_map.iter_rules()])
+
+@app.route('/api/users/by-email', methods=['GET'])
+def get_user_by_email():
+    email = request.args.get('email', '').strip()
+    if not email:
+        return jsonify({'error': 'email required'}), 400
+    try:
+        result = supabase.table('users') \
+            .select('id, email, full_name, role') \
+            .eq('email', email) \
+            .limit(1) \
+            .execute()
+        if not result.data:
+            return jsonify({'error': 'User not found'}), 404
+        return jsonify(result.data[0])
+    except Exception as e:
+        print(f"[ERROR] get_user_by_email: {e}")
+        return jsonify({'error': str(e)}), 500
