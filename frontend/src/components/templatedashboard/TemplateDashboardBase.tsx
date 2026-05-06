@@ -1,3 +1,4 @@
+/*templatedashboard*/
 "use client";
 
 // ─── React & Next.js Imports ──────────────────────────────────────────────────

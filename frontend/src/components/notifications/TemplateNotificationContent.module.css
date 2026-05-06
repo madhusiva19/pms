@@ -1,0 +1,245 @@
+/* src/components/templateNotifications/TemplateNotificationContent.module.css */
+
+/* ── Shell ── */
+.shell {
+  min-height: 100vh;
+  display: flex;
+  background: #F9FAFB;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* ── Main ── */
+.main {
+  flex: 1;
+  padding: 32px;
+  overflow: auto;
+}
+
+/* ── Breadcrumb ── */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.crumbLink {
+  color: #64748B;
+  cursor: pointer;
+}
+
+.crumbLink:hover { text-decoration: underline; }
+.crumbSep        { color: #64748B; }
+.crumbCurrent    { color: #1E293B; }
+
+/* ── Header ── */
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 36px;
+  color: #101828;
+}
+
+.subtitle {
+  margin: 8px 0 0 0;
+  font-size: 16px;
+  color: #4A5565;
+}
+
+.markAllBtn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid #E5E7EB;
+  background: #fff;
+  color: #374151;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.markAllBtn:hover { background: #F3F4F6; }
+
+/* ── Tabs ── */
+.tabRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.tabActive {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: none;
+  background: #1C398E;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tabInactive {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: 1px solid #E5E7EB;
+  background: #fff;
+  color: #374151;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tabInactive:hover { background: #F3F4F6; }
+
+.tabBadge {
+  background: #EF4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* ── Status bar ── */
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 20px;
+  border: 1px solid;
+}
+
+.statusBar[data-status="open"]   { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.statusBar[data-status="grace"]  { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.statusBar[data-status="frozen"] { background: #f8fafc; border-color: #e2e8f0; color: #475569; }
+
+/* ── Notification cards ── */
+.notifList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.notifCard {
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 18px 20px;
+  transition: box-shadow 0.15s;
+}
+
+.notifCard:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+
+.unread { border-left: 4px solid #3B82F6; }
+
+.notifTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.notifMeta {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.unreadDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #3B82F6;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.notifTitle {
+  margin: 0 0 2px 0;
+  font-weight: 600;
+  font-size: 15px;
+  color: #101828;
+}
+
+.notifRole {
+  margin: 0;
+  font-size: 12px;
+  color: #6B7280;
+}
+
+.notifBody {
+  margin: 0 0 14px 0;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.notifActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.actionBtn {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: none;
+  background: #1C398E;
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.actionBtn:hover { filter: brightness(1.1); }
+
+.readBtn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+  background: transparent;
+  color: #6B7280;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.readBtn:hover { background: #F3F4F6; }
+
+.emptyState {
+  text-align: center;
+  padding: 48px 20px;
+  color: #9CA3AF;
+  font-size: 15px;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+}
