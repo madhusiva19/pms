@@ -7,10 +7,16 @@ from flask_cors import CORS
 from supabase import create_client, Client
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
+from notification_routes import notifications_bp, init_notifications, start_scheduler
+from datetime import datetime, timezone
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 import os
 from dotenv import load_dotenv
 
 app = Flask(__name__)
+app.register_blueprint(notifications_bp)
+
 CORS(app)
 
 load_dotenv()
@@ -18,6 +24,8 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+init_notifications(supabase)
+
 
 OBJECTIVE_SETTING_MONTHS = 12
 GRACE_PERIOD_DAYS        = 15
@@ -35,6 +43,38 @@ DESIGNATION_SDA = 4   # Sub-Dept Admin
 # ─────────────────────────────────────────────────────────────────────────────
 # STARTUP SYNC
 # ─────────────────────────────────────────────────────────────────────────────
+
+def fix_duplicate_active_cycles() -> None:
+    """
+    Ensures only ONE active cycle exists.
+    If multiple rows have is_active=True, keeps the one with the highest pms_year
+    (and highest id as tiebreaker) and deactivates the rest.
+    Called once at startup before anything else.
+    """
+    try:
+        result = (
+            supabase.table("pms_cycles")
+            .select("*")
+            .eq("is_active", True)
+            .order("pms_year", desc=True)
+            .execute()
+        )
+        active_cycles = result.data or []
+
+        if len(active_cycles) <= 1:
+            return  # Nothing to fix
+
+        keep   = active_cycles[0]
+        to_fix = [c["id"] for c in active_cycles[1:]]
+
+        supabase.table("pms_cycles").update({"is_active": False}).in_("id", to_fix).execute()
+        print(
+            f"⚠️  fix_duplicate_active_cycles: deactivated {len(to_fix)} duplicate(s) "
+            f"(ids={to_fix}), keeping cycle id={keep['id']} year={keep['pms_year']}"
+        )
+    except Exception as error:
+        print(f"❌ fix_duplicate_active_cycles failed: {error}")
+
 
 def sync_cycle_dates_from_constants() -> None:
     try:
@@ -101,13 +141,27 @@ def _create_cycle_from_constants() -> None:
 
 
 def _maybe_rollover_cycle(cycle: dict) -> None:
+    """
+    Only rolls over if today is STRICTLY AFTER grace_end.
+    Added extra safety: will never roll over if objective_setting_end is in the future.
+    """
     try:
         grace_end_str = cycle.get("grace_period_end") or cycle.get("grace_end")
         if not grace_end_str:
             return
 
         grace_end = datetime.fromisoformat(grace_end_str).date()
-        if date.today() <= grace_end:
+        today     = date.today()
+
+        obj_end_str = cycle.get("objective_setting_end")
+        if obj_end_str:
+            obj_end = datetime.fromisoformat(obj_end_str).date()
+            if today <= obj_end:
+                print(f"✅ _maybe_rollover_cycle: objective window still open until {obj_end} — no rollover.")
+                return
+
+        if today <= grace_end:
+            print(f"✅ _maybe_rollover_cycle: grace period still active until {grace_end} — no rollover.")
             return
 
         pms_start     = datetime.fromisoformat(cycle["pms_start"]).date()
@@ -122,6 +176,7 @@ def _maybe_rollover_cycle(cycle: dict) -> None:
 
         existing = supabase.table("pms_cycles").select("id").eq("pms_year", next_start.year).execute()
         if existing.data:
+            print(f"✅ _maybe_rollover_cycle: cycle {next_start.year} already exists — no rollover.")
             return
 
         supabase.table("pms_cycles").update({"is_active": False}).eq("id", cycle["id"]).execute()
@@ -197,8 +252,8 @@ def get_freeze_status() -> str:
 
 def can_role_edit(level: int) -> bool:
     status = get_freeze_status()
-    if status == "frozen":              return False
-    if status == "grace" and level > 1: return False
+    if status == "frozen":               return False
+    if status == "grace" and level > 1:  return False
     return True
 
 
@@ -211,10 +266,6 @@ def get_request_level() -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def is_template_from_past_cycle(template_id: int) -> bool:
-    """
-    Returns True if this template belongs to a past (inactive) PMS cycle.
-    Templates with no pms_cycle_id are treated as current cycle (safe fallback).
-    """
     try:
         result = (
             supabase.table("templates")
@@ -227,7 +278,6 @@ def is_template_from_past_cycle(template_id: int) -> bool:
             return False
         t_cycle_id = result.data.get("pms_cycle_id")
         if not t_cycle_id:
-            # No cycle linked — treat as current so old templates are not accidentally locked
             return False
         active = get_active_pms_cycle()
         if not active:
@@ -238,14 +288,63 @@ def is_template_from_past_cycle(template_id: int) -> bool:
 
 
 def get_template_freeze_status(t_cycle_id, active_cycle_id: int | None) -> str:
-    """
-    Per-template freeze status:
-    - If the template belongs to a past cycle → always "frozen"
-    - Otherwise → use the active cycle's current freeze status
-    """
     if t_cycle_id and active_cycle_id and int(t_cycle_id) != int(active_cycle_id):
         return "frozen"
     return get_freeze_status()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEBUG ROUTE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/debug-freeze", methods=["GET"])
+def debug_freeze():
+    try:
+        today = date.today()
+        cycle = get_active_pms_cycle()
+
+        if not cycle:
+            dates = compute_freeze_dates_from_constants()
+            return jsonify({
+                "today":         str(today),
+                "cycle":         None,
+                "source":        "constants",
+                "pms_start":     str(dates["pms_start"]),
+                "objective_end": str(dates["objective_end"]),
+                "grace_end":     str(dates["grace_end"]),
+                "today_gte_grace_end":  today >= dates["grace_end"],
+                "today_gte_obj_end":    today >= dates["objective_end"],
+                "freeze_status": get_freeze_status(),
+            }), 200
+
+        dates = compute_freeze_dates_from_cycle(cycle)
+
+        all_active = (
+            supabase.table("pms_cycles")
+            .select("id, pms_year, objective_setting_end, grace_period_end, is_active")
+            .eq("is_active", True)
+            .execute()
+            .data
+        )
+
+        return jsonify({
+            "today":                     str(today),
+            "source":                    "database",
+            "active_cycle_id":           cycle["id"],
+            "active_cycle_year":         cycle["pms_year"],
+            "raw_objective_setting_end": cycle.get("objective_setting_end"),
+            "raw_grace_period_end":      cycle.get("grace_period_end"),
+            "computed_pms_start":        str(dates["pms_start"]),
+            "computed_objective_end":    str(dates["objective_end"]),
+            "computed_grace_end":        str(dates["grace_end"]),
+            "today_gte_grace_end":       today >= dates["grace_end"],
+            "today_gte_objective_end":   today >= dates["objective_end"],
+            "freeze_status":             get_freeze_status(),
+            "all_active_cycles_count":   len(all_active),
+            "all_active_cycles":         all_active,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -354,7 +453,7 @@ def open_next_pms_cycle():
     try:
         if get_request_level() > 1:
             return jsonify({"error": "Only HQ Admin can open the next PMS cycle."}), 403
-        current = get_active_pms_cycle()
+        current   = get_active_pms_cycle()
         next_year = int(current["pms_year"]) + 1 if current else date.today().year
         if current:
             supabase.table("pms_cycles").update({"is_active": False}).eq("id", current["id"]).execute()
@@ -446,8 +545,8 @@ def get_sub_departments():
 @app.route("/templates", methods=["POST"])
 def save_template():
     try:
-        data = request.get_json()
-        now  = datetime.now().isoformat()
+        data     = request.get_json()
+        now      = datetime.now().isoformat()
         cycle    = get_active_pms_cycle()
         cycle_id = cycle["id"] if cycle else None
         result   = supabase.table("templates").insert({
@@ -492,10 +591,8 @@ def get_templates():
         countries    = supabase.table("countries").select("id, name, code").execute().data
         users        = supabase.table("users").select("id, full_name").execute().data
 
-        # Resolve active cycle once — used for per-template freeze status
-        active_cycle    = get_active_pms_cycle()
-        active_cycle_id = active_cycle["id"] if active_cycle else None
-        # Cache active cycle's freeze status to avoid repeated DB calls in the loop
+        active_cycle         = get_active_pms_cycle()
+        active_cycle_id      = active_cycle["id"] if active_cycle else None
         active_freeze_status = get_freeze_status()
 
         for template in templates:
@@ -503,19 +600,28 @@ def get_templates():
                 template["categories"] = template.pop("template_content")
 
             t_id          = template["id"]
-            t_assignments = [m for m in mapping if m["template_id"] == t_id]
+            # For display purposes, use only rule rows (user_id IS NULL) so we
+            # don't inflate counts with per-user rows.
+            t_assignments = [m for m in mapping if m["template_id"] == t_id and m.get("user_id") is None]
+            # But for assigned employee display, use rows where user_id IS set
+            t_user_rows   = [m for m in mapping if m["template_id"] == t_id and m.get("user_id") is not None]
 
             assigned_designation_ids = list(set(m["designation_id"] for m in t_assignments if m.get("designation_id")))
             assigned_dept_ids        = list(set(str(m["department_id"]) for m in t_assignments if m.get("department_id")))
             assigned_branch_ids      = list(set(str(m["branch_id"]) for m in t_assignments if m.get("branch_id")))
-            assigned_user_ids        = list(set(str(m["user_id"]) for m in t_assignments if m.get("user_id")))
             assigned_country_ids     = list(set(str(m["country_id"]) for m in t_assignments if m.get("country_id")))
             assigned_sub_dept_ids    = list(set(str(m["sub_department_id"]) for m in t_assignments if m.get("sub_department_id")))
+            assigned_user_ids        = list(set(str(m["user_id"]) for m in t_user_rows))
 
             template["assignedDesignations"]    = [r["name"] for r in designations if r["id"] in assigned_designation_ids]
             template["assignedDesignationIds"]  = assigned_designation_ids
             template["assignedDepartments"]     = [
-                {"id": str(d["id"]), "name": d["name"], "code": d.get("code"), "branch_id": str(d["branch_id"]) if d.get("branch_id") else None}
+                {
+                    "id":        str(d["id"]),
+                    "name":      d["name"],
+                    "code":      d.get("code"),
+                    "branch_id": str(d["branch_id"]) if d.get("branch_id") else None,
+                }
                 for d in departments if str(d["id"]) in assigned_dept_ids
             ]
             template["assignedDepartmentNames"] = [d["name"] for d in departments if str(d["id"]) in assigned_dept_ids]
@@ -532,6 +638,7 @@ def get_templates():
             template["assignedCountryIds"]      = assigned_country_ids
             template["assignedEmployees"]       = [u["full_name"] for u in users if str(u["id"]) in assigned_user_ids]
             template["assignedEmployeeIds"]     = assigned_user_ids
+            # assignedRules = rule rows only (user_id IS NULL) for the dashboard display
             template["assignedRules"]           = [
                 {
                     "designation_id":    m.get("designation_id"),
@@ -539,7 +646,7 @@ def get_templates():
                     "branch_id":         str(m["branch_id"])         if m.get("branch_id")         else None,
                     "country_id":        str(m["country_id"])        if m.get("country_id")        else None,
                     "sub_department_id": str(m["sub_department_id"]) if m.get("sub_department_id") else None,
-                    "user_id":           str(m["user_id"])           if m.get("user_id")           else None,
+                    "user_id":           None,
                     "scope":             m.get("scope"),
                 }
                 for m in t_assignments
@@ -551,9 +658,6 @@ def get_templates():
             if "lastModified" not in template or template["lastModified"] is None:
                 template["lastModified"] = template.get("lastmodified") or template.get("created_at")
 
-            # ── Per-template freeze status ────────────────────────────────
-            # If the template belongs to a past cycle, it is permanently frozen
-            # regardless of the active cycle's window status.
             t_cycle_id = template.get("pms_cycle_id")
             if t_cycle_id and active_cycle_id and int(t_cycle_id) != int(active_cycle_id):
                 template["freeze_status"] = "frozen"
@@ -581,7 +685,6 @@ def get_single_template(template_id):
         if "lastModified" not in template or template["lastModified"] is None:
             template["lastModified"] = template.get("lastmodified") or template.get("created_at")
 
-        # Attach per-template freeze status
         active          = get_active_pms_cycle()
         active_cycle_id = active["id"] if active else None
         t_cycle_id      = template.get("pms_cycle_id")
@@ -600,13 +703,11 @@ def get_single_template(template_id):
 @app.route("/templates/<int:template_id>", methods=["PUT"])
 def update_template(template_id):
     try:
-        # ── Past-cycle guard — checked before anything else ───────────────
         if is_template_from_past_cycle(template_id):
             return jsonify({
                 "error": "This template belongs to a past PMS cycle and is permanently frozen."
             }), 403
 
-        # ── Active-cycle freeze check ─────────────────────────────────────
         level = get_request_level()
         if not can_role_edit(level):
             status  = get_freeze_status()
@@ -636,13 +737,11 @@ def update_template(template_id):
 @app.route("/templates/<int:template_id>", methods=["DELETE"])
 def delete_template(template_id):
     try:
-        # ── Past-cycle guard ──────────────────────────────────────────────
         if is_template_from_past_cycle(template_id):
             return jsonify({
                 "error": "Cannot delete — this template belongs to a past PMS cycle and is permanently frozen."
             }), 403
 
-        # ── Active-cycle freeze check ─────────────────────────────────────
         if not can_role_edit(get_request_level()):
             return jsonify({"error": "Cannot delete — template is frozen or you lack permission."}), 403
 
@@ -654,126 +753,172 @@ def delete_template(template_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MY-TEMPLATES ROUTE
+# ASSIGNMENT — CORE RESOLVER
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.route("/my-templates", methods=["GET"])
-def get_my_templates():
-    try:
-        user_id_param = request.args.get("user_id", "").strip()
-        if not user_id_param:
-            return jsonify({"error": "user_id query parameter is required"}), 400
+def _resolve_rules_to_user_rows(template_id: int, rules: list, all_users: list) -> list:
+    """
+    Expands each assignment rule into:
+      1. One 'rule' row  (user_id=None)  — preserved for dashboard display / assignedRules.
+      2. One row per matching user (user_id=<uuid>) — enables fast /my-templates lookup.
 
-        user_result = (
-            supabase.table("users")
-            .select("id, full_name, designation_id, department_id, branch_id, country_id, sub_department_id")
-            .eq("id", user_id_param)
-            .execute()
+    KEY FIX: Per-user rows are stored with the user's OWN profile values
+    (designation_id, department_id, branch_id, country_id, sub_department_id)
+    so every column is fully populated regardless of which rule type matched them.
+
+    Scope mapping:
+      all_country_admins  → designation_id == DESIGNATION_CA  (optionally filtered by country_id)
+      all_branch_admins   → designation_id == DESIGNATION_BA
+      all_dept_admins     → designation_id == DESIGNATION_DA
+      all_sub_dept_admins → designation_id == DESIGNATION_SDA
+
+    Standard rules match users where ALL supplied fields agree with the user's profile.
+    A None field in the rule is treated as a wildcard (matches any value).
+    """
+    rows_to_insert = []
+    seen_user_ids  = set()   # prevent duplicate per-user rows across rules
+    seen_rule_keys = set()   # prevent duplicate rule rows
+
+    SCOPE_TO_DESIG = {
+        "all_country_admins":  DESIGNATION_CA,
+        "all_branch_admins":   DESIGNATION_BA,
+        "all_dept_admins":     DESIGNATION_DA,
+        "all_sub_dept_admins": DESIGNATION_SDA,
+    }
+
+    def add_rule_row(row: dict):
+        """Store the rule itself (user_id=None) for display/audit purposes."""
+        key = (
+            row.get("scope"),
+            row.get("designation_id"),
+            row.get("department_id"),
+            row.get("branch_id"),
+            row.get("country_id"),
+            row.get("sub_department_id"),
         )
-        if not user_result.data:
-            return jsonify({"error": f"No user found with id '{user_id_param}'."}), 404
+        if key not in seen_rule_keys:
+            seen_rule_keys.add(key)
+            rows_to_insert.append({**row, "user_id": None})
 
-        user           = user_result.data[0]
-        user_pk        = str(user["id"])
-        designation_id = int(user["designation_id"])    if user.get("designation_id")    else None
-        department_id  = str(user["department_id"])     if user.get("department_id")     else None
-        branch_id      = str(user["branch_id"])         if user.get("branch_id")         else None
-        country_id     = str(user["country_id"])        if user.get("country_id")        else None
-        sub_dept_id    = str(user["sub_department_id"]) if user.get("sub_department_id") else None
+    def add_user_row(user: dict, scope: str | None):
+        """
+        Store one row per resolved user with ALL profile columns populated from
+        the user's own data. This ensures country_id, sub_department_id, branch_id,
+        department_id and designation_id are always stored — never left as None
+        because the rule happened to be a wildcard or scope-based.
+        """
+        uid = str(user["id"])
+        if uid in seen_user_ids:
+            return
+        seen_user_ids.add(uid)
+        rows_to_insert.append({
+            "template_id":       template_id,
+            "user_id":           uid,
+            "designation_id":    int(user["designation_id"])    if user.get("designation_id")    else None,
+            "department_id":     str(user["department_id"])     if user.get("department_id")     else None,
+            "branch_id":         str(user["branch_id"])         if user.get("branch_id")         else None,
+            "country_id":        str(user["country_id"])        if user.get("country_id")        else None,
+            "sub_department_id": str(user["sub_department_id"]) if user.get("sub_department_id") else None,
+            "scope":             scope,
+        })
 
-        all_assignments       = supabase.table("template_assignments").select("*").execute().data
-        matched_template_ids: set = set()
+    for rule in rules:
 
-        for a in all_assignments:
-            if a.get("user_id") and str(a["user_id"]) == user_pk:
-                matched_template_ids.add(a["template_id"])
-                continue
+        # ── 1. Direct user assignment ──────────────────────────────────────
+        if rule.get("user_id"):
+            uid = str(rule["user_id"]).strip()
+            matched = next((u for u in all_users if str(u["id"]) == uid), None)
+            if matched:
+                # Use the user's real profile columns
+                add_user_row(matched, scope=None)
+            elif uid not in seen_user_ids:
+                # User not found in all_users — store with nulls as safe fallback
+                seen_user_ids.add(uid)
+                rows_to_insert.append({
+                    "template_id":       template_id,
+                    "user_id":           uid,
+                    "designation_id":    None,
+                    "department_id":     None,
+                    "branch_id":         None,
+                    "country_id":        None,
+                    "sub_department_id": None,
+                    "scope":             None,
+                })
+            continue
 
-            scope = a.get("scope")
+        # ── 2. Scope-based admin quick-assign ─────────────────────────────
+        if rule.get("scope"):
+            scope      = rule["scope"]
+            country_id = rule.get("country_id") or None
+            desig_id   = rule.get("designation_id") or SCOPE_TO_DESIG.get(scope)
 
-            if scope == "all_country_admins":
-                if designation_id == DESIGNATION_CA:
-                    matched_template_ids.add(a["template_id"])
-                continue
+            # Rule row stores the intent — using rule-level fields (may be None/wildcard)
+            rule_row = {
+                "template_id":       template_id,
+                "scope":             scope,
+                "designation_id":    desig_id,
+                "country_id":        country_id,
+                "department_id":     rule.get("department_id")     or None,
+                "branch_id":         rule.get("branch_id")         or None,
+                "sub_department_id": rule.get("sub_department_id") or None,
+            }
+            add_rule_row(rule_row)
 
-            if scope == "all_branch_admins":
-                if designation_id == DESIGNATION_BA:
-                    matched_template_ids.add(a["template_id"])
-                continue
+            target_desig = SCOPE_TO_DESIG.get(scope)
+            if target_desig:
+                for u in all_users:
+                    u_desig = int(u["designation_id"]) if u.get("designation_id") else None
+                    if u_desig != target_desig:
+                        continue
+                    # Country-specific filter for CAs
+                    if country_id:
+                        u_country = str(u["country_id"]) if u.get("country_id") else None
+                        if u_country != str(country_id):
+                            continue
+                    # Per-user row uses user's real profile — not the rule's wildcards
+                    add_user_row(u, scope=scope)
+            continue
 
-            if scope == "all_dept_admins":
-                if designation_id == DESIGNATION_DA:
-                    matched_template_ids.add(a["template_id"])
-                continue
+        # ── 3. Standard designation + department + branch rule ─────────────
+        rule_desig   = int(rule["designation_id"])    if rule.get("designation_id")    else None
+        rule_dept    = str(rule["department_id"])     if rule.get("department_id")     else None
+        rule_branch  = str(rule["branch_id"])         if rule.get("branch_id")         else None
+        rule_subdept = str(rule["sub_department_id"]) if rule.get("sub_department_id") else None
+        rule_country = str(rule["country_id"])        if rule.get("country_id")        else None
 
-            if scope == "all_sub_dept_admins":
-                if designation_id == DESIGNATION_SDA:
-                    matched_template_ids.add(a["template_id"])
-                continue
+        # Skip completely empty rules
+        if all(v is None for v in [rule_desig, rule_dept, rule_branch, rule_subdept, rule_country]):
+            continue
 
-            rule_desig   = int(a["designation_id"])    if a.get("designation_id")    else None
-            rule_dept    = str(a["department_id"])     if a.get("department_id")     else None
-            rule_branch  = str(a["branch_id"])         if a.get("branch_id")         else None
-            rule_country = str(a["country_id"])        if a.get("country_id")        else None
-            rule_subdept = str(a["sub_department_id"]) if a.get("sub_department_id") else None
+        rule_row = {
+            "template_id":       template_id,
+            "designation_id":    rule_desig,
+            "department_id":     rule_dept,
+            "branch_id":         rule_branch,
+            "country_id":        rule_country,
+            "sub_department_id": rule_subdept,
+            "scope":             None,
+        }
+        add_rule_row(rule_row)
 
-            if all(v is None for v in [rule_desig, rule_dept, rule_branch, rule_country, rule_subdept]):
-                continue
+        # Resolve matching users — per-user rows use the user's own real profile
+        for u in all_users:
+            u_desig   = int(u["designation_id"])    if u.get("designation_id")    else None
+            u_dept    = str(u["department_id"])     if u.get("department_id")     else None
+            u_branch  = str(u["branch_id"])         if u.get("branch_id")         else None
+            u_subdept = str(u["sub_department_id"]) if u.get("sub_department_id") else None
+            u_country = str(u["country_id"])        if u.get("country_id")        else None
 
-            if rule_country and rule_desig:
-                if country_id == rule_country and designation_id == rule_desig:
-                    matched_template_ids.add(a["template_id"])
-                continue
+            desig_ok   = (rule_desig   is None) or (u_desig   == rule_desig)
+            dept_ok    = (rule_dept    is None) or (u_dept    == rule_dept)
+            branch_ok  = (rule_branch  is None) or (u_branch  == rule_branch)
+            subdept_ok = (rule_subdept is None) or (u_subdept == rule_subdept)
+            country_ok = (rule_country is None) or (u_country == rule_country)
 
-            if rule_subdept:
-                if sub_dept_id == rule_subdept:
-                    matched_template_ids.add(a["template_id"])
-                continue
+            if desig_ok and dept_ok and branch_ok and subdept_ok and country_ok:
+                add_user_row(u, scope=None)
 
-            desig_ok  = (rule_desig  is None) or (designation_id is not None and rule_desig  == designation_id)
-            dept_ok   = (rule_dept   is None) or (department_id  is not None and rule_dept   == department_id)
-            branch_ok = (rule_branch is None) or (branch_id      is not None and rule_branch == branch_id)
-
-            if desig_ok and dept_ok and branch_ok:
-                matched_template_ids.add(a["template_id"])
-
-        if not matched_template_ids:
-            return jsonify([]), 200
-
-        active          = get_active_pms_cycle()
-        active_cycle_id = active["id"] if active else None
-        active_freeze   = get_freeze_status()
-
-        all_templates = supabase.table("templates").select("*").execute().data
-        my_templates  = []
-        for t in all_templates:
-            if t["id"] in matched_template_ids:
-                if "template_content" in t:
-                    t["categories"] = t.pop("template_content")
-                if t.get("max_score") is None:
-                    t["max_score"] = DEFAULT_MAX_SCORE
-                if "lastModified" not in t or t["lastModified"] is None:
-                    t["lastModified"] = t.get("lastmodified") or t.get("created_at")
-
-                # Per-template freeze status
-                t_cycle_id = t.get("pms_cycle_id")
-                if t_cycle_id and active_cycle_id and int(t_cycle_id) != int(active_cycle_id):
-                    t["freeze_status"] = "frozen"
-                    t["is_past_cycle"] = True
-                else:
-                    t["freeze_status"] = active_freeze
-                    t["is_past_cycle"] = False
-
-                my_templates.append(t)
-
-        my_templates.sort(
-            key=lambda t: t.get("lastModified") or t.get("created_at") or "",
-            reverse=True,
-        )
-        return jsonify(my_templates), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    return rows_to_insert
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -791,99 +936,46 @@ def _do_assign_template():
         if not template_id:
             return jsonify({"error": "template_id is required"}), 400
 
-        # ── Past-cycle guard ──────────────────────────────────────────────
         if is_template_from_past_cycle(template_id):
             return jsonify({
                 "error": "Cannot modify assignments — this template belongs to a past PMS cycle and is permanently frozen."
             }), 403
 
+        rules = data.get("rules") or []
+
+        # Load all users with ALL profile fields needed for full column population
+        all_users = (
+            supabase.table("users")
+            .select("id, designation_id, department_id, branch_id, country_id, sub_department_id")
+            .execute()
+            .data
+        ) or []
+
+        # Resolve rules → rows (rule rows + per-user rows with full profile columns)
+        rows_to_insert = _resolve_rules_to_user_rows(template_id, rules, all_users)
+
+        # Clear existing assignments then bulk-insert
         supabase.table("template_assignments").delete().eq("template_id", template_id).execute()
 
-        assign_rows: list = []
+        if rows_to_insert:
+            # Batch inserts to avoid payload size limits
+            BATCH_SIZE = 500
+            for i in range(0, len(rows_to_insert), BATCH_SIZE):
+                supabase.table("template_assignments").insert(rows_to_insert[i:i + BATCH_SIZE]).execute()
 
-        for rule in (data.get("rules") or []):
-            row = {"template_id": template_id}
-
-            if rule.get("user_id"):
-                uid = str(rule["user_id"]).strip()
-                if not supabase.table("users").select("id").eq("id", uid).execute().data:
-                    return jsonify({"error": f"User '{uid}' not found."}), 404
-                row = {
-                    "template_id": template_id, "user_id": uid,
-                    "designation_id": None, "department_id": None,
-                    "branch_id": None, "country_id": None,
-                    "sub_department_id": None, "scope": None,
-                }
-
-            elif rule.get("scope"):
-                row = {
-                    "template_id":    template_id,
-                    "scope":          rule["scope"],
-                    "designation_id": rule.get("designation_id") or None,
-                    "country_id":     rule.get("country_id")     or None,
-                    "department_id":  None, "branch_id": None,
-                    "sub_department_id": None, "user_id": None,
-                }
-
-            elif rule.get("country_id") and rule.get("designation_id"):
-                row = {
-                    "template_id":    template_id,
-                    "country_id":     str(rule["country_id"]),
-                    "designation_id": rule["designation_id"],
-                    "department_id":  None, "branch_id": None,
-                    "sub_department_id": None, "user_id": None, "scope": None,
-                }
-
-            elif rule.get("sub_department_id"):
-                row = {
-                    "template_id":       template_id,
-                    "sub_department_id": str(rule["sub_department_id"]),
-                    "designation_id":    rule.get("designation_id") or None,
-                    "department_id":     None, "branch_id": None,
-                    "country_id":        None, "user_id": None, "scope": None,
-                }
-
-            else:
-                row = {
-                    "template_id":       template_id,
-                    "designation_id":    rule.get("designation_id") or None,
-                    "department_id":     rule.get("department_id")  or None,
-                    "branch_id":         rule.get("branch_id")      or None,
-                    "country_id":        None,
-                    "sub_department_id": None,
-                    "user_id":           None,
-                    "scope":             None,
-                }
-
-            if all(row.get(k) is None for k in ["user_id", "designation_id", "department_id", "branch_id", "country_id", "sub_department_id", "scope"]):
-                continue
-
-            assign_rows.append(row)
-
-        seen        = set()
-        unique_rows = []
-        for row in assign_rows:
-            key = (
-                row.get("template_id"), row.get("designation_id"),
-                row.get("department_id"), row.get("branch_id"),
-                row.get("country_id"), row.get("sub_department_id"),
-                row.get("user_id"), row.get("scope"),
-            )
-            if key not in seen:
-                seen.add(key)
-                unique_rows.append(row)
-        assign_rows = unique_rows
-
-        if assign_rows:
-            supabase.table("template_assignments").insert(assign_rows).execute()
-
+        # Bump lastModified on the template
         supabase.table("templates").update({
             "lastModified": datetime.now().isoformat()
         }).eq("id", template_id).execute()
 
+        user_rows = [r for r in rows_to_insert if r.get("user_id")]
+        rule_rows = [r for r in rows_to_insert if not r.get("user_id")]
+
         return jsonify({
-            "message":       f"Template assigned: {len(assign_rows)} rule(s) saved.",
-            "rows_inserted": len(assign_rows),
+            "message":        f"Template assigned: {len(rule_rows)} rule(s), {len(user_rows)} user(s) resolved.",
+            "rules_inserted": len(rule_rows),
+            "users_resolved": len(user_rows),
+            "total_rows":     len(rows_to_insert),
         }), 200
 
     except Exception as e:
@@ -901,7 +993,79 @@ def update_template_assignment():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ROLE / DEPARTMENT / USER ROUTES
+# MY-TEMPLATES ROUTE
+# Now a simple indexed lookup — user_id rows are pre-resolved at assignment time.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/my-templates", methods=["GET"])
+def get_my_templates():
+    try:
+        user_id_param = request.args.get("user_id", "").strip()
+        if not user_id_param:
+            return jsonify({"error": "user_id query parameter is required"}), 400
+
+        # Verify user exists
+        user_result = (
+            supabase.table("users")
+            .select("id")
+            .eq("id", user_id_param)
+            .execute()
+        )
+        if not user_result.data:
+            return jsonify({"error": f"No user found with id '{user_id_param}'."}), 404
+
+        # Fast lookup — user_id is pre-resolved at assignment save time
+        assignments = (
+            supabase.table("template_assignments")
+            .select("template_id")
+            .eq("user_id", user_id_param)
+            .execute()
+            .data
+        ) or []
+
+        matched_ids = list({a["template_id"] for a in assignments})
+        if not matched_ids:
+            return jsonify([]), 200
+
+        active          = get_active_pms_cycle()
+        active_cycle_id = active["id"] if active else None
+        active_freeze   = get_freeze_status()
+
+        all_templates = supabase.table("templates").select("*").execute().data
+        my_templates  = []
+
+        for t in all_templates:
+            if t["id"] not in matched_ids:
+                continue
+            if "template_content" in t:
+                t["categories"] = t.pop("template_content")
+            if t.get("max_score") is None:
+                t["max_score"] = DEFAULT_MAX_SCORE
+            if not t.get("lastModified"):
+                t["lastModified"] = t.get("lastmodified") or t.get("created_at")
+
+            t_cycle_id = t.get("pms_cycle_id")
+            if t_cycle_id and active_cycle_id and int(t_cycle_id) != int(active_cycle_id):
+                t["freeze_status"] = "frozen"
+                t["is_past_cycle"] = True
+            else:
+                t["freeze_status"] = active_freeze
+                t["is_past_cycle"] = False
+
+            my_templates.append(t)
+
+        my_templates.sort(
+            key=lambda t: t.get("lastModified") or t.get("created_at") or "",
+            reverse=True,
+        )
+        return jsonify(my_templates), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DESIGNATION / DEPARTMENT / USER ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route("/designations", methods=["GET"])
@@ -987,19 +1151,41 @@ def sync_user():
 @app.route("/debug-user/<user_id>", methods=["GET"])
 def debug_user(user_id):
     try:
-        user = supabase.table("users").select("id, full_name, designation_id, department_id, branch_id, country_id, sub_department_id").eq("id", user_id).execute().data
+        user = supabase.table("users").select(
+            "id, full_name, designation_id, department_id, branch_id, country_id, sub_department_id"
+        ).eq("id", user_id).execute().data
         if not user: return jsonify({"error": "user not found"}), 404
-        assignments = supabase.table("template_assignments").select("*").execute().data
-        u = user[0]
+
+        # Show both rule rows and user rows for this user
+        rule_rows = (
+            supabase.table("template_assignments")
+            .select("*")
+            .is_("user_id", "null")
+            .execute()
+            .data
+        )
+        user_rows = (
+            supabase.table("template_assignments")
+            .select("*")
+            .eq("user_id", user_id)
+            .execute()
+            .data
+        )
         return jsonify({
-            "user": u,
-            "total_assignments": len(assignments),
-            "all_assignments_sample": assignments[:10],
+            "user":              user[0],
+            "resolved_template_count": len(user_rows),
+            "resolved_templates":      user_rows,
+            "total_rule_rows":         len(rule_rows),
+            "rule_rows_sample":        rule_rows[:10],
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
+    fix_duplicate_active_cycles()
     sync_cycle_dates_from_constants()
+    start_scheduler()
     app.run(debug=True, port=5000)

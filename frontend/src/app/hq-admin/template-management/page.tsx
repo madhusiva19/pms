@@ -1,10 +1,6 @@
-// app/(hq-admin)/templates/page.tsx
+// app/(hq-admin)/template-management/page.tsx
 import TemplateDashboardBase from "@/components/templatedashboard/TemplateDashboardBase";
 
-
-export default function HQAdminTemplatePage() {
+export default function Page() {
   return <TemplateDashboardBase level={1} />;
 }
-
-
-
