@@ -7,6 +7,7 @@ import {
   Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 
 // ── Types ──────────────────────────────────────────────────────────
 interface Objective {
@@ -35,9 +36,6 @@ const isChartable = (obj: Objective) =>
   (obj.actual !== null || obj.achievement_pct !== null);
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
-
-// Demo UUID — swap to session?.user?.id once auth is integrated
-const DEMO_USER_ID = 'aaaaaaaa-0001-0001-0001-000000000001';
 
 const C = {
   blue: '#155DFC', blueBg: '#EFF6FF', pageBg: '#F8F9FC', border: '#E2E8F0',
@@ -101,19 +99,26 @@ function CustomXAxisTick(props: {
 export default function MyPerformancePage() {
   const searchParams = useSearchParams();
 
-  // Auth is handled by another team member.
-  // For now: use ?employee=UUID from URL, else fall back to demo UUID.
-  // TODO: replace DEMO_USER_ID with session?.user?.id once auth is integrated.
+  // ── FIX 1: get auth user, wait for it to load ──────────────────
+  const { user, loading: authLoading } = useAuth();
+
   const [employeeId, setEmployeeId] = useState<string | null>(null);
 
+  // ── FIX 2: guard with authLoading, fall back to user.id ────────
   useEffect(() => {
+    if (authLoading) return; // wait for auth to resolve first
+
     const idFromUrl = searchParams.get('employee');
     if (idFromUrl) {
       setEmployeeId(idFromUrl);
       return;
     }
-    setEmployeeId(DEMO_USER_ID);
-  }, [searchParams]);
+
+    // Use the logged-in user's own ID — no hardcoded fallback UUID
+    if (user?.id) {
+      setEmployeeId(user.id);
+    }
+  }, [searchParams, user, authLoading]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<'H1' | 'H2'>('H1');
   const [showDetail, setShowDetail]         = useState(false);
@@ -121,7 +126,7 @@ export default function MyPerformancePage() {
 
   const [dataH1, setDataH1] = useState<PerformanceData | null>(null);
   const [dataH2, setDataH2] = useState<PerformanceData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const fetchPeriod = async (empId: string, period: 'H1' | 'H2'): Promise<PerformanceData | null> => {
     try {
@@ -196,7 +201,8 @@ export default function MyPerformancePage() {
     );
   }, [data]);
 
-  const noData = !loading && data === null;
+  // ── FIX 3: only show "no data" if auth AND data fetching are both done
+  const noData = !authLoading && !loading && employeeId !== null && data === null;
 
   // ── Supervisor feedback + AI recommendations ───────────────────
   const [supervisorFeedback, setSupervisorFeedback] = useState<{
@@ -215,6 +221,11 @@ export default function MyPerformancePage() {
       .then(r => r.json()).then(setRecommendations).catch(() => setRecommendations([]));
   }, [employeeId, selectedPeriod]);
 
+  // ── Resolved display name ──────────────────────────────────────
+  // Use data from API first, then fall back to auth user full_name
+  const displayName       = data?.employee?.name       ?? user?.full_name ?? null;
+  const displayDesignation = data?.employee?.designation ?? null;
+
   return (
     <div style={{ minHeight: '100vh', background: C.pageBg, fontFamily: 'Inter, sans-serif' }}>
       <div style={{ padding: '24px' }}>
@@ -230,14 +241,25 @@ export default function MyPerformancePage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 600, color: C.textMain, margin: '0 0 4px' }}>My Performance</h1>
+
+            {/* ── FIX 4: improved subtitle — no raw UUID fallback ── */}
             <p style={{ fontSize: 15, color: C.textSub, margin: 0 }}>
-              {loading ? 'Loading...' : data?.employee?.name
-                ? `${data.employee.name} · ${data.employee.designation}`
-                : employeeId ? `Employee #${employeeId}` : 'Not signed in'}
+              {authLoading
+                ? 'Loading…'
+                : displayName
+                  ? displayDesignation
+                    ? `${displayName} · ${displayDesignation}`
+                    : displayName
+                  : loading
+                    ? 'Loading…'
+                    : 'No data found'}
             </p>
           </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {loading && <span style={{ fontSize: 12, color: C.textMuted }}>Loading…</span>}
+            {(authLoading || loading) && (
+              <span style={{ fontSize: 12, color: C.textMuted }}>Loading…</span>
+            )}
             <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 12, padding: 3 }}>
               {(['H1', 'H2'] as const).map(p => {
                 const active = p === selectedPeriod;
@@ -258,15 +280,30 @@ export default function MyPerformancePage() {
           </div>
         </div>
 
+        {/* Auth still loading — show skeleton */}
+        {authLoading && (
+          <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>Authenticating…</p>
+          </div>
+        )}
+
+        {/* No employee resolved yet (auth done but no ID) */}
+        {!authLoading && !employeeId && !loading && (
+          <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>Could not determine your employee ID. Please sign in.</p>
+          </div>
+        )}
+
         {/* No data state */}
-        {noData && employeeId && (
+        {noData && (
           <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
             <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>No performance data found for this employee in 2025.</p>
             <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 8 }}>Make sure performance records exist in the database.</p>
           </div>
         )}
 
-        {!noData && employeeId && (
+        {/* Main content — only render when we have data */}
+        {!authLoading && !noData && employeeId && (
           <>
             {/* Score Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
