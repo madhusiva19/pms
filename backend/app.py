@@ -1199,13 +1199,10 @@ def get_current_pms_cycle():
         return jsonify({'error': str(e)}), 500
 
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-
-
 @app.route('/api/routes')
 def list_routes():
     return jsonify([str(rule) for rule in app.url_map.iter_rules()])
+
 
 @app.route('/api/users/by-email', methods=['GET'])
 def get_user_by_email():
@@ -1224,3 +1221,7 @@ def get_user_by_email():
     except Exception as e:
         print(f"[ERROR] get_user_by_email: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
