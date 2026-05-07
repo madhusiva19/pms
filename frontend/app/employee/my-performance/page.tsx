@@ -42,6 +42,10 @@ const C = {
   textMain: '#101828', textSub: '#4A5565', textMuted: '#64748B', textDark: '#1E293B', green: '#00A63E',
 };
 
+function isRealUuid(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 function formatVal(val: number | null, inputType?: string | null): string {
   if (val === null) return '—';
   if (inputType === 'raw_actual_x100') return (val * 100).toFixed(1) + '%';
@@ -71,9 +75,7 @@ function ChartSkeleton() {
   );
 }
 
-function CustomXAxisTick(props: {
-  x?: number; y?: number; payload?: { value: string };
-}) {
+function CustomXAxisTick(props: { x?: number; y?: number; payload?: { value: string } }) {
   const { x = 0, y = 0, payload } = props;
   if (!payload?.value) return null;
   const words = payload.value.split(' ');
@@ -97,44 +99,69 @@ function CustomXAxisTick(props: {
 
 // ── Main Component ─────────────────────────────────────────────────
 export default function MyPerformancePage() {
-  const searchParams = useSearchParams();
-
-  // ── FIX 1: get auth user, wait for it to load ──────────────────
+  const searchParams               = useSearchParams();
   const { user, loading: authLoading } = useAuth();
 
   const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [resolving,  setResolving]  = useState(true);
 
-  // ── FIX 2: guard with authLoading, fall back to user.id ────────
+  // ── UUID resolution — 4-step fallback chain ────────────────────
   useEffect(() => {
-    if (authLoading) return; // wait for auth to resolve first
+    if (authLoading) return;
 
+    // Step 1: explicit ?employee= UUID in URL
     const idFromUrl = searchParams.get('employee');
-    if (idFromUrl) {
+    if (idFromUrl && isRealUuid(idFromUrl)) {
       setEmployeeId(idFromUrl);
+      setResolving(false);
       return;
     }
 
-    // Use the logged-in user's own ID — no hardcoded fallback UUID
-    if (user?.id) {
+    // Step 2: auth gave a real UUID (normal sign-in flow)
+    if (user?.id && isRealUuid(user.id)) {
       setEmployeeId(user.id);
+      setResolving(false);
+      return;
     }
-  }, [searchParams, user, authLoading]);
+
+    // Step 3: resolve via demo-email → Flask /api/users/by-email
+    const demoEmail =
+      searchParams.get('demo-email') ??
+      (typeof window !== 'undefined' ? localStorage.getItem('demo-email') : null);
+
+    if (demoEmail) {
+      fetch(`${API_BASE}/api/users/by-email?email=${encodeURIComponent(demoEmail)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((data: { id: string } | null) => {
+          if (data?.id && isRealUuid(data.id)) {
+            setEmployeeId(data.id);
+          } else {
+            setEmployeeId(null);
+          }
+        })
+        .catch(() => setEmployeeId(null))
+        .finally(() => setResolving(false));
+      return;
+    }
+
+    // Step 4: nothing worked
+    setEmployeeId(null);
+    setResolving(false);
+  }, [authLoading, user, searchParams]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<'H1' | 'H2'>('H1');
-  const [showDetail, setShowDetail]         = useState(false);
-  const [openCats, setOpenCats]             = useState<Record<string, boolean>>({});
-
-  const [dataH1, setDataH1] = useState<PerformanceData | null>(null);
-  const [dataH2, setDataH2] = useState<PerformanceData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [showDetail,     setShowDetail]     = useState(false);
+  const [openCats,       setOpenCats]       = useState<Record<string, boolean>>({});
+  const [dataH1,         setDataH1]         = useState<PerformanceData | null>(null);
+  const [dataH2,         setDataH2]         = useState<PerformanceData | null>(null);
+  const [loading,        setLoading]        = useState(false);
 
   const fetchPeriod = async (empId: string, period: 'H1' | 'H2'): Promise<PerformanceData | null> => {
     try {
       const res = await fetch(`${API_BASE}/api/performance/${empId}/2025/${period}`);
       if (!res.ok) return null;
       const d = await res.json();
-      if (!isValidData(d)) return null;
-      return d;
+      return isValidData(d) ? d : null;
     } catch {
       return null;
     }
@@ -142,22 +169,12 @@ export default function MyPerformancePage() {
 
   useEffect(() => {
     if (!employeeId) return;
-
-    setDataH1(null);
-    setDataH2(null);
-    setShowDetail(false);
-    setOpenCats({});
+    setDataH1(null); setDataH2(null); setShowDetail(false); setOpenCats({});
     setLoading(true);
     let cancelled = false;
-
     Promise.all([fetchPeriod(employeeId, 'H1'), fetchPeriod(employeeId, 'H2')])
-      .then(([h1, h2]) => {
-        if (cancelled) return;
-        setDataH1(h1);
-        setDataH2(h2);
-      })
+      .then(([h1, h2]) => { if (!cancelled) { setDataH1(h1); setDataH2(h2); } })
       .finally(() => { if (!cancelled) setLoading(false); });
-
     return () => { cancelled = true; };
   }, [employeeId]);
 
@@ -170,48 +187,33 @@ export default function MyPerformancePage() {
     return data.categories.flatMap(cat =>
       cat.objectives.filter(isChartable).map(obj => {
         let pct: number;
-
         if (obj.input_type === 'raw_actual_x100') {
-          if (obj.actual != null) {
-            pct = parseFloat((obj.actual * 100).toFixed(1));
-          } else if (obj.achievement_pct != null) {
-            pct = parseFloat(Number(obj.achievement_pct).toFixed(1));
-          } else {
-            pct = 0;
-          }
+          pct = obj.actual != null ? parseFloat((obj.actual * 100).toFixed(1))
+              : obj.achievement_pct != null ? parseFloat(Number(obj.achievement_pct).toFixed(1)) : 0;
         } else {
-          if (obj.actual != null && obj.target != null && obj.target !== 0) {
-            pct = parseFloat(((obj.actual / obj.target) * 100).toFixed(1));
-          } else if (obj.achievement_pct != null) {
-            pct = parseFloat(Number(obj.achievement_pct).toFixed(1));
-          } else {
-            pct = 0;
-          }
+          pct = obj.actual != null && obj.target != null && obj.target !== 0
+              ? parseFloat(((obj.actual / obj.target) * 100).toFixed(1))
+              : obj.achievement_pct != null ? parseFloat(Number(obj.achievement_pct).toFixed(1)) : 0;
         }
-
         return {
-          name:        obj.objective_name,
-          fullName:    obj.objective_name,
-          Achievement: pct,
-          BlueVal:     Math.min(pct, 100),
-          GreenVal:    pct > 100 ? parseFloat((pct - 100).toFixed(1)) : 0,
-          rating:      obj.rating,
+          name: obj.objective_name, fullName: obj.objective_name,
+          Achievement: pct, BlueVal: Math.min(pct, 100),
+          GreenVal: pct > 100 ? parseFloat((pct - 100).toFixed(1)) : 0,
+          rating: obj.rating,
         };
       })
     );
   }, [data]);
 
-  // ── FIX 3: only show "no data" if auth AND data fetching are both done
-  const noData = !authLoading && !loading && employeeId !== null && data === null;
+  const isStillLoading = resolving || authLoading || loading;
+  const noData         = !resolving && !authLoading && !loading && employeeId !== null && dataH1 === null && dataH2 === null;
+  const noEmployee     = !resolving && !authLoading && employeeId === null;
 
-  // ── Supervisor feedback + AI recommendations ───────────────────
   const [supervisorFeedback, setSupervisorFeedback] = useState<{
     feedback: string | null;
     evaluator: { name: string; designation: string } | null;
   } | null>(null);
-  const [recommendations, setRecommendations] = useState<
-    { insight_text: string; insight_type: string }[]
-  >([]);
+  const [recommendations, setRecommendations] = useState<{ insight_text: string; insight_type: string }[]>([]);
 
   useEffect(() => {
     if (!employeeId) return;
@@ -221,9 +223,7 @@ export default function MyPerformancePage() {
       .then(r => r.json()).then(setRecommendations).catch(() => setRecommendations([]));
   }, [employeeId, selectedPeriod]);
 
-  // ── Resolved display name ──────────────────────────────────────
-  // Use data from API first, then fall back to auth user full_name
-  const displayName       = data?.employee?.name       ?? user?.full_name ?? null;
+  const displayName        = data?.employee?.name        ?? user?.full_name ?? null;
   const displayDesignation = data?.employee?.designation ?? null;
 
   return (
@@ -241,37 +241,23 @@ export default function MyPerformancePage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 600, color: C.textMain, margin: '0 0 4px' }}>My Performance</h1>
-
-            {/* ── FIX 4: improved subtitle — no raw UUID fallback ── */}
             <p style={{ fontSize: 15, color: C.textSub, margin: 0 }}>
-              {authLoading
-                ? 'Loading…'
+              {isStillLoading ? 'Loading…'
                 : displayName
-                  ? displayDesignation
-                    ? `${displayName} · ${displayDesignation}`
-                    : displayName
-                  : loading
-                    ? 'Loading…'
-                    : 'No data found'}
+                  ? displayDesignation ? `${displayName} · ${displayDesignation}` : displayName
+                  : 'No profile found'}
             </p>
           </div>
-
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {(authLoading || loading) && (
-              <span style={{ fontSize: 12, color: C.textMuted }}>Loading…</span>
-            )}
+            {isStillLoading && <span style={{ fontSize: 12, color: C.textMuted }}>Loading…</span>}
             <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 12, padding: 3 }}>
               {(['H1', 'H2'] as const).map(p => {
                 const active = p === selectedPeriod;
                 return (
                   <button key={p} onClick={() => { setSelectedPeriod(p); setShowDetail(false); setOpenCats({}); }}
-                    style={{
-                      padding: '5px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                      fontSize: 14, fontWeight: 600,
-                      background: active ? '#fff' : 'transparent',
-                      color: active ? C.textDark : C.textMuted,
-                      boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                    }}>
+                    style={{ padding: '5px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+                      background: active ? '#fff' : 'transparent', color: active ? C.textDark : C.textMuted,
+                      boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>
                     {p} 2025
                   </button>
                 );
@@ -280,30 +266,36 @@ export default function MyPerformancePage() {
           </div>
         </div>
 
-        {/* Auth still loading — show skeleton */}
-        {authLoading && (
+        {/* Loading state */}
+        {isStillLoading && (
           <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
-            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>Authenticating…</p>
+            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>Loading performance data…</p>
           </div>
         )}
 
-        {/* No employee resolved yet (auth done but no ID) */}
-        {!authLoading && !employeeId && !loading && (
-          <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
-            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>Could not determine your employee ID. Please sign in.</p>
+        {/* No employee resolved */}
+        {noEmployee && (
+          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '32px 24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 16, color: '#DC2626', margin: '0 0 8px', fontWeight: 600 }}>Could not identify employee</p>
+            <p style={{ fontSize: 13, color: '#7F1D1D', margin: 0 }}>
+              Use <code style={{ background: '#FEE2E2', padding: '1px 5px', borderRadius: 3 }}>?demo-email=ba.colombo@dartglobal.com</code> or sign in with a valid account.
+            </p>
           </div>
         )}
 
-        {/* No data state */}
+        {/* No data found for this UUID */}
         {noData && (
           <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
             <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>No performance data found for this employee in 2025.</p>
-            <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 8 }}>Make sure performance records exist in the database.</p>
+            <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 8 }}>
+              Resolved ID: <code style={{ background: '#F1F5F9', padding: '2px 6px', borderRadius: 4 }}>{employeeId}</code>
+            </p>
+            <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 4 }}>Check that performance records exist in the database for this UUID.</p>
           </div>
         )}
 
-        {/* Main content — only render when we have data */}
-        {!authLoading && !noData && employeeId && (
+        {/* Main content */}
+        {!isStillLoading && !noData && !noEmployee && (
           <>
             {/* Score Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
@@ -315,19 +307,15 @@ export default function MyPerformancePage() {
                 return (
                   <div key={card.label}
                     onClick={() => { setSelectedPeriod(card.label); setShowDetail(false); setOpenCats({}); }}
-                    style={{
-                      background: '#fff', border: `1px solid ${C.border}`,
-                      borderRadius: 12, padding: 24, cursor: 'pointer',
-                      opacity: isActive ? 1 : 0.38,
-                      transition: 'opacity 0.25s ease',
-                    }}>
+                    style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: 24, cursor: 'pointer',
+                      opacity: isActive ? 1 : 0.38, transition: 'opacity 0.25s ease' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                       <div style={{ width: 36, height: 36, background: card.bg, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <span style={{ color: card.accent, fontSize: 13, fontWeight: 700 }}>{card.label}</span>
                       </div>
                       <span style={{ fontSize: 14, color: C.textSub }}>{card.title}</span>
                     </div>
-                    {loading || card.score === undefined ? (
+                    {card.score === undefined ? (
                       <div style={{ height: 44, background: '#F1F5F9', borderRadius: 6, marginBottom: 4, width: 120 }} />
                     ) : (
                       <>
@@ -345,104 +333,53 @@ export default function MyPerformancePage() {
               })}
             </div>
 
-            {/* Performance Breakdown Chart */}
+            {/* Chart */}
             <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 24 }}>
               <div style={{ padding: '20px 24px 8px' }}>
-                <h4 style={{ fontSize: 15, fontWeight: 600, color: C.textDark, margin: '0 0 2px' }}>
-                  Performance Breakdown — {selectedPeriod} 2025
-                </h4>
+                <h4 style={{ fontSize: 15, fontWeight: 600, color: C.textDark, margin: '0 0 2px' }}>Performance Breakdown — {selectedPeriod} 2025</h4>
                 <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>
                   Achievement % for financial & percentage-based KPIs
-                  <span style={{ fontSize: 11, color: '#818ea0', marginLeft: 8 }}>
-                    (bracket & manual KPIs excluded · Direct Cost uses inverse scale)
-                  </span>
+                  <span style={{ fontSize: 11, color: '#818ea0', marginLeft: 8 }}>(bracket & manual KPIs excluded)</span>
                 </p>
               </div>
-
               <div style={{ paddingLeft: 24, paddingRight: 24, paddingTop: 8 }}>
-                {loading || chartData.length === 0 ? (
-                  <ChartSkeleton />
-                ) : (
+                {chartData.length === 0 ? <ChartSkeleton /> : (
                   <ResponsiveContainer width="100%" height={460}>
-                    <BarChart
-                      data={chartData}
-                      barCategoryGap="40%"
-                      barSize={32}
-                      margin={{ top: 20, right: 8, bottom: 60, left: 8 }}
-                    >
+                    <BarChart data={chartData} barCategoryGap="40%" barSize={32} margin={{ top: 20, right: 8, bottom: 60, left: 8 }}>
                       <CartesianGrid strokeDasharray="0" stroke="rgba(0,0,0,0.13)" vertical={false} />
-                      <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        interval={0}
-                        height={60}
-                        tick={<CustomXAxisTick />}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11, fill: 'rgba(0,0,0,0.5)' }}
-                        axisLine={false} tickLine={false}
-                        tickFormatter={(v: number) => v + '%'}
-                        domain={[0, 120]} ticks={[0, 20, 40, 60, 80, 100, 120]}
-                      />
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null;
-                          const e = payload[0]?.payload as typeof chartData[0];
-                          if (!e) return null;
-                          const pct = e.Achievement;
-                          return (
-                            <div style={{
-                              background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10,
-                              padding: '12px 16px', fontSize: 12,
-                              boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxWidth: 240,
-                            }}>
-                              <p style={{ margin: '0 0 6px', fontWeight: 700, color: '#1E293B', fontSize: 13 }}>{e.fullName}</p>
-                              <p style={{ margin: '2px 0', color: pct >= 100 ? '#10B981' : '#216BEB', fontWeight: 700, fontSize: 16 }}>
-                                {pct.toFixed(1)}%
-                                <span style={{ fontSize: 11, fontWeight: 400, color: '#64748B', marginLeft: 6 }}>achievement</span>
-                              </p>
-                              {pct > 100 && (
-                                <p style={{ margin: '4px 0 0', color: '#10B981', fontSize: 11 }}>
-                                  +{(pct - 100).toFixed(1)}% above target
-                                </p>
-                              )}
-                              <p style={{ margin: '6px 0 0', color: '#64748B', fontSize: 11 }}>
-                                Rating: {e.rating.toFixed(2)} / 5
-                              </p>
-                            </div>
-                          );
-                        }}
-                      />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} interval={0} height={60} tick={<CustomXAxisTick />} />
+                      <YAxis tick={{ fontSize: 11, fill: 'rgba(0,0,0,0.5)' }} axisLine={false} tickLine={false}
+                        tickFormatter={(v: number) => v + '%'} domain={[0, 120]} ticks={[0, 20, 40, 60, 80, 100, 120]} />
+                      <Tooltip content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const e = payload[0]?.payload as typeof chartData[0];
+                        if (!e) return null;
+                        const pct = e.Achievement;
+                        return (
+                          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '12px 16px', fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxWidth: 240 }}>
+                            <p style={{ margin: '0 0 6px', fontWeight: 700, color: '#1E293B', fontSize: 13 }}>{e.fullName}</p>
+                            <p style={{ margin: '2px 0', color: pct >= 100 ? '#10B981' : '#216BEB', fontWeight: 700, fontSize: 16 }}>
+                              {pct.toFixed(1)}%<span style={{ fontSize: 11, fontWeight: 400, color: '#64748B', marginLeft: 6 }}>achievement</span>
+                            </p>
+                            {pct > 100 && <p style={{ margin: '4px 0 0', color: '#10B981', fontSize: 11 }}>+{(pct - 100).toFixed(1)}% above target</p>}
+                            <p style={{ margin: '6px 0 0', color: '#64748B', fontSize: 11 }}>Rating: {e.rating.toFixed(2)} / 5</p>
+                          </div>
+                        );
+                      }} />
                       <Bar dataKey="BlueVal" stackId="a" radius={[0, 0, 0, 0]} isAnimationActive={false}>
-                        {chartData.map((_e, i) => (
-                          <Cell key={i} fill="#216BEB" opacity={0.88} />
-                        ))}
+                        {chartData.map((_e, i) => <Cell key={i} fill="#216BEB" opacity={0.88} />)}
                       </Bar>
-                      <Bar
-                        dataKey="GreenVal"
-                        stackId="a"
-                        radius={[4, 4, 0, 0]}
-                        isAnimationActive={false}
-                        label={{
-                          position: 'top',
-                          fontSize: 10,
-                          fill: 'rgba(0,0,0,0.5)',
-                          formatter: (_value: number, _name: string, item: Record<string, unknown>) => {
+                      <Bar dataKey="GreenVal" stackId="a" radius={[4, 4, 0, 0]} isAnimationActive={false}
+                        label={{ position: 'top', fontSize: 10, fill: 'rgba(0,0,0,0.5)',
+                          formatter: (_v: number, _n: string, item: Record<string, unknown>) => {
                             const p = item?.payload as typeof chartData[0] | undefined;
                             return p?.Achievement != null ? Math.round(p.Achievement) + '%' : '';
-                          },
-                        }}
-                      >
-                        {chartData.map((e, i) => (
-                          <Cell key={i} fill={e.GreenVal > 0 ? '#10B981' : 'transparent'} opacity={0.9} />
-                        ))}
+                          } }}>
+                        {chartData.map((e, i) => <Cell key={i} fill={e.GreenVal > 0 ? '#10B981' : 'transparent'} opacity={0.9} />)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 )}
-
-                {/* Legend */}
                 <div style={{ display: 'flex', gap: 20, justifyContent: 'center', paddingBottom: 16 }}>
                   {[{ color: '#216BEB', label: 'Below 100%' }, { color: '#10B981', label: 'Above 100%' }].map(l => (
                     <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -452,39 +389,24 @@ export default function MyPerformancePage() {
                   ))}
                 </div>
               </div>
-
-              {/* Toggle breakdown */}
               <div style={{ padding: '0 24px 20px' }}>
-                <button onClick={() => setShowDetail(d => !d)} style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px',
+                <button onClick={() => setShowDetail(d => !d)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px',
                   borderRadius: 8, cursor: 'pointer', border: `1px solid ${C.border}`,
-                  background: showDetail ? C.blueBg : '#fff',
-                  color: showDetail ? C.blue : C.textDark,
-                  fontSize: 14, fontWeight: 600,
-                }}>
+                  background: showDetail ? C.blueBg : '#fff', color: showDetail ? C.blue : C.textDark, fontSize: 14, fontWeight: 600 }}>
                   {showDetail ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                   {showDetail ? 'Collapse Objective Breakdown' : 'View Full Objective Breakdown'}
                 </button>
               </div>
 
-              {/* Full breakdown table */}
-              {showDetail && !loading && data && (
+              {showDetail && data && (
                 <div style={{ borderTop: `1px solid ${C.border}` }}>
                   {categories.map(cat => (
                     <div key={cat.category_name}>
-                      <div
-                        onClick={() => toggle(cat.category_name)}
-                        style={{
-                          background: '#eff3fd', borderTop: '2px solid #d2e5fb', borderBottom: '1px solid #d2e4fa',
-                          padding: '13px 24px', display: 'flex', justifyContent: 'space-between',
-                          alignItems: 'center', cursor: 'pointer', userSelect: 'none',
-                        }}
-                      >
+                      <div onClick={() => toggle(cat.category_name)} style={{ background: '#eff3fd', borderTop: '2px solid #d2e5fb', borderBottom: '1px solid #d2e4fa',
+                        padding: '13px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <span style={{ fontWeight: 700, fontSize: 14, color: '#1E3A8A' }}>{cat.category_name}</span>
-                          <span style={{ fontSize: 11, color: '#1D4ED8', background: '#cee1fa', padding: '2px 9px', borderRadius: 20, fontWeight: 600 }}>
-                            {cat.category_weight}%
-                          </span>
+                          <span style={{ fontSize: 11, color: '#1D4ED8', background: '#cee1fa', padding: '2px 9px', borderRadius: 20, fontWeight: 600 }}>{cat.category_weight}%</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <div>
@@ -492,85 +414,50 @@ export default function MyPerformancePage() {
                             <span style={{ fontWeight: 400, color: '#64748B', fontSize: 12 }}> / {cat.max_possible.toFixed(2)}</span>
                           </div>
                           <div style={{ width: 56, height: 5, background: '#BFDBFE', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{
-                              width: `${Math.min(100, (cat.category_score / cat.max_possible) * 100)}%`,
-                              height: '100%', background: '#1D4ED8', borderRadius: 3,
-                            }} />
+                            <div style={{ width: `${Math.min(100, (cat.category_score / cat.max_possible) * 100)}%`, height: '100%', background: '#1D4ED8', borderRadius: 3 }} />
                           </div>
-                          {openCats[cat.category_name]
-                            ? <ChevronUp size={15} color="#1D4ED8" />
-                            : <ChevronDown size={15} color="#1D4ED8" />}
+                          {openCats[cat.category_name] ? <ChevronUp size={15} color="#1D4ED8" /> : <ChevronDown size={15} color="#1D4ED8" />}
                         </div>
                       </div>
-
                       {openCats[cat.category_name] && (
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                             <thead>
                               <tr style={{ background: '#F8FAFF' }}>
-                                {[
-                                  { label: 'Objective', w: '32%' },
-                                  { label: 'Wt',        w: '6%'  },
-                                  { label: 'Target',    w: '11%' },
-                                  { label: 'Actual',    w: '11%' },
-                                  { label: 'Rating',    w: '22%' },
-                                  { label: 'Score',     w: '8%'  },
-                                ].map(h => (
-                                  <th key={h.label} style={{
-                                    padding: '10px 12px', textAlign: 'left', fontSize: 10,
-                                    fontWeight: 700, color: '#475569',
-                                    textTransform: 'uppercase', letterSpacing: '0.07em',
-                                    borderBottom: '2px solid #E2E8F0', width: h.w, whiteSpace: 'nowrap',
-                                  }}>{h.label}</th>
+                                {[{ label: 'Objective', w: '32%' }, { label: 'Wt', w: '6%' }, { label: 'Target', w: '11%' },
+                                  { label: 'Actual', w: '11%' }, { label: 'Rating', w: '22%' }, { label: 'Score', w: '8%' }].map(h => (
+                                  <th key={h.label} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700,
+                                    color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em',
+                                    borderBottom: '2px solid #E2E8F0', width: h.w }}>{h.label}</th>
                                 ))}
                               </tr>
                             </thead>
                             <tbody>
                               {cat.objectives.map(obj => (
-                                <tr
-                                  key={obj.objective_id}
-                                  style={{ background: '#fff', borderBottom: '1px solid #F1F5F9' }}
+                                <tr key={obj.objective_id} style={{ background: '#fff', borderBottom: '1px solid #F1F5F9' }}
                                   onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFF')}
-                                  onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                                >
-                                  <td style={{ padding: '11px 12px', color: '#1E293B', fontWeight: 500 }}>
-                                    {obj.objective_name}
-                                  </td>
+                                  onMouseLeave={e => (e.currentTarget.style.background = '#fff')}>
+                                  <td style={{ padding: '11px 12px', color: '#1E293B', fontWeight: 500 }}>{obj.objective_name}</td>
                                   <td style={{ padding: '11px 12px', color: '#64748B' }}>{obj.weight}%</td>
                                   <td style={{ padding: '11px 12px', color: '#64748B', fontVariantNumeric: 'tabular-nums' }}>
                                     {obj.scale_type === 'manual' ? '—' : formatVal(obj.target, obj.input_type)}
                                   </td>
                                   <td style={{ padding: '11px 12px', color: '#64748B', fontVariantNumeric: 'tabular-nums' }}>
                                     {obj.scale_type === 'manual'
-                                      ? (
-                                        <span style={{
-                                          color: '#6366F1', fontSize: 11,
-                                          background: '#EEF2FF', padding: '2px 7px', borderRadius: 4,
-                                        }}>
-                                          Rated {obj.manual_rating} / 5
-                                        </span>
-                                      )
-                                      : formatVal(obj.actual, obj.input_type)
-                                    }
+                                      ? <span style={{ color: '#6366F1', fontSize: 11, background: '#EEF2FF', padding: '2px 7px', borderRadius: 4 }}>Rated {obj.manual_rating} / 5</span>
+                                      : formatVal(obj.actual, obj.input_type)}
                                   </td>
                                   <td style={{ padding: '11px 12px', color: '#1E293B', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                                    {obj.rating.toFixed(2)}
-                                    <span style={{ opacity: 0.35, fontSize: 10, fontWeight: 400, marginLeft: 3 }}>/ 5</span>
+                                    {obj.rating.toFixed(2)}<span style={{ opacity: 0.35, fontSize: 10, fontWeight: 400, marginLeft: 3 }}>/ 5</span>
                                   </td>
-                                  <td style={{ padding: '11px 12px', fontWeight: 700, color: '#1E293B', fontVariantNumeric: 'tabular-nums' }}>
-                                    {obj.score.toFixed(2)}
-                                  </td>
+                                  <td style={{ padding: '11px 12px', fontWeight: 700, color: '#1E293B', fontVariantNumeric: 'tabular-nums' }}>{obj.score.toFixed(2)}</td>
                                 </tr>
                               ))}
                             </tbody>
                             <tfoot>
                               <tr style={{ background: '#2563EB' }}>
-                                <td colSpan={5} style={{ padding: '11px 12px', color: '#93C5FD', fontWeight: 600, fontSize: 12 }}>
-                                  Category Total
-                                </td>
-                                <td style={{ padding: '11px 12px', color: '#fff', fontWeight: 800, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>
-                                  {cat.category_score.toFixed(2)}
-                                </td>
+                                <td colSpan={5} style={{ padding: '11px 12px', color: '#93C5FD', fontWeight: 600, fontSize: 12 }}>Category Total</td>
+                                <td style={{ padding: '11px 12px', color: '#fff', fontWeight: 800, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{cat.category_score.toFixed(2)}</td>
                               </tr>
                             </tfoot>
                           </table>
@@ -578,19 +465,10 @@ export default function MyPerformancePage() {
                       )}
                     </div>
                   ))}
-
-                  {/* Grand total */}
-                  <div style={{
-                    background: '#1E40AF', padding: '10px 24px',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  }}>
-                    <span style={{ color: '#ddecff', fontWeight: 700, fontSize: 15 }}>
-                      Grand Total — {selectedPeriod} 2025
-                    </span>
+                  <div style={{ background: '#1E40AF', padding: '10px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#ddecff', fontWeight: 700, fontSize: 15 }}>Grand Total — {selectedPeriod} 2025</span>
                     <div>
-                      <span style={{ color: '#FFFFFF', fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                        {getFinalScore(data)?.toFixed(2) ?? '—'}
-                      </span>
+                      <span style={{ color: '#FFFFFF', fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{getFinalScore(data)?.toFixed(2) ?? '—'}</span>
                       <span style={{ color: '#93C5FD', fontSize: 13, marginLeft: 6 }}>/ 5.00</span>
                     </div>
                   </div>
@@ -630,10 +508,7 @@ export default function MyPerformancePage() {
                 {recommendations.length > 0
                   ? recommendations.map((rec, i) => (
                       <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                        <div style={{
-                          width: 6, height: 6, borderRadius: '50%',
-                          background: '#AD46FF', flexShrink: 0, marginTop: 8,
-                        }} />
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#AD46FF', flexShrink: 0, marginTop: 8 }} />
                         <p style={{ fontSize: 14, color: '#364153', lineHeight: '23px', margin: 0 }}>{rec.insight_text}</p>
                       </div>
                     ))
