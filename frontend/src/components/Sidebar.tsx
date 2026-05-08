@@ -4,7 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell, LucideFileBarChart, User2Icon, User } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell, LucideFileBarChart, User2Icon, User, Target } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 
@@ -21,7 +21,8 @@ const hqAdminNavItems: NavItem[] = [
   { name: 'My Team', href: '/hq-admin/team', icon: Users },
   { name: 'Reports', href: '/hq-admin/reports', icon: FileText },
   { name: 'Notification', href: '/hq-admin/notification', icon: Bell },
-  { name: 'Training Log', href: '/hq-admin/training', icon: LucideFileBarChart },
+  { name: 'Training Passport', href: '/hq-admin/training', icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/hq-admin/potential-assessment', icon: Target },
   { name: 'My Profile', href: '/hq-admin/profile', icon: User },
 ];
 
@@ -33,7 +34,8 @@ const countryAdminNavItems: NavItem[] = [
   { name: 'My Performance', href: '/country-admin/my-performance', icon: TrendingUp },
   { name: 'Reports', href: '/country-admin/reports', icon: FileText },
   { name: 'Notification', href: '/country-admin/notification', icon: Bell },
-  { name: 'Training Log', href: '/country-admin/training', icon: LucideFileBarChart },
+  { name: 'Training Passport', href: '/country-admin/training', icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/country-admin/potential-assessment', icon: Target },
   { name: 'My Profile', href: '/country-admin/profile', icon: User },
 ];
 
@@ -45,7 +47,8 @@ const branchAdminNavItems: NavItem[] = [
   { name: 'My Performance', href: '/branch-admin/my-performance', icon: TrendingUp },
   { name: 'Reports', href: '/branch-admin/reports', icon: FileText },
   { name: 'notification', href: '/branch-admin/notification', icon: Bell },
-  { name: 'Training Log', href: '/branch-admin/training', icon: LucideFileBarChart },
+  { name: 'Training Passport', href: '/branch-admin/training', icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/branch-admin/potential-assessment', icon: Target },
   { name: 'My Profile', href: '/branch-admin/profile', icon: User },
 ];
 
@@ -57,7 +60,8 @@ const deptAdminNavItems: NavItem[] = [
   { name: 'My Performance', href: '/dept-admin/my-performance', icon: TrendingUp },
   { name: 'Reports', href: '/dept-admin/reports', icon: FileText },
   { name: 'Notification', href: '/dept-admin/notification', icon: Bell },
-  { name: 'Training Log', href: '/dept-admin/training', icon: LucideFileBarChart },
+  { name: 'Training Passport', href: '/dept-admin/training', icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/dept-admin/potential-assessment', icon: Target },
   { name: 'My Profile', href: '/dept-admin/profile', icon: User },
 ];
 
@@ -69,13 +73,15 @@ const subDeptAdminNavItems: NavItem[] = [
   { name: 'My Performance', href: '/sub-dept-admin/my-performance', icon: TrendingUp },
   { name: 'Reports', href: '/sub-dept-admin/reports', icon: FileText },
   { name: 'Notification', href: '/sub-dept-admin/notification', icon: Bell },
-  { name: 'Training Log', href: '/sub-dept-admin/training', icon: LucideFileBarChart },
+  { name: 'Training Passport', href: '/sub-dept-admin/training', icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/sub-dept-admin/potential-assessment', icon: Target },
   { name: 'My Profile', href: '/sub-dept-admin/profile', icon: User },
 ];
 
 const employeeNavItems: NavItem[] = [
   { name: 'My Performance', href: '/employee/my-performance', icon: TrendingUp },
-  { name: 'Training Log', href: '/employee/training', icon: LucideFileBarChart },
+  { name: 'Training Passport', href: '/employee/training', icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/employee/potential-assessment', icon: Target },
   { name: 'My Profile', href: '/employee/profile', icon: User },
 ];
 
@@ -111,7 +117,7 @@ export default function Sidebar() {
   const userRole = user?.role || '';
 
   const handleLogout = () => {
-    localStorage.removeItem('demo-role');
+    sessionStorage.removeItem('demo-role');
     router.push('/');
   };
 
