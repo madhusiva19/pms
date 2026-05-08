@@ -4,15 +4,8 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard,
-  FileText,
-  Users,
-  LogOut,
-  TrendingUp,
-  Bell,
-  LucideFileBarChart,
-  User,
-  BarChart3,
+  LayoutDashboard, FileText, Users, LogOut, TrendingUp,
+  Bell, LucideFileBarChart, User, BarChart3, Settings,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
@@ -28,6 +21,7 @@ const hqAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/hq-admin/dashboard',           icon: LayoutDashboard    },
   { name: 'Template Management', href: '/hq-admin/template-management', icon: FileText           },
   { name: 'My Team',             href: '/hq-admin/team',                icon: Users              },
+  { name: 'Rating Settings',     href: '/hq-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/hq-admin/reports',             icon: BarChart3          },
   { name: 'Notifications',       href: '/hq-admin/notification',        icon: Bell               },
   { name: 'My Profile',          href: '/hq-admin/profile',             icon: User               },
@@ -39,9 +33,10 @@ const countryAdminNavItems: NavItem[] = [
   { name: 'Template Management', href: '/country-admin/template-management', icon: FileText           },
   { name: 'My Team',             href: '/country-admin/team',                icon: Users              },
   { name: 'My Performance',      href: '/country-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Rating Settings',     href: '/country-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/country-admin/reports',             icon: BarChart3          },
   { name: 'Notifications',       href: '/country-admin/notification',        icon: Bell               },
-  { name: 'Training Passport',        href: '/country-admin/training',            icon: LucideFileBarChart },
+  { name: 'Training Passport',   href: '/country-admin/training',            icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/country-admin/profile',             icon: User               },
 ];
 
@@ -51,9 +46,10 @@ const branchAdminNavItems: NavItem[] = [
   { name: 'Template Management', href: '/branch-admin/template-management', icon: FileText           },
   { name: 'My Team',             href: '/branch-admin/team',                icon: Users              },
   { name: 'My Performance',      href: '/branch-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Rating Settings',     href: '/branch-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/branch-admin/reports',             icon: BarChart3          },
   { name: 'Notifications',       href: '/branch-admin/notification',        icon: Bell               },
-  { name: 'Training Passport',        href: '/branch-admin/training',            icon: LucideFileBarChart },
+  { name: 'Training Passport',   href: '/branch-admin/training',            icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/branch-admin/profile',             icon: User               },
 ];
 
@@ -63,9 +59,10 @@ const deptAdminNavItems: NavItem[] = [
   { name: 'Template Management', href: '/dept-admin/template-management', icon: FileText           },
   { name: 'My Team',             href: '/dept-admin/team',                icon: Users              },
   { name: 'My Performance',      href: '/dept-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Rating Settings',     href: '/dept-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/dept-admin/reports',             icon: BarChart3          },
   { name: 'Notifications',       href: '/dept-admin/notification',        icon: Bell               },
-  { name: 'Training Passport',        href: '/dept-admin/training',            icon: LucideFileBarChart },
+  { name: 'Training Passport',   href: '/dept-admin/training',            icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/dept-admin/profile',             icon: User               },
 ];
 
@@ -75,19 +72,20 @@ const subDeptAdminNavItems: NavItem[] = [
   { name: 'Template Management', href: '/sub-dept-admin/template-management', icon: FileText           },
   { name: 'My Team',             href: '/sub-dept-admin/team',                icon: Users              },
   { name: 'My Performance',      href: '/sub-dept-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Rating Settings',     href: '/sub-dept-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/sub-dept-admin/reports',             icon: BarChart3          },
   { name: 'Notifications',       href: '/sub-dept-admin/notification',        icon: Bell               },
-  { name: 'Training Passport',        href: '/sub-dept-admin/training',            icon: LucideFileBarChart },
+  { name: 'Training Passport',   href: '/sub-dept-admin/training',            icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/sub-dept-admin/profile',             icon: User               },
 ];
 
 // ── Employee — Level 6
 const employeeNavItems: NavItem[] = [
-  { name: 'Dashboard',      href: '/employee/dashboard',       icon: LayoutDashboard    },
-  { name: 'My Performance', href: '/employee/my-performance',  icon: TrendingUp         },
-  { name: 'Notifications',  href: '/employee/notification',    icon: Bell               },
-  { name: 'Training Passport',   href: '/employee/training',        icon: LucideFileBarChart },
-  { name: 'My Profile',     href: '/employee/profile',         icon: User               },
+  { name: 'Dashboard',        href: '/employee/dashboard',      icon: LayoutDashboard    },
+  { name: 'My Performance',   href: '/employee/my-performance', icon: TrendingUp         },
+  { name: 'Notifications',    href: '/employee/notification',   icon: Bell               },
+  { name: 'Training Passport', href: '/employee/training',      icon: LucideFileBarChart },
+  { name: 'My Profile',       href: '/employee/profile',        icon: User               },
 ];
 
 function getNavItems(role: string | undefined): NavItem[] {
@@ -126,7 +124,7 @@ export default function Sidebar() {
     .slice(0, 2) || '?';
 
   const userName = user?.full_name || 'User';
-  const userRole = user?.role    || '';
+  const userRole = user?.role      || '';
 
   const handleLogout = () => {
     localStorage.removeItem('demo-role');
