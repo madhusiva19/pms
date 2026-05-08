@@ -196,7 +196,18 @@ export default function CountryReportPage() {
       console.log('📥 Generating PDF:', fileName);
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      await downloadReportAsPDF('report-content', fileName);
+      await downloadReportAsPDF('report-content', fileName, {
+        entityType: 'Country',
+        entityName: country.name,
+        reportPeriod: activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End',
+        reportYear: REPORT_YEAR,
+        metrics: metrics ? {
+          totalEvaluated: metrics.total_evaluated,
+          avgScore: metrics.avg_score.toFixed(2),
+          topPerformers: metrics.top_performers,
+        } : undefined,
+        generatedAt: new Date(),
+      });
       console.log('✅ PDF downloaded successfully');
 
       // Try to mark as completed, but don't fail if it doesn't work
