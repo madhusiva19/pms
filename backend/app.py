@@ -1745,18 +1745,21 @@ def _calculate_pillar_rating(ratings: list) -> str:
     return 'M'
 
 
-def _calculate_talent_block(ability: str, aspiration: str, leadership: str) -> str:
+def _calculate_overall_potentiality(ability: str, aspiration: str, leadership: str) -> str:
     """
-    All H → A Talent
-    All L → C Talent
-    Else  → B Talent
+    Matrix rule (supervisor ratings only):
+      ≥2 H and 0 L → H
+      ≥2 L and 0 H → L
+      else          → M
     """
     ratings = [ability, aspiration, leadership]
-    if all(r == 'H' for r in ratings):
-        return 'A'
-    if all(r == 'L' for r in ratings):
-        return 'C'
-    return 'B'
+    h = ratings.count('H')
+    l = ratings.count('L')
+    if h >= 2 and l == 0:
+        return 'H'
+    if l >= 2 and h == 0:
+        return 'L'
+    return 'M'
 
 
 def _log_assessment_action(assessment_id: str, actor_id: str, actor_role: str,
@@ -2163,7 +2166,7 @@ def supervisor_submit_potential_assessment():
         overall_ability    = _calculate_pillar_rating(pillar_ratings['ability'])
         overall_aspiration = _calculate_pillar_rating(pillar_ratings['aspiration'])
         overall_leadership = _calculate_pillar_rating(pillar_ratings['leadership'])
-        talent_block       = _calculate_talent_block(overall_ability, overall_aspiration, overall_leadership)
+        talent_block       = _calculate_overall_potentiality(overall_ability, overall_aspiration, overall_leadership)
 
         from datetime import datetime, timezone
         now_iso = datetime.now(timezone.utc).isoformat()

@@ -318,7 +318,7 @@ export interface PotentialAssessment {
   overall_ability: RatingValue | null;
   overall_aspiration: RatingValue | null;
   overall_leadership: RatingValue | null;
-  talent_block: TalentBlock | null;
+  talent_block: RatingValue | null;
   created_at: string;
   items?: PotentialAssessmentItem[];
 }
@@ -350,7 +350,7 @@ export interface SubordinateAssessmentSummary {
   designation?: string;
   // assessment state
   assessment_status: AssessmentStatus;
-  talent_block: TalentBlock | null;
+  talent_block: RatingValue | null;
 }
 
 export interface SelfSubmitItemPayload {
