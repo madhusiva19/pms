@@ -16,10 +16,10 @@ export interface User {
   email:              string;
   full_name:          string;
   role:               UserRole;
-  country_id?:        string;  // country_admin only
-  iata_branch_code?:  string;  // branch_admin
-  department_id?:     string;  // dept_admin
-  sub_department_id?: string;  // sub_dept_admin
+  country_id?:        string;
+  iata_branch_code?:  string;
+  department_id?:     string;
+  sub_department_id?: string;
 }
 
 interface AuthContextType {
@@ -46,7 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'dept_admin', 'sub_dept_admin', 'employee',
         ];
 
-        // Save demo-role from URL to localStorage
         if (validRoles.includes(demoRole as UserRole)) {
           console.log(`🔧 Demo mode enabled with role: ${demoRole}`);
           localStorage.setItem('demo-role', demoRole!);
@@ -54,14 +53,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const activeDemoRole  = demoRole || localStorage.getItem('demo-role');
 
-        // ?demo-email= targets a specific user (bypasses role-based lookup)
         const demoEmail = urlParams.get('demo-email');
         if (demoEmail) {
           localStorage.setItem('demo-email', demoEmail);
         }
         const activeDemoEmail = demoEmail || localStorage.getItem('demo-email');
 
-        // If demo-email is set, find that specific user
         if (activeDemoEmail) {
           const { data: demoUser } = await supabase
             .from('users')
@@ -75,7 +72,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // If demo-role is set, find the first user with that role
         if (activeDemoRole) {
           const { data: demoUser } = await supabase
             .from('users')
@@ -91,29 +87,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         // ── END DEMO MODE ──────────────────────────────────────────
 
-        // Get Supabase auth user
         const {
           data: { user: authUser },
           error: authError,
         } = await supabase.auth.getUser();
 
         if (authError || !authUser) {
-          // No Supabase session — fall back to saved demo role
-          const savedRole = (localStorage.getItem('demo-role') as UserRole) || 'hq_admin';
-          localStorage.setItem('demo-role', savedRole);
-          setUser({
-            id:        `demo-${savedRole}`,
-            email:     'demo@pms.local',
-            full_name: savedRole
-              .replace(/_/g, ' ')
-              .replace(/\b\w/g, c => c.toUpperCase()),
-            role: savedRole,
-          });
+          // No session — set null instead of defaulting to hq_admin
+          setUser(null);
           setLoading(false);
           return;
         }
 
-        // Fetch user profile from users table using actual auth user ID
         const { data: userProfile, error: profileError } = await supabase
           .from('users')
           .select('*')
@@ -122,7 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (profileError) {
           console.error('Error fetching user profile:', profileError);
-          // Fallback to hq_admin with real auth user ID
           setUser({
             id:        authUser.id,
             email:     authUser.email || '',
