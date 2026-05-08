@@ -97,6 +97,30 @@ function CustomXAxisTick(props: { x?: number; y?: number; payload?: { value: str
   );
 }
 
+// ── Custom Bar Label ───────────────────────────────────────────────
+type ChartEntry = {
+  name: string; fullName: string;
+  Achievement: number; BlueVal: number; GreenVal: number; rating: number;
+};
+
+function BarLabel(props: Record<string, unknown>) {
+  const { x, y, width, payload } = props as {
+    x: number; y: number; width: number; payload?: ChartEntry;
+  };
+  if (!payload?.Achievement) return null;
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 6}
+      textAnchor="middle"
+      fontSize={10}
+      fill="rgba(0,0,0,0.5)"
+    >
+      {Math.round(payload.Achievement)}%
+    </text>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────
 export default function MyPerformancePage() {
   const searchParams               = useSearchParams();
@@ -370,11 +394,7 @@ export default function MyPerformancePage() {
                         {chartData.map((_e, i) => <Cell key={i} fill="#216BEB" opacity={0.88} />)}
                       </Bar>
                       <Bar dataKey="GreenVal" stackId="a" radius={[4, 4, 0, 0]} isAnimationActive={false}
-                        label={{ position: 'top', fontSize: 10, fill: 'rgba(0,0,0,0.5)',
-                          formatter: (_v: number, _n: string, item: Record<string, unknown>) => {
-                            const p = item?.payload as typeof chartData[0] | undefined;
-                            return p?.Achievement != null ? Math.round(p.Achievement) + '%' : '';
-                          } }}>
+                        label={<BarLabel />}>
                         {chartData.map((e, i) => <Cell key={i} fill={e.GreenVal > 0 ? '#10B981' : 'transparent'} opacity={0.9} />)}
                       </Bar>
                     </BarChart>
