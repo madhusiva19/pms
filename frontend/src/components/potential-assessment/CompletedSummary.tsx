@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey } from '@/utils/assessmentContent';
-import type { PotentialAssessment, PotentialAssessmentItem, RatingValue, TalentBlock } from '@/types';
+import type { PotentialAssessment, PotentialAssessmentItem, RatingValue } from '@/types';
 
 interface CompletedSummaryProps {
   assessmentData: PotentialAssessment;
@@ -21,10 +21,10 @@ const ratingBadge: Record<RatingValue, string> = {
   L: 'bg-[#FEE2E2] text-[#DC2626] border-[#FCA5A5]',
 };
 
-const talentBlockConfig: Record<TalentBlock, { label: string; sublabel: string; bg: string; text: string; border: string }> = {
-  A: { label: 'A Talent', sublabel: 'High Potential', bg: '#DCFCE7', text: '#15803D', border: '#86EFAC' },
-  B: { label: 'B Talent', sublabel: 'Solid Performer', bg: '#DBEAFE', text: '#1D4ED8', border: '#93C5FD' },
-  C: { label: 'C Talent', sublabel: 'Needs Development', bg: '#FEF9C3', text: '#B45309', border: '#FDE047' },
+const potentialityConfig: Record<RatingValue, { label: string; bg: string; text: string; border: string }> = {
+  H: { label: 'High',   bg: '#DCFCE7', text: '#15803D', border: '#86EFAC' },
+  M: { label: 'Medium', bg: '#DBEAFE', text: '#1D4ED8', border: '#93C5FD' },
+  L: { label: 'Low',    bg: '#FEF9C3', text: '#B45309', border: '#FDE047' },
 };
 
 function RatingPill({ value }: { value: RatingValue | null }) {
@@ -55,8 +55,8 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
   });
 
   const activePillar = ASSESSMENT_PILLARS.find((p) => p.key === activeTab)!;
-  const tb = assessmentData.talent_block;
-  const tbConfig = tb ? talentBlockConfig[tb] : null;
+  const op = assessmentData.talent_block;
+  const opConfig = op ? potentialityConfig[op] : null;
 
   const isAppraiseeView = viewerRole === 'appraisee';
 
@@ -135,18 +135,17 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
           ))}
         </div>
 
-        {/* Talent Block */}
-        {tbConfig && (
+        {/* Overall Potentiality */}
+        {opConfig && (
           <div className="rounded-xl border-2 p-5 flex items-center justify-between"
-            style={{ borderColor: tbConfig.border, backgroundColor: tbConfig.bg + '33' }}>
+            style={{ borderColor: opConfig.border, backgroundColor: opConfig.bg + '33' }}>
             <div>
-              <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide mb-1">Final Talent Block</p>
-              <p className="text-[28px] font-bold" style={{ color: tbConfig.text }}>{tbConfig.label}</p>
-              <p className="text-[14px] font-medium" style={{ color: tbConfig.text }}>{tbConfig.sublabel}</p>
+              <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide mb-1">Overall Potentiality</p>
+              <p className="text-[28px] font-bold" style={{ color: opConfig.text }}>{opConfig.label}</p>
             </div>
             <div className="w-16 h-16 rounded-full border-4 flex items-center justify-center text-[28px] font-black"
-              style={{ borderColor: tbConfig.border, color: tbConfig.text, backgroundColor: tbConfig.bg }}>
-              {tb}
+              style={{ borderColor: opConfig.border, color: opConfig.text, backgroundColor: opConfig.bg }}>
+              {op}
             </div>
           </div>
         )}
