@@ -124,9 +124,9 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
         {/* Pillar ratings */}
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Overall Ability', value: assessmentData.overall_ability },
-            { label: 'Overall Aspiration', value: assessmentData.overall_aspiration },
-            { label: 'Overall Leadership', value: assessmentData.overall_leadership },
+            { label: 'Average Ability', value: assessmentData.overall_ability },
+            { label: 'Average Aspiration', value: assessmentData.overall_aspiration },
+            { label: 'Average Leadership', value: assessmentData.overall_leadership },
           ].map(({ label, value }) => (
             <div key={label} className="border border-[#E5E7EB] rounded-xl p-4 flex flex-col gap-2 bg-[#FAFAFA]">
               <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">{label}</p>
