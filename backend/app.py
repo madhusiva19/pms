@@ -1723,6 +1723,477 @@ def internal_error(error):
     }), 500
 
 # ============================================================================
+# POTENTIAL ASSESSMENT API ENDPOINTS
+# All routes are NEW — no existing routes are modified.
+# ============================================================================
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _calculate_pillar_rating(ratings: list) -> str:
+    """
+    Majority rule:
+      ≥ 2 H → H
+      ≥ 2 L → L
+      else  → M
+    """
+    h = ratings.count('H')
+    l = ratings.count('L')
+    if h >= 2:
+        return 'H'
+    if l >= 2:
+        return 'L'
+    return 'M'
+
+
+def _calculate_talent_block(ability: str, aspiration: str, leadership: str) -> str:
+    """
+    All H → A Talent
+    All L → C Talent
+    Else  → B Talent
+    """
+    ratings = [ability, aspiration, leadership]
+    if all(r == 'H' for r in ratings):
+        return 'A'
+    if all(r == 'L' for r in ratings):
+        return 'C'
+    return 'B'
+
+
+def _log_assessment_action(assessment_id: str, actor_id: str, actor_role: str,
+                            action: str, cycle: str):
+    """Write to potential_assessment_audit_log — non-fatal."""
+    try:
+        supabase.table('potential_assessment_audit_log').insert({
+            'assessment_id': assessment_id,
+            'actor_id': actor_id,
+            'actor_role': actor_role,
+            'action': action,
+            'cycle': cycle,
+        }).execute()
+    except Exception as e:
+        print(f'[AUDIT LOG WARNING] Failed to write audit log: {e}')
+
+
+def _strip_supervisor_columns(items: list, assessment_status: str, requester_id: str,
+                               supervisor_id: str) -> list:
+    """
+    Remove supervisor_rating and supervisor_justification from items
+    unless status=completed AND requester is NOT the appraisee (i.e. supervisor view allowed).
+    Both parties see completed data, but appraisee must wait until completed.
+    """
+    if assessment_status == 'completed':
+        return items  # both parties see everything on completion
+    # Not completed — strip supervisor columns for everyone
+    return [
+        {k: v for k, v in item.items() if k not in ('supervisor_rating', 'supervisor_justification')}
+        for item in items
+    ]
+
+
+# ── Route 1: Active Appraisal Cycle ──────────────────────────────────────────
+
+@app.route('/api/appraisal-cycles/active', methods=['GET'])
+def get_active_appraisal_cycle():
+    """
+    Returns the currently active appraisal cycle.
+    Only one cycle can be active at a time (unique index enforces this in DB).
+    """
+    try:
+        response = supabase.table('appraisal_cycles') \
+            .select('*') \
+            .eq('is_active', True) \
+            .limit(1) \
+            .execute()
+
+        if not response.data:
+            return jsonify({'success': False, 'error': 'No active appraisal cycle found'}), 404
+
+        return jsonify({'success': True, 'data': response.data[0]}), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── Route 2: Get Assessment for Employee ─────────────────────────────────────
+
+@app.route('/api/potential-assessment/<employee_id>/<cycle>', methods=['GET'])
+def get_potential_assessment(employee_id: str, cycle: str):
+    """
+    Returns the full assessment record + all items for a given employee and cycle.
+    If no record exists, returns { status: 'not_started' }.
+    Supervisor columns are stripped unless status=completed.
+
+    Query params:
+        requester_id — UUID of the caller (used for column filtering)
+    """
+    try:
+        requester_id = request.args.get('requester_id', '')
+
+        # Fetch assessment record
+        assessment_resp = supabase.table('potential_assessments') \
+            .select('*') \
+            .eq('employee_id', employee_id) \
+            .eq('appraisal_cycle', cycle) \
+            .limit(1) \
+            .execute()
+
+        if not assessment_resp.data:
+            return jsonify({'success': True, 'data': {'status': 'not_started'}}), 200
+
+        assessment = assessment_resp.data[0]
+
+        # Fetch items
+        items_resp = supabase.table('potential_assessment_items') \
+            .select('*') \
+            .eq('assessment_id', assessment['id']) \
+            .execute()
+
+        items = _strip_supervisor_columns(
+            items_resp.data,
+            assessment['status'],
+            requester_id,
+            assessment['supervisor_id']
+        )
+
+        return jsonify({
+            'success': True,
+            'data': {**assessment, 'items': items}
+        }), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── Route 3: Subordinates List ────────────────────────────────────────────────
+
+@app.route('/api/potential-assessment/subordinates/<supervisor_id>/<cycle>', methods=['GET'])
+def get_subordinates_assessment_status(supervisor_id: str, cycle: str):
+    """
+    Returns all direct subordinates of the supervisor with their assessment
+    status for the given cycle. Scope is resolved by supervisor role.
+
+    Query params:
+        supervisor_role — role of the calling supervisor
+    """
+    try:
+        supervisor_role = request.args.get('supervisor_role', '')
+
+        # Resolve subordinate users based on supervisor scope
+        subordinates = []
+
+        if supervisor_role == 'hq_admin':
+            # HQ Admin → all country admins
+            resp = supabase.table('users') \
+                .select('id, full_name, email, emp_id, country_id, role') \
+                .eq('role', 'country_admin') \
+                .execute()
+            raw = resp.data or []
+
+            # Manual lookup: fetch country names for all unique country_ids
+            country_ids = list({u['country_id'] for u in raw if u.get('country_id')})
+            country_name_map = {}
+            if country_ids:
+                c_resp = supabase.table('countries') \
+                    .select('id, name') \
+                    .in_('id', country_ids) \
+                    .execute()
+                country_name_map = {c['id']: c['name'] for c in (c_resp.data or [])}
+
+            subordinates = []
+            for u in raw:
+                u['country_name'] = country_name_map.get(u.get('country_id'), '—')
+                subordinates.append(u)
+
+        elif supervisor_role == 'country_admin':
+            # Country Admin → branch admins in same country
+            sup_resp = supabase.table('users').select('country_id').eq('id', supervisor_id).single().execute()
+            if sup_resp.data and sup_resp.data.get('country_id'):
+                resp = supabase.table('users') \
+                    .select('id, full_name, email, emp_id, iata_branch_code, country_id, role') \
+                    .eq('role', 'branch_admin') \
+                    .eq('country_id', sup_resp.data['country_id']) \
+                    .execute()
+                subordinates = resp.data or []
+
+        elif supervisor_role == 'branch_admin':
+            # Branch Admin → dept admins in same branch (by iata_branch_code)
+            sup_resp = supabase.table('users').select('iata_branch_code').eq('id', supervisor_id).single().execute()
+            if sup_resp.data and sup_resp.data.get('iata_branch_code'):
+                resp = supabase.table('users') \
+                    .select('id, full_name, email, emp_id, iata_branch_code, department_id, role') \
+                    .eq('role', 'dept_admin') \
+                    .eq('iata_branch_code', sup_resp.data['iata_branch_code']) \
+                    .execute()
+                subordinates = resp.data or []
+
+        elif supervisor_role == 'dept_admin':
+            # Dept Admin → sub dept admins in same department
+            sup_resp = supabase.table('users').select('department_id').eq('id', supervisor_id).single().execute()
+            if sup_resp.data and sup_resp.data.get('department_id'):
+                resp = supabase.table('users') \
+                    .select('id, full_name, email, emp_id, department_id, sub_department_id, role') \
+                    .eq('role', 'sub_dept_admin') \
+                    .eq('department_id', sup_resp.data['department_id']) \
+                    .execute()
+                subordinates = resp.data or []
+
+        elif supervisor_role == 'sub_dept_admin':
+            # Sub Dept Admin → employees (role='employee') in same sub_department
+            sup_resp = supabase.table('users').select('sub_department_id').eq('id', supervisor_id).single().execute()
+            if sup_resp.data and sup_resp.data.get('sub_department_id'):
+                resp = supabase.table('users') \
+                    .select('id, full_name, email, emp_id, sub_department_id, designation, role') \
+                    .eq('role', 'employee') \
+                    .eq('sub_department_id', sup_resp.data['sub_department_id']) \
+                    .execute()
+                subordinates = resp.data or []
+
+        if not subordinates:
+            return jsonify({'success': True, 'data': []}), 200
+
+        # Fetch existing assessments for these subordinates this cycle
+        sub_ids = [s['id'] for s in subordinates]
+        assessments_resp = supabase.table('potential_assessments') \
+            .select('employee_id, status, talent_block, overall_ability, overall_aspiration, overall_leadership') \
+            .in_('employee_id', sub_ids) \
+            .eq('appraisal_cycle', cycle) \
+            .execute()
+
+        assessment_map = {a['employee_id']: a for a in (assessments_resp.data or [])}
+
+        result = []
+        for sub in subordinates:
+            assessment = assessment_map.get(sub['id'])
+            result.append({
+                **sub,
+                'assessment_status': assessment['status'] if assessment else 'not_started',
+                'talent_block': assessment.get('talent_block') if assessment else None,
+            })
+
+        return jsonify({'success': True, 'data': result}), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── Route 4: Self-Submit ──────────────────────────────────────────────────────
+
+@app.route('/api/potential-assessment/self-submit', methods=['POST'])
+def self_submit_potential_assessment():
+    """
+    Appraisee submits their self-assessment.
+    Creates the assessment record if none exists.
+    Transitions status: pending_self → pending_supervisor.
+    Self columns are locked after this call (enforced by status check).
+
+    Request Body:
+        {
+            "employee_id": "uuid",
+            "supervisor_id": "uuid",
+            "appraisee_role": "country_admin | branch_admin | dept_admin | sub_dept_admin | employee",
+            "cycle": "2024-25",
+            "items": [
+                {
+                    "pillar": "ability | aspiration | leadership",
+                    "component_number": 1,
+                    "self_rating": "H | M | L",
+                    "self_example": "text"
+                },
+                ...  (9 items total)
+            ]
+        }
+    """
+    try:
+        data = request.json or {}
+        required = ['employee_id', 'supervisor_id', 'appraisee_role', 'cycle', 'items']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'success': False, 'error': f'Missing fields: {missing}'}), 400
+
+        if len(data['items']) != 9:
+            return jsonify({'success': False, 'error': 'Exactly 9 items required (3 pillars × 3 components)'}), 400
+
+        # Validate role
+        valid_roles = ('country_admin', 'branch_admin', 'dept_admin', 'sub_dept_admin', 'employee')
+        if data['appraisee_role'] not in valid_roles:
+            return jsonify({'success': False, 'error': 'Invalid appraisee_role'}), 400
+
+        employee_id = data['employee_id']
+        cycle = data['cycle']
+
+        # Check if record already exists
+        existing = supabase.table('potential_assessments') \
+            .select('id, status') \
+            .eq('employee_id', employee_id) \
+            .eq('appraisal_cycle', cycle) \
+            .limit(1) \
+            .execute()
+
+        if existing.data:
+            assessment = existing.data[0]
+            if assessment['status'] != 'pending_self':
+                return jsonify({
+                    'success': False,
+                    'error': 'Self-assessment has already been submitted and is locked.'
+                }), 409
+            assessment_id = assessment['id']
+        else:
+            # Create new assessment record
+            new_assessment = supabase.table('potential_assessments').insert({
+                'employee_id': data['employee_id'],
+                'supervisor_id': data['supervisor_id'],
+                'appraisee_role': data['appraisee_role'],
+                'appraisal_cycle': cycle,
+                'status': 'pending_self',
+            }).execute()
+            assessment_id = new_assessment.data[0]['id']
+
+        # Upsert the 9 items (self columns only)
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        for item in data['items']:
+            supabase.table('potential_assessment_items').upsert({
+                'assessment_id': assessment_id,
+                'pillar': item['pillar'],
+                'component_number': item['component_number'],
+                'self_rating': item.get('self_rating'),
+                'self_example': item.get('self_example'),
+            }, on_conflict='assessment_id,pillar,component_number').execute()
+
+        # Transition status and record timestamp
+        updated = supabase.table('potential_assessments').update({
+            'status': 'pending_supervisor',
+            'self_submitted_at': now_iso,
+        }).eq('id', assessment_id).execute()
+
+        # Audit log
+        _log_assessment_action(
+            assessment_id=assessment_id,
+            actor_id=employee_id,
+            actor_role=data['appraisee_role'],
+            action='self_submit',
+            cycle=cycle,
+        )
+
+        return jsonify({'success': True, 'data': updated.data[0]}), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── Route 5: Supervisor Submit ────────────────────────────────────────────────
+
+@app.route('/api/potential-assessment/supervisor-submit', methods=['POST'])
+def supervisor_submit_potential_assessment():
+    """
+    Supervisor submits ratings for an appraisee.
+    Calculates overall pillar ratings + talent block.
+    Transitions status: pending_supervisor → completed.
+
+    Request Body:
+        {
+            "assessment_id": "uuid",
+            "supervisor_id": "uuid",
+            "supervisor_role": "hq_admin | country_admin | ...",
+            "items": [
+                {
+                    "id": "uuid",   (existing item id)
+                    "supervisor_rating": "H | M | L",
+                    "supervisor_justification": "text"
+                },
+                ...  (9 items)
+            ]
+        }
+    """
+    try:
+        data = request.json or {}
+        required = ['assessment_id', 'supervisor_id', 'items']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'success': False, 'error': f'Missing fields: {missing}'}), 400
+
+        assessment_id = data['assessment_id']
+
+        # Verify assessment exists and is in pending_supervisor state
+        assessment_resp = supabase.table('potential_assessments') \
+            .select('*') \
+            .eq('id', assessment_id) \
+            .single() \
+            .execute()
+
+        if not assessment_resp.data:
+            return jsonify({'success': False, 'error': 'Assessment not found'}), 404
+
+        assessment = assessment_resp.data
+
+        if assessment['status'] != 'pending_supervisor':
+            return jsonify({
+                'success': False,
+                'error': f"Cannot submit: assessment status is '{assessment['status']}', expected 'pending_supervisor'."
+            }), 409
+
+        # Verify caller is the supervisor
+        if assessment['supervisor_id'] != data['supervisor_id']:
+            return jsonify({'success': False, 'error': 'Unauthorised: caller is not the assigned supervisor'}), 403
+
+        # Update each item with supervisor ratings
+        for item in data['items']:
+            supabase.table('potential_assessment_items').update({
+                'supervisor_rating': item.get('supervisor_rating'),
+                'supervisor_justification': item.get('supervisor_justification'),
+            }).eq('id', item['id']).execute()
+
+        # Fetch all items to calculate pillar ratings
+        all_items_resp = supabase.table('potential_assessment_items') \
+            .select('pillar, supervisor_rating') \
+            .eq('assessment_id', assessment_id) \
+            .execute()
+
+        all_items = all_items_resp.data or []
+
+        # Group by pillar
+        pillar_ratings: dict = {'ability': [], 'aspiration': [], 'leadership': []}
+        for itm in all_items:
+            pillar = itm.get('pillar')
+            rating = itm.get('supervisor_rating')
+            if pillar in pillar_ratings and rating:
+                pillar_ratings[pillar].append(rating)
+
+        overall_ability    = _calculate_pillar_rating(pillar_ratings['ability'])
+        overall_aspiration = _calculate_pillar_rating(pillar_ratings['aspiration'])
+        overall_leadership = _calculate_pillar_rating(pillar_ratings['leadership'])
+        talent_block       = _calculate_talent_block(overall_ability, overall_aspiration, overall_leadership)
+
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # Update assessment to completed
+        updated = supabase.table('potential_assessments').update({
+            'status': 'completed',
+            'supervisor_submitted_at': now_iso,
+            'overall_ability': overall_ability,
+            'overall_aspiration': overall_aspiration,
+            'overall_leadership': overall_leadership,
+            'talent_block': talent_block,
+        }).eq('id', assessment_id).execute()
+
+        # Audit log
+        _log_assessment_action(
+            assessment_id=assessment_id,
+            actor_id=data['supervisor_id'],
+            actor_role=data.get('supervisor_role', 'unknown'),
+            action='supervisor_submit',
+            cycle=assessment['appraisal_cycle'],
+        )
+
+        return jsonify({'success': True, 'data': updated.data[0]}), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
 # APPLICATION ENTRY POINT
 # ============================================================================
 
