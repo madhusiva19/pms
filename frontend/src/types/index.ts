@@ -286,3 +286,97 @@ export interface TeamOverviewSummary {
   completion_percentage: number;
   avg_team_score: number;
 }
+
+// ============================================================
+// POTENTIAL ASSESSMENT MODULE — New types (do not modify above)
+// ============================================================
+
+export interface AppraisalCycle {
+  id: string;
+  name: string;         // e.g. "2024-25"
+  is_active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+}
+
+export type AssessmentStatus = 'not_started' | 'pending_self' | 'pending_supervisor' | 'completed';
+export type PillarType = 'ability' | 'aspiration' | 'leadership';
+export type RatingValue = 'H' | 'M' | 'L';
+export type TalentBlock = 'A' | 'B' | 'C';
+export type AppraiseeRole = 'country_admin' | 'branch_admin' | 'dept_admin' | 'sub_dept_admin' | 'employee';
+
+export interface PotentialAssessment {
+  id: string;
+  employee_id: string;
+  supervisor_id: string;
+  appraisee_role: AppraiseeRole;
+  appraisal_cycle: string;
+  status: AssessmentStatus;
+  self_submitted_at: string | null;
+  supervisor_submitted_at: string | null;
+  overall_ability: RatingValue | null;
+  overall_aspiration: RatingValue | null;
+  overall_leadership: RatingValue | null;
+  talent_block: TalentBlock | null;
+  created_at: string;
+  items?: PotentialAssessmentItem[];
+}
+
+export interface PotentialAssessmentItem {
+  id: string;
+  assessment_id: string;
+  pillar: PillarType;
+  component_number: 1 | 2 | 3;
+  self_rating: RatingValue | null;
+  self_example: string | null;
+  supervisor_rating?: RatingValue | null;    // hidden until completed
+  supervisor_justification?: string | null;  // hidden until completed
+  created_at: string;
+}
+
+/** Returned by GET /api/potential-assessment/subordinates/:supervisorId/:cycle */
+export interface SubordinateAssessmentSummary {
+  id: string;
+  full_name: string;
+  email: string;
+  emp_id?: string;
+  role: string;
+  // role-specific location fields
+  country_id?: string;
+  iata_branch_code?: string;
+  department_id?: string;
+  sub_department_id?: string;
+  designation?: string;
+  // assessment state
+  assessment_status: AssessmentStatus;
+  talent_block: TalentBlock | null;
+}
+
+export interface SelfSubmitItemPayload {
+  pillar: PillarType;
+  component_number: 1 | 2 | 3;
+  self_rating: RatingValue;
+  self_example: string;
+}
+
+export interface SelfSubmitPayload {
+  employee_id: string;
+  supervisor_id: string;
+  appraisee_role: AppraiseeRole;
+  cycle: string;
+  items: SelfSubmitItemPayload[];
+}
+
+export interface SupervisorSubmitItemPayload {
+  id: string;   // potential_assessment_items.id
+  supervisor_rating: RatingValue;
+  supervisor_justification: string;
+}
+
+export interface SupervisorSubmitPayload {
+  assessment_id: string;
+  supervisor_id: string;
+  supervisor_role: string;
+  items: SupervisorSubmitItemPayload[];
+}
