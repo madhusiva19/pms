@@ -41,7 +41,7 @@ export default function SubDeptAdminSelfAssessmentPage() {
         </div>
         {selfError && <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">{selfError}</div>}
         {status === 'completed' && assessment ? (
-          <CompletedSummary assessmentData={assessment} viewerRole="appraisee" />
+          <CompletedSummary assessmentData={assessment} />
         ) : status === 'pending_supervisor' ? (
           <div className="bg-[#FEF9C3] border border-[#FDE68A] rounded-xl px-5 py-4 text-[13.5px] text-[#92400E] font-medium">
             Your self-assessment has been submitted. Awaiting Dept Admin Review.
