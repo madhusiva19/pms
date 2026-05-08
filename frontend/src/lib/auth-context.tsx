@@ -44,17 +44,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const validRoles: UserRole[] = ['hq_admin', 'country_admin', 'branch_admin', 'dept_admin', 'sub_dept_admin', 'employee'];
         if (validRoles.includes(demoRole as UserRole)) {
           console.log(`🔧 Demo mode enabled with role: ${demoRole}`);
-          localStorage.setItem('demo-role', demoRole!);
+          sessionStorage.setItem('demo-role', demoRole!);
         }
 
-        const activeDemoRole = demoRole || localStorage.getItem('demo-role');
+        const activeDemoRole = demoRole || sessionStorage.getItem('demo-role');
 
         // ?demo-email= targets a specific user (bypasses role-based lookup)
         const demoEmail = urlParams.get('demo-email');
         if (demoEmail) {
-          localStorage.setItem('demo-email', demoEmail);
+          sessionStorage.setItem('demo-email', demoEmail);
         }
-        const activeDemoEmail = demoEmail || localStorage.getItem('demo-email');
+        const activeDemoEmail = demoEmail || sessionStorage.getItem('demo-email');
 
         if (activeDemoEmail) {
           const { data: demoUser } = await supabase
@@ -90,8 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (authError || !authUser) {
           // No Supabase session — use saved demo role or default to hq_admin for development
-          const savedRole = (localStorage.getItem('demo-role') as UserRole) || 'hq_admin';
-          localStorage.setItem('demo-role', savedRole);
+          const savedRole = (sessionStorage.getItem('demo-role') as UserRole) || 'hq_admin';
+          sessionStorage.setItem('demo-role', savedRole);
           setUser({
             id: `demo-${savedRole}`,
             email: 'demo@pms.local',
