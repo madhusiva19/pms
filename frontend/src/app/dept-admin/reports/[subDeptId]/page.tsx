@@ -86,7 +86,6 @@ export default function DeptAdminReportDetailPage() {
 
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
 
-
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'dept_admin')) router.push('/');
   }, [user, authLoading, router]);
@@ -183,7 +182,18 @@ export default function DeptAdminReportDetailPage() {
       setDownloadStatus('generating');
       const fileName = `${teamName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
       await new Promise(resolve => setTimeout(resolve, 800));
-      await downloadReportAsPDF('report-content', fileName);
+      await downloadReportAsPDF('report-content', fileName, {
+        entityType: 'Team',
+        entityName: teamName,
+        reportPeriod: activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End',
+        reportYear: REPORT_YEAR,
+        metrics: metrics ? {
+          totalEvaluated: metrics.total_evaluated,
+          avgScore: metrics.avg_score.toFixed(2),
+          topPerformers: metrics.top_performers,
+        } : undefined,
+        generatedAt: new Date(),
+      });
       setDownloadStatus('success');
       setTimeout(() => setDownloadStatus('idle'), 3000);
     } catch (err: any) {

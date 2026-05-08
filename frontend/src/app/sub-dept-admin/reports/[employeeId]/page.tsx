@@ -134,7 +134,17 @@ export default function SubDeptAdminReportDetailPage() {
       setDownloadStatus('generating');
       const fileName = `${empName}-Performance-${REPORT_YEAR}.pdf`;
       await new Promise(resolve => setTimeout(resolve, 800));
-      await downloadReportAsPDF('report-content', fileName);
+      await downloadReportAsPDF('report-content', fileName, {
+        entityType: 'Employee',
+        entityName: empName,
+        reportYear: REPORT_YEAR,
+        metrics: metrics ? {
+          totalEvaluated: metrics.total_evaluated,
+          topPerformers: metrics.top_performers,
+          employeeScore: employeeScoreDisplay(),
+        } : undefined,
+        generatedAt: new Date(),
+      });
       setDownloadStatus('success');
       setTimeout(() => setDownloadStatus('idle'), 3000);
     } catch (err: any) {
