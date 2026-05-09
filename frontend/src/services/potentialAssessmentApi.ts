@@ -12,6 +12,8 @@ import type {
   SubordinateAssessmentSummary,
   SelfSubmitPayload,
   SupervisorSubmitPayload,
+  AssessmentComponent,
+  AppraiseeRole,
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -95,5 +97,35 @@ export const potentialAssessmentApi = {
   submitSupervisor: async (payload: SupervisorSubmitPayload): Promise<PotentialAssessment> => {
     const res = await paClient.post('/potential-assessment/supervisor-submit', payload);
     return res.data.data;
+  },
+};
+
+// ── Assessment Components (HQ Admin CRUD + per-role fetch) ────────────────────
+
+export const assessmentComponentsApi = {
+  /** HQ Admin: all components (global + role-specific). */
+  getAll: async (): Promise<AssessmentComponent[]> => {
+    const res = await paClient.get('/assessment-components');
+    return res.data.data;
+  },
+
+  /** Fetch merged effective components for a role (role-specific overrides global). */
+  getForRole: async (role: AppraiseeRole | string): Promise<AssessmentComponent[]> => {
+    const res = await paClient.get('/assessment-components/merged', { params: { role } });
+    return res.data.data;
+  },
+
+  create: async (payload: Omit<AssessmentComponent, 'id' | 'created_at' | 'updated_at'>): Promise<AssessmentComponent> => {
+    const res = await paClient.post('/assessment-components', payload);
+    return res.data.data;
+  },
+
+  update: async (id: string, payload: Partial<Omit<AssessmentComponent, 'id' | 'created_at' | 'updated_at'>>): Promise<AssessmentComponent> => {
+    const res = await paClient.put(`/assessment-components/${id}`, payload);
+    return res.data.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await paClient.delete(`/assessment-components/${id}`);
   },
 };
