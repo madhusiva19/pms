@@ -374,6 +374,18 @@ export interface SupervisorSubmitItemPayload {
   supervisor_justification: string;
 }
 
+export interface AssessmentComponent {
+  id: string;
+  pillar: PillarType;
+  component_number: 1 | 2 | 3;
+  description: string;
+  scope: 'global' | 'role';
+  assigned_role: AppraiseeRole | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SupervisorSubmitPayload {
   assessment_id: string;
   supervisor_id: string;
