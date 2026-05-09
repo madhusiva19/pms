@@ -2197,6 +2197,145 @@ def supervisor_submit_potential_assessment():
 
 
 # ============================================================================
+# ASSESSMENT COMPONENTS — HQ Admin CRUD
+# ============================================================================
+
+_AC_PILLARS = ['ability', 'aspiration', 'leadership']
+_AC_ROLES   = ['country_admin', 'branch_admin', 'dept_admin', 'sub_dept_admin', 'employee']
+
+
+@app.route('/api/assessment-components', methods=['GET', 'POST'])
+def assessment_components_list():
+    """
+    GET  — HQ Admin: return all components.
+    POST — HQ Admin: create a component.
+    """
+    if request.method == 'GET':
+        try:
+            resp = supabase.table('assessment_components') \
+                .select('*') \
+                .order('pillar') \
+                .order('component_number') \
+                .execute()
+            return jsonify({'success': True, 'data': resp.data}), 200
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # POST — create
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Request body required'}), 400
+
+        pillar           = data.get('pillar')
+        component_number = data.get('component_number')
+        description      = (data.get('description') or '').strip()
+        scope            = data.get('scope', 'global')
+        assigned_role    = data.get('assigned_role')
+
+        if pillar not in _AC_PILLARS:
+            return jsonify({'success': False, 'error': 'Invalid pillar'}), 400
+        if component_number not in [1, 2, 3]:
+            return jsonify({'success': False, 'error': 'component_number must be 1, 2 or 3'}), 400
+        if not description:
+            return jsonify({'success': False, 'error': 'Description is required'}), 400
+        if scope not in ['global', 'role']:
+            return jsonify({'success': False, 'error': 'scope must be global or role'}), 400
+        if scope == 'role' and assigned_role not in _AC_ROLES:
+            return jsonify({'success': False, 'error': 'Invalid assigned_role'}), 400
+
+        row = {
+            'pillar': pillar,
+            'component_number': component_number,
+            'description': description,
+            'scope': scope,
+            'assigned_role': assigned_role if scope == 'role' else None,
+            'created_by': data.get('created_by'),
+        }
+        resp = supabase.table('assessment_components').insert(row).execute()
+        return jsonify({'success': True, 'data': resp.data[0]}), 201
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/assessment-components/merged', methods=['GET'])
+def assessment_components_merged():
+    """
+    GET ?role=<role>
+    Returns the 9 effective components for a role.
+    Role-specific entries override global for the same (pillar, component_number).
+    Falls back to global only when no role-specific entry exists.
+    """
+    role = request.args.get('role', '').strip()
+    if not role:
+        return jsonify({'success': False, 'error': 'role query parameter required'}), 400
+    try:
+        global_resp = supabase.table('assessment_components') \
+            .select('*').eq('scope', 'global').execute()
+        global_map = {(c['pillar'], c['component_number']): c for c in global_resp.data}
+
+        role_resp = supabase.table('assessment_components') \
+            .select('*').eq('scope', 'role').eq('assigned_role', role).execute()
+        role_map = {(c['pillar'], c['component_number']): c for c in role_resp.data}
+
+        merged = {**global_map, **role_map}
+        result = sorted(merged.values(), key=lambda x: (x['pillar'], x['component_number']))
+        return jsonify({'success': True, 'data': result}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/assessment-components/<component_id>', methods=['PUT', 'DELETE'])
+def assessment_component_detail(component_id):
+    """PUT — update; DELETE — remove."""
+    if request.method == 'DELETE':
+        try:
+            resp = supabase.table('assessment_components').delete().eq('id', component_id).execute()
+            if not resp.data:
+                return jsonify({'success': False, 'error': 'Component not found'}), 404
+            return jsonify({'success': True}), 200
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # PUT — update
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Request body required'}), 400
+
+        updates = {}
+        if 'pillar' in data:
+            if data['pillar'] not in _AC_PILLARS:
+                return jsonify({'success': False, 'error': 'Invalid pillar'}), 400
+            updates['pillar'] = data['pillar']
+        if 'component_number' in data:
+            if data['component_number'] not in [1, 2, 3]:
+                return jsonify({'success': False, 'error': 'Invalid component_number'}), 400
+            updates['component_number'] = data['component_number']
+        if 'description' in data:
+            desc = (data['description'] or '').strip()
+            if not desc:
+                return jsonify({'success': False, 'error': 'Description cannot be empty'}), 400
+            updates['description'] = desc
+        if 'scope' in data:
+            if data['scope'] not in ['global', 'role']:
+                return jsonify({'success': False, 'error': 'Invalid scope'}), 400
+            updates['scope'] = data['scope']
+        if 'assigned_role' in data:
+            updates['assigned_role'] = data['assigned_role']
+
+        from datetime import datetime, timezone
+        updates['updated_at'] = datetime.now(timezone.utc).isoformat()
+
+        resp = supabase.table('assessment_components').update(updates).eq('id', component_id).execute()
+        if not resp.data:
+            return jsonify({'success': False, 'error': 'Component not found'}), 404
+        return jsonify({'success': True, 'data': resp.data[0]}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
 # APPLICATION ENTRY POINT
 # ============================================================================
 
