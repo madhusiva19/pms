@@ -16,8 +16,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertCircle, Loader2, ChevronRight } from 'lucide-react';
-import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey } from '@/utils/assessmentContent';
-import { potentialAssessmentApi } from '@/services/potentialAssessmentApi';
+import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey, type PillarDefinition } from '@/utils/assessmentContent';
+import { potentialAssessmentApi, assessmentComponentsApi } from '@/services/potentialAssessmentApi';
+import type { AssessmentComponent } from '@/types';
 import type {
   AssessmentStatus,
   PotentialAssessment,
@@ -39,6 +40,16 @@ interface SelfAssessmentFormProps {
 
 type RatingMap = Record<PillarKey, Record<number, RatingValue | ''>>;
 type ExampleMap = Record<PillarKey, Record<number, string>>;
+
+function buildPillars(dbComponents: AssessmentComponent[]): PillarDefinition[] {
+  return ASSESSMENT_PILLARS.map(pillar => ({
+    ...pillar,
+    components: ([1, 2, 3] as const).map(num => {
+      const found = dbComponents.find(c => c.pillar === pillar.key && c.component_number === num);
+      return found ? found.description : pillar.components[num - 1];
+    }),
+  }));
+}
 
 const RATING_OPTIONS: RatingValue[] = ['H', 'M', 'L'];
 
@@ -73,12 +84,19 @@ export default function SelfAssessmentForm({
   assessmentData,
   onSubmitSuccess,
 }: SelfAssessmentFormProps) {
+  const [pillars, setPillars]     = useState<PillarDefinition[]>(ASSESSMENT_PILLARS);
   const [activeTab, setActiveTab] = useState<PillarKey>('ability');
-  const [ratings, setRatings] = useState<RatingMap>(buildInitialRatings());
-  const [examples, setExamples] = useState<ExampleMap>(buildInitialExamples());
+  const [ratings, setRatings]     = useState<RatingMap>(buildInitialRatings());
+  const [examples, setExamples]   = useState<ExampleMap>(buildInitialExamples());
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    assessmentComponentsApi.getForRole(role)
+      .then(comps => { if (comps.length > 0) setPillars(buildPillars(comps)); })
+      .catch(() => {});
+  }, [role]);
 
   // Pre-fill from existing data
   useEffect(() => {
@@ -132,7 +150,7 @@ export default function SelfAssessmentForm({
     }
   };
 
-  const activePillar = ASSESSMENT_PILLARS.find((p) => p.key === activeTab)!;
+  const activePillar = pillars.find((p) => p.key === activeTab)!;
 
   return (
     <div className="flex flex-col gap-6">
@@ -160,7 +178,7 @@ export default function SelfAssessmentForm({
 
       {/* Tab switcher */}
       <div className="flex gap-1 p-1 bg-[#F3F4F6] rounded-lg w-fit">
-        {ASSESSMENT_PILLARS.map((pillar) => {
+        {pillars.map((pillar) => {
           const filled = [1, 2, 3].filter((c) => ratings[pillar.key][c] !== '').length;
           return (
             <button
