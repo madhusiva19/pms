@@ -203,13 +203,15 @@ export default function HQAdminAssessmentComponentsPage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Components',   count: components.length,                               cls: 'bg-[#EFF6FF] border-[#BFDBFE] text-[#1E3A8A]' },
-          { label: 'Global (All Roles)', count: components.filter(c => c.scope === 'global').length, cls: 'bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]' },
-          { label: 'Role-Specific',      count: components.filter(c => c.scope === 'role').length,   cls: 'bg-[#FFF7ED] border-[#FED7AA] text-[#C2410C]' },
-        ].map(({ label, count, cls }) => (
-          <div key={label} className={`rounded-xl border p-4 ${cls}`}>
-            <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">{label}</p>
-            <p className="text-[28px] font-bold mt-1">{count}</p>
+          { label: 'Total Components',   count: components.length,                                    pillCls: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]' },
+          { label: 'Global (All Roles)', count: components.filter(c => c.scope === 'global').length,  pillCls: 'bg-[#F0FDF4] text-[#16A34A] border-[#BBF7D0]' },
+          { label: 'Role-Specific',      count: components.filter(c => c.scope === 'role').length,    pillCls: 'bg-[#FFF7ED] text-[#C2410C] border-[#FED7AA]' },
+        ].map(({ label, count, pillCls }) => (
+          <div key={label} className="bg-white rounded-xl border border-[#E5E7EB] border-l-4 border-l-[#1E3A8A] px-5 py-4 flex flex-col gap-3">
+            <span className={`inline-flex w-fit items-center px-2.5 py-1 rounded-full text-[12px] font-semibold border ${pillCls}`}>
+              {label}
+            </span>
+            <p className="text-[28px] font-bold text-[#101828]">{count}</p>
           </div>
         ))}
       </div>
@@ -225,6 +227,7 @@ export default function HQAdminAssessmentComponentsPage() {
             <span className="ml-2 text-[12px] font-normal text-[#94A3B8]">({filtered.length})</span>
           </p>
           <select
+            aria-label="Filter components"
             value={filter}
             onChange={e => setFilter(e.target.value as FilterValue)}
             className="px-3 py-2 text-[13px] border border-[#E5E7EB] rounded-lg text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
@@ -322,8 +325,9 @@ export default function HQAdminAssessmentComponentsPage() {
               {/* Pillar + Q# */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] font-semibold text-[#374151] uppercase tracking-wide">Pillar</label>
+                  <label htmlFor="form-pillar" className="text-[12px] font-semibold text-[#374151] uppercase tracking-wide">Pillar</label>
                   <select
+                    id="form-pillar"
                     value={form.pillar}
                     onChange={e => setForm(f => ({ ...f, pillar: e.target.value as PillarType }))}
                     className="px-3 py-2.5 border border-[#E5E7EB] rounded-lg text-[13.5px] text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
@@ -332,8 +336,9 @@ export default function HQAdminAssessmentComponentsPage() {
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] font-semibold text-[#374151] uppercase tracking-wide">Question #</label>
+                  <label htmlFor="form-component-number" className="text-[12px] font-semibold text-[#374151] uppercase tracking-wide">Question #</label>
                   <select
+                    id="form-component-number"
                     value={form.component_number}
                     onChange={e => setForm(f => ({ ...f, component_number: Number(e.target.value) as 1 | 2 | 3 }))}
                     className="px-3 py-2.5 border border-[#E5E7EB] rounded-lg text-[13.5px] text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
@@ -391,6 +396,7 @@ export default function HQAdminAssessmentComponentsPage() {
 
                 {form.scope === 'role' && (
                   <select
+                    aria-label="Select role"
                     value={form.assigned_role}
                     onChange={e => setForm(f => ({ ...f, assigned_role: e.target.value as AppraiseeRole }))}
                     className="mt-1 px-3 py-2.5 border border-[#E5E7EB] rounded-lg text-[13.5px] text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
