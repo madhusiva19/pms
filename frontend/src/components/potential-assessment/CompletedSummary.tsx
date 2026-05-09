@@ -5,9 +5,20 @@
  * Shown to both appraisee and supervisor once status = 'completed'.
  */
 
-import React, { useState } from 'react';
-import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey } from '@/utils/assessmentContent';
-import type { PotentialAssessment, PotentialAssessmentItem, RatingValue } from '@/types';
+import React, { useState, useEffect } from 'react';
+import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey, type PillarDefinition } from '@/utils/assessmentContent';
+import type { PotentialAssessment, PotentialAssessmentItem, RatingValue, AssessmentComponent } from '@/types';
+import { assessmentComponentsApi } from '@/services/potentialAssessmentApi';
+
+function buildPillars(dbComponents: AssessmentComponent[]): PillarDefinition[] {
+  return ASSESSMENT_PILLARS.map(pillar => ({
+    ...pillar,
+    components: ([1, 2, 3] as const).map(num => {
+      const found = dbComponents.find(c => c.pillar === pillar.key && c.component_number === num);
+      return found ? found.description : pillar.components[num - 1];
+    }),
+  }));
+}
 
 interface CompletedSummaryProps {
   assessmentData: PotentialAssessment;
@@ -46,6 +57,14 @@ function formatDate(iso: string | null) {
 
 export default function CompletedSummary({ assessmentData, viewerRole = 'supervisor' }: CompletedSummaryProps) {
   const [activeTab, setActiveTab] = useState<PillarKey>('ability');
+  const [pillars, setPillars]     = useState<PillarDefinition[]>(ASSESSMENT_PILLARS);
+
+  useEffect(() => {
+    if (!assessmentData.appraisee_role) return;
+    assessmentComponentsApi.getForRole(assessmentData.appraisee_role)
+      .then(comps => { if (comps.length > 0) setPillars(buildPillars(comps)); })
+      .catch(() => {});
+  }, [assessmentData.appraisee_role]);
 
   // Build lookup
   const itemLookup: Record<PillarKey, Record<number, PotentialAssessmentItem>> = {} as any;
@@ -54,7 +73,7 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
     itemLookup[item.pillar as PillarKey][item.component_number] = item;
   });
 
-  const activePillar = ASSESSMENT_PILLARS.find((p) => p.key === activeTab)!;
+  const activePillar = pillars.find((p) => p.key === activeTab)!
 
   function calcOverallPotentiality(ability: RatingValue | null, aspiration: RatingValue | null, leadership: RatingValue | null): RatingValue | null {
     if (!ability || !aspiration || !leadership) return null;
@@ -76,7 +95,7 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
 
       {/* Tab switcher */}
       <div className="flex gap-1 p-1 bg-[#F3F4F6] rounded-lg w-fit">
-        {ASSESSMENT_PILLARS.map((pillar) => (
+        {pillars.map((pillar) => (
           <button key={pillar.key} onClick={() => setActiveTab(pillar.key)}
             className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${activeTab === pillar.key ? 'bg-white text-[#1E3A8A] shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
             {pillar.label}
