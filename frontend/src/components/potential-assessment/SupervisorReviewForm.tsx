@@ -7,8 +7,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle, Loader2, ChevronRight } from 'lucide-react';
-import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey } from '@/utils/assessmentContent';
-import { potentialAssessmentApi } from '@/services/potentialAssessmentApi';
+import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey, type PillarDefinition } from '@/utils/assessmentContent';
+import { potentialAssessmentApi, assessmentComponentsApi } from '@/services/potentialAssessmentApi';
+import type { AssessmentComponent } from '@/types';
+
+function buildPillars(dbComponents: AssessmentComponent[]): PillarDefinition[] {
+  return ASSESSMENT_PILLARS.map(pillar => ({
+    ...pillar,
+    components: ([1, 2, 3] as const).map(num => {
+      const found = dbComponents.find(c => c.pillar === pillar.key && c.component_number === num);
+      return found ? found.description : pillar.components[num - 1];
+    }),
+  }));
+}
 import type {
   AssessmentStatus,
   PotentialAssessment,
@@ -55,9 +66,10 @@ export default function SupervisorReviewForm({
   assessmentData,
   onSubmitSuccess,
 }: SupervisorReviewFormProps) {
-  const [activeTab, setActiveTab] = useState<PillarKey>('ability');
+  const [pillars, setPillars]       = useState<PillarDefinition[]>(ASSESSMENT_PILLARS);
+  const [activeTab, setActiveTab]   = useState<PillarKey>('ability');
   const [supRatings, setSupRatings] = useState<SupRatingMap>(buildEmpty().ratings);
-  const [supJusts, setSupJusts] = useState<SupJustMap>(buildEmpty().justs);
+  const [supJusts, setSupJusts]     = useState<SupJustMap>(buildEmpty().justs);
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -83,6 +95,13 @@ export default function SupervisorReviewForm({
     setSupRatings(newR);
     setSupJusts(newJ);
   }, [assessmentData]);
+
+  useEffect(() => {
+    if (!assessmentData.appraisee_role) return;
+    assessmentComponentsApi.getForRole(assessmentData.appraisee_role)
+      .then(comps => { if (comps.length > 0) setPillars(buildPillars(comps)); })
+      .catch(() => {});
+  }, [assessmentData.appraisee_role]);
 
   const allFilled = PILLAR_KEYS.every((p) =>
     [1, 2, 3].every((c) => supRatings[p][c] !== '' && supJusts[p][c].trim() !== '')
@@ -120,13 +139,13 @@ export default function SupervisorReviewForm({
     }
   };
 
-  const activePillar = ASSESSMENT_PILLARS.find((p) => p.key === activeTab)!;
+  const activePillar = pillars.find((p) => p.key === activeTab)!;
 
   return (
     <div className="flex flex-col gap-6">
       {/* Tab switcher */}
       <div className="flex gap-1 p-1 bg-[#F3F4F6] rounded-lg w-fit">
-        {ASSESSMENT_PILLARS.map((pillar) => {
+        {pillars.map((pillar) => {
           const filled = isReadOnly ? 3 : [1,2,3].filter((c) => supRatings[pillar.key][c] !== '').length;
           return (
             <button key={pillar.key} onClick={() => setActiveTab(pillar.key)}
