@@ -302,14 +302,15 @@ export default function MyPerformance() {
           </div>
         )}
 
-        {/* No data found for this UUID */}
+        {/* No data found — clean message, no debug UUID */}
         {noData && (
           <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
-            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>No performance data found for this employee in 2025.</p>
-            <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 8 }}>
-              Resolved ID: <code style={{ background: '#F1F5F9', padding: '2px 6px', borderRadius: 4 }}>{employeeId}</code>
+            <p style={{ fontSize: 16, color: C.textMuted, margin: '0 0 8px', fontWeight: 600 }}>
+              No performance data found
             </p>
-            <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 4 }}>Check that performance records exist in the database for this UUID.</p>
+            <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>
+              Performance records for 2025 have not been entered yet. Please contact your administrator.
+            </p>
           </div>
         )}
 
