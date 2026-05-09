@@ -63,6 +63,20 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// ── Shared style tokens (match app theme) ──────────────────────────
+const NAVY       = '#1C398E';
+const BLUE_LIGHT = '#EFF6FF';
+const BLUE_BORDER= '#BFDBFE';
+const PAGE_BG    = '#F9FAFB';
+const CARD_BG    = '#FFFFFF';
+const BORDER     = '#E5E7EB';
+const TEXT_HEAD  = '#101828';
+const TEXT_BODY  = '#374151';
+const TEXT_SUB   = '#4A5565';
+const TEXT_MUTED = '#6B7280';
+const TEXT_FAINT = '#9CA3AF';
+
+// ── Reminder Modal ─────────────────────────────────────────────────
 function ReminderModal({
   member, period, pmsYear, senderId, onClose, onSent,
 }: {
@@ -75,7 +89,7 @@ function ReminderModal({
     `Hi ${name}, please complete your pending manual ratings for ${period} ${pmsYear} as soon as possible. The rating window is closing soon.`
   );
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [sent,    setSent]    = useState(false);
 
   const handleSend = async () => {
     setSending(true);
@@ -84,11 +98,11 @@ function ReminderModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sender_id: senderId,
+          sender_id:    senderId,
           recipient_id: member.id,
           period,
-          pms_year: pmsYear,
-          message: msg,
+          pms_year:     pmsYear,
+          message:      msg,
         }),
       });
       setSent(true);
@@ -99,26 +113,53 @@ function ReminderModal({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
-      <div style={{ background: '#fff', borderRadius: 14, padding: 28, width: '90%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <Send size={18} color="#2563EB" />
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#101828' }}>Send Reminder to {name}</h3>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
+      <div style={{ background: CARD_BG, borderRadius: 14, padding: 28, width: '90%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', fontFamily: 'Inter, sans-serif' }}>
+
+        {/* Modal header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: BLUE_LIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Send size={16} color={NAVY} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: TEXT_HEAD }}>Send Reminder</p>
+            <p style={{ margin: 0, fontSize: 12, color: TEXT_MUTED }}>To: {name}</p>
+          </div>
         </div>
+
+        <div style={{ height: 1, background: BORDER, margin: '16px 0' }} />
+
         <textarea
           value={msg}
           onChange={e => setMsg(e.target.value)}
           rows={5}
-          style={{ width: '100%', padding: '10px 12px', boxSizing: 'border-box', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, color: '#1E293B', resize: 'vertical', outline: 'none', fontFamily: 'Inter, sans-serif' }}
+          style={{
+            width: '100%', padding: '10px 12px', boxSizing: 'border-box',
+            border: `1px solid ${BORDER}`, borderRadius: 8,
+            fontSize: 13, color: TEXT_BODY, resize: 'vertical',
+            outline: 'none', fontFamily: 'Inter, sans-serif',
+            background: PAGE_BG, lineHeight: 1.6,
+          }}
         />
+
         {sent && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#16A34A', fontSize: 13, marginTop: 10 }}>
-            <CheckCircle size={14} /> Reminder sent!
+            <CheckCircle size={14} /> Reminder sent successfully!
           </div>
         )}
+
         <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#F8F9FC', fontSize: 13, cursor: 'pointer', color: '#1E293B' }}>Cancel</button>
-          <button onClick={handleSend} disabled={sending || sent} style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: sent ? '#16A34A' : '#2563EB', color: '#fff', fontSize: 13, fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer' }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 8, border: `1px solid ${BORDER}`, background: CARD_BG, fontSize: 13, cursor: 'pointer', color: TEXT_BODY, fontWeight: 600, fontFamily: 'Inter, sans-serif' }}>
+            Cancel
+          </button>
+          <button onClick={handleSend} disabled={sending || sent} style={{
+            padding: '8px 20px', borderRadius: 8, border: 'none',
+            background: sent ? '#16A34A' : NAVY,
+            color: '#fff', fontSize: 13, fontWeight: 600,
+            cursor: (sending || sent) ? 'not-allowed' : 'pointer',
+            fontFamily: 'Inter, sans-serif',
+            opacity: sending ? 0.8 : 1,
+          }}>
             {sending ? 'Sending…' : sent ? 'Sent!' : 'Send Reminder'}
           </button>
         </div>
@@ -127,6 +168,7 @@ function ReminderModal({
   );
 }
 
+// ── Edit Period Modal ──────────────────────────────────────────────
 function EditPeriodModal({
   period, pmsYear, currentStart, currentEnd, onClose, onSaved,
 }: {
@@ -141,8 +183,8 @@ function EditPeriodModal({
   const [error,  setError]  = useState('');
 
   const handleSave = async () => {
-    if (!start || !end) { setError('Both dates are required.'); return; }
-    if (new Date(end) <= new Date(start)) { setError('End date must be after start date.'); return; }
+    if (!start || !end)                           { setError('Both dates are required.');            return; }
+    if (new Date(end) <= new Date(start))          { setError('End date must be after start date.'); return; }
     setSaving(true); setError('');
     try {
       const res = await fetch(`${API}/api/rating-periods/update`, {
@@ -159,30 +201,58 @@ function EditPeriodModal({
     setSaving(false);
   };
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', boxSizing: 'border-box',
+    border: `1px solid ${BORDER}`, borderRadius: 8,
+    fontSize: 13, outline: 'none', fontFamily: 'Inter, sans-serif',
+    color: TEXT_BODY, background: PAGE_BG,
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12, fontWeight: 600, color: TEXT_SUB, display: 'block', marginBottom: 6,
+  };
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
-      <div style={{ background: '#fff', borderRadius: 14, padding: 28, width: '90%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <Calendar size={18} color="#2563EB" />
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#101828' }}>Edit Rating Period — {period} {pmsYear}</h3>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
+      <div style={{ background: CARD_BG, borderRadius: 14, padding: 28, width: '90%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', fontFamily: 'Inter, sans-serif' }}>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: BLUE_LIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Calendar size={16} color={NAVY} />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: TEXT_HEAD }}>Edit Rating Period</p>
+            <p style={{ margin: 0, fontSize: 12, color: TEXT_MUTED }}>{period} {pmsYear}</p>
+          </div>
         </div>
+
+        <div style={{ height: 1, background: BORDER, margin: '16px 0' }} />
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>Rating Start</label>
-            <input type="date" value={start} onChange={e => setStart(e.target.value)}
-              style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, outline: 'none' }} />
+            <label style={labelStyle}>Rating Start</label>
+            <input type="date" value={start} onChange={e => setStart(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>Rating End</label>
-            <input type="date" value={end} onChange={e => setEnd(e.target.value)}
-              style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, outline: 'none' }} />
+            <label style={labelStyle}>Rating End</label>
+            <input type="date" value={end} onChange={e => setEnd(e.target.value)} style={inputStyle} />
           </div>
         </div>
-        {error && <p style={{ color: '#DC2626', fontSize: 12, marginTop: 10 }}>{error}</p>}
-        {saved && <p style={{ color: '#16A34A', fontSize: 12, marginTop: 10 }}>Period updated successfully!</p>}
+
+        {error && <p style={{ color: '#DC2626', fontSize: 12, marginTop: 10, margin: '10px 0 0' }}>{error}</p>}
+        {saved && <p style={{ color: '#16A34A', fontSize: 12, marginTop: 10, margin: '10px 0 0' }}>Period updated successfully!</p>}
+
         <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#F8F9FC', fontSize: 13, cursor: 'pointer', color: '#1E293B' }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving || saved} style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: saved ? '#16A34A' : '#2563EB', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 8, border: `1px solid ${BORDER}`, background: CARD_BG, fontSize: 13, cursor: 'pointer', color: TEXT_BODY, fontWeight: 600, fontFamily: 'Inter, sans-serif' }}>
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving || saved} style={{
+            padding: '8px 20px', borderRadius: 8, border: 'none',
+            background: saved ? '#16A34A' : NAVY,
+            color: '#fff', fontSize: 13, fontWeight: 600,
+            cursor: (saving || saved) ? 'not-allowed' : 'pointer',
+            fontFamily: 'Inter, sans-serif',
+            opacity: saving ? 0.8 : 1,
+          }}>
             {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
           </button>
         </div>
@@ -191,6 +261,7 @@ function EditPeriodModal({
   );
 }
 
+// ── Main Page ──────────────────────────────────────────────────────
 export default function RatingSettings() {
   const { user } = useAuth();
   const router   = useRouter();
@@ -255,12 +326,31 @@ export default function RatingSettings() {
   const activePeriodData = periodData?.periods?.find(p => p.period === selectedPeriod);
 
   if (loading) return (
-    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: '#64748B', fontSize: 14 }}>Loading…</div>
+    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: TEXT_MUTED, fontSize: 14 }}>
+      Loading…
+    </div>
+  );
+
+  // ── Shared table header cell ───────────────────────────────────
+  const TH = ({ children }: { children: React.ReactNode }) => (
+    <th style={{
+      padding: '11px 16px', textAlign: 'left',
+      fontSize: 11, fontWeight: 700, color: TEXT_SUB,
+      textTransform: 'uppercase', letterSpacing: '0.06em',
+      background: '#F9FAFB', borderBottom: `2px solid ${BORDER}`,
+    }}>
+      {children}
+    </th>
   );
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8F9FC', fontFamily: 'Inter, sans-serif', padding: '24px' }}>
+    <main style={{
+      minHeight: '100vh', background: PAGE_BG,
+      fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
+      padding: '32px',
+    }}>
 
+      {/* ── Modals ── */}
       {reminderTarget && (
         <ReminderModal
           member={reminderTarget}
@@ -271,7 +361,6 @@ export default function RatingSettings() {
           onSent={fetchAll}
         />
       )}
-
       {editPeriodOpen && activePeriodData && (
         <EditPeriodModal
           period={selectedPeriod}
@@ -285,29 +374,33 @@ export default function RatingSettings() {
 
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
 
-        {/* Breadcrumb */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, fontSize: 13, color: '#64748B', alignItems: 'center' }}>
-          <Link href="/dashboard" style={{ color: '#64748B', textDecoration: 'none' }}>Home</Link>
-          <span>›</span>
-          <span style={{ color: '#1E293B' }}>Rating Settings</span>
+        {/* Breadcrumb — matches notifications page */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, marginBottom: 16 }}>
+          <Link href="/dashboard" style={{ color: TEXT_MUTED, textDecoration: 'none' }}>Home</Link>
+          <span style={{ color: TEXT_MUTED }}>›</span>
+          <span style={{ color: TEXT_HEAD }}>Rating Settings</span>
         </div>
 
-        {/* Header */}
+        {/* Page header + H1/H2 toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 600, color: '#101828', margin: '0 0 4px' }}>Rating Settings</h1>
-            <p style={{ fontSize: 15, color: '#4A5565', margin: 0 }}>Manage manual ratings and monitor team progress</p>
+            <h1 style={{ fontSize: 30, fontWeight: 600, color: TEXT_HEAD, margin: '0 0 8px' }}>Rating Settings</h1>
+            <p style={{ fontSize: 16, color: TEXT_SUB, margin: 0 }}>Manage manual ratings and monitor team progress</p>
           </div>
-          <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 12, padding: 3 }}>
+
+          {/* Period toggle — pill style matching Notifications tabs */}
+          <div style={{ display: 'flex', gap: 10 }}>
             {(['H1', 'H2'] as const).map(p => {
               const active = p === selectedPeriod;
               return (
                 <button key={p} onClick={() => setSelectedPeriod(p)} style={{
-                  padding: '5px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                  fontSize: 14, fontWeight: 600,
-                  background: active ? '#fff' : 'transparent',
-                  color: active ? '#1E293B' : '#64748B',
-                  boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 20px', borderRadius: 999,
+                  border: active ? 'none' : `1px solid ${BORDER}`,
+                  background: active ? NAVY : CARD_BG,
+                  color: active ? '#fff' : TEXT_BODY,
+                  fontSize: 14, fontWeight: active ? 700 : 600,
+                  cursor: 'pointer', fontFamily: 'Inter, sans-serif',
                 }}>
                   {p} 2025
                 </button>
@@ -316,39 +409,48 @@ export default function RatingSettings() {
           </div>
         </div>
 
-        {/* Rating Period Banner */}
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', marginBottom: 24 }}>
+        {/* ── Rating Period Banner ─────────────────────────────── */}
+        <div style={{
+          background: CARD_BG, border: `1px solid ${BORDER}`,
+          borderRadius: 12, padding: '20px 24px', marginBottom: 24,
+        }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Calendar size={16} color="#2563EB" />
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#101828' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: BLUE_LIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Calendar size={15} color={NAVY} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: TEXT_HEAD }}>
                   Rating Period — {selectedPeriod} {activePeriodData?.pms_year ?? 2025}
                 </h3>
+                {/* Open/Closed badge */}
                 <span style={{
-                  padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                  padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
                   background: periodData?.rating_open ? '#DCFCE7' : '#FEF9C3',
-                  color:      periodData?.rating_open ? '#166534' : '#854D0E',
+                  color:      periodData?.rating_open ? '#166534'  : '#854D0E',
                   border:     `1px solid ${periodData?.rating_open ? '#BBF7D0' : '#FDE047'}`,
                 }}>
                   {periodData?.rating_open ? '● Open' : '● Closed'}
                 </span>
               </div>
               {activePeriodData ? (
-                <p style={{ margin: 0, fontSize: 13, color: '#4A5565' }}>
+                <p style={{ margin: 0, fontSize: 13, color: TEXT_MUTED, paddingLeft: 42 }}>
                   {formatDate(activePeriodData.rating_start)} → {formatDate(activePeriodData.rating_end)}
                 </p>
               ) : (
-                <p style={{ margin: 0, fontSize: 13, color: '#94A3B8' }}>
+                <p style={{ margin: 0, fontSize: 13, color: TEXT_FAINT, paddingLeft: 42 }}>
                   {periodData?.reason ?? 'No period configured for this half.'}
                 </p>
               )}
             </div>
+
             {canEditPeriod && activePeriodData && (
               <button onClick={() => setEditPeriodOpen(true)} style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 16px', borderRadius: 8, border: '1px solid #BFDBFE',
-                background: '#EFF6FF', color: '#2563EB', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                padding: '8px 16px', borderRadius: 10, border: `1px solid ${BLUE_BORDER}`,
+                background: BLUE_LIGHT, color: NAVY,
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'Inter, sans-serif',
               }}>
                 <Settings size={14} /> Edit Period
               </button>
@@ -356,80 +458,109 @@ export default function RatingSettings() {
           </div>
         </div>
 
-        {/* Rating Overview */}
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, marginBottom: 24, overflow: 'hidden' }}>
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <BarChart3 size={16} color="#2563EB" />
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#101828' }}>Rating Overview</h3>
-            <span style={{ fontSize: 12, color: '#64748B', marginLeft: 4 }}>— How your team is progressing with ratings</span>
+        {/* ── Rating Overview ──────────────────────────────────── */}
+        <div style={{
+          background: CARD_BG, border: `1px solid ${BORDER}`,
+          borderRadius: 12, marginBottom: 24, overflow: 'hidden',
+        }}>
+          {/* Section header */}
+          <div style={{ padding: '16px 24px', borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: BLUE_LIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <BarChart3 size={15} color={NAVY} />
+            </div>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: TEXT_HEAD }}>Rating Overview</h3>
+            <span style={{ fontSize: 13, color: TEXT_MUTED }}>— How your team is progressing with ratings</span>
           </div>
 
           {overview.length === 0 ? (
-            <div style={{ padding: '32px 24px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>No team members found.</div>
+            <div style={{ padding: '48px 24px', textAlign: 'center', color: TEXT_FAINT, fontSize: 15 }}>
+              No team members found.
+            </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#F8FAFF', borderBottom: '2px solid #E2E8F0' }}>
+                  <tr>
                     {['Name', 'Role', 'To Rate', 'Rated', 'Pending', 'Progress', 'Status', 'Action'].map(h => (
-                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                      <TH key={h}>{h}</TH>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {overview.map(member => (
-                    // FIX: key is on Fragment — <> shorthand does not support props
                     <Fragment key={member.id}>
                       <tr
-                        style={{ borderBottom: '1px solid #F1F5F9', cursor: 'pointer' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFF')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                        style={{ borderBottom: `1px solid ${BORDER}`, background: CARD_BG, transition: 'background 0.1s' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                        onMouseLeave={e => (e.currentTarget.style.background = CARD_BG)}
                       >
-                        <td style={{ padding: '12px 16px' }}>
+                        {/* Name */}
+                        <td style={{ padding: '13px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <button onClick={() => toggleRow(member.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#64748B' }}>
+                            <button onClick={() => toggleRow(member.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: TEXT_MUTED, display: 'flex' }}>
                               {expandedRows[member.id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                             </button>
                             <div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#1E293B' }}>{member.name}</div>
-                              <div style={{ fontSize: 11, color: '#94A3B8' }}>{member.designation}</div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: TEXT_HEAD }}>{member.name}</div>
+                              <div style={{ fontSize: 11, color: TEXT_FAINT }}>{member.designation}</div>
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: '#F1F5F9', color: '#475569' }}>
+
+                        {/* Role */}
+                        <td style={{ padding: '13px 16px' }}>
+                          <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, background: '#F1F5F9', color: TEXT_SUB, fontWeight: 600 }}>
                             {ROLE_LABELS[member.role] ?? member.role}
                           </span>
                         </td>
-                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#1E293B', fontWeight: 600 }}>{member.total}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#16A34A', fontWeight: 600 }}>{member.submitted}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 13, color: member.pending > 0 ? '#D97706' : '#16A34A', fontWeight: 600 }}>{member.pending}</td>
-                        <td style={{ padding: '12px 16px', minWidth: 120 }}>
+
+                        {/* To Rate */}
+                        <td style={{ padding: '13px 16px', fontSize: 13, color: TEXT_HEAD, fontWeight: 600 }}>{member.total}</td>
+
+                        {/* Rated */}
+                        <td style={{ padding: '13px 16px', fontSize: 13, color: '#16A34A', fontWeight: 700 }}>{member.submitted}</td>
+
+                        {/* Pending */}
+                        <td style={{ padding: '13px 16px', fontSize: 13, color: member.pending > 0 ? '#D97706' : '#16A34A', fontWeight: 700 }}>{member.pending}</td>
+
+                        {/* Progress bar */}
+                        <td style={{ padding: '13px 16px', minWidth: 140 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ flex: 1, height: 6, background: '#F1F5F9', borderRadius: 3, overflow: 'hidden' }}>
-                              <div style={{ width: `${member.pct}%`, height: '100%', background: member.pct === 100 ? '#16A34A' : '#2563EB', borderRadius: 3, transition: 'width 0.4s' }} />
+                            <div style={{ flex: 1, height: 6, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
+                              <div style={{
+                                width: `${member.pct}%`, height: '100%', borderRadius: 99,
+                                background: member.pct === 100 ? '#16A34A' : NAVY,
+                                transition: 'width 0.4s',
+                              }} />
                             </div>
-                            <span style={{ fontSize: 11, color: '#64748B', minWidth: 32 }}>{member.pct}%</span>
+                            <span style={{ fontSize: 11, color: TEXT_MUTED, minWidth: 34, fontWeight: 600 }}>{member.pct}%</span>
                           </div>
                         </td>
-                        <td style={{ padding: '12px 16px' }}>
+
+                        {/* Status badge */}
+                        <td style={{ padding: '13px 16px' }}>
                           <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4,
-                            padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
                             background: member.status === 'complete' ? '#DCFCE7' : '#FEF9C3',
-                            color:      member.status === 'complete' ? '#166534' : '#854D0E',
+                            color:      member.status === 'complete' ? '#166534'  : '#854D0E',
                             border:     `1px solid ${member.status === 'complete' ? '#BBF7D0' : '#FDE047'}`,
                           }}>
                             {member.status === 'complete' ? <CheckCircle size={10} /> : <Clock size={10} />}
                             {member.status === 'complete' ? 'Complete' : 'Pending'}
                           </span>
                         </td>
-                        <td style={{ padding: '12px 16px' }}>
+
+                        {/* Remind action */}
+                        <td style={{ padding: '13px 16px' }}>
                           {member.pending > 0 && (
                             <button onClick={() => setReminderTarget(member)} style={{
                               display: 'inline-flex', alignItems: 'center', gap: 5,
-                              padding: '5px 12px', borderRadius: 6, border: '1px solid #BFDBFE',
-                              background: '#EFF6FF', color: '#2563EB', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                              padding: '6px 12px', borderRadius: 8,
+                              border: `1px solid ${BLUE_BORDER}`,
+                              background: BLUE_LIGHT, color: NAVY,
+                              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                              fontFamily: 'Inter, sans-serif',
                             }}>
                               <Send size={11} /> Remind
                             </button>
@@ -437,18 +568,18 @@ export default function RatingSettings() {
                         </td>
                       </tr>
 
-                      {/* Expanded row — no separate key needed inside Fragment */}
+                      {/* Expanded detail row */}
                       {expandedRows[member.id] && (
                         <tr>
-                          <td colSpan={8} style={{ padding: '0 16px 12px 48px', background: '#F8FAFF' }}>
-                            <div style={{ fontSize: 12, color: '#64748B', padding: '10px 0' }}>
-                              <strong style={{ color: '#1E293B' }}>{member.name}</strong> has rated{' '}
+                          <td colSpan={8} style={{ padding: '0 16px 14px 52px', background: '#F9FAFB', borderBottom: `1px solid ${BORDER}` }}>
+                            <p style={{ margin: 0, fontSize: 13, color: TEXT_MUTED, lineHeight: 1.6 }}>
+                              <strong style={{ color: TEXT_HEAD }}>{member.name}</strong> has rated{' '}
                               <strong style={{ color: '#16A34A' }}>{member.submitted}</strong> out of{' '}
-                              <strong>{member.total}</strong> manual objectives for {selectedPeriod} 2025.
+                              <strong style={{ color: TEXT_HEAD }}>{member.total}</strong> manual objectives for {selectedPeriod} 2025.
                               {member.pending > 0 && (
-                                <span style={{ color: '#D97706' }}> {member.pending} still pending.</span>
+                                <span style={{ color: '#D97706', fontWeight: 600 }}> {member.pending} still pending.</span>
                               )}
-                            </div>
+                            </p>
                           </td>
                         </tr>
                       )}
@@ -460,23 +591,30 @@ export default function RatingSettings() {
           )}
         </div>
 
-        {/* Team Member List */}
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Users size={16} color="#2563EB" />
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#101828' }}>My Team — Manual Ratings</h3>
-            <span style={{ fontSize: 12, color: '#64748B', marginLeft: 4 }}>— Click to enter ratings for a team member</span>
+        {/* ── My Team — Manual Ratings ─────────────────────────── */}
+        <div style={{
+          background: CARD_BG, border: `1px solid ${BORDER}`,
+          borderRadius: 12, overflow: 'hidden',
+        }}>
+          <div style={{ padding: '16px 24px', borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: BLUE_LIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Users size={15} color={NAVY} />
+            </div>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: TEXT_HEAD }}>My Team — Manual Ratings</h3>
+            <span style={{ fontSize: 13, color: TEXT_MUTED }}>— Click to enter ratings for a team member</span>
           </div>
 
           {team.length === 0 ? (
-            <div style={{ padding: '32px 24px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>No team members found.</div>
+            <div style={{ padding: '48px 24px', textAlign: 'center', color: TEXT_FAINT, fontSize: 15 }}>
+              No team members found.
+            </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#F8FAFF', borderBottom: '2px solid #E2E8F0' }}>
+                  <tr>
                     {['Name', 'Designation', 'Template', 'Status', 'Actions'].map(h => (
-                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                      <TH key={h}>{h}</TH>
                     ))}
                   </tr>
                 </thead>
@@ -485,43 +623,51 @@ export default function RatingSettings() {
                     const status = ratingStatus[member.id];
                     return (
                       <tr key={member.id}
-                        style={{ borderBottom: '1px solid #F1F5F9' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFF')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                        style={{ borderBottom: `1px solid ${BORDER}`, background: CARD_BG, transition: 'background 0.1s' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                        onMouseLeave={e => (e.currentTarget.style.background = CARD_BG)}
                       >
-                        <td style={{ padding: '12px 16px' }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1E293B' }}>{member.full_name}</div>
+                        <td style={{ padding: '13px 16px' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: TEXT_HEAD }}>{member.full_name}</div>
                         </td>
-                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#4A5565' }}>{member.designation || '—'}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#4A5565' }}>{member.template_name || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>
+                        <td style={{ padding: '13px 16px', fontSize: 13, color: TEXT_SUB }}>{member.designation || '—'}</td>
+                        <td style={{ padding: '13px 16px', fontSize: 13, color: TEXT_SUB }}>{member.template_name || '—'}</td>
+                        <td style={{ padding: '13px 16px' }}>
                           {status ? (
                             <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                              display: 'inline-flex', alignItems: 'center', gap: 5,
+                              padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
                               background: status.submitted ? '#DCFCE7' : '#FEF9C3',
-                              color:      status.submitted ? '#166534' : '#854D0E',
+                              color:      status.submitted ? '#166534'  : '#854D0E',
                               border:     `1px solid ${status.submitted ? '#BBF7D0' : '#FDE047'}`,
                             }}>
                               {status.submitted ? <CheckCircle size={10} /> : <Clock size={10} />}
                               {status.submitted ? 'Submitted' : `${status.count} pending`}
                             </span>
                           ) : (
-                            <span style={{ fontSize: 12, color: '#94A3B8' }}>—</span>
+                            <span style={{ fontSize: 12, color: TEXT_FAINT }}>—</span>
                           )}
                         </td>
-                        <td style={{ padding: '12px 16px' }}>
+                        <td style={{ padding: '13px 16px' }}>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <button
                               onClick={() => router.push(`/${roleSlug}/manual-rating?userId=${member.id}&year=2025&period=${selectedPeriod}`)}
-                              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                              style={{
+                                padding: '7px 14px', borderRadius: 8, border: 'none',
+                                background: NAVY, color: '#fff',
+                                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                fontFamily: 'Inter, sans-serif',
+                              }}>
                               Manual Rating
                             </button>
                             {status && !status.submitted && (
                               <button onClick={() => setReminderTarget(member)} style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
-                                padding: '6px 12px', borderRadius: 6, border: '1px solid #BFDBFE',
-                                background: '#EFF6FF', color: '#2563EB', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                padding: '7px 12px', borderRadius: 8,
+                                border: `1px solid ${BLUE_BORDER}`,
+                                background: BLUE_LIGHT, color: NAVY,
+                                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                fontFamily: 'Inter, sans-serif',
                               }}>
                                 <Send size={11} /> Remind
                               </button>
@@ -538,6 +684,6 @@ export default function RatingSettings() {
         </div>
 
       </div>
-    </div>
+    </main>
   );
 }
