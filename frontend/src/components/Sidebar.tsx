@@ -23,7 +23,10 @@ const hqAdminNavItems: NavItem[] = [
   { name: 'Reports', href: '/hq-admin/reports', icon: FileText },
   { name: 'Notification', href: '/hq-admin/notification', icon: Bell },
   { name: 'Training Passport', href: '/hq-admin/training', icon: LucideFileBarChart },
-  { name: 'Potential Assessment', href: '/hq-admin/potential-assessment', icon: Target },
+  { name: 'Potential Assessment', href: '/hq-admin/potential-assessment', icon: Target, children: [
+    { name: 'Team Review', href: '/hq-admin/potential-assessment', icon: UserCheck },
+    { name: 'Assessment Components', href: '/hq-admin/potential-assessment/components', icon: ClipboardList },
+  ]},
   { name: 'My Profile', href: '/hq-admin/profile', icon: User },
 ];
 
