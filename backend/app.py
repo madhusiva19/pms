@@ -1262,6 +1262,24 @@ def mark_manual_rating_notification_read(notif_id):
         return jsonify({'error': str(e)}), 500
 
 
+# FIX 5: New endpoint — lets users permanently delete a notification
+@app.route('/api/manual-rating-notifications/<notif_id>', methods=['DELETE'])
+def delete_manual_rating_notification(notif_id):
+    try:
+        # Optional: pass recipient_id as query param so we only delete
+        # notifications that actually belong to this user
+        recipient_id = request.args.get('recipient_id')
+        query = supabase.table('manual_rating_notifications') \
+            .delete() \
+            .eq('id', notif_id)
+        if recipient_id:
+            query = query.eq('recipient_id', recipient_id)
+        query.execute()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/manual-rating-notifications/send-reminder', methods=['POST'])
 def send_manual_rating_reminder():
     try:
@@ -1275,6 +1293,22 @@ def send_manual_rating_reminder():
         if not all([sender_id, recipient_id, period, pms_year]):
             return jsonify({'error': 'Missing required fields'}), 400
 
+        # FIX 4: Verify the recipient actually reports to the sender
+        # so no one can spam arbitrary users
+        recipient_res = supabase.table('users') \
+            .select('id, full_name, manager_id') \
+            .eq('id', recipient_id) \
+            .single() \
+            .execute()
+
+        if not recipient_res.data:
+            return jsonify({'error': 'Recipient not found'}), 404
+
+        if str(recipient_res.data.get('manager_id')) != str(sender_id):
+            return jsonify({
+                'error': 'Sender is not the direct manager of this recipient'
+            }), 403
+
         sender = supabase.table('users') \
             .select('full_name') \
             .eq('id', sender_id) \
@@ -1287,7 +1321,10 @@ def send_manual_rating_reminder():
             'sender_id':    sender_id,
             'type':         'manual_reminder',
             'title':        'Manual Rating Reminder',
-            'message':      message or f'{sender_name} has requested you complete your pending manual ratings for {period} {pms_year} urgently.',
+            'message':      message or (
+                f'{sender_name} has requested you complete your pending manual '
+                f'ratings for {period} {pms_year} urgently.'
+            ),
             'period':       period,
             'pms_year':     pms_year,
             'is_read':      False,
@@ -1309,6 +1346,25 @@ def broadcast_manual_rating_notification():
         if not all([notif_type, period, pms_year]):
             return jsonify({'error': 'Missing required fields'}), 400
 
+        # FIX 2: Deduplication guard — prevent double-broadcasting the same
+        # event type for the same period/year (e.g. if called twice by accident)
+        if notif_type == 'period_opened':
+            existing_check = supabase.table('manual_rating_notifications') \
+                .select('id') \
+                .eq('type', 'period_opened') \
+                .eq('period', period) \
+                .eq('pms_year', pms_year) \
+                .limit(1) \
+                .execute()
+            if existing_check.data:
+                return jsonify({
+                    'success':  False,
+                    'message':  f'period_opened notification already sent for {period} {pms_year}. '
+                                'No duplicates created.',
+                    'notifications_sent': 0,
+                }), 200
+
+        # Evaluator roles that can have manual KPIs to rate
         evaluator_roles = ['branch_admin', 'dept_admin', 'sub_dept_admin', 'country_admin']
         evaluators_res = supabase.table('users') \
             .select('id, full_name, manager_id, role') \
@@ -1316,9 +1372,25 @@ def broadcast_manual_rating_notification():
             .execute()
         evaluators = evaluators_res.data or []
 
+        # FIX 3: Pre-fetch all manager_ids that actually exist so we can
+        # skip inserts for stale / null manager references
+        all_manager_ids = list({
+            e['manager_id'] for e in evaluators
+            if e.get('manager_id')
+        })
+        valid_manager_ids: set = set()
+        if all_manager_ids:
+            mgr_res = supabase.table('users') \
+                .select('id') \
+                .in_('id', all_manager_ids) \
+                .execute()
+            valid_manager_ids = {r['id'] for r in (mgr_res.data or [])}
+
         notifications_to_insert = []
 
         for evaluator in evaluators:
+            # Resolve how many manual KPIs this evaluator has and how many
+            # they've already submitted for this period
             assign_res = supabase.table('template_assignments') \
                 .select('template_id') \
                 .eq('user_id', evaluator['id']) \
@@ -1351,52 +1423,79 @@ def broadcast_manual_rating_notification():
                 .eq('year', pms_year) \
                 .not_.is_('manual_rating', 'null') \
                 .execute()
-            submitted    = len(submitted_res.data or [])
-            pending      = max(0, total_manual - submitted)
+            submitted = len(submitted_res.data or [])
+            pending   = max(0, total_manual - submitted)
 
+            manager_id = evaluator.get('manager_id')
+            # FIX 3: Only use manager_id if it resolves to a real user
+            valid_manager = manager_id if manager_id in valid_manager_ids else None
+
+            # ── period_opened ──────────────────────────────────────────
             if notif_type == 'period_opened':
+                # Notify the evaluator themselves
                 notifications_to_insert.append({
                     'recipient_id': evaluator['id'],
                     'sender_id':    None,
                     'type':         'period_opened',
                     'title':        f'Manual Rating Window Open — {period} {pms_year}',
-                    'message':      f'The manual rating window for {period} {pms_year} is now open. Please complete all manual ratings before the deadline.',
+                    'message':      (
+                        f'The manual rating window for {period} {pms_year} is now open. '
+                        f'You have {total_manual} manual KPI(s) to rate. '
+                        'Please complete all ratings before the deadline.'
+                    ),
                     'period':       period,
                     'pms_year':     pms_year,
                     'is_read':      False,
                 })
 
+            # ── deadline_warning ───────────────────────────────────────
             elif notif_type == 'deadline_warning' and pending > 0:
+                # Notify the evaluator
                 notifications_to_insert.append({
                     'recipient_id': evaluator['id'],
                     'sender_id':    None,
                     'type':         'deadline_warning',
                     'title':        f'Manual Ratings Due in 3 Days — {period} {pms_year}',
-                    'message':      f'You have {pending} pending manual rating{"s" if pending > 1 else ""} due in 3 days for {period} {pms_year}. Please complete them before the window closes.',
+                    'message':      (
+                        f'You have {pending} pending manual rating{"s" if pending > 1 else ""} '
+                        f'due in 3 days for {period} {pms_year}. '
+                        'Please complete them before the window closes.'
+                    ),
                     'period':       period,
                     'pms_year':     pms_year,
                     'is_read':      False,
                 })
-                if evaluator.get('manager_id'):
+                # Also alert their supervisor (FIX 3: only if valid)
+                if valid_manager:
                     notifications_to_insert.append({
-                        'recipient_id': evaluator['manager_id'],
+                        'recipient_id': valid_manager,
                         'sender_id':    None,
                         'type':         'supervisor_alert',
                         'title':        f'Team Member Has Pending Ratings — {period} {pms_year}',
-                        'message':      f'{evaluator["full_name"]} has {pending} pending manual rating{"s" if pending > 1 else ""} due in 3 days for {period} {pms_year}. Please follow up.',
+                        'message':      (
+                            f'{evaluator["full_name"]} has {pending} pending manual '
+                            f'rating{"s" if pending > 1 else ""} due in 3 days for '
+                            f'{period} {pms_year}. Please follow up.'
+                        ),
                         'period':       period,
                         'pms_year':     pms_year,
                         'is_read':      False,
                     })
 
+            # ── period_closed ──────────────────────────────────────────
             elif notif_type == 'period_closed' and pending > 0:
-                if evaluator.get('manager_id'):
+                # Alert their supervisor about incomplete ratings (FIX 3: only if valid)
+                if valid_manager:
                     notifications_to_insert.append({
-                        'recipient_id': evaluator['manager_id'],
+                        'recipient_id': valid_manager,
                         'sender_id':    None,
                         'type':         'supervisor_alert',
                         'title':        f'Incomplete Ratings After Period Closed — {period} {pms_year}',
-                        'message':      f'{evaluator["full_name"]} has {pending} incomplete manual rating{"s" if pending > 1 else ""} after the {period} {pms_year} window has closed.',
+                        'message':      (
+                            f'{evaluator["full_name"]} has {pending} incomplete manual '
+                            f'rating{"s" if pending > 1 else ""} after the '
+                            f'{period} {pms_year} window has closed.'
+                        ),
                         'period':       period,
                         'pms_year':     pms_year,
                         'is_read':      False,
