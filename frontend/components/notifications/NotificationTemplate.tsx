@@ -1,21 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import styles from "./notifications.module.css";
 import Sidebar from "@/components/sidebar/Sidebar";
 
-// ── Types ──────────────────────────────────────────────
-export type Role =
-  | "HQ Admin"
-  | "Country Admin"
-  | "Branch Admin"
-  | "Dept Admin"
-  | "Sub Dept Admin"
-  | "Employee";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5000";
 
+// ── Types ──────────────────────────────────────────────
 type AchievementNotification = {
   id: string;
   fromName: string;
@@ -38,140 +31,145 @@ type CutoffNotification = {
   actionUrl: string;
 };
 
-interface NotificationPageProps {
-  role: Role;
-  sidebarName: string;
-  dashboardPath: string;
-  achievementNotifications?: AchievementNotification[];
-  cutoffNotifications?: CutoffNotification[];
-}
-
-// ── Role config ────────────────────────────────────────
-const ROLE_CONFIG: Record<Role, { avatarLabel: string; roleLabel: string }> = {
-  "HQ Admin":       { avatarLabel: "HQ", roleLabel: "hq admin" },
-  "Country Admin":  { avatarLabel: "CA", roleLabel: "country admin" },
-  "Branch Admin":   { avatarLabel: "BA", roleLabel: "branch admin" },
-  "Dept Admin":     { avatarLabel: "DA", roleLabel: "dept admin" },
-  "Sub Dept Admin": { avatarLabel: "SD", roleLabel: "sub dept admin" },
-  "Employee":       { avatarLabel: "EM", roleLabel: "employee" },
+// ── Cutoff status badge config ─────────────────────────
+const STATUS_STYLES: Record<
+  CutoffStatus,
+  { bg: string; border: string; badge: string; badgeColor: string; badgeText: string }
+> = {
+  normal:   { bg: "#FFFFFF", border: "#E5E7EB", badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Upcoming"   },
+  urgent:   { bg: "#FFFBEB", border: "#FDE047", badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon" },
+  critical: { bg: "#FEF2F2", border: "#FECACA", badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "🔴 Overdue" },
+  frozen:   { bg: "#F3F4F6", border: "#D1D5DB", badge: "#E5E7EB", badgeColor: "#374151", badgeText: "🔒 Frozen"  },
 };
 
-
-// ── Cutoff status helpers ──────────────────────────────
-function getCutoffStatus(cutoffDate: string): CutoffStatus {
-  const today = new Date();
+function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
+  const today  = new Date();
   const cutoff = new Date(cutoffDate);
-  const graceEnd = new Date("2026-09-15");
   const diffDays = Math.ceil((cutoff.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (today > graceEnd) return "frozen";
   if (today > cutoff) return "critical";
-  if (diffDays <= 7) return "urgent";
+  if (diffDays <= 7)  return "urgent";
   return "normal";
 }
 
-const STATUS_STYLES: Record<CutoffStatus, { bg: string; border: string; badge: string; badgeColor: string; badgeText: string }> = {
-  normal:   { bg: "#FFFFFF",  border: "#E5E7EB", badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Upcoming"    },
-  urgent:   { bg: "#FFFBEB",  border: "#FDE047", badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon"  },
-  critical: { bg: "#FEF2F2",  border: "#FECACA", badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "🔴 Overdue"  },
-  frozen:   { bg: "#F3F4F6",  border: "#D1D5DB", badge: "#E5E7EB", badgeColor: "#374151", badgeText: "🔒 Frozen"   },
-};
-
-// ── Component ──────────────────────────────────────────
-
-export default function NotificationTemplate({
-  role,
-  sidebarName,
-  dashboardPath,
-  achievementNotifications = [],
-  cutoffNotifications = [],
-}: NotificationPageProps) {
+// ── Main Component ─────────────────────────────────────
+export default function Notifications() {
+  const { user } = useAuth();
   const router = useRouter();
-  const config = ROLE_CONFIG[role];
-  const { refreshBadges } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"achievements" | "cutoff">("achievements");
-  const [achievementList, setAchievementList] = useState<AchievementNotification[]>(achievementNotifications);
-  const [cutoffList, setCutoffList]           = useState<CutoffNotification[]>(cutoffNotifications);
+  const userId   = user?.id ?? "";
+  const roleSlug = user?.role?.replace(/_/g, "-") ?? "employee";
+  const isEmployee = user?.role === "employee";
 
-  const unreadAchievements = achievementList.filter((n) => !n.isRead).length;
-  const unreadCutoffs      = cutoffList.filter((n) => !n.isRead).length;
-  const totalUnread        = unreadAchievements + unreadCutoffs;
+  const [activeTab,       setActiveTab]       = useState<"achievements" | "cutoff">("achievements");
+  const [achievementList, setAchievementList] = useState<AchievementNotification[]>([]);
+  const [cutoffList,      setCutoffList]      = useState<CutoffNotification[]>([]);
+  const [loading,         setLoading]         = useState(true);
 
-  // ── Mark achievement as read ──
-  console.log("achievementList:", achievementList);
-console.log("unreadAchievements:", unreadAchievements);
+  // ── Fetch notifications ──────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+
+    async function load() {
+      setLoading(true);
+      try {
+        // Achievement notifications
+        const notifRes  = await fetch(`${API}/api/manual-rating-notifications/${userId}`);
+        const notifData = await notifRes.json();
+
+        const achievements: AchievementNotification[] = (Array.isArray(notifData) ? notifData : []).map(
+          (n: {
+            id: string;
+            title: string;
+            message: string;
+            type: string;
+            period: string;
+            pms_year: number;
+            is_read: boolean;
+            created_at: string;
+          }) => ({
+            id:          n.id,
+            fromName:    n.title,
+            fromRole:    n.type === "manual_reminder" ? "Supervisor Reminder" : "System Notification",
+            submittedAt: n.created_at ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "",
+            achievement: n.message,
+            isRead:      n.is_read,
+            actionUrl:   `/${roleSlug}/manual-rating`,
+          })
+        );
+        setAchievementList(achievements);
+
+        // Cutoff notifications — from rating periods
+        const periodRes  = await fetch(`${API}/api/rating-periods/current`);
+        const periodData = await periodRes.json();
+        const cutoffs: CutoffNotification[] = (periodData.periods ?? []).map(
+          (p: { id: number; period: string; pms_year: number; rating_start: string; rating_end: string }) => ({
+            id:          String(p.id),
+            title:       `Rating Window — ${p.period} ${p.pms_year}`,
+            message:     `The rating window for ${p.period} ${p.pms_year} runs from ${p.rating_start} to ${p.rating_end}. Ensure all manual ratings are completed before the window closes.`,
+            cutoffDate:  p.rating_end,
+            status:      resolveCutoffStatus(p.rating_end),
+            isRead:      false,
+            actionUrl:   `/${roleSlug}/rating-settings`,
+          })
+        );
+        setCutoffList(cutoffs);
+      } catch (err) {
+        console.error("[Notifications] fetch error:", err);
+      }
+      setLoading(false);
+    }
+
+    load();
+  }, [userId, roleSlug]);
+
+  // ── Mark single notification read ────────────────────
+  const callMarkRead = async (id: string) => {
+    try {
+      await fetch(`${API}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" });
+    } catch (err) {
+      console.error("Failed to mark as read:", err);
+    }
+  };
+
   const markAchievementRead = async (id: string) => {
-    setAchievementList((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${id}/read`, {
-        method: "PATCH",
-      });
-      refreshBadges();
-    } catch (err) {
-      console.error("Failed to mark as read:", err);
-    }
+    setAchievementList(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    await callMarkRead(id);
   };
 
-  // ── Mark cutoff as read ──
-  const markCutoffRead = async (id: string) => {
-    setCutoffList((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${id}/read`, {
-        method: "PATCH",
-      });
-      refreshBadges();
-    } catch (err) {
-      console.error("Failed to mark as read:", err);
-    }
+  const markCutoffRead = (id: string) => {
+    // Cutoff notifications have no backend read state — UI only
+    setCutoffList(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   };
 
-  // ── Get user from localStorage ──
-const raw = typeof window !== "undefined" ? localStorage.getItem("pms_user") : null;
-const user = raw ? JSON.parse(raw) : null;
-
-  // ── Mark all as read ──
+  // ── Mark all read (active tab) ───────────────────────
   const markAllRead = async () => {
     if (activeTab === "achievements") {
-      const unread = achievementList.filter((n) => !n.isRead);
-      setAchievementList((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      for (const n of unread) {
-        try {
-          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${n.id}/read`, {
-            method: "PATCH",
-          });
-        } catch (err) {
-          console.error("Failed to mark as read:", err);
-        }
-      }
-      refreshBadges();
+      const unread = achievementList.filter(n => !n.isRead);
+      setAchievementList(prev => prev.map(n => ({ ...n, isRead: true })));
+      await Promise.all(unread.map(n => callMarkRead(n.id)));
     } else {
-      const unread = cutoffList.filter((n) => !n.isRead);
-      setCutoffList((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      for (const n of unread) {
-        try {
-          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${n.id}/read`, {
-            method: "PATCH",
-          });
-        } catch (err) {
-          console.error("Failed to mark as read:", err);
-        }
-      }
+      setCutoffList(prev => prev.map(n => ({ ...n, isRead: true })));
     }
   };
 
-  
+  const unreadAchievements = achievementList.filter(n => !n.isRead).length;
+  const unreadCutoffs      = cutoffList.filter(n => !n.isRead).length;
+
+  if (loading) return (
+    <div style={{ padding: "40px 24px", fontFamily: "Inter, sans-serif", color: "#64748B", fontSize: 14 }}>
+      Loading notifications…
+    </div>
+  );
+
   return (
     <div className={styles.shell}>
-
       <Sidebar />
 
-      {/* ══════════════ MAIN ══════════════ */}
       <main className={styles.main}>
 
         {/* Breadcrumb */}
         <div className={styles.breadcrumb}>
-          <span className={styles.crumbLink} onClick={() => router.push(dashboardPath)}>Home</span>
+          <span className={styles.crumbLink} onClick={() => router.push(`/${roleSlug}/dashboard`)}>Home</span>
           <span className={styles.crumbSep}>›</span>
           <span className={styles.crumbCurrent}>Notifications</span>
         </div>
@@ -187,7 +185,7 @@ const user = raw ? JSON.parse(raw) : null;
           </button>
         </div>
 
-        {/* ── Pill Tabs ── */}
+        {/* Tabs */}
         <div className={styles.tabRow}>
           <button
             type="button"
@@ -195,20 +193,18 @@ const user = raw ? JSON.parse(raw) : null;
             onClick={() => setActiveTab("achievements")}
           >
             Achievement Approvals
-            {unreadAchievements > 0 && (
-              <span className={styles.tabBadge}>{unreadAchievements}</span>
-            )}
+            {unreadAchievements > 0 && <span className={styles.tabBadge}>{unreadAchievements}</span>}
           </button>
-          {role !== "Employee" && (
+
+          {/* Employees don't see the cutoff tab */}
+          {!isEmployee && (
             <button
               type="button"
               className={activeTab === "cutoff" ? styles.tabActive : styles.tabInactive}
               onClick={() => setActiveTab("cutoff")}
             >
               Objectives Cut-off
-              {unreadCutoffs > 0 && (
-                <span className={styles.tabBadge}>{unreadCutoffs}</span>
-              )}
+              {unreadCutoffs > 0 && <span className={styles.tabBadge}>{unreadCutoffs}</span>}
             </button>
           )}
         </div>
@@ -219,17 +215,17 @@ const user = raw ? JSON.parse(raw) : null;
             {achievementList.length === 0 ? (
               <div className={styles.emptyState}>No achievement approvals at the moment.</div>
             ) : (
-              achievementList.map((n) => (
+              achievementList.map(n => (
                 <div key={n.id} className={`${styles.notifCard} ${!n.isRead ? styles.unread : ""}`}>
                   <div className={styles.notifTop}>
                     <div className={styles.notifMeta}>
                       {!n.isRead && <span className={styles.unreadDot} />}
-                      <div><p className={styles.notifTitle}>
-  {n.fromName.includes("Approved") || n.fromName.includes("Rejected")
-    ? n.fromName
-    : `Achievement submitted by ${n.fromName}`}
-</p>
-                        
+                      <div>
+                        <p className={styles.notifTitle}>
+                          {n.fromName.includes("Approved") || n.fromName.includes("Rejected")
+                            ? n.fromName
+                            : `Achievement submitted by ${n.fromName}`}
+                        </p>
                         <p className={styles.notifRole}>{n.fromRole} · {n.submittedAt}</p>
                       </div>
                     </div>
@@ -261,7 +257,7 @@ const user = raw ? JSON.parse(raw) : null;
             {cutoffList.length === 0 ? (
               <div className={styles.emptyState}>No cut-off notifications at the moment.</div>
             ) : (
-              cutoffList.map((n) => {
+              cutoffList.map(n => {
                 const s = STATUS_STYLES[n.status];
                 return (
                   <div
@@ -305,6 +301,7 @@ const user = raw ? JSON.parse(raw) : null;
             )}
           </div>
         )}
+
       </main>
     </div>
   );
