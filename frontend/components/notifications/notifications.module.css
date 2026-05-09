@@ -185,8 +185,7 @@
   white-space: nowrap;
 }
 
-.markAllBtn:hover 
-{ background: #F3F4F6; }
+.markAllBtn:hover { background: #F3F4F6; }
 
 /* ── Tabs ── */
 .tabRow {
@@ -256,9 +255,7 @@
 
 .notifCard:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
 
-.unread {
-  border-left: 4px solid #3B82F6;
-}
+.unread { border-left: 4px solid #3B82F6; }
 
 .notifTop {
   display: flex;
