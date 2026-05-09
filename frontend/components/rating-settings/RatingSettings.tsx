@@ -1,16 +1,15 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import {
-  Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp,
+  Clock, CheckCircle, ChevronDown, ChevronUp,
   Send, Calendar, Users, BarChart3, Settings,
 } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 
-// ── Types ─────────────────────────────────────────────────────────
 interface RatingPeriod {
   id: number;
   pms_year: number;
@@ -53,7 +52,6 @@ interface ManualRatingStatus {
   [userId: string]: { submitted: boolean; count: number };
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
 const ROLE_LABELS: Record<string, string> = {
   hq_admin: 'HQ Admin', country_admin: 'Country Admin',
   branch_admin: 'Branch Admin', dept_admin: 'Dept Admin',
@@ -65,10 +63,8 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-// ── Reminder Modal ────────────────────────────────────────────────
 function ReminderModal({
-  member, period, pmsYear, senderId,
-  onClose, onSent,
+  member, period, pmsYear, senderId, onClose, onSent,
 }: {
   member: OverviewMember | TeamMember;
   period: string; pmsYear: number; senderId: string;
@@ -76,10 +72,10 @@ function ReminderModal({
 }) {
   const name = 'full_name' in member ? member.full_name : member.name;
   const [msg, setMsg] = useState(
-    `Hi ${ name }, please complete your pending manual ratings for ${period} ${pmsYear} as soon as possible. The rating window is closing soon.`
+    `Hi ${name}, please complete your pending manual ratings for ${period} ${pmsYear} as soon as possible. The rating window is closing soon.`
   );
   const [sending, setSending] = useState(false);
-  const [sent,    setSent]    = useState(false);
+  const [sent, setSent] = useState(false);
 
   const handleSend = async () => {
     setSending(true);
@@ -88,11 +84,11 @@ function ReminderModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sender_id:    senderId,
+          sender_id: senderId,
           recipient_id: member.id,
           period,
-          pms_year:     pmsYear,
-          message:      msg,
+          pms_year: pmsYear,
+          message: msg,
         }),
       });
       setSent(true);
@@ -103,29 +99,17 @@ function ReminderModal({
   };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999,
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 14, padding: 28,
-        width: '90%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-      }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 28, width: '90%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
           <Send size={18} color="#2563EB" />
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#101828' }}>
-            Send Reminder to {name}
-          </h3>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#101828' }}>Send Reminder to {name}</h3>
         </div>
         <textarea
           value={msg}
           onChange={e => setMsg(e.target.value)}
           rows={5}
-          style={{
-            width: '100%', padding: '10px 12px', boxSizing: 'border-box',
-            border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13,
-            color: '#1E293B', resize: 'vertical', outline: 'none', fontFamily: 'Inter, sans-serif',
-          }}
+          style={{ width: '100%', padding: '10px 12px', boxSizing: 'border-box', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, color: '#1E293B', resize: 'vertical', outline: 'none', fontFamily: 'Inter, sans-serif' }}
         />
         {sent && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#16A34A', fontSize: 13, marginTop: 10 }}>
@@ -133,16 +117,8 @@ function ReminderModal({
           </div>
         )}
         <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{
-            padding: '8px 18px', borderRadius: 7, border: '1px solid #E2E8F0',
-            background: '#F8F9FC', fontSize: 13, cursor: 'pointer', color: '#1E293B',
-          }}>Cancel</button>
-          <button onClick={handleSend} disabled={sending || sent} style={{
-            padding: '8px 20px', borderRadius: 7, border: 'none',
-            background: sent ? '#16A34A' : '#2563EB',
-            color: '#fff', fontSize: 13, fontWeight: 600,
-            cursor: sending ? 'not-allowed' : 'pointer',
-          }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#F8F9FC', fontSize: 13, cursor: 'pointer', color: '#1E293B' }}>Cancel</button>
+          <button onClick={handleSend} disabled={sending || sent} style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: sent ? '#16A34A' : '#2563EB', color: '#fff', fontSize: 13, fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer' }}>
             {sending ? 'Sending…' : sent ? 'Sent!' : 'Send Reminder'}
           </button>
         </div>
@@ -151,20 +127,18 @@ function ReminderModal({
   );
 }
 
-// ── Edit Period Modal ──────────────────────────────────────────────
 function EditPeriodModal({
-  period, pmsYear, currentStart, currentEnd,
-  onClose, onSaved,
+  period, pmsYear, currentStart, currentEnd, onClose, onSaved,
 }: {
   period: string; pmsYear: number;
   currentStart: string; currentEnd: string;
   onClose: () => void; onSaved: () => void;
 }) {
-  const [start,   setStart]   = useState(currentStart?.slice(0, 10) ?? '');
-  const [end,     setEnd]     = useState(currentEnd?.slice(0, 10) ?? '');
-  const [saving,  setSaving]  = useState(false);
-  const [saved,   setSaved]   = useState(false);
-  const [error,   setError]   = useState('');
+  const [start,  setStart]  = useState(currentStart?.slice(0, 10) ?? '');
+  const [end,    setEnd]    = useState(currentEnd?.slice(0, 10) ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState('');
 
   const handleSave = async () => {
     if (!start || !end) { setError('Both dates are required.'); return; }
@@ -186,49 +160,29 @@ function EditPeriodModal({
   };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999,
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 14, padding: 28,
-        width: '90%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-      }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 28, width: '90%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <Calendar size={18} color="#2563EB" />
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#101828' }}>
-            Edit Rating Period — {period} {pmsYear}
-          </h3>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#101828' }}>Edit Rating Period — {period} {pmsYear}</h3>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>
-              Rating Start
-            </label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>Rating Start</label>
             <input type="date" value={start} onChange={e => setStart(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, outline: 'none' }} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>
-              Rating End
-            </label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>Rating End</label>
             <input type="date" value={end} onChange={e => setEnd(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, outline: 'none' }} />
           </div>
         </div>
         {error && <p style={{ color: '#DC2626', fontSize: 12, marginTop: 10 }}>{error}</p>}
-        {saved && <p style={{ color: '#16A34A', fontSize: 12, marginTop: 10 }}>✅ Period updated successfully!</p>}
+        {saved && <p style={{ color: '#16A34A', fontSize: 12, marginTop: 10 }}>Period updated successfully!</p>}
         <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{
-            padding: '8px 18px', borderRadius: 7, border: '1px solid #E2E8F0',
-            background: '#F8F9FC', fontSize: 13, cursor: 'pointer', color: '#1E293B',
-          }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving || saved} style={{
-            padding: '8px 20px', borderRadius: 7, border: 'none',
-            background: saved ? '#16A34A' : '#2563EB',
-            color: '#fff', fontSize: 13, fontWeight: 600,
-            cursor: saving ? 'not-allowed' : 'pointer',
-          }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#F8F9FC', fontSize: 13, cursor: 'pointer', color: '#1E293B' }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving || saved} style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: saved ? '#16A34A' : '#2563EB', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
             {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
           </button>
         </div>
@@ -237,12 +191,11 @@ function EditPeriodModal({
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────
 export default function RatingSettings() {
   const { user } = useAuth();
   const router   = useRouter();
 
-  const roleSlug   = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
+  const roleSlug      = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
   const canEditPeriod = user?.role === 'country_admin' || user?.role === 'hq_admin';
   const evaluatorId   = user?.id ?? '';
 
@@ -253,7 +206,6 @@ export default function RatingSettings() {
   const [ratingStatus,   setRatingStatus]   = useState<ManualRatingStatus>({});
   const [loading,        setLoading]        = useState(true);
   const [expandedRows,   setExpandedRows]   = useState<Record<string, boolean>>({});
-
   const [reminderTarget, setReminderTarget] = useState<OverviewMember | TeamMember | null>(null);
   const [editPeriodOpen, setEditPeriodOpen] = useState(false);
 
@@ -277,7 +229,6 @@ export default function RatingSettings() {
       setOverview(Array.isArray(overviewJson) ? overviewJson : []);
       setTeam(Array.isArray(teamJson) ? teamJson : []);
 
-      // Fetch manual rating status for each team member
       if (Array.isArray(teamJson) && teamJson.length > 0) {
         const statuses: ManualRatingStatus = {};
         await Promise.all(teamJson.map(async (m: TeamMember) => {
@@ -301,19 +252,15 @@ export default function RatingSettings() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const toggleRow = (id: string) => setExpandedRows(p => ({ ...p, [id]: !p[id] }));
-
   const activePeriodData = periodData?.periods?.find(p => p.period === selectedPeriod);
 
   if (loading) return (
-    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: '#64748B', fontSize: 14 }}>
-      Loading…
-    </div>
+    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: '#64748B', fontSize: 14 }}>Loading…</div>
   );
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8F9FC', fontFamily: 'Inter, sans-serif', padding: '24px' }}>
 
-      {/* Reminder Modal */}
       {reminderTarget && (
         <ReminderModal
           member={reminderTarget}
@@ -325,7 +272,6 @@ export default function RatingSettings() {
         />
       )}
 
-      {/* Edit Period Modal */}
       {editPeriodOpen && activePeriodData && (
         <EditPeriodModal
           period={selectedPeriod}
@@ -352,15 +298,17 @@ export default function RatingSettings() {
             <h1 style={{ fontSize: 28, fontWeight: 600, color: '#101828', margin: '0 0 4px' }}>Rating Settings</h1>
             <p style={{ fontSize: 15, color: '#4A5565', margin: 0 }}>Manage manual ratings and monitor team progress</p>
           </div>
-          {/* Period toggle */}
           <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 12, padding: 3 }}>
             {(['H1', 'H2'] as const).map(p => {
               const active = p === selectedPeriod;
               return (
-                <button key={p} onClick={() => setSelectedPeriod(p)}
-                  style={{ padding: '5px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
-                    background: active ? '#fff' : 'transparent', color: active ? '#1E293B' : '#64748B',
-                    boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>
+                <button key={p} onClick={() => setSelectedPeriod(p)} style={{
+                  padding: '5px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  fontSize: 14, fontWeight: 600,
+                  background: active ? '#fff' : 'transparent',
+                  color: active ? '#1E293B' : '#64748B',
+                  boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                }}>
                   {p} 2025
                 </button>
               );
@@ -368,11 +316,8 @@ export default function RatingSettings() {
           </div>
         </div>
 
-        {/* ── Rating Period Banner ───────────────────────────────── */}
-        <div style={{
-          background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12,
-          padding: '20px 24px', marginBottom: 24,
-        }}>
+        {/* Rating Period Banner */}
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -403,8 +348,7 @@ export default function RatingSettings() {
               <button onClick={() => setEditPeriodOpen(true)} style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '8px 16px', borderRadius: 8, border: '1px solid #BFDBFE',
-                background: '#EFF6FF', color: '#2563EB', fontSize: 13, fontWeight: 600,
-                cursor: 'pointer',
+                background: '#EFF6FF', color: '#2563EB', fontSize: 13, fontWeight: 600, cursor: 'pointer',
               }}>
                 <Settings size={14} /> Edit Period
               </button>
@@ -412,11 +356,8 @@ export default function RatingSettings() {
           </div>
         </div>
 
-        {/* ── Rating Overview ────────────────────────────────────── */}
-        <div style={{
-          background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12,
-          marginBottom: 24, overflow: 'hidden',
-        }}>
+        {/* Rating Overview */}
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, marginBottom: 24, overflow: 'hidden' }}>
           <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 8 }}>
             <BarChart3 size={16} color="#2563EB" />
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#101828' }}>Rating Overview</h3>
@@ -424,9 +365,7 @@ export default function RatingSettings() {
           </div>
 
           {overview.length === 0 ? (
-            <div style={{ padding: '32px 24px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>
-              No team members found.
-            </div>
+            <div style={{ padding: '32px 24px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>No team members found.</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -439,8 +378,9 @@ export default function RatingSettings() {
                 </thead>
                 <tbody>
                   {overview.map(member => (
-                    <>
-                      <tr key={member.id}
+                    // FIX: key is on Fragment — <> shorthand does not support props
+                    <Fragment key={member.id}>
+                      <tr
                         style={{ borderBottom: '1px solid #F1F5F9', cursor: 'pointer' }}
                         onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFF')}
                         onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
@@ -489,16 +429,17 @@ export default function RatingSettings() {
                             <button onClick={() => setReminderTarget(member)} style={{
                               display: 'inline-flex', alignItems: 'center', gap: 5,
                               padding: '5px 12px', borderRadius: 6, border: '1px solid #BFDBFE',
-                              background: '#EFF6FF', color: '#2563EB', fontSize: 12, fontWeight: 600,
-                              cursor: 'pointer',
+                              background: '#EFF6FF', color: '#2563EB', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                             }}>
                               <Send size={11} /> Remind
                             </button>
                           )}
                         </td>
                       </tr>
+
+                      {/* Expanded row — no separate key needed inside Fragment */}
                       {expandedRows[member.id] && (
-                        <tr key={`${member.id}-detail`}>
+                        <tr>
                           <td colSpan={8} style={{ padding: '0 16px 12px 48px', background: '#F8FAFF' }}>
                             <div style={{ fontSize: 12, color: '#64748B', padding: '10px 0' }}>
                               <strong style={{ color: '#1E293B' }}>{member.name}</strong> has rated{' '}
@@ -511,7 +452,7 @@ export default function RatingSettings() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -519,10 +460,8 @@ export default function RatingSettings() {
           )}
         </div>
 
-        {/* ── Team Member List with Manual Rating buttons ─────────── */}
-        <div style={{
-          background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden',
-        }}>
+        {/* Team Member List */}
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Users size={16} color="#2563EB" />
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#101828' }}>My Team — Manual Ratings</h3>
@@ -530,9 +469,7 @@ export default function RatingSettings() {
           </div>
 
           {team.length === 0 ? (
-            <div style={{ padding: '32px 24px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>
-              No team members found.
-            </div>
+            <div style={{ padding: '32px 24px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>No team members found.</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -577,19 +514,14 @@ export default function RatingSettings() {
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <button
                               onClick={() => router.push(`/${roleSlug}/manual-rating?userId=${member.id}&year=2025&period=${selectedPeriod}`)}
-                              style={{
-                                padding: '6px 14px', borderRadius: 6, border: 'none',
-                                background: '#2563EB', color: '#fff', fontSize: 12,
-                                fontWeight: 600, cursor: 'pointer',
-                              }}>
+                              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                               Manual Rating
                             </button>
                             {status && !status.submitted && (
                               <button onClick={() => setReminderTarget(member)} style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
                                 padding: '6px 12px', borderRadius: 6, border: '1px solid #BFDBFE',
-                                background: '#EFF6FF', color: '#2563EB', fontSize: 12,
-                                fontWeight: 600, cursor: 'pointer',
+                                background: '#EFF6FF', color: '#2563EB', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                               }}>
                                 <Send size={11} /> Remind
                               </button>
