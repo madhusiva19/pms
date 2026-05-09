@@ -1221,6 +1221,289 @@ def get_user_by_email():
     except Exception as e:
         print(f"[ERROR] get_user_by_email: {e}")
         return jsonify({'error': str(e)}), 500
+    
+# ─────────────────────────────────────────────────────────────────────────────
+# MANUAL RATING NOTIFICATIONS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/manual-rating-notifications/<user_id>', methods=['GET'])
+def get_manual_rating_notifications(user_id):
+    try:
+        result = supabase.table('manual_rating_notifications') \
+            .select('*') \
+            .eq('recipient_id', user_id) \
+            .order('created_at', desc=True) \
+            .execute()
+        return jsonify(result.data or [])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/manual-rating-notifications/<notif_id>/read', methods=['PATCH'])
+def mark_manual_rating_notification_read(notif_id):
+    try:
+        supabase.table('manual_rating_notifications') \
+            .update({'is_read': True}) \
+            .eq('id', notif_id) \
+            .execute()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/manual-rating-notifications/send-reminder', methods=['POST'])
+def send_manual_rating_reminder():
+    try:
+        body         = request.get_json()
+        sender_id    = body.get('sender_id')
+        recipient_id = body.get('recipient_id')
+        period       = body.get('period')
+        pms_year     = body.get('pms_year')
+        message      = body.get('message')
+
+        if not all([sender_id, recipient_id, period, pms_year]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        sender = supabase.table('users') \
+            .select('full_name') \
+            .eq('id', sender_id) \
+            .single() \
+            .execute()
+        sender_name = sender.data.get('full_name', 'Your Supervisor') if sender.data else 'Your Supervisor'
+
+        supabase.table('manual_rating_notifications').insert({
+            'recipient_id': recipient_id,
+            'sender_id':    sender_id,
+            'type':         'manual_reminder',
+            'title':        'Manual Rating Reminder',
+            'message':      message or f'{sender_name} has requested you complete your pending manual ratings for {period} {pms_year} urgently.',
+            'period':       period,
+            'pms_year':     pms_year,
+            'is_read':      False,
+        }).execute()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/manual-rating-notifications/broadcast', methods=['POST'])
+def broadcast_manual_rating_notification():
+    try:
+        body       = request.get_json()
+        notif_type = body.get('type')  # 'period_opened', 'deadline_warning', 'period_closed'
+        period     = body.get('period')
+        pms_year   = body.get('pms_year')
+
+        if not all([notif_type, period, pms_year]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        evaluator_roles = ['branch_admin', 'dept_admin', 'sub_dept_admin', 'country_admin']
+        evaluators_res = supabase.table('users') \
+            .select('id, full_name, manager_id, role') \
+            .in_('role', evaluator_roles) \
+            .execute()
+        evaluators = evaluators_res.data or []
+
+        notifications_to_insert = []
+
+        for evaluator in evaluators:
+            # Count pending manual objectives
+            assign_res = supabase.table('template_assignments') \
+                .select('template_id') \
+                .eq('user_id', evaluator['id']) \
+                .limit(1) \
+                .execute()
+
+            if not assign_res.data:
+                continue
+
+            template_id = assign_res.data[0]['template_id']
+            cat_res = supabase.table('categories') \
+                .select('id') \
+                .eq('template_id', template_id) \
+                .execute()
+            cat_ids = [c['id'] for c in (cat_res.data or [])]
+
+            total_manual = 0
+            if cat_ids:
+                obj_res = supabase.table('objectives') \
+                    .select('id') \
+                    .in_('category_id', cat_ids) \
+                    .eq('kpi_scale', 'manual') \
+                    .execute()
+                total_manual = len(obj_res.data or [])
+
+            submitted_res = supabase.table('performance_records') \
+                .select('objective_id') \
+                .eq('user_id', evaluator['id']) \
+                .eq('period', period) \
+                .eq('year', pms_year) \
+                .not_.is_('manual_rating', 'null') \
+                .execute()
+            submitted    = len(submitted_res.data or [])
+            pending      = max(0, total_manual - submitted)
+
+            if notif_type == 'period_opened':
+                notifications_to_insert.append({
+                    'recipient_id': evaluator['id'],
+                    'sender_id':    None,
+                    'type':         'period_opened',
+                    'title':        f'Manual Rating Window Open — {period} {pms_year}',
+                    'message':      f'The manual rating window for {period} {pms_year} is now open. Please complete all manual ratings before the deadline.',
+                    'period':       period,
+                    'pms_year':     pms_year,
+                    'is_read':      False,
+                })
+
+            elif notif_type == 'deadline_warning' and pending > 0:
+                # Notify evaluator
+                notifications_to_insert.append({
+                    'recipient_id': evaluator['id'],
+                    'sender_id':    None,
+                    'type':         'deadline_warning',
+                    'title':        f'⚠ Manual Ratings Due in 3 Days — {period} {pms_year}',
+                    'message':      f'You have {pending} pending manual rating{"s" if pending > 1 else ""} due in 3 days for {period} {pms_year}. Please complete them before the window closes.',
+                    'period':       period,
+                    'pms_year':     pms_year,
+                    'is_read':      False,
+                })
+                # Notify supervisor too
+                if evaluator.get('manager_id'):
+                    notifications_to_insert.append({
+                        'recipient_id': evaluator['manager_id'],
+                        'sender_id':    None,
+                        'type':         'supervisor_alert',
+                        'title':        f'⚠ Team Member Has Pending Ratings — {period} {pms_year}',
+                        'message':      f'{evaluator["full_name"]} has {pending} pending manual rating{"s" if pending > 1 else ""} due in 3 days for {period} {pms_year}. Please follow up.',
+                        'period':       period,
+                        'pms_year':     pms_year,
+                        'is_read':      False,
+                    })
+
+            elif notif_type == 'period_closed' and pending > 0:
+                # Only notify supervisor
+                if evaluator.get('manager_id'):
+                    notifications_to_insert.append({
+                        'recipient_id': evaluator['manager_id'],
+                        'sender_id':    None,
+                        'type':         'supervisor_alert',
+                        'title':        f'🔴 Incomplete Ratings After Period Closed — {period} {pms_year}',
+                        'message':      f'{evaluator["full_name"]} has {pending} incomplete manual rating{"s" if pending > 1 else ""} after the {period} {pms_year} window has closed.',
+                        'period':       period,
+                        'pms_year':     pms_year,
+                        'is_read':      False,
+                    })
+
+        if notifications_to_insert:
+            supabase.table('manual_rating_notifications').insert(notifications_to_insert).execute()
+
+        return jsonify({
+            'success':            True,
+            'notifications_sent': len(notifications_to_insert),
+        })
+
+    except Exception as e:
+        print(f"[ERROR] broadcast_manual_rating_notification: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RATING PERIOD UPDATE (country_admin + hq_admin only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/rating-periods/update', methods=['POST'])
+def update_rating_period():
+    try:
+        body      = request.get_json()
+        period    = body.get('period')
+        pms_year  = body.get('pms_year')
+        new_start = body.get('rating_start')
+        new_end   = body.get('rating_end')
+
+        if not all([period, pms_year, new_start, new_end]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        supabase.table('rating_periods') \
+            .update({'rating_start': new_start, 'rating_end': new_end}) \
+            .eq('period', period) \
+            .eq('pms_year', pms_year) \
+            .execute()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RATING SETTINGS OVERVIEW
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/rating-settings/overview/<evaluator_id>', methods=['GET'])
+def get_rating_overview(evaluator_id):
+    try:
+        period   = request.args.get('period', 'H1')
+        pms_year = request.args.get('year', 2025, type=int)
+
+        team_res = supabase.table('users') \
+            .select('id, full_name, role, designation_id, designations(name)') \
+            .eq('manager_id', evaluator_id) \
+            .execute()
+        team = team_res.data or []
+
+        overview = []
+        for member in team:
+            assign_res = supabase.table('template_assignments') \
+                .select('template_id') \
+                .eq('user_id', member['id']) \
+                .limit(1) \
+                .execute()
+
+            if not assign_res.data:
+                continue
+
+            template_id = assign_res.data[0]['template_id']
+            cat_res = supabase.table('categories') \
+                .select('id') \
+                .eq('template_id', template_id) \
+                .execute()
+            cat_ids = [c['id'] for c in (cat_res.data or [])]
+
+            total_manual = 0
+            if cat_ids:
+                obj_res = supabase.table('objectives') \
+                    .select('id') \
+                    .in_('category_id', cat_ids) \
+                    .eq('kpi_scale', 'manual') \
+                    .execute()
+                total_manual = len(obj_res.data or [])
+
+            submitted_res = supabase.table('performance_records') \
+                .select('objective_id') \
+                .eq('user_id', member['id']) \
+                .eq('period', period) \
+                .eq('year', pms_year) \
+                .not_.is_('manual_rating', 'null') \
+                .execute()
+            submitted = len(submitted_res.data or [])
+            pending   = max(0, total_manual - submitted)
+
+            overview.append({
+                'id':          member['id'],
+                'name':        member['full_name'],
+                'role':        member['role'],
+                'designation': (member.get('designations') or {}).get('name', ''),
+                'total':       total_manual,
+                'submitted':   submitted,
+                'pending':     pending,
+                'pct':         round((submitted / total_manual * 100) if total_manual > 0 else 0, 1),
+                'status':      'complete' if pending == 0 and total_manual > 0 else 'pending',
+            })
+
+        return jsonify(overview)
+    except Exception as e:
+        print(f"[ERROR] get_rating_overview: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
