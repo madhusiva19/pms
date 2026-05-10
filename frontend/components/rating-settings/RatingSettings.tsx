@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { Clock, CheckCircle, ChevronDown, ChevronUp, Send, Calendar, Settings } from 'lucide-react';
+import { Clock, CheckCircle, Send, Calendar, Settings, Filter, ChevronDown } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 
@@ -28,17 +28,24 @@ interface TeamMember {
 interface ManualRatingStatus {
   [userId: string]: { submitted: boolean; count: number };
 }
+// deduplicate list by id — guards against duplicate rows from the API
+function dedupe(items: { id: string; name: string }[]): { id: string; name: string }[] {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
 
 function formatDate(d: string) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-// ── Determine closest period to today (auto-select, no toggle) ─────
 function getClosestPeriod(periods: RatingPeriod[]): RatingPeriod | null {
   if (!periods || periods.length === 0) return null;
   const now = Date.now();
-  // Prefer currently open periods; else find nearest by start date
   const open = periods.find(p => p.is_active);
   if (open) return open;
   return periods.reduce((best, cur) => {
@@ -46,13 +53,6 @@ function getClosestPeriod(periods: RatingPeriod[]): RatingPeriod | null {
     const curDiff  = Math.abs(new Date(cur.rating_start).getTime() - now);
     return curDiff < bestDiff ? cur : best;
   });
-}
-
-// ── Rating window state for the Enter Ratings button ──────────────
-// Returns: 'open' | 'closed'
-function ratingWindowState(ratingEnd: string | undefined): 'open' | 'closed' {
-  if (!ratingEnd) return 'closed';
-  return Date.now() > new Date(ratingEnd).getTime() ? 'closed' : 'open';
 }
 
 // ── Design tokens ──────────────────────────────────────────────────
@@ -68,7 +68,6 @@ const TEXT_SUB    = '#4A5565';
 const TEXT_MUTED  = '#6B7280';
 const TEXT_FAINT  = '#9CA3AF';
 
-// ── Table header cell ──────────────────────────────────────────────
 function TH({ children, center, width }: { children: React.ReactNode; center?: boolean; width?: string }) {
   return (
     <th style={{
@@ -84,7 +83,6 @@ function TH({ children, center, width }: { children: React.ReactNode; center?: b
   );
 }
 
-// ── Section header ─────────────────────────────────────────────────
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div style={{
@@ -99,7 +97,6 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
   );
 }
 
-// ── Status pill ────────────────────────────────────────────────────
 function StatusPill({ complete, label }: { complete: boolean; label?: string }) {
   return (
     <span style={{
@@ -115,7 +112,6 @@ function StatusPill({ complete, label }: { complete: boolean; label?: string }) 
   );
 }
 
-// ── Remind button ──────────────────────────────────────────────────
 function RemindBtn({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick} style={{
@@ -124,36 +120,30 @@ function RemindBtn({ onClick }: { onClick: () => void }) {
       border: `1px solid ${BLUE_BORDER}`,
       background: BLUE_LIGHT, color: BLUE,
       fontSize: 12, fontWeight: 600, cursor: 'pointer',
-      fontFamily: 'Inter, sans-serif',
+      fontFamily: 'inherit',
     }}>
       <Send size={10} /> Remind
     </button>
   );
 }
 
-// ── Enter Ratings button — blue when open, amber locked pill when closed ──
-function EnterRatingsBtn({ onClick, windowState }: {
-  onClick: () => void;
-  windowState: 'open' | 'closed';
-}) {
-  if (windowState === 'closed') {
+function EnterRatingsBtn({ onClick, isOpen }: { onClick: () => void; isOpen: boolean }) {
+  if (!isOpen) {
     return (
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '5px 14px', borderRadius: 8,
-        background: '#FEF9C3', color: '#92400E',
-        border: '1px solid #F59E0B',
-        fontSize: 12.5, fontWeight: 600,
-        cursor: 'not-allowed', userSelect: 'none',
-        fontFamily: 'Inter, sans-serif',
-      }}
-        title="Rating period has ended"
+      <button
+        onClick={onClick}
+        style={{
+          padding: '6px 16px', borderRadius: 8,
+          border: 'none', background: BLUE, color: '#fff',
+          fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+          fontFamily: 'inherit', opacity: 0.90,
+        }}
+        title="Rating period is not currently open"
       >
-        🔒 Period Locked
-      </span>
+        Enter Ratings
+      </button>
     );
   }
-
   return (
     <button
       onClick={onClick}
@@ -161,7 +151,7 @@ function EnterRatingsBtn({ onClick, windowState }: {
         padding: '6px 16px', borderRadius: 8,
         border: 'none', background: BLUE, color: '#fff',
         fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-        fontFamily: 'Inter, sans-serif',
+        fontFamily: 'inherit',
       }}
     >
       Enter Ratings
@@ -196,7 +186,7 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
-      <div style={{ background: CARD_BG, borderRadius: 12, padding: 28, width: '90%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ background: CARD_BG, borderRadius: 12, padding: 28, width: '90%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', fontFamily: 'inherit' }}>
         <h3 style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 700, color: TEXT_HEAD }}>Send Reminder</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: TEXT_MUTED }}>To: {name}</p>
         <div style={{ height: 1, background: BORDER, marginBottom: 16 }} />
@@ -204,7 +194,7 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
           width: '100%', padding: '10px 12px', boxSizing: 'border-box',
           border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13,
           color: TEXT_BODY, resize: 'vertical', outline: 'none',
-          fontFamily: 'Inter, sans-serif', background: PAGE_BG, lineHeight: 1.6,
+          fontFamily: 'inherit', background: PAGE_BG, lineHeight: 1.6,
         }} />
         {sent && <p style={{ margin: '10px 0 0', fontSize: 13, color: '#16A34A' }}>✓ Reminder sent successfully!</p>}
         <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
@@ -223,16 +213,184 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
   );
 }
 
+// ── MultiSelect — top-level so it never remounts mid-render ───────
+// Defined OUTSIDE all modals to keep stable identity across re-renders.
+interface OrgItem { id: string; name: string; }
+
+function MultiSelect({
+  label, items, selected, onChange,
+}: {
+  label: string;
+  items: OrgItem[];
+  selected: string[];         // ['all'] means everything selected
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const allSelected = selected.includes('all');
+  const displayLabel = allSelected ? `All ${label}` : `${selected.length} selected`;
+
+  const handleToggleAll = () => {
+    // If currently "all", uncheck all → select none (represent as empty [])
+    // If currently partial/none, select all → ['all']
+    onChange(allSelected ? [] : ['all']);
+  };
+
+  const handleToggleItem = (id: string) => {
+    if (allSelected) {
+      // Deselect this one item; all others remain selected
+      const next = items.map(i => i.id).filter(i => i !== id);
+      onChange(next.length === 0 ? [] : next);
+    } else if (selected.includes(id)) {
+      const next = selected.filter(i => i !== id);
+      onChange(next.length === 0 ? [] : next);
+    } else {
+      const next = [...selected, id];
+      // If every item is now checked, collapse to ['all']
+      onChange(next.length === items.length ? ['all'] : next);
+    }
+  };
+
+  const isChecked = (id: string) => allSelected || selected.includes(id);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_SUB, display: 'block', marginBottom: 5 }}>
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', padding: '8px 12px', borderRadius: 8,
+          border: `1px solid ${open ? BLUE : BORDER}`,
+          background: PAGE_BG, fontSize: 13, color: TEXT_BODY,
+          cursor: 'pointer', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', fontFamily: 'inherit',
+          outline: 'none',
+        }}
+      >
+        <span style={{ color: allSelected || selected.length > 0 ? TEXT_BODY : TEXT_FAINT }}>
+          {displayLabel}
+        </span>
+        <ChevronDown
+          size={13}
+          color={TEXT_MUTED}
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }}
+        />
+      </button>
+
+      {open && (
+        <>
+          {/* Click-away backdrop */}
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 49 }}
+            onClick={() => setOpen(false)}
+          />
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
+            background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            maxHeight: 220, overflowY: 'auto',
+          }}>
+            {/* Select All row */}
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 9,
+              padding: '9px 12px', cursor: 'pointer', fontSize: 13,
+              borderBottom: `1px solid ${BORDER}`, fontWeight: 600, color: BLUE,
+              background: allSelected ? BLUE_LIGHT : CARD_BG,
+            }}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={handleToggleAll}
+                style={{ accentColor: BLUE, width: 14, height: 14 }}
+              />
+              Select All
+            </label>
+
+            {/* Individual items — already deduped before passing in */}
+            {items.map(item => (
+              <label
+                key={item.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 9,
+                  padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                  color: TEXT_BODY, borderBottom: `1px solid ${BORDER}`,
+                  background: isChecked(item.id) ? '#F0F9FF' : CARD_BG,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked(item.id)}
+                  onChange={() => handleToggleItem(item.id)}
+                  style={{ accentColor: BLUE, width: 14, height: 14 }}
+                />
+                {item.name}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Edit Period Modal ──────────────────────────────────────────────
 function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, onSaved }: {
   period: string; pmsYear: number; currentStart: string; currentEnd: string;
   onClose: () => void; onSaved: () => void;
 }) {
+  const { user } = useAuth();
+  const isHQ = user?.role === 'hq_admin';
+
   const [start,  setStart]  = useState(currentStart?.slice(0, 10) ?? '');
   const [end,    setEnd]    = useState(currentEnd?.slice(0, 10) ?? '');
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
   const [error,  setError]  = useState('');
+
+  // Org lists — deduped immediately on set
+  const [countries,   setCountries]   = useState<OrgItem[]>([]);
+  const [branches,    setBranches]    = useState<OrgItem[]>([]);
+  const [departments, setDepartments] = useState<OrgItem[]>([]);
+  const [subDepts,    setSubDepts]    = useState<OrgItem[]>([]);
+
+  // Selections — ['all'] means every item in that list is selected
+  const [selCountries,   setSelCountries]   = useState<string[]>(['all']);
+  const [selBranches,    setSelBranches]    = useState<string[]>(['all']);
+  const [selDepartments, setSelDepartments] = useState<string[]>(['all']);
+  const [selSubDepts,    setSelSubDepts]    = useState<string[]>(['all']);
+
+  useEffect(() => {
+    const uid = user?.id ?? '';
+
+    // Countries — only for HQ admin
+    if (isHQ) {
+      fetch(`${API}/api/org/countries`)
+        .then(r => r.json())
+        .then((d: OrgItem[]) => setCountries(dedupe(d || [])))
+        .catch(() => {});
+    }
+
+    fetch(`${API}/api/org/branches?evaluator_id=${uid}`)
+      .then(r => r.json())
+      .then((d: OrgItem[]) => setBranches(dedupe(d || [])))
+      .catch(() => {});
+
+    fetch(`${API}/api/org/departments?evaluator_id=${uid}`)
+      .then(r => r.json())
+      .then((d: OrgItem[]) => setDepartments(dedupe(d || [])))
+      .catch(() => {});
+
+    fetch(`${API}/api/org/sub-departments?evaluator_id=${uid}`)
+      .then(r => r.json())
+      .then((d: OrgItem[]) => setSubDepts(dedupe(d || [])))
+      .catch(() => {});
+  }, [user?.id, isHQ]);
+
+  const resolve = (sel: string[], list: OrgItem[]) =>
+    sel.includes('all') ? list.map(i => i.id) : sel;
 
   const handleSave = async () => {
     if (!start || !end)                   { setError('Both dates are required.'); return; }
@@ -241,7 +399,16 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
     try {
       const res = await fetch(`${API}/api/rating-periods/update`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ period, pms_year: pmsYear, rating_start: start, rating_end: end }),
+        body: JSON.stringify({
+          period,
+          pms_year:             pmsYear,
+          rating_start:         start,
+          rating_end:           end,
+          affected_countries:   isHQ ? resolve(selCountries,   countries)   : undefined,
+          affected_branches:    resolve(selBranches,    branches),
+          affected_departments: resolve(selDepartments, departments),
+          affected_sub_depts:   resolve(selSubDepts,    subDepts),
+        }),
       });
       if (!res.ok) throw new Error();
       setSaved(true);
@@ -253,15 +420,22 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
     border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13,
-    outline: 'none', fontFamily: 'Inter, sans-serif', color: TEXT_BODY, background: PAGE_BG,
+    outline: 'none', fontFamily: 'inherit', color: TEXT_BODY, background: PAGE_BG,
   };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
-      <div style={{ background: CARD_BG, borderRadius: 12, padding: 28, width: '90%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{
+        background: CARD_BG, borderRadius: 12, padding: 28,
+        width: '90%', maxWidth: 500,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.15)', fontFamily: 'inherit',
+        maxHeight: '90vh', overflowY: 'auto',
+      }}>
         <h3 style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 700, color: TEXT_HEAD }}>Edit Rating Period</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: TEXT_MUTED }}>{period} {pmsYear}</p>
-        <div style={{ height: 1, background: BORDER, marginBottom: 16 }} />
+        <div style={{ height: 1, background: BORDER, marginBottom: 18 }} />
+
+        {/* ── Date pickers ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_SUB, display: 'block', marginBottom: 6 }}>Rating Start</label>
@@ -272,15 +446,71 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
             <input type="date" value={end} onChange={e => setEnd(e.target.value)} style={inputStyle} />
           </div>
         </div>
-        {error && <p style={{ color: '#DC2626', fontSize: 12, margin: '10px 0 0' }}>{error}</p>}
-        {saved && <p style={{ color: '#16A34A', fontSize: 12, margin: '10px 0 0' }}>Period updated successfully!</p>}
-        <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 8, border: `1px solid ${BORDER}`, background: CARD_BG, fontSize: 13, cursor: 'pointer', color: TEXT_BODY, fontWeight: 600 }}>Cancel</button>
+
+        {/* ── Apply To — role-scoped org filters ── */}
+        <div style={{ marginTop: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14,
+            paddingBottom: 10, borderBottom: `1px solid ${BORDER}` }}>
+            <Filter size={13} color={BLUE} />
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: TEXT_HEAD }}>Apply To</span>
+            <span style={{ fontSize: 11.5, color: TEXT_MUTED }}>— select which units are affected</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Countries: only visible to HQ admin */}
+            {isHQ && countries.length > 0 && (
+              <MultiSelect
+                label="Countries"
+                items={countries}
+                selected={selCountries}
+                onChange={setSelCountries}
+              />
+            )}
+
+            {branches.length > 0 && (
+              <MultiSelect
+                label="Branches"
+                items={branches}
+                selected={selBranches}
+                onChange={setSelBranches}
+              />
+            )}
+
+            {departments.length > 0 && (
+              <MultiSelect
+                label="Departments"
+                items={departments}
+                selected={selDepartments}
+                onChange={setSelDepartments}
+              />
+            )}
+
+            {subDepts.length > 0 && (
+              <MultiSelect
+                label="Sub-Departments"
+                items={subDepts}
+                selected={selSubDepts}
+                onChange={setSelSubDepts}
+              />
+            )}
+          </div>
+        </div>
+
+        {error && <p style={{ color: '#DC2626', fontSize: 12, margin: '12px 0 0' }}>{error}</p>}
+        {saved && <p style={{ color: '#16A34A', fontSize: 12, margin: '12px 0 0' }}>Period updated successfully!</p>}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{
+            padding: '7px 16px', borderRadius: 8,
+            border: `1px solid ${BORDER}`, background: CARD_BG,
+            fontSize: 13, cursor: 'pointer', color: TEXT_BODY, fontWeight: 600,
+          }}>Cancel</button>
           <button onClick={handleSave} disabled={saving || saved} style={{
             padding: '7px 18px', borderRadius: 8, border: 'none',
             background: saved ? '#16A34A' : BLUE, color: '#fff',
             fontSize: 13, fontWeight: 600,
-            cursor: (saving || saved) ? 'not-allowed' : 'pointer', opacity: saving ? 0.8 : 1,
+            cursor: (saving || saved) ? 'not-allowed' : 'pointer',
+            opacity: saving ? 0.8 : 1,
           }}>
             {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
           </button>
@@ -305,17 +535,13 @@ export default function RatingSettings() {
   const [team,           setTeam]           = useState<TeamMember[]>([]);
   const [ratingStatus,   setRatingStatus]   = useState<ManualRatingStatus>({});
   const [loading,        setLoading]        = useState(true);
-  const [expandedRows,   setExpandedRows]   = useState<Record<string, boolean>>({});
   const [reminderTarget, setReminderTarget] = useState<OverviewMember | TeamMember | null>(null);
   const [editPeriodOpen, setEditPeriodOpen] = useState(false);
 
-  // Always use H2 2025 — most recent data in DB
-  const FIXED_YEAR   = 2025;
-  const FIXED_PERIOD = 'H2';
-
-  const pmsYear        = activePeriod?.pms_year ?? FIXED_YEAR;
-  const selectedPeriod = activePeriod?.period   ?? FIXED_PERIOD;
-  const winState     = ratingWindowState(activePeriod?.rating_end);
+  // Derive period/year from activePeriod — never hardcoded
+  const pmsYear        = activePeriod?.pms_year    ?? new Date().getFullYear();
+  const selectedPeriod = activePeriod?.period      ?? 'H1';
+  const ratingIsOpen   = periodData?.rating_open   ?? false;
 
   const fetchAll = useCallback(async () => {
     if (!evaluatorId) return;
@@ -323,7 +549,7 @@ export default function RatingSettings() {
     try {
       const [periodRes, overviewRes, teamRes] = await Promise.all([
         fetch(`${API}/api/rating-periods/current`),
-        fetch(`${API}/api/rating-settings/overview/${evaluatorId}?period=H2&year=2025`),
+        fetch(`${API}/api/rating-settings/overview/${evaluatorId}`),   // no hardcoded year/period — backend picks active
         fetch(`${API}/api/evaluator/${evaluatorId}/team`),
       ]);
       const periodJson   = await periodRes.json();
@@ -332,19 +558,23 @@ export default function RatingSettings() {
 
       setPeriodData(periodJson);
 
-      // Pin to H2 2025 — most recent data in DB
-      const h2 = periodJson?.periods?.find((p: RatingPeriod) => p.period === 'H2' && p.pms_year === 2025)
-              ?? getClosestPeriod(periodJson?.periods ?? []);
-      setActivePeriod(h2);
+      // Use the currently open/closest period from the API — no hardcoding
+      const best = periodJson?.periods?.find((p: RatingPeriod) => p.is_active && p.period === periodJson.active_period)
+                ?? getClosestPeriod(periodJson?.periods ?? []);
+      setActivePeriod(best ?? null);
 
       setOverview(Array.isArray(overviewJson) ? overviewJson : []);
       setTeam(Array.isArray(teamJson) ? teamJson : []);
+
+      // Fetch rating status for each team member using the active period from API
+      const activePer  = best?.period    ?? 'H1';
+      const activeYear = best?.pms_year  ?? new Date().getFullYear();
 
       if (Array.isArray(teamJson) && teamJson.length > 0) {
         const statuses: ManualRatingStatus = {};
         await Promise.all(teamJson.map(async (m: TeamMember) => {
           try {
-            const res  = await fetch(`${API}/api/manual-objectives/${m.id}?year=2025&period=H2`);
+            const res  = await fetch(`${API}/api/manual-objectives/${m.id}?year=${activeYear}&period=${activePer}`);
             const data = await res.json();
             if (Array.isArray(data)) {
               const submitted = data.filter((o: { manual_rating: number | null }) => o.manual_rating !== null).length;
@@ -360,8 +590,6 @@ export default function RatingSettings() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const toggleRow = (id: string) => setExpandedRows(p => ({ ...p, [id]: !p[id] }));
-
   if (loading) return (
     <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: TEXT_MUTED, fontSize: 14 }}>Loading…</div>
   );
@@ -373,7 +601,6 @@ export default function RatingSettings() {
       padding: '32px',
     }}>
 
-      {/* Modals */}
       {reminderTarget && (
         <ReminderModal
           member={reminderTarget} period={selectedPeriod} pmsYear={pmsYear}
@@ -397,8 +624,8 @@ export default function RatingSettings() {
           <span style={{ color: TEXT_HEAD }}>Rating Settings</span>
         </div>
 
-        {/* Page header — period chip styled grey/neutral so it looks read-only */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        {/* Page header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 600, color: TEXT_HEAD, margin: '0 0 6px' }}>Rating Settings</h1>
             <p style={{ fontSize: 15, color: TEXT_SUB, margin: 0 }}>Manage manual ratings and monitor team progress</p>
@@ -417,27 +644,22 @@ export default function RatingSettings() {
         </div>
 
         {/* ── Rating Period Banner ──────────────────────────────── */}
-        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, padding: '18px 24px', marginBottom: 24 }}>
+        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, padding: '18px 24px', marginBottom: 40 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
                 <Calendar size={14} color={BLUE} />
                 <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: TEXT_HEAD }}>
-                  Rating Period — {selectedPeriod} {activePeriod?.pms_year ?? 2025}
+                  Rating Period — {selectedPeriod} {activePeriod?.pms_year ?? new Date().getFullYear()}
                 </h3>
                 <span style={{
                   padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                  background: periodData?.rating_open ? '#DCFCE7' : '#FEF9C3',
-                  color:      periodData?.rating_open ? '#166534' : '#854D0E',
-                  border:     `1px solid ${periodData?.rating_open ? '#BBF7D0' : '#FDE047'}`,
+                  background: ratingIsOpen ? '#DCFCE7' : '#FEF9C3',
+                  color:      ratingIsOpen ? '#166534' : '#854D0E',
+                  border:     `1px solid ${ratingIsOpen ? '#BBF7D0' : '#FDE047'}`,
                 }}>
-                  {periodData?.rating_open ? '● Open' : '● Closed'}
+                  {ratingIsOpen ? '● Open' : '● Closed'}
                 </span>
-                {winState === 'closed' && (
-                  <span style={{ padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: '#FEF9C3', color: '#92400E', border: '1px solid #F59E0B' }}>
-                    🔒 Locked
-                  </span>
-                )}
               </div>
               <p style={{ margin: 0, fontSize: 12.5, color: TEXT_MUTED }}>
                 {activePeriod
@@ -450,7 +672,7 @@ export default function RatingSettings() {
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '7px 14px', borderRadius: 10,
                 border: `1px solid ${BLUE_BORDER}`, background: BLUE_LIGHT, color: BLUE,
-                fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
               }}>
                 <Settings size={13} /> Edit Period
               </button>
@@ -459,12 +681,12 @@ export default function RatingSettings() {
         </div>
 
         {/* ══════════════════════════════════════════════════════════
-            MY TEAM — MANUAL RATINGS
+            MY TEAM — MANUAL RATING REQUIRED
         ══════════════════════════════════════════════════════════ */}
-        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
+        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden', marginBottom: 40 }}>
           <SectionHeader
-            title="My Team — Manual Ratings"
-            subtitle="Enter and manage manual KPI ratings for each team member"
+            title="Team Members Requiring Manual Ratings"
+            subtitle={`Enter manual KPI ratings for each team member · ${selectedPeriod} ${pmsYear}`}
           />
 
           {team.length === 0 ? (
@@ -496,6 +718,9 @@ export default function RatingSettings() {
                       >
                         <td style={{ padding: '12px 20px 12px 28px' }}>
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: TEXT_HEAD }}>{member.full_name}</div>
+                          {member.designation && (
+                            <div style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 2 }}>{member.designation}</div>
+                          )}
                         </td>
                         <td style={{ padding: '12px 20px', textAlign: 'center' }}>
                           {status ? (
@@ -509,8 +734,8 @@ export default function RatingSettings() {
                         </td>
                         <td style={{ padding: '12px 20px', textAlign: 'center' }}>
                           <EnterRatingsBtn
-                            windowState={winState}
-                            onClick={() => router.push(`/${roleSlug}/manual-rating?userId=${member.id}&year=2025&period=H2`)}
+                            isOpen={ratingIsOpen}
+                            onClick={() => router.push(`/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}`)}
                           />
                         </td>
                       </tr>
@@ -523,12 +748,12 @@ export default function RatingSettings() {
         </div>
 
         {/* ══════════════════════════════════════════════════════════
-            RATING OVERVIEW
+            RATING OVERVIEW  — no expand/collapse, no submitted/pending cols
         ══════════════════════════════════════════════════════════ */}
-        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
+        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden', marginBottom: 40 }}>
           <SectionHeader
-            title="Rating Overview"
-            subtitle="Track how many members have completed their manual KPI submissions"
+            title="Manual Rating Completion Overview"
+            subtitle="Track completion progress of manual KPI submissions across your team"
           />
 
           {overview.length === 0 ? (
@@ -539,93 +764,60 @@ export default function RatingSettings() {
                 <thead>
                   <tr>
                     <TH>Member</TH>
-                    <TH center width="100px">To Rate</TH>
-                    <TH center width="110px">Submitted</TH>
-                    <TH center width="100px">Pending</TH>
-                    <TH width="180px">Completion</TH>
+                    <TH center width="110px">Total KPIs</TH>
+                    <TH width="220px">Completion</TH>
                     <TH center width="120px">Status</TH>
                     <TH center width="130px">Actions</TH>
                   </tr>
                 </thead>
                 <tbody>
-                  {overview.map(member => (
-                    <Fragment key={member.id}>
-                      <tr
-                        style={{ borderBottom: `1px solid ${BORDER}`, background: CARD_BG }}
-                        onMouseEnter={e => (e.currentTarget.style.background = PAGE_BG)}
-                        onMouseLeave={e => (e.currentTarget.style.background = CARD_BG)}
-                      >
-                        <td style={{ padding: '12px 20px 12px 20px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <button onClick={() => toggleRow(member.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: TEXT_MUTED, display: 'flex', flexShrink: 0 }}>
-                              {expandedRows[member.id] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                            </button>
-                            <span style={{ fontSize: 13.5, fontWeight: 600, color: TEXT_HEAD }}>{member.name}</span>
-                          </div>
-                        </td>
-
-                        <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: BLUE }}>{member.total}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: '#16A34A' }}>{member.submitted}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: member.pending > 0 ? '#D97706' : '#16A34A' }}>{member.pending}</td>
-
-                        <td style={{ padding: '12px 20px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ flex: 1, height: 6, background: BORDER, borderRadius: 99, overflow: 'hidden' }}>
-                              <div style={{
-                                width: `${member.pct}%`, height: '100%', borderRadius: 99,
-                                background: member.pct === 100 ? '#16A34A' : BLUE,
-                                transition: 'width 0.4s',
-                              }} />
-                            </div>
-                            <span style={{ fontSize: 11.5, color: TEXT_MUTED, minWidth: 36, fontWeight: 600 }}>{member.pct}%</span>
-                          </div>
-                        </td>
-
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                          <StatusPill complete={member.status === 'complete'} />
-                        </td>
-
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                          {member.pending > 0
-                            ? <RemindBtn onClick={() => setReminderTarget(member)} />
-                            : <span style={{ fontSize: 12, color: TEXT_FAINT }}>—</span>
-                          }
-                        </td>
-                      </tr>
-
-                      {expandedRows[member.id] && (
-                        <tr>
-                          <td colSpan={7} style={{ padding: '8px 20px 14px 50px', background: PAGE_BG, borderBottom: `1px solid ${BORDER}` }}>
-                            <p style={{ margin: 0, fontSize: 12.5, color: TEXT_MUTED, lineHeight: 1.7 }}>
-                              <strong style={{ color: TEXT_HEAD }}>{member.name}</strong> has submitted{' '}
-                              <strong style={{ color: '#16A34A' }}>{member.submitted}</strong> of{' '}
-                              <strong style={{ color: TEXT_HEAD }}>{member.total}</strong> manual KPIs for H2 2025.
-                              {member.pending > 0 && (
-                                <span style={{ color: '#D97706', fontWeight: 600 }}> {member.pending} still pending.</span>
-                              )}
-                            </p>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  ))}
-                </tbody>
-
-                {overview.length > 0 && (
-                  <tfoot>
-                    <tr style={{ background: BLUE_LIGHT, borderTop: `2px solid ${BLUE_BORDER}` }}>
-                      <td style={{ padding: '10px 20px', fontSize: 12.5, fontWeight: 700, color: BLUE }}>Team Summary</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: BLUE }}>{overview.length}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#16A34A' }}>{overview.filter(m => m.status === 'complete').length}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: overview.some(m => m.pending > 0) ? '#D97706' : '#16A34A' }}>
-                        {overview.filter(m => m.status !== 'complete').length}
+                  {overview.map((member, idx) => (
+                    <tr
+                      key={member.id}
+                      style={{
+                        borderBottom: idx === overview.length - 1 ? 'none' : `1px solid ${BORDER}`,
+                        background: CARD_BG,
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = PAGE_BG)}
+                      onMouseLeave={e => (e.currentTarget.style.background = CARD_BG)}
+                    >
+                      <td style={{ padding: '12px 20px' }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: TEXT_HEAD }}>{member.name}</div>
+                        {member.designation && (
+                          <div style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 2 }}>{member.designation}</div>
+                        )}
                       </td>
-                      <td colSpan={3} style={{ padding: '10px 20px', fontSize: 12, color: TEXT_SUB }}>
-                        {overview.filter(m => m.status === 'complete').length} of {overview.length} members fully submitted
+
+                      <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: BLUE }}>
+                        {member.total}
+                      </td>
+
+                      <td style={{ padding: '12px 20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ flex: 1, height: 6, background: BORDER, borderRadius: 99, overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${member.pct}%`, height: '100%', borderRadius: 99,
+                              background: member.pct === 100 ? '#16A34A' : BLUE,
+                              transition: 'width 0.4s',
+                            }} />
+                          </div>
+                          <span style={{ fontSize: 11.5, color: TEXT_MUTED, minWidth: 36, fontWeight: 600 }}>{member.pct}%</span>
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <StatusPill complete={member.status === 'complete'} />
+                      </td>
+
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        {member.pending > 0
+                          ? <RemindBtn onClick={() => setReminderTarget(member)} />
+                          : <span style={{ fontSize: 12, color: TEXT_FAINT }}>—</span>
+                        }
                       </td>
                     </tr>
-                  </tfoot>
-                )}
+                  ))}
+                </tbody>
               </table>
             </div>
           )}
