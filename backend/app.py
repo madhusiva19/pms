@@ -15,7 +15,6 @@ supabase = create_client(
     os.getenv("SUPABASE_KEY")
 )
 
-# FIX 8: corrected to match the actual HQ admin UUID in the database
 LOCKED_ADMIN_UUID = os.getenv("LOCKED_ADMIN_UUID", "00000000-0000-0000-0000-000000000001")
 
 
@@ -45,8 +44,6 @@ def get_template(template_id):
         cat_res = supabase.table('categories').select('*').eq('template_id', template_id).order('id').execute()
         categories = cat_res.data or []
 
-        # FIX: filter objectives by category_id at DB level instead of
-        # fetching all objectives and filtering in Python
         cat_ids = [c['id'] for c in categories]
         all_objectives = []
         if cat_ids:
@@ -192,7 +189,6 @@ def assign_employees(template_id):
 
         requested_ids = [str(uid) for uid in body.get('employee_ids', [])]
 
-        # FIX 8: LOCKED_ADMIN_UUID now correctly matches the HQ admin in the DB
         if LOCKED_ADMIN_UUID in requested_ids:
             return jsonify({
                 'error': (
@@ -202,29 +198,24 @@ def assign_employees(template_id):
                 'locked_employee_id': LOCKED_ADMIN_UUID,
             }), 403
 
-        # FIX: warn caller when employee_ids is empty instead of silently
-        # wiping all assignments for the template
         if not requested_ids:
             return jsonify({
                 'error': 'employee_ids cannot be empty. '
                          'Pass at least one employee ID to assign.',
             }), 400
 
-        # Remove these employees from any OTHER template they were on
         supabase.table('template_assignments') \
             .delete() \
             .in_('user_id', requested_ids) \
             .neq('template_id', template_id) \
             .execute()
 
-        # Clear everyone currently on THIS template (except locked admin)
         supabase.table('template_assignments') \
             .delete() \
             .eq('template_id', template_id) \
             .neq('user_id', LOCKED_ADMIN_UUID) \
             .execute()
 
-        # Insert new assignments
         rows = [{'template_id': template_id, 'user_id': uid} for uid in requested_ids]
         supabase.table('template_assignments').insert(rows).execute()
 
@@ -462,6 +453,38 @@ def _load_scale_meta():
 
 
 # ─────────────────────────────────────────────────────────────────────
+# HELPER: resolve the current active period (year + period label)
+# Returns (pms_year: int, period: str) from the active rating_periods row.
+# Falls back to the current calendar year and 'H1' if nothing is active.
+# ─────────────────────────────────────────────────────────────────────
+
+def _active_period_params():
+    """Return (year, period) from the currently active rating_period row."""
+    from datetime import date
+    today = date.today()
+
+    result = supabase.table('rating_periods') \
+        .select('pms_year, period, rating_start, rating_end') \
+        .eq('is_active', True) \
+        .execute()
+
+    for rp in (result.data or []):
+        start = rp.get('rating_start')
+        end   = rp.get('rating_end')
+        if start and end:
+            if date.fromisoformat(str(start)[:10]) <= today <= date.fromisoformat(str(end)[:10]):
+                return int(rp['pms_year']), rp['period']
+
+    # No open window — return the most recent active period row by year
+    if result.data:
+        latest = sorted(result.data, key=lambda r: (r['pms_year'], r['period']), reverse=True)[0]
+        return int(latest['pms_year']), latest['period']
+
+    # Absolute fallback: current year, H1
+    return today.year, 'H1'
+
+
+# ─────────────────────────────────────────────────────────────────────
 # HELPER: upsert total score into performance_summaries
 # ─────────────────────────────────────────────────────────────────────
 
@@ -482,8 +505,6 @@ def _patch_total_score(user_id: str, year: int, period: str) -> float:
         'total_score': total,
     }, on_conflict='user_id,year,period').execute()
 
-    # FIX 2: evaluations now has a unique constraint on (user_id, period, year)
-    # so this upsert is safe and will never create duplicates
     supabase.table('evaluations').upsert({
         'user_id':       user_id,
         'evaluator_id':  user_id,
@@ -626,7 +647,7 @@ def get_performance(user_id, year, period):
 @app.route('/api/performance/<user_id>/summary', methods=['GET'])
 def get_performance_summary(user_id):
     try:
-        year = int(request.args.get('year', 2025))
+        year = int(request.args.get('year', _active_period_params()[0]))
         records = supabase.table('performance_records') \
             .select('period, score') \
             .eq('user_id', user_id) \
@@ -661,7 +682,6 @@ def evaluator_submit():
         if not all([user_id, evaluator_id, year, period]):
             return jsonify({'error': 'Missing required fields'}), 400
 
-        # FIX: empty ratings list is valid — nothing to save, return early
         if not ratings:
             return jsonify({
                 'success':     True,
@@ -727,8 +747,10 @@ def evaluator_submit():
 def get_pending_evaluations():
     try:
         user_id = request.args.get('user_id')
-        year    = request.args.get('year', 2025)
-        period  = request.args.get('period', 'H1')
+        # FIX: use active period from DB instead of hardcoded defaults
+        active_year, active_period = _active_period_params()
+        year   = request.args.get('year',   active_year)
+        period = request.args.get('period', active_period)
 
         if not user_id:
             return jsonify({'error': 'user_id required'}), 400
@@ -919,13 +941,17 @@ def get_evaluator_team(evaluator_id):
 
 # ─────────────────────────────────────────────────────────────────────
 # MANUAL OBJECTIVES FOR A USER
+# FIX: year and period now default to the currently active period from DB
+#      instead of hardcoded 2026/H1
 # ─────────────────────────────────────────────────────────────────────
 
 @app.route('/api/manual-objectives/<user_id>', methods=['GET'])
 def get_manual_objectives(user_id):
     try:
-        year   = request.args.get('year',   2026, type=int)
-        period = request.args.get('period', 'H1')
+        # Resolve defaults dynamically from the active rating period
+        active_year, active_period = _active_period_params()
+        year   = request.args.get('year',   active_year, type=int)
+        period = request.args.get('period', active_period)
 
         assign_res = supabase.table('template_assignments') \
             .select('template_id') \
@@ -1069,15 +1095,86 @@ def get_current_rating_period():
 
 
 # ─────────────────────────────────────────────────────────────────────
+# RATING SETTINGS OVERVIEW
+# FIX: year and period now default to the currently active period from DB
+# ─────────────────────────────────────────────────────────────────────
+
+@app.route('/api/rating-settings/overview/<evaluator_id>', methods=['GET'])
+def get_rating_overview(evaluator_id):
+    try:
+        # Resolve defaults dynamically
+        active_year, active_period_str = _active_period_params()
+        period   = request.args.get('period', active_period_str)
+        pms_year = request.args.get('year',   active_year, type=int)
+
+        team_res = supabase.table('users') \
+            .select('id, full_name, role, designation_id, designations(name)') \
+            .eq('manager_id', evaluator_id) \
+            .execute()
+        team = team_res.data or []
+
+        overview = []
+        for member in team:
+            assign_res = supabase.table('template_assignments') \
+                .select('template_id') \
+                .eq('user_id', member['id']) \
+                .limit(1) \
+                .execute()
+
+            if not assign_res.data:
+                continue
+
+            template_id = assign_res.data[0]['template_id']
+            cat_res = supabase.table('categories') \
+                .select('id') \
+                .eq('template_id', template_id) \
+                .execute()
+            cat_ids = [c['id'] for c in (cat_res.data or [])]
+
+            total_manual = 0
+            if cat_ids:
+                obj_res = supabase.table('objectives') \
+                    .select('id') \
+                    .in_('category_id', cat_ids) \
+                    .eq('kpi_scale', 'manual') \
+                    .execute()
+                total_manual = len(obj_res.data or [])
+
+            submitted_res = supabase.table('performance_records') \
+                .select('objective_id') \
+                .eq('user_id', member['id']) \
+                .eq('period', period) \
+                .eq('year', pms_year) \
+                .not_.is_('manual_rating', 'null') \
+                .execute()
+            submitted = len(submitted_res.data or [])
+            pending   = max(0, total_manual - submitted)
+
+            overview.append({
+                'id':          member['id'],
+                'name':        member['full_name'],
+                'role':        member['role'],
+                'designation': (member.get('designations') or {}).get('name', ''),
+                'total':       total_manual,
+                'submitted':   submitted,
+                'pending':     pending,
+                'pct':         round((submitted / total_manual * 100) if total_manual > 0 else 0, 1),
+                'status':      'complete' if pending == 0 and total_manual > 0 else 'pending',
+            })
+
+        return jsonify(overview)
+    except Exception as e:
+        print(f"[ERROR] get_rating_overview: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────
 # SUPERVISOR FEEDBACK
 # ─────────────────────────────────────────────────────────────────────
 
 @app.route('/api/feedback/<user_id>/<int:year>/<period>', methods=['GET'])
 def get_supervisor_feedback(user_id, year, period):
     try:
-        # FIX 2+3: evaluations and feedback now both have unique constraints
-        # so this query will reliably return at most one evaluation and one
-        # feedback row — no more random results from duplicates
         eval_res = supabase.table('evaluations') \
             .select('id, evaluator_id, users!evaluations_evaluator_id_fkey(full_name, designation_id, designations(name))') \
             .eq('user_id', user_id) \
@@ -1147,8 +1244,6 @@ def get_current_pms_cycle():
     try:
         from datetime import date
 
-        # FIX 5: pms_cycles now has UNIQUE(pms_year) so .limit(1) is
-        # reliable — there will never be two active rows for the same year
         result = supabase.table('pms_cycles') \
             .select('*') \
             .eq('is_active', True) \
@@ -1209,27 +1304,153 @@ def get_current_pms_cycle():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/routes')
-def list_routes():
-    return jsonify([str(rule) for rule in app.url_map.iter_rules()])
+# ─────────────────────────────────────────────────────────────────────
+# ORG HIERARCHY — for rating period filter selectors
+# Returns countries / branches / departments / sub-departments
+# scoped to the calling evaluator's role:
+#   hq_admin     → all countries, all branches/depts/sub-depts
+#   country_admin → branches/depts/sub-depts in their own country
+#   branch_admin  → own branch only
+# ─────────────────────────────────────────────────────────────────────
+
+def _get_evaluator_role(evaluator_id: str):
+    """Return (role, country_id) for the given evaluator."""
+    res = supabase.table('users') \
+        .select('role, country_id') \
+        .eq('id', evaluator_id) \
+        .limit(1) \
+        .execute()
+    if res.data:
+        return res.data[0].get('role'), res.data[0].get('country_id')
+    return None, None
 
 
-@app.route('/api/users/by-email', methods=['GET'])
-def get_user_by_email():
-    email = request.args.get('email', '').strip()
-    if not email:
-        return jsonify({'error': 'email required'}), 400
+@app.route('/api/org/countries', methods=['GET'])
+def get_org_countries():
+    """Return all countries. Only meaningful for hq_admin."""
     try:
-        result = supabase.table('users') \
-            .select('id, email, full_name, role') \
-            .eq('email', email) \
-            .limit(1) \
-            .execute()
-        if not result.data:
-            return jsonify({'error': 'User not found'}), 404
-        return jsonify(result.data[0])
+        res = supabase.table('countries').select('id, name').order('name').execute()
+        return jsonify(res.data or [])
     except Exception as e:
-        print(f"[ERROR] get_user_by_email: {e}")
+        print(f"[ERROR] get_org_countries: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/org/branches', methods=['GET'])
+def get_org_branches():
+    """Return branches visible to the evaluator."""
+    try:
+        evaluator_id = request.args.get('evaluator_id', '')
+        role, country_id = _get_evaluator_role(evaluator_id)
+
+        query = supabase.table('branches').select('id, name, country_id').order('name')
+        if role == 'country_admin' and country_id:
+            query = query.eq('country_id', country_id)
+        # hq_admin gets all; branch/dept admins get their own handled client-side
+
+        res = query.execute()
+        return jsonify(res.data or [])
+    except Exception as e:
+        print(f"[ERROR] get_org_branches: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/org/departments', methods=['GET'])
+def get_org_departments():
+    """Return departments visible to the evaluator."""
+    try:
+        evaluator_id = request.args.get('evaluator_id', '')
+        role, country_id = _get_evaluator_role(evaluator_id)
+
+        query = supabase.table('departments').select('id, name, branch_id').order('name')
+
+        if role == 'country_admin' and country_id:
+            # Join through branches to filter by country
+            branch_res = supabase.table('branches') \
+                .select('id') \
+                .eq('country_id', country_id) \
+                .execute()
+            branch_ids = [b['id'] for b in (branch_res.data or [])]
+            if branch_ids:
+                query = query.in_('branch_id', branch_ids)
+            else:
+                return jsonify([])
+
+        res = query.execute()
+        return jsonify(res.data or [])
+    except Exception as e:
+        print(f"[ERROR] get_org_departments: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/org/sub-departments', methods=['GET'])
+def get_org_sub_departments():
+    """Return sub-departments visible to the evaluator."""
+    try:
+        evaluator_id = request.args.get('evaluator_id', '')
+        role, country_id = _get_evaluator_role(evaluator_id)
+
+        query = supabase.table('sub_departments').select('id, name, department_id').order('name')
+
+        if role == 'country_admin' and country_id:
+            branch_res = supabase.table('branches') \
+                .select('id') \
+                .eq('country_id', country_id) \
+                .execute()
+            branch_ids = [b['id'] for b in (branch_res.data or [])]
+            if branch_ids:
+                dept_res = supabase.table('departments') \
+                    .select('id') \
+                    .in_('branch_id', branch_ids) \
+                    .execute()
+                dept_ids = [d['id'] for d in (dept_res.data or [])]
+                if dept_ids:
+                    query = query.in_('department_id', dept_ids)
+                else:
+                    return jsonify([])
+            else:
+                return jsonify([])
+
+        res = query.execute()
+        return jsonify(res.data or [])
+    except Exception as e:
+        print(f"[ERROR] get_org_sub_departments: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────
+# RATING PERIOD UPDATE (country_admin + hq_admin only)
+# ─────────────────────────────────────────────────────────────────────
+
+@app.route('/api/rating-periods/update', methods=['POST'])
+def update_rating_period():
+    try:
+        body      = request.get_json()
+        period    = body.get('period')
+        pms_year  = body.get('pms_year')
+        new_start = body.get('rating_start')
+        new_end   = body.get('rating_end')
+
+        if not all([period, pms_year, new_start, new_end]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        supabase.table('rating_periods') \
+            .update({'rating_start': new_start, 'rating_end': new_end}) \
+            .eq('period', period) \
+            .eq('pms_year', pms_year) \
+            .execute()
+
+        # Optional: log which org units were affected (stored for audit)
+        affected = {
+            'affected_countries':   body.get('affected_countries', []),
+            'affected_branches':    body.get('affected_branches', []),
+            'affected_departments': body.get('affected_departments', []),
+            'affected_sub_depts':   body.get('affected_sub_depts', []),
+        }
+        print(f"[INFO] Rating period {period} {pms_year} updated. Affected units: {affected}")
+
+        return jsonify({'success': True})
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
@@ -1262,12 +1483,9 @@ def mark_manual_rating_notification_read(notif_id):
         return jsonify({'error': str(e)}), 500
 
 
-# FIX 5: New endpoint — lets users permanently delete a notification
 @app.route('/api/manual-rating-notifications/<notif_id>', methods=['DELETE'])
 def delete_manual_rating_notification(notif_id):
     try:
-        # Optional: pass recipient_id as query param so we only delete
-        # notifications that actually belong to this user
         recipient_id = request.args.get('recipient_id')
         query = supabase.table('manual_rating_notifications') \
             .delete() \
@@ -1293,8 +1511,6 @@ def send_manual_rating_reminder():
         if not all([sender_id, recipient_id, period, pms_year]):
             return jsonify({'error': 'Missing required fields'}), 400
 
-        # FIX 4: Verify the recipient actually reports to the sender
-        # so no one can spam arbitrary users
         recipient_res = supabase.table('users') \
             .select('id, full_name, manager_id') \
             .eq('id', recipient_id) \
@@ -1346,8 +1562,6 @@ def broadcast_manual_rating_notification():
         if not all([notif_type, period, pms_year]):
             return jsonify({'error': 'Missing required fields'}), 400
 
-        # FIX 2: Deduplication guard — prevent double-broadcasting the same
-        # event type for the same period/year (e.g. if called twice by accident)
         if notif_type == 'period_opened':
             existing_check = supabase.table('manual_rating_notifications') \
                 .select('id') \
@@ -1364,7 +1578,6 @@ def broadcast_manual_rating_notification():
                     'notifications_sent': 0,
                 }), 200
 
-        # Evaluator roles that can have manual KPIs to rate
         evaluator_roles = ['branch_admin', 'dept_admin', 'sub_dept_admin', 'country_admin']
         evaluators_res = supabase.table('users') \
             .select('id, full_name, manager_id, role') \
@@ -1372,8 +1585,6 @@ def broadcast_manual_rating_notification():
             .execute()
         evaluators = evaluators_res.data or []
 
-        # FIX 3: Pre-fetch all manager_ids that actually exist so we can
-        # skip inserts for stale / null manager references
         all_manager_ids = list({
             e['manager_id'] for e in evaluators
             if e.get('manager_id')
@@ -1389,8 +1600,6 @@ def broadcast_manual_rating_notification():
         notifications_to_insert = []
 
         for evaluator in evaluators:
-            # Resolve how many manual KPIs this evaluator has and how many
-            # they've already submitted for this period
             assign_res = supabase.table('template_assignments') \
                 .select('template_id') \
                 .eq('user_id', evaluator['id']) \
@@ -1426,13 +1635,10 @@ def broadcast_manual_rating_notification():
             submitted = len(submitted_res.data or [])
             pending   = max(0, total_manual - submitted)
 
-            manager_id = evaluator.get('manager_id')
-            # FIX 3: Only use manager_id if it resolves to a real user
+            manager_id    = evaluator.get('manager_id')
             valid_manager = manager_id if manager_id in valid_manager_ids else None
 
-            # ── period_opened ──────────────────────────────────────────
             if notif_type == 'period_opened':
-                # Notify the evaluator themselves
                 notifications_to_insert.append({
                     'recipient_id': evaluator['id'],
                     'sender_id':    None,
@@ -1448,9 +1654,7 @@ def broadcast_manual_rating_notification():
                     'is_read':      False,
                 })
 
-            # ── deadline_warning ───────────────────────────────────────
             elif notif_type == 'deadline_warning' and pending > 0:
-                # Notify the evaluator
                 notifications_to_insert.append({
                     'recipient_id': evaluator['id'],
                     'sender_id':    None,
@@ -1465,7 +1669,6 @@ def broadcast_manual_rating_notification():
                     'pms_year':     pms_year,
                     'is_read':      False,
                 })
-                # Also alert their supervisor (FIX 3: only if valid)
                 if valid_manager:
                     notifications_to_insert.append({
                         'recipient_id': valid_manager,
@@ -1482,9 +1685,7 @@ def broadcast_manual_rating_notification():
                         'is_read':      False,
                     })
 
-            # ── period_closed ──────────────────────────────────────────
             elif notif_type == 'period_closed' and pending > 0:
-                # Alert their supervisor about incomplete ratings (FIX 3: only if valid)
                 if valid_manager:
                     notifications_to_insert.append({
                         'recipient_id': valid_manager,
@@ -1515,102 +1716,30 @@ def broadcast_manual_rating_notification():
 
 
 # ─────────────────────────────────────────────────────────────────────
-# RATING PERIOD UPDATE (country_admin + hq_admin only)
+# MISC
 # ─────────────────────────────────────────────────────────────────────
 
-@app.route('/api/rating-periods/update', methods=['POST'])
-def update_rating_period():
+@app.route('/api/routes')
+def list_routes():
+    return jsonify([str(rule) for rule in app.url_map.iter_rules()])
+
+
+@app.route('/api/users/by-email', methods=['GET'])
+def get_user_by_email():
+    email = request.args.get('email', '').strip()
+    if not email:
+        return jsonify({'error': 'email required'}), 400
     try:
-        body      = request.get_json()
-        period    = body.get('period')
-        pms_year  = body.get('pms_year')
-        new_start = body.get('rating_start')
-        new_end   = body.get('rating_end')
-
-        if not all([period, pms_year, new_start, new_end]):
-            return jsonify({'error': 'Missing required fields'}), 400
-
-        # FIX 4: rating_periods now has UNIQUE(pms_year, period) so this
-        # update will always target exactly one row
-        supabase.table('rating_periods') \
-            .update({'rating_start': new_start, 'rating_end': new_end}) \
-            .eq('period', period) \
-            .eq('pms_year', pms_year) \
+        result = supabase.table('users') \
+            .select('id, email, full_name, role') \
+            .eq('email', email) \
+            .limit(1) \
             .execute()
-
-        return jsonify({'success': True})
+        if not result.data:
+            return jsonify({'error': 'User not found'}), 404
+        return jsonify(result.data[0])
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# ─────────────────────────────────────────────────────────────────────
-# RATING SETTINGS OVERVIEW
-# ─────────────────────────────────────────────────────────────────────
-
-@app.route('/api/rating-settings/overview/<evaluator_id>', methods=['GET'])
-def get_rating_overview(evaluator_id):
-    try:
-        period   = request.args.get('period', 'H1')
-        pms_year = request.args.get('year', 2025, type=int)
-
-        team_res = supabase.table('users') \
-            .select('id, full_name, role, designation_id, designations(name)') \
-            .eq('manager_id', evaluator_id) \
-            .execute()
-        team = team_res.data or []
-
-        overview = []
-        for member in team:
-            assign_res = supabase.table('template_assignments') \
-                .select('template_id') \
-                .eq('user_id', member['id']) \
-                .limit(1) \
-                .execute()
-
-            if not assign_res.data:
-                continue
-
-            template_id = assign_res.data[0]['template_id']
-            cat_res = supabase.table('categories') \
-                .select('id') \
-                .eq('template_id', template_id) \
-                .execute()
-            cat_ids = [c['id'] for c in (cat_res.data or [])]
-
-            total_manual = 0
-            if cat_ids:
-                obj_res = supabase.table('objectives') \
-                    .select('id') \
-                    .in_('category_id', cat_ids) \
-                    .eq('kpi_scale', 'manual') \
-                    .execute()
-                total_manual = len(obj_res.data or [])
-
-            submitted_res = supabase.table('performance_records') \
-                .select('objective_id') \
-                .eq('user_id', member['id']) \
-                .eq('period', period) \
-                .eq('year', pms_year) \
-                .not_.is_('manual_rating', 'null') \
-                .execute()
-            submitted = len(submitted_res.data or [])
-            pending   = max(0, total_manual - submitted)
-
-            overview.append({
-                'id':          member['id'],
-                'name':        member['full_name'],
-                'role':        member['role'],
-                'designation': (member.get('designations') or {}).get('name', ''),
-                'total':       total_manual,
-                'submitted':   submitted,
-                'pending':     pending,
-                'pct':         round((submitted / total_manual * 100) if total_manual > 0 else 0, 1),
-                'status':      'complete' if pending == 0 and total_manual > 0 else 'pending',
-            })
-
-        return jsonify(overview)
-    except Exception as e:
-        print(f"[ERROR] get_rating_overview: {e}")
+        print(f"[ERROR] get_user_by_email: {e}")
         return jsonify({'error': str(e)}), 500
 
 
