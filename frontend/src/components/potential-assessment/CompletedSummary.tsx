@@ -7,18 +7,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey, type PillarDefinition } from '@/utils/assessmentContent';
-import type { PotentialAssessment, PotentialAssessmentItem, RatingValue, AssessmentComponent } from '@/types';
+import { buildPillars, calcOverallPotentiality } from '@/utils/assessmentUtils';
+import type { PotentialAssessment, PotentialAssessmentItem, RatingValue } from '@/types';
 import { assessmentComponentsApi } from '@/services/potentialAssessmentApi';
-
-function buildPillars(dbComponents: AssessmentComponent[]): PillarDefinition[] {
-  return ASSESSMENT_PILLARS.map(pillar => ({
-    ...pillar,
-    components: ([1, 2, 3] as const).map(num => {
-      const found = dbComponents.find(c => c.pillar === pillar.key && c.component_number === num);
-      return found ? found.description : pillar.components[num - 1];
-    }),
-  }));
-}
 
 interface CompletedSummaryProps {
   assessmentData: PotentialAssessment;
@@ -75,15 +66,6 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
 
   const activePillar = pillars.find((p) => p.key === activeTab)!
 
-  function calcOverallPotentiality(ability: RatingValue | null, aspiration: RatingValue | null, leadership: RatingValue | null): RatingValue | null {
-    if (!ability || !aspiration || !leadership) return null;
-    const ratings = [ability, aspiration, leadership];
-    const h = ratings.filter(r => r === 'H').length;
-    const l = ratings.filter(r => r === 'L').length;
-    if (h >= 2 && l === 0) return 'H';
-    if (l >= 2 && h === 0) return 'L';
-    return 'M';
-  }
 
   const op = calcOverallPotentiality(assessmentData.overall_ability, assessmentData.overall_aspiration, assessmentData.overall_leadership);
   const opConfig = op ? potentialityConfig[op] : null;
