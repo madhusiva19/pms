@@ -1728,38 +1728,12 @@ def internal_error(error):
 # ============================================================================
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+# Pure calculation logic lives in calculations.py for testability.
+from calculations import calculate_pillar_rating, calculate_overall_potentiality
 
-def _calculate_pillar_rating(ratings: list) -> str:
-    """
-    Majority rule:
-      ≥ 2 H → H
-      ≥ 2 L → L
-      else  → M
-    """
-    h = ratings.count('H')
-    l = ratings.count('L')
-    if h >= 2:
-        return 'H'
-    if l >= 2:
-        return 'L'
-    return 'M'
-
-
-def _calculate_overall_potentiality(ability: str, aspiration: str, leadership: str) -> str:
-    """
-    Matrix rule (supervisor ratings only):
-      ≥2 H and 0 L → H
-      ≥2 L and 0 H → L
-      else          → M
-    """
-    ratings = [ability, aspiration, leadership]
-    h = ratings.count('H')
-    l = ratings.count('L')
-    if h >= 2 and l == 0:
-        return 'H'
-    if l >= 2 and h == 0:
-        return 'L'
-    return 'M'
+# Alias with underscore prefix to preserve existing call sites unchanged.
+_calculate_pillar_rating      = calculate_pillar_rating
+_calculate_overall_potentiality = calculate_overall_potentiality
 
 
 def _log_assessment_action(assessment_id: str, actor_id: str, actor_role: str,
@@ -2016,6 +1990,16 @@ def self_submit_potential_assessment():
         if len(data['items']) != 9:
             return jsonify({'success': False, 'error': 'Exactly 9 items required (3 pillars × 3 components)'}), 400
 
+        # Validate each item's rating and structure
+        valid_pillars = {'ability', 'aspiration', 'leadership'}
+        for item in data['items']:
+            if item.get('self_rating') not in ('H', 'M', 'L'):
+                return jsonify({'success': False, 'error': f"Invalid self_rating '{item.get('self_rating')}'. Must be H, M, or L."}), 400
+            if item.get('pillar') not in valid_pillars:
+                return jsonify({'success': False, 'error': f"Invalid pillar '{item.get('pillar')}'."}), 400
+            if item.get('component_number') not in (1, 2, 3):
+                return jsonify({'success': False, 'error': f"Invalid component_number '{item.get('component_number')}'. Must be 1, 2, or 3."}), 400
+
         # Validate role
         valid_roles = ('country_admin', 'branch_admin', 'dept_admin', 'sub_dept_admin', 'employee')
         if data['appraisee_role'] not in valid_roles:
@@ -2139,6 +2123,16 @@ def supervisor_submit_potential_assessment():
         # Verify caller is the supervisor
         if assessment['supervisor_id'] != data['supervisor_id']:
             return jsonify({'success': False, 'error': 'Unauthorised: caller is not the assigned supervisor'}), 403
+
+        # Validate each item's supervisor_rating before writing to DB
+        for item in data['items']:
+            if item.get('supervisor_rating') not in ('H', 'M', 'L'):
+                return jsonify({
+                    'success': False,
+                    'error': f"Invalid supervisor_rating '{item.get('supervisor_rating')}'. Must be H, M, or L."
+                }), 400
+            if not str(item.get('supervisor_justification', '')).strip():
+                return jsonify({'success': False, 'error': 'supervisor_justification is required for every item.'}), 400
 
         # Update each item with supervisor ratings
         for item in data['items']:
