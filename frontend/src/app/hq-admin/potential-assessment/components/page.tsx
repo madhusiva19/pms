@@ -116,7 +116,9 @@ export default function HQAdminAssessmentComponentsPage() {
   };
 
   const handleSave = async () => {
-    if (!form.description.trim()) { setSaveError('Description is required.'); return; }
+    const desc = form.description.trim();
+    if (desc.length < 10) { setSaveError('Description must be at least 10 characters.'); return; }
+    if (desc.length > 500) { setSaveError('Description must not exceed 500 characters.'); return; }
     setSaving(true);
     setSaveError(null);
     try {
