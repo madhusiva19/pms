@@ -17,8 +17,8 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertCircle, Loader2, ChevronRight } from 'lucide-react';
 import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey, type PillarDefinition } from '@/utils/assessmentContent';
+import { buildPillars } from '@/utils/assessmentUtils';
 import { potentialAssessmentApi, assessmentComponentsApi } from '@/services/potentialAssessmentApi';
-import type { AssessmentComponent } from '@/types';
 import type {
   AssessmentStatus,
   PotentialAssessment,
@@ -41,15 +41,6 @@ interface SelfAssessmentFormProps {
 type RatingMap = Record<PillarKey, Record<number, RatingValue | ''>>;
 type ExampleMap = Record<PillarKey, Record<number, string>>;
 
-function buildPillars(dbComponents: AssessmentComponent[]): PillarDefinition[] {
-  return ASSESSMENT_PILLARS.map(pillar => ({
-    ...pillar,
-    components: ([1, 2, 3] as const).map(num => {
-      const found = dbComponents.find(c => c.pillar === pillar.key && c.component_number === num);
-      return found ? found.description : pillar.components[num - 1];
-    }),
-  }));
-}
 
 const RATING_OPTIONS: RatingValue[] = ['H', 'M', 'L'];
 
