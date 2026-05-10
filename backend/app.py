@@ -1325,12 +1325,31 @@ def _get_evaluator_role(evaluator_id: str):
     return None, None
 
 
+def _unique_by_name(rows: list) -> list:
+    """
+    Collapse rows that share the same name into one entry.
+    The returned item uses the first seen id and accumulates all ids in 'all_ids'.
+    Frontend uses 'id' as the display key; 'all_ids' is sent when saving.
+    Sorted alphabetically by name.
+    """
+    seen: dict = {}          # name → {id, name, all_ids: []}
+    for row in rows:
+        name = (row.get('name') or '').strip()
+        if not name:
+            continue
+        if name not in seen:
+            seen[name] = {'id': row['id'], 'name': name, 'all_ids': [row['id']]}
+        else:
+            seen[name]['all_ids'].append(row['id'])
+    return sorted(seen.values(), key=lambda x: x['name'])
+
+
 @app.route('/api/org/countries', methods=['GET'])
 def get_org_countries():
-    """Return all countries. Only meaningful for hq_admin."""
+    """Return all countries — unique by name. Only shown to hq_admin."""
     try:
         res = supabase.table('countries').select('id, name').order('name').execute()
-        return jsonify(res.data or [])
+        return jsonify(_unique_by_name(res.data or []))
     except Exception as e:
         print(f"[ERROR] get_org_countries: {e}")
         return jsonify({'error': str(e)}), 500
@@ -1338,7 +1357,7 @@ def get_org_countries():
 
 @app.route('/api/org/branches', methods=['GET'])
 def get_org_branches():
-    """Return branches visible to the evaluator."""
+    """Return branches visible to the evaluator — unique by name."""
     try:
         evaluator_id = request.args.get('evaluator_id', '')
         role, country_id = _get_evaluator_role(evaluator_id)
@@ -1346,10 +1365,9 @@ def get_org_branches():
         query = supabase.table('branches').select('id, name, country_id').order('name')
         if role == 'country_admin' and country_id:
             query = query.eq('country_id', country_id)
-        # hq_admin gets all; branch/dept admins get their own handled client-side
 
         res = query.execute()
-        return jsonify(res.data or [])
+        return jsonify(_unique_by_name(res.data or []))
     except Exception as e:
         print(f"[ERROR] get_org_branches: {e}")
         return jsonify({'error': str(e)}), 500
@@ -1357,7 +1375,7 @@ def get_org_branches():
 
 @app.route('/api/org/departments', methods=['GET'])
 def get_org_departments():
-    """Return departments visible to the evaluator."""
+    """Return departments visible to the evaluator — unique by name."""
     try:
         evaluator_id = request.args.get('evaluator_id', '')
         role, country_id = _get_evaluator_role(evaluator_id)
@@ -1365,19 +1383,17 @@ def get_org_departments():
         query = supabase.table('departments').select('id, name, branch_id').order('name')
 
         if role == 'country_admin' and country_id:
-            # Join through branches to filter by country
             branch_res = supabase.table('branches') \
                 .select('id') \
                 .eq('country_id', country_id) \
                 .execute()
             branch_ids = [b['id'] for b in (branch_res.data or [])]
-            if branch_ids:
-                query = query.in_('branch_id', branch_ids)
-            else:
+            if not branch_ids:
                 return jsonify([])
+            query = query.in_('branch_id', branch_ids)
 
         res = query.execute()
-        return jsonify(res.data or [])
+        return jsonify(_unique_by_name(res.data or []))
     except Exception as e:
         print(f"[ERROR] get_org_departments: {e}")
         return jsonify({'error': str(e)}), 500
@@ -1385,7 +1401,7 @@ def get_org_departments():
 
 @app.route('/api/org/sub-departments', methods=['GET'])
 def get_org_sub_departments():
-    """Return sub-departments visible to the evaluator."""
+    """Return sub-departments visible to the evaluator — unique by name."""
     try:
         evaluator_id = request.args.get('evaluator_id', '')
         role, country_id = _get_evaluator_role(evaluator_id)
@@ -1398,21 +1414,20 @@ def get_org_sub_departments():
                 .eq('country_id', country_id) \
                 .execute()
             branch_ids = [b['id'] for b in (branch_res.data or [])]
-            if branch_ids:
-                dept_res = supabase.table('departments') \
-                    .select('id') \
-                    .in_('branch_id', branch_ids) \
-                    .execute()
-                dept_ids = [d['id'] for d in (dept_res.data or [])]
-                if dept_ids:
-                    query = query.in_('department_id', dept_ids)
-                else:
-                    return jsonify([])
-            else:
+            if not branch_ids:
                 return jsonify([])
 
+            dept_res = supabase.table('departments') \
+                .select('id') \
+                .in_('branch_id', branch_ids) \
+                .execute()
+            dept_ids = [d['id'] for d in (dept_res.data or [])]
+            if not dept_ids:
+                return jsonify([])
+            query = query.in_('department_id', dept_ids)
+
         res = query.execute()
-        return jsonify(res.data or [])
+        return jsonify(_unique_by_name(res.data or []))
     except Exception as e:
         print(f"[ERROR] get_org_sub_departments: {e}")
         return jsonify({'error': str(e)}), 500
