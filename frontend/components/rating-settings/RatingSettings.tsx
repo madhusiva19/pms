@@ -28,12 +28,15 @@ interface TeamMember {
 interface ManualRatingStatus {
   [userId: string]: { submitted: boolean; count: number };
 }
-// deduplicate list by id — guards against duplicate rows from the API
-function dedupe(items: { id: string; name: string }[]): { id: string; name: string }[] {
+// Deduplicate by name — the backend collapses same-name rows but we guard
+// client-side too. We also keep 'all_ids' if the backend provides it so
+// we can send the full set of real IDs when saving.
+function dedupe(items: OrgItem[]): OrgItem[] {
   const seen = new Set<string>();
   return items.filter(item => {
-    if (seen.has(item.id)) return false;
-    seen.add(item.id);
+    const key = (item.name ?? '').trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }
@@ -88,7 +91,7 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
     <div style={{
       padding: '18px 24px',
       borderBottom: `1px solid ${BORDER}`,
-      borderLeft: `4px solid ${BLUE}`,
+      borderLeft: `28px solid ${BLUE}`,
       background: CARD_BG,
     }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: TEXT_HEAD, lineHeight: 1.3 }}>{title}</h3>
@@ -136,7 +139,7 @@ function EnterRatingsBtn({ onClick, isOpen }: { onClick: () => void; isOpen: boo
           padding: '6px 16px', borderRadius: 8,
           border: 'none', background: BLUE, color: '#fff',
           fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-          fontFamily: 'inherit', opacity: 0.90,
+          fontFamily: 'inherit', opacity: 0.92,
         }}
         title="Rating period is not currently open"
       >
@@ -215,7 +218,7 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
 
 // ── MultiSelect — top-level so it never remounts mid-render ───────
 // Defined OUTSIDE all modals to keep stable identity across re-renders.
-interface OrgItem { id: string; name: string; }
+interface OrgItem { id: string; name: string; all_ids?: string[]; }
 
 function MultiSelect({
   label, items, selected, onChange,
@@ -389,8 +392,11 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
       .catch(() => {});
   }, [user?.id, isHQ]);
 
-  const resolve = (sel: string[], list: OrgItem[]) =>
-    sel.includes('all') ? list.map(i => i.id) : sel;
+  // Expand selection to real DB ids, including grouped same-name items
+  const resolve = (sel: string[], list: OrgItem[]) => {
+    const chosen = sel.includes('all') ? list : list.filter(i => sel.includes(i.id));
+    return chosen.flatMap(i => i.all_ids ?? [i.id]);
+  };
 
   const handleSave = async () => {
     if (!start || !end)                   { setError('Both dates are required.'); return; }
@@ -644,11 +650,10 @@ export default function RatingSettings() {
         </div>
 
         {/* ── Rating Period Banner ──────────────────────────────── */}
-        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, padding: '18px 24px', marginBottom: 40 }}>
+        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '18px 24px', marginBottom: 64, borderLeft: `28px solid ${BLUE}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
-                <Calendar size={14} color={BLUE} />
                 <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: TEXT_HEAD }}>
                   Rating Period — {selectedPeriod} {activePeriod?.pms_year ?? new Date().getFullYear()}
                 </h3>
@@ -683,10 +688,10 @@ export default function RatingSettings() {
         {/* ══════════════════════════════════════════════════════════
             MY TEAM — MANUAL RATING REQUIRED
         ══════════════════════════════════════════════════════════ */}
-        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden', marginBottom: 40 }}>
+        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', marginBottom: 64 }}>
           <SectionHeader
             title="Team Members Requiring Manual Ratings"
-            subtitle={`Enter manual KPI ratings for each team member · ${selectedPeriod} ${pmsYear}`}
+            subtitle={`Enter manual ratings for each team member · ${selectedPeriod} ${pmsYear}`}
           />
 
           {team.length === 0 ? (
@@ -701,7 +706,7 @@ export default function RatingSettings() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <TH>Member</TH>
+                    <TH>Team Member</TH>
                     <TH center>Rating Status</TH>
                     <TH center>Actions</TH>
                   </tr>
@@ -716,13 +721,10 @@ export default function RatingSettings() {
                         onMouseEnter={e => (e.currentTarget.style.background = PAGE_BG)}
                         onMouseLeave={e => (e.currentTarget.style.background = CARD_BG)}
                       >
-                        <td style={{ padding: '12px 20px 12px 28px' }}>
+                        <td style={{ padding: '8px 20px 8px 28px' }}>
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: TEXT_HEAD }}>{member.full_name}</div>
-                          {member.designation && (
-                            <div style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 2 }}>{member.designation}</div>
-                          )}
                         </td>
-                        <td style={{ padding: '12px 20px', textAlign: 'center' }}>
+                        <td style={{ padding: '8px 20px', textAlign: 'center' }}>
                           {status ? (
                             <StatusPill
                               complete={status.submitted}
@@ -732,7 +734,7 @@ export default function RatingSettings() {
                             <span style={{ fontSize: 12, color: TEXT_FAINT }}>—</span>
                           )}
                         </td>
-                        <td style={{ padding: '12px 20px', textAlign: 'center' }}>
+                        <td style={{ padding: '8px 20px', textAlign: 'center' }}>
                           <EnterRatingsBtn
                             isOpen={ratingIsOpen}
                             onClick={() => router.push(`/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}`)}
@@ -750,10 +752,10 @@ export default function RatingSettings() {
         {/* ══════════════════════════════════════════════════════════
             RATING OVERVIEW  — no expand/collapse, no submitted/pending cols
         ══════════════════════════════════════════════════════════ */}
-        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden', marginBottom: 40 }}>
+        <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', marginBottom: 64 }}>
           <SectionHeader
             title="Manual Rating Completion Overview"
-            subtitle="Track completion progress of manual KPI submissions across your team"
+            subtitle="Track completion progress of manual rating submissions across your team"
           />
 
           {overview.length === 0 ? (
@@ -763,11 +765,11 @@ export default function RatingSettings() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <TH>Member</TH>
-                    <TH center width="110px">Total KPIs</TH>
-                    <TH width="220px">Completion</TH>
-                    <TH center width="120px">Status</TH>
-                    <TH center width="130px">Actions</TH>
+                    <TH>Team Member</TH>
+                    <TH center width="170px">Members To Rate</TH>
+                    <TH width="170px">Completion</TH>
+                    <TH center width="170px">Status</TH>
+                    <TH center width="170px">Actions</TH>
                   </tr>
                 </thead>
                 <tbody>
@@ -781,18 +783,15 @@ export default function RatingSettings() {
                       onMouseEnter={e => (e.currentTarget.style.background = PAGE_BG)}
                       onMouseLeave={e => (e.currentTarget.style.background = CARD_BG)}
                     >
-                      <td style={{ padding: '12px 20px' }}>
+                      <td style={{ padding: '8px 20px' }}>
                         <div style={{ fontSize: 13.5, fontWeight: 600, color: TEXT_HEAD }}>{member.name}</div>
-                        {member.designation && (
-                          <div style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 2 }}>{member.designation}</div>
-                        )}
                       </td>
 
-                      <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: BLUE }}>
+                      <td style={{ padding: '8px 16px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: BLUE }}>
                         {member.total}
                       </td>
 
-                      <td style={{ padding: '12px 20px' }}>
+                      <td style={{ padding: '8px 20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ flex: 1, height: 6, background: BORDER, borderRadius: 99, overflow: 'hidden' }}>
                             <div style={{
@@ -805,11 +804,11 @@ export default function RatingSettings() {
                         </div>
                       </td>
 
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <td style={{ padding: '8px 16px', textAlign: 'center' }}>
                         <StatusPill complete={member.status === 'complete'} />
                       </td>
 
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <td style={{ padding: '8px 16px', textAlign: 'center' }}>
                         {member.pending > 0
                           ? <RemindBtn onClick={() => setReminderTarget(member)} />
                           : <span style={{ fontSize: 12, color: TEXT_FAINT }}>—</span>
