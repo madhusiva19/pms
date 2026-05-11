@@ -23,18 +23,55 @@ const ratingBadge: Record<RatingValue, string> = {
   L: 'bg-[#FEE2E2] text-[#DC2626] border-[#FCA5A5]',
 };
 
-const potentialityConfig: Record<RatingValue, { label: string; bg: string; text: string; border: string }> = {
-  H: { label: 'High',   bg: '#DCFCE7', text: '#15803D', border: '#86EFAC' },
-  M: { label: 'Medium', bg: '#DBEAFE', text: '#1D4ED8', border: '#93C5FD' },
-  L: { label: 'Low',    bg: '#FEF9C3', text: '#B45309', border: '#FDE047' },
+const ratingLabel: Record<RatingValue, string> = {
+  H: 'High',
+  M: 'Medium',
+  L: 'Low',
 };
 
-function RatingPill({ value }: { value: RatingValue | null }) {
+const ratingProgress: Record<RatingValue, number> = {
+  H: 100,
+  M: 66,
+  L: 33,
+};
+
+const potentialityConfig: Record<RatingValue, { label: string; bg: string; text: string; border: string }> = {
+  H: { label: 'High', bg: '#DBEAFE', text: '#1D4ED8', border: '#93C5FD' },
+  M: { label: 'Medium', bg: '#DBEAFE', text: '#1D4ED8', border: '#93C5FD' },
+  L: { label: 'Low', bg: '#DBEAFE', text: '#1D4ED8', border: '#93C5FD' },
+};
+
+function RatingBadge({ value }: { value: RatingValue | null }) {
   if (!value) return <span className="text-[#94A3B8] text-[13px]">—</span>;
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[13px] font-semibold border ${ratingBadge[value]}`}>
+    <div className="w-8 h-8 rounded-full bg-[#EFF6FF] border-2 border-[#BFDBFE] flex items-center justify-center text-[13px] font-bold text-[#2563EB] flex-shrink-0">
       {value}
-    </span>
+    </div>
+  );
+}
+
+function PillarCard({ label, value }: { label: string; value: RatingValue | null }) {
+  const progress = value ? ratingProgress[value] : 0;
+  const fullLabel = value ? ratingLabel[value] : '—';
+  return (
+    <div className="border-2 border-[#BFDBFE] rounded-xl p-4 flex flex-col gap-3 bg-white hover:border-[#3B82F6] hover:shadow-md transition-all">
+      <p className="inline-block text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest bg-[#EFF6FF] px-2 py-0.5 rounded-md w-fit">{label}</p>
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-full bg-[#EFF6FF] border-2 border-[#BFDBFE] flex items-center justify-center text-[14px] font-bold text-[#2563EB] flex-shrink-0">
+          {value ?? '—'}
+        </div>
+        <span className="text-[14px] font-semibold text-[#1E293B]">{fullLabel}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-[5px] bg-[#E2E8F0] rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[#3B82F6] transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <span className="text-[11px] text-[#94A3B8] font-medium tabular-nums">{value ? `${progress === 100 ? '3/3' : progress === 66 ? '2/3' : '1/3'}` : '—'}</span>
+      </div>
+    </div>
   );
 }
 
@@ -48,13 +85,13 @@ function formatDate(iso: string | null) {
 
 export default function CompletedSummary({ assessmentData, viewerRole = 'supervisor' }: CompletedSummaryProps) {
   const [activeTab, setActiveTab] = useState<PillarKey>('ability');
-  const [pillars, setPillars]     = useState<PillarDefinition[]>(ASSESSMENT_PILLARS);
+  const [pillars, setPillars] = useState<PillarDefinition[]>(ASSESSMENT_PILLARS);
 
   useEffect(() => {
     if (!assessmentData.appraisee_role) return;
     assessmentComponentsApi.getForRole(assessmentData.appraisee_role)
       .then(comps => { if (comps.length > 0) setPillars(buildPillars(comps)); })
-      .catch(() => {});
+      .catch(() => { });
   }, [assessmentData.appraisee_role]);
 
   // Build lookup
@@ -79,25 +116,25 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
       <div className="flex gap-1 p-1 bg-[#F3F4F6] rounded-lg w-fit">
         {pillars.map((pillar) => (
           <button key={pillar.key} onClick={() => setActiveTab(pillar.key)}
-            className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${activeTab === pillar.key ? 'bg-white text-[#1E3A8A] shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
+            className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${activeTab === pillar.key ? 'bg-[#1D4ED8] text-white shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
             {pillar.label}
           </button>
         ))}
       </div>
 
       {/* Full detail table */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden overflow-x-auto">
-        <table className="w-full border-collapse min-w-[900px]">
+      <div className="rounded-xl border border-[#E2E8F0] overflow-hidden overflow-x-auto shadow-sm">
+        <table className="w-full border-collapse min-w-[860px]">
           <thead>
-            <tr className="bg-[#F8FAFC] border-b border-[#E5E7EB]">
-              <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-7">#</th>
-              <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Component</th>
-              <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-28 bg-[#F0F4FF]">Self Rating</th>
-              <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide bg-[#F0F4FF]">Self Example</th>
+            <tr style={{ background: 'linear-gradient(to right, #F8FAFF, #EFF6FF)' }}>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#64748B] uppercase tracking-widest border-b border-[#E2E8F0] w-10">#</th>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#64748B] uppercase tracking-widest border-b border-[#E2E8F0]">Component</th>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest border-b border-[#E2E8F0] border-l border-l-[#BFDBFE] bg-[#EFF6FF]">Self Rating</th>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest border-b border-[#E2E8F0] bg-[#EFF6FF]">Self Example</th>
               {!isAppraiseeView && (
                 <>
-                  <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-32">Supervisor Rating</th>
-                  <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Supervisor Justification</th>
+                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest border-b border-[#E2E8F0] border-l-2 border-l-[#BFDBFE] bg-[#EFF6FF]">Supervisor Rating</th>
+                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest border-b border-[#E2E8F0] bg-[#EFF6FF]">Supervisor Justification</th>
                 </>
               )}
             </tr>
@@ -107,18 +144,26 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
               const c = (idx + 1) as 1 | 2 | 3;
               const item = itemLookup[activePillar.key][c];
               return (
-                <tr key={c} className={`border-b border-[#F1F5F9] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'}`}>
-                  <td className="px-4 py-4 text-[13px] text-[#94A3B8] font-medium align-top">{c}</td>
-                  <td className="px-4 py-4 text-[13.5px] text-[#1E293B] leading-6 align-top max-w-[180px]">{desc}</td>
-                  <td className="px-4 py-4 bg-[#F5F8FF] align-top"><RatingPill value={item?.self_rating ?? null} /></td>
-                  <td className="px-4 py-4 bg-[#F5F8FF] align-top">
-                    <p className="text-[13.5px] text-[#374151] leading-6 whitespace-pre-wrap max-w-[220px]">{item?.self_example || '—'}</p>
+                <tr key={c} className="border-b border-[#F1F5F9] hover:bg-[#FAFCFF] transition-colors group">
+                  <td className="px-5 py-4 align-top">
+                    <span className="w-6 h-6 rounded-full bg-[#F1F5F9] text-[12px] font-bold text-[#94A3B8] flex items-center justify-center">{c}</span>
+                  </td>
+                  <td className="px-5 py-4 align-top max-w-[220px]">
+                    <p className="text-[13.5px] text-[#1E293B] leading-6 font-medium">{desc}</p>
+                  </td>
+                  <td className="px-5 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-top border-l border-l-[#DBEAFE]">
+                    <RatingBadge value={item?.self_rating ?? null} />
+                  </td>
+                  <td className="px-5 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-top">
+                    <p className="text-[13px] text-[#475569] leading-6 whitespace-pre-wrap max-w-[220px]">{item?.self_example || <span className="text-[#CBD5E1] italic">No example provided</span>}</p>
                   </td>
                   {!isAppraiseeView && (
                     <>
-                      <td className="px-4 py-4 align-top"><RatingPill value={item?.supervisor_rating ?? null} /></td>
-                      <td className="px-4 py-4 align-top">
-                        <p className="text-[13.5px] text-[#374151] leading-6 whitespace-pre-wrap max-w-[220px]">{item?.supervisor_justification || '—'}</p>
+                      <td className="px-5 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-top border-l-2 border-l-[#BFDBFE]">
+                        <RatingBadge value={item?.supervisor_rating ?? null} />
+                      </td>
+                      <td className="px-5 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-top">
+                        <p className="text-[13px] text-[#475569] leading-6 whitespace-pre-wrap max-w-[220px]">{item?.supervisor_justification || <span className="text-[#CBD5E1] italic">No justification provided</span>}</p>
                       </td>
                     </>
                   )}
@@ -134,17 +179,13 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
         <h3 className="text-[15px] font-semibold text-[#101828]">Overall Summary</h3>
 
         {/* Pillar ratings */}
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: 'Average Ability', value: assessmentData.overall_ability },
-            { label: 'Average Aspiration', value: assessmentData.overall_aspiration },
-            { label: 'Average Leadership', value: assessmentData.overall_leadership },
-          ].map(({ label, value }) => (
-            <div key={label} className="border border-[#E5E7EB] rounded-xl p-4 flex flex-col gap-2 bg-[#FAFAFA]">
-              <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">{label}</p>
-              <RatingPill value={value as RatingValue | null} />
-            </div>
-          ))}
+        <div>
+          <p className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-widest mb-3">Pillar Ratings</p>
+          <div className="grid grid-cols-3 gap-4">
+            <PillarCard label="Average Ability" value={assessmentData.overall_ability as RatingValue | null} />
+            <PillarCard label="Average Aspiration" value={assessmentData.overall_aspiration as RatingValue | null} />
+            <PillarCard label="Average Leadership" value={assessmentData.overall_leadership as RatingValue | null} />
+          </div>
         </div>
 
         {/* Overall Potentiality */}

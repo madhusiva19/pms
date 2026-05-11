@@ -33,7 +33,7 @@ type SupJustMap = Record<PillarKey, Record<number, string>>;
 const RATING_OPTIONS: RatingValue[] = ['H', 'M', 'L'];
 
 const ratingBadgeStyles: Record<RatingValue, string> = {
-  H: 'bg-[#DCFCE7] text-[#16A34A] border-[#86EFAC]',
+  H: 'bg-[#F3F4F6] text-[#16A34A] border-[#86EFAC]',
   M: 'bg-[#FEF9C3] text-[#CA8A04] border-[#FDE047]',
   L: 'bg-[#FEE2E2] text-[#DC2626] border-[#FCA5A5]',
 };
@@ -56,10 +56,10 @@ export default function SupervisorReviewForm({
   assessmentData,
   onSubmitSuccess,
 }: SupervisorReviewFormProps) {
-  const [pillars, setPillars]       = useState<PillarDefinition[]>(ASSESSMENT_PILLARS);
-  const [activeTab, setActiveTab]   = useState<PillarKey>('ability');
+  const [pillars, setPillars] = useState<PillarDefinition[]>(ASSESSMENT_PILLARS);
+  const [activeTab, setActiveTab] = useState<PillarKey>('ability');
   const [supRatings, setSupRatings] = useState<SupRatingMap>(buildEmpty().ratings);
-  const [supJusts, setSupJusts]     = useState<SupJustMap>(buildEmpty().justs);
+  const [supJusts, setSupJusts] = useState<SupJustMap>(buildEmpty().justs);
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -90,7 +90,7 @@ export default function SupervisorReviewForm({
     if (!assessmentData.appraisee_role) return;
     assessmentComponentsApi.getForRole(assessmentData.appraisee_role)
       .then(comps => { if (comps.length > 0) setPillars(buildPillars(comps)); })
-      .catch(() => {});
+      .catch(() => { });
   }, [assessmentData.appraisee_role]);
 
   const allFilled = PILLAR_KEYS.every((p) =>
@@ -136,7 +136,7 @@ export default function SupervisorReviewForm({
       {/* Tab switcher */}
       <div className="flex gap-1 p-1 bg-[#F3F4F6] rounded-lg w-fit">
         {pillars.map((pillar) => {
-          const filled = isReadOnly ? 3 : [1,2,3].filter((c) => supRatings[pillar.key][c] !== '').length;
+          const filled = isReadOnly ? 3 : [1, 2, 3].filter((c) => supRatings[pillar.key][c] !== '').length;
           return (
             <button key={pillar.key} onClick={() => setActiveTab(pillar.key)}
               className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${activeTab === pillar.key ? 'bg-white text-[#1E3A8A] shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
@@ -183,7 +183,7 @@ export default function SupervisorReviewForm({
                   <td className="px-4 py-4 align-top">
                     {isReadOnly ? (
                       supRating ? <span className={`inline-flex items-center px-3 py-1 rounded-full text-[13px] font-semibold border ${ratingBadgeStyles[supRating as RatingValue]}`}>{supRating}</span>
-                      : <span className="text-[#94A3B8] text-[13px]">—</span>
+                        : <span className="text-[#94A3B8] text-[13px]">—</span>
                     ) : (
                       <div className="flex gap-1">
                         {RATING_OPTIONS.map((opt) => (
