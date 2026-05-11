@@ -1723,6 +1723,61 @@ def internal_error(error):
     }), 500
 
 # ============================================================================
+# POTENTIAL ASSESSMENT NOTIFICATION ENDPOINTS
+# ============================================================================
+
+def _send_pa_notification(recipient_id: str, notif_type: str, title: str, message: str):
+    """
+    Insert a row into potential_assessment_notifications — non-fatal helper.
+    Called after self-submit (notifies supervisor) and supervisor-submit (notifies employee).
+    """
+    try:
+        supabase.table('potential_assessment_notifications').insert({
+            'recipient_id': recipient_id,
+            'type': notif_type,
+            'title': title,
+            'message': message,
+            'is_read': False,
+        }).execute()
+    except Exception as e:
+        print(f'[PA NOTIFICATION WARNING] Failed to send notification: {e}')
+
+
+@app.route('/api/potential-assessment-notifications/<user_id>', methods=['GET'])
+def get_pa_notifications(user_id: str):
+    """
+    Fetch all potential-assessment notifications for a given user (recipient_id),
+    ordered newest-first.
+    """
+    try:
+        resp = supabase.table('potential_assessment_notifications') \
+            .select('*') \
+            .eq('recipient_id', user_id) \
+            .order('created_at', desc=True) \
+            .execute()
+        return jsonify({'success': True, 'data': resp.data or []}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/potential-assessment-notifications/<notification_id>/read', methods=['PATCH'])
+def mark_pa_notification_read(notification_id: str):
+    """
+    Mark a potential-assessment notification as read.
+    """
+    try:
+        resp = supabase.table('potential_assessment_notifications') \
+            .update({'is_read': True}) \
+            .eq('id', notification_id) \
+            .execute()
+        if not resp.data:
+            return jsonify({'success': False, 'error': 'Notification not found'}), 404
+        return jsonify({'success': True, 'data': resp.data[0]}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
 # POTENTIAL ASSESSMENT API ENDPOINTS
 # All routes are NEW — no existing routes are modified.
 # ============================================================================
@@ -2063,6 +2118,24 @@ def self_submit_potential_assessment():
             cycle=cycle,
         )
 
+        # ── Notify supervisor that the employee has submitted their self-assessment ──
+        # Fetch employee name for a readable notification message
+        try:
+            emp_resp = supabase.table('users').select('full_name').eq('id', employee_id).single().execute()
+            emp_name = emp_resp.data.get('full_name', 'An employee') if emp_resp.data else 'An employee'
+        except Exception:
+            emp_name = 'An employee'
+
+        _send_pa_notification(
+            recipient_id=data['supervisor_id'],
+            notif_type='self_submitted',
+            title=f'{emp_name} submitted their Potential Self-Assessment',
+            message=(
+                f'{emp_name} has completed and submitted their self-assessment for the "{cycle}" appraisal cycle. '
+                f'Please log in to review and provide your supervisor ratings.'
+            ),
+        )
+
         return jsonify({'success': True, 'data': updated.data[0]}), 200
 
     except Exception as e:
@@ -2182,6 +2255,24 @@ def supervisor_submit_potential_assessment():
             actor_role=data.get('supervisor_role', 'unknown'),
             action='supervisor_submit',
             cycle=assessment['appraisal_cycle'],
+        )
+
+        # ── Notify employee that their supervisor has completed the review ──
+        try:
+            sup_resp = supabase.table('users').select('full_name').eq('id', data['supervisor_id']).single().execute()
+            sup_name = sup_resp.data.get('full_name', 'Your supervisor') if sup_resp.data else 'Your supervisor'
+        except Exception:
+            sup_name = 'Your supervisor'
+
+        _send_pa_notification(
+            recipient_id=assessment['employee_id'],
+            notif_type='supervisor_completed',
+            title='Your Potential Assessment has been reviewed',
+            message=(
+                f'{sup_name} has completed the supervisor review of your self-assessment for the '
+                f'"{assessment["appraisal_cycle"]}" appraisal cycle. '
+                f'Your Talent Block and overall potential ratings are now available.'
+            ),
         )
 
         return jsonify({'success': True, 'data': updated.data[0]}), 200
