@@ -53,7 +53,7 @@ const branchAdminNavItems: NavItem[] = [
   { name: 'My Team', href: '/branch-admin/team', icon: Users },
   { name: 'My Performance', href: '/branch-admin/my-performance', icon: TrendingUp },
   { name: 'Reports', href: '/branch-admin/reports', icon: FileText },
-  { name: 'notification', href: '/branch-admin/notification', icon: Bell },
+  { name: 'Notification', href: '/branch-admin/notification', icon: Bell },
   { name: 'Training Passport', href: '/branch-admin/training', icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/branch-admin/potential-assessment', icon: Target, children: [
     { name: 'Self Assessment', href: '/branch-admin/potential-assessment/self-assessment', icon: ClipboardList },
@@ -98,6 +98,7 @@ const employeeNavItems: NavItem[] = [
   { name: 'My Performance', href: '/employee/my-performance', icon: TrendingUp },
   { name: 'Training Passport', href: '/employee/training', icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/employee/potential-assessment', icon: Target },
+  { name: 'Notification', href: '/employee/notification', icon: Bell },
   { name: 'My Profile', href: '/employee/profile', icon: User },
 ];
 
