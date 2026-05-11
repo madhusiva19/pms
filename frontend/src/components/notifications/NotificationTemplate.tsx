@@ -68,10 +68,10 @@ const STATUS_STYLES: Record<
   CutoffStatus,
   { bg: string; border: string; badge: string; badgeColor: string; badgeText: string }
 > = {
-  normal:   { bg: "#FFFFFF", border: "#E5E7EB", badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Upcoming"   },
-  urgent:   { bg: "#FFFBEB", border: "#FDE047", badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon" },
+  normal: { bg: "#FFFFFF", border: "#E5E7EB", badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Upcoming" },
+  urgent: { bg: "#FFFBEB", border: "#FDE047", badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon" },
   critical: { bg: "#FEF2F2", border: "#FECACA", badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "🔴 Overdue" },
-  frozen:   { bg: "#F3F4F6", border: "#D1D5DB", badge: "#E5E7EB", badgeColor: "#374151", badgeText: "🔒 Frozen"  },
+  frozen: { bg: "#F3F4F6", border: "#D1D5DB", badge: "#E5E7EB", badgeColor: "#374151", badgeText: "🔒 Frozen" },
 };
 
 // ── Manual rating reminder badge config ────────────────
@@ -79,10 +79,10 @@ const REMINDER_STYLES: Record<
   ReminderType,
   { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }
 > = {
-  period_opened:    { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "🔔 Window Open",    borderColor: "#BFDBFE", bg: "#F0F7FF" },
-  deadline_warning: { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon",        borderColor: "#FDE047", bg: "#FFFBEB" },
+  period_opened: { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "🔔 Window Open", borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  deadline_warning: { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon", borderColor: "#FDE047", bg: "#FFFBEB" },
   supervisor_alert: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "🔴 Action Required", borderColor: "#FECACA", bg: "#FEF2F2" },
-  manual_reminder:  { badge: "#F3E8FF", badgeColor: "#6B21A8", badgeText: "📢 Reminder",        borderColor: "#D8B4FE", bg: "#FAF5FF" },
+  manual_reminder: { badge: "#F3E8FF", badgeColor: "#6B21A8", badgeText: "📢 Reminder", borderColor: "#D8B4FE", bg: "#FAF5FF" },
 };
 
 // ── PA Notification badge config ───────────────────────
@@ -90,16 +90,16 @@ const PA_STYLES: Record<
   PaNotificationType,
   { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }
 > = {
-  self_submitted:       { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "📋 Self Submitted",      borderColor: "#BFDBFE", bg: "#F0F7FF" },
-  supervisor_completed: { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "✅ Review Completed",     borderColor: "#86EFAC", bg: "#F0FDF4" },
+  self_submitted: { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: " Self Submitted", borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  supervisor_completed: { badge: "#DCFCE7", badgeColor: "#166534", badgeText: " Review Completed", borderColor: "#BFDBFE", bg: "#F0F7FF" },
 };
 
 function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
-  const today  = new Date();
+  const today = new Date();
   const cutoff = new Date(cutoffDate);
   const diffDays = Math.ceil((cutoff.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   if (today > cutoff) return "critical";
-  if (diffDays <= 7)  return "urgent";
+  if (diffDays <= 7) return "urgent";
   return "normal";
 }
 
@@ -108,16 +108,16 @@ export default function Notifications() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const userId   = user?.id ?? "";
+  const userId = user?.id ?? "";
   const roleSlug = user?.role?.replace(/_/g, "-") ?? "employee";
   const isEmployee = user?.role === "employee";
 
-  const [activeTab,         setActiveTab]         = useState<"achievements" | "cutoff" | "manual" | "pa">("achievements");
-  const [achievementList,   setAchievementList]   = useState<AchievementNotification[]>([]);
-  const [cutoffList,        setCutoffList]         = useState<CutoffNotification[]>([]);
+  const [activeTab, setActiveTab] = useState<"achievements" | "cutoff" | "manual" | "pa">("achievements");
+  const [achievementList, setAchievementList] = useState<AchievementNotification[]>([]);
+  const [cutoffList, setCutoffList] = useState<CutoffNotification[]>([]);
   const [manualReminderList, setManualReminderList] = useState<ManualRatingNotification[]>([]);
-  const [paList,            setPaList]            = useState<PaNotification[]>([]);
-  const [loading,           setLoading]            = useState(true);
+  const [paList, setPaList] = useState<PaNotification[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // ── Fetch notifications ──────────────────────────────
   useEffect(() => {
@@ -127,7 +127,7 @@ export default function Notifications() {
       setLoading(true);
       try {
         // 1. Achievement / manual-rating notifications
-        const notifRes  = await fetch(`${API}/api/manual-rating-notifications/${userId}`);
+        const notifRes = await fetch(`${API}/api/manual-rating-notifications/${userId}`);
         const notifData = await notifRes.json();
 
         const allNotifs = Array.isArray(notifData) ? notifData : [];
@@ -147,15 +147,15 @@ export default function Notifications() {
             is_read: boolean;
             created_at: string;
           }) => ({
-            id:          n.id,
-            fromName:    n.title,
-            fromRole:    n.type === "manual_reminder" ? "Supervisor Reminder" : "System Notification",
+            id: n.id,
+            fromName: n.title,
+            fromRole: n.type === "manual_reminder" ? "Supervisor Reminder" : "System Notification",
             submittedAt: n.created_at
               ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
               : "",
             achievement: n.message,
-            isRead:      n.is_read,
-            actionUrl:   `/${roleSlug}/manual-rating`,
+            isRead: n.is_read,
+            actionUrl: `/${roleSlug}/manual-rating`,
           }));
 
         setAchievementList(achievements);
@@ -173,13 +173,13 @@ export default function Notifications() {
             is_read: boolean;
             created_at: string;
           }) => ({
-            id:        n.id,
-            type:      n.type,
-            title:     n.title,
-            message:   n.message,
-            period:    n.period,
-            pmsYear:   n.pms_year,
-            isRead:    n.is_read,
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            message: n.message,
+            period: n.period,
+            pmsYear: n.pms_year,
+            isRead: n.is_read,
             createdAt: n.created_at
               ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
               : "",
@@ -188,23 +188,23 @@ export default function Notifications() {
         setManualReminderList(reminders);
 
         // 3. Cutoff notifications — from rating periods
-        const periodRes  = await fetch(`${API}/api/rating-periods/current`);
+        const periodRes = await fetch(`${API}/api/rating-periods/current`);
         const periodData = await periodRes.json();
         const cutoffs: CutoffNotification[] = (periodData.periods ?? []).map(
           (p: { id: number; period: string; pms_year: number; rating_start: string; rating_end: string }) => ({
-            id:         String(p.id),
-            title:      `Rating Window — ${p.period} ${p.pms_year}`,
-            message:    `The rating window for ${p.period} ${p.pms_year} runs from ${p.rating_start} to ${p.rating_end}. Ensure all manual ratings are completed before the window closes.`,
+            id: String(p.id),
+            title: `Rating Window — ${p.period} ${p.pms_year}`,
+            message: `The rating window for ${p.period} ${p.pms_year} runs from ${p.rating_start} to ${p.rating_end}. Ensure all manual ratings are completed before the window closes.`,
             cutoffDate: p.rating_end,
-            status:     resolveCutoffStatus(p.rating_end),
-            isRead:     false,
-            actionUrl:  `/${roleSlug}/rating-settings`,
+            status: resolveCutoffStatus(p.rating_end),
+            isRead: false,
+            actionUrl: `/${roleSlug}/rating-settings`,
           })
         );
         setCutoffList(cutoffs);
 
         // 4. Potential Assessment (self-assessment) notifications
-        const paRes  = await fetch(`${API}/api/potential-assessment-notifications/${userId}`);
+        const paRes = await fetch(`${API}/api/potential-assessment-notifications/${userId}`);
         const paData = await paRes.json();
         const paNotifs: PaNotification[] = (paData.data ?? []).map(
           (n: {
@@ -215,11 +215,11 @@ export default function Notifications() {
             is_read: boolean;
             created_at: string;
           }) => ({
-            id:        n.id,
-            type:      n.type,
-            title:     n.title,
-            message:   n.message,
-            isRead:    n.is_read,
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            message: n.message,
+            isRead: n.is_read,
             createdAt: n.created_at
               ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
               : "",
@@ -296,9 +296,9 @@ export default function Notifications() {
   };
 
   const unreadAchievements = achievementList.filter(n => !n.isRead).length;
-  const unreadCutoffs      = cutoffList.filter(n => !n.isRead).length;
-  const unreadReminders    = manualReminderList.filter(n => !n.isRead).length;
-  const unreadPa           = paList.filter(n => !n.isRead).length;
+  const unreadCutoffs = cutoffList.filter(n => !n.isRead).length;
+  const unreadReminders = manualReminderList.filter(n => !n.isRead).length;
+  const unreadPa = paList.filter(n => !n.isRead).length;
 
   if (loading) return (
     <div style={{ padding: "40px 24px", fontFamily: "Inter, sans-serif", color: "#64748B", fontSize: 14 }}>
