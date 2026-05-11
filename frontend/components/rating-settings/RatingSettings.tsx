@@ -120,18 +120,21 @@ function RemindBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-function EnterRatingsBtn({ onClick }: { onClick: () => void }) {
+// ── CHANGE: EnterRatingsBtn now accepts reenter prop ───────────────
+function EnterRatingsBtn({ onClick, reenter }: { onClick: () => void; reenter?: boolean }) {
   return (
     <button
       onClick={onClick}
       style={{
         padding: '6px 16px', borderRadius: 8,
-        border: 'none', background: '#2563EB', color: '#fff',
+        border: 'none',
+        background: reenter ? '#6B7280' : '#2563EB',
+        color: '#fff',
         fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
         fontFamily: 'inherit',
       }}
     >
-      Enter Ratings
+      {reenter ? 'Re-enter Ratings' : 'Enter Ratings'}
     </button>
   );
 }
@@ -640,7 +643,9 @@ export default function RatingSettings() {
                           {renderStatus()}
                         </td>
                         <td style={{ padding: '6px 20px', textAlign: 'center' }}>
+                          {/* ── CHANGE: pass reenter prop based on submitted status ── */}
                           <EnterRatingsBtn
+                            reenter={status?.submitted === true}
                             onClick={() => router.push(
                               `/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}`
                             )}
