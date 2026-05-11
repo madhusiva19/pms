@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, Clock, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
 interface ManualObjective {
@@ -13,6 +13,7 @@ interface ManualObjective {
   weight:         number;
   kpi_scale:      string;
   manual_rating:  number | null;
+  rating_comment: string | null;
 }
 
 interface TeamMember {
@@ -45,17 +46,19 @@ export default function ManualRatingsPage() {
 
   const roleSlug = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
 
-  const [member,       setMember]       = useState<TeamMember | null>(null);
-  const [objectives,   setObjectives]   = useState<ManualObjective[]>([]);
-  const [ratings,      setRatings]      = useState<Record<number, string>>({});
-  const [errors,       setErrors]       = useState<Record<number, string>>({});
-  const [globalError,  setGlobalError]  = useState('');
-  const [submitMsg,    setSubmitMsg]    = useState('');
-  const [loading,      setLoading]      = useState(true);
-  const [saving,       setSaving]       = useState(false);
-  const [submitted,    setSubmitted]    = useState(false);
-  const [isDirty,      setIsDirty]      = useState(false);
-  const [ratingPeriod, setRatingPeriod] = useState<RatingPeriod | null>(null);
+  const [member,        setMember]        = useState<TeamMember | null>(null);
+  const [objectives,    setObjectives]    = useState<ManualObjective[]>([]);
+  const [ratings,       setRatings]       = useState<Record<number, string>>({});
+  const [comments,      setComments]      = useState<Record<number, string>>({});
+  const [errors,        setErrors]        = useState<Record<number, string>>({});
+  const [commentErrors, setCommentErrors] = useState<Record<number, string>>({});
+  const [globalError,   setGlobalError]   = useState('');
+  const [submitMsg,     setSubmitMsg]     = useState('');
+  const [loading,       setLoading]       = useState(true);
+  const [saving,        setSaving]        = useState(false);
+  const [submitted,     setSubmitted]     = useState(false);
+  const [isDirty,       setIsDirty]       = useState(false);
+  const [ratingPeriod,  setRatingPeriod]  = useState<RatingPeriod | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!userId) return;
@@ -78,15 +81,20 @@ export default function ManualRatingsPage() {
 
       if (Array.isArray(objData)) {
         setObjectives(objData);
-        const pre: Record<number, string> = {};
+        const preRatings:  Record<number, string> = {};
+        const preComments: Record<number, string> = {};
         let hasAny = false;
         objData.forEach((obj: ManualObjective) => {
           if (obj.manual_rating !== null && obj.manual_rating !== undefined) {
-            pre[obj.objective_id] = String(obj.manual_rating);
+            preRatings[obj.objective_id]  = String(obj.manual_rating);
             hasAny = true;
           }
+          if (obj.rating_comment) {
+            preComments[obj.objective_id] = obj.rating_comment;
+          }
         });
-        setRatings(pre);
+        setRatings(preRatings);
+        setComments(preComments);
         setSubmitted(hasAny);
       }
 
@@ -117,33 +125,63 @@ export default function ManualRatingsPage() {
     } else {
       const num = parseFloat(val);
       if (isNaN(num) || num < 1 || num > 5) {
-        setErrors(prev => ({ ...prev, [objId]: 'Invalid' }));
+        setErrors(prev => ({ ...prev, [objId]: 'Must be 1–5' }));
       } else {
         setErrors(prev => ({ ...prev, [objId]: '' }));
+        if (num >= 3.0) {
+          setCommentErrors(prev => ({ ...prev, [objId]: '' }));
+        } else {
+          const c = comments[objId] ?? '';
+          if (!c.trim()) {
+            setCommentErrors(prev => ({ ...prev, [objId]: 'Required for ratings below 3.0' }));
+          }
+        }
       }
     }
   };
 
+  const handleCommentChange = (objId: number, val: string) => {
+    setComments(prev => ({ ...prev, [objId]: val }));
+    setIsDirty(true);
+    const rating = parseFloat(ratings[objId] ?? '');
+    if (!isNaN(rating) && rating < 3.0 && !val.trim()) {
+      setCommentErrors(prev => ({ ...prev, [objId]: 'Required for ratings below 3.0' }));
+    } else {
+      setCommentErrors(prev => ({ ...prev, [objId]: '' }));
+    }
+  };
+
   const validate = (): boolean => {
-    const newErrors: Record<number, string> = {};
+    const newErrors:        Record<number, string> = {};
+    const newCommentErrors: Record<number, string> = {};
     let valid = true;
+
     objectives.forEach(obj => {
       const val = ratings[obj.objective_id];
       if (!val || val.trim() === '') {
-        newErrors[obj.objective_id] = 'Invalid';
+        newErrors[obj.objective_id] = 'Required';
         valid = false;
       } else {
         const num = parseFloat(val);
         if (isNaN(num) || num < 1 || num > 5) {
-          newErrors[obj.objective_id] = 'Invalid';
+          newErrors[obj.objective_id] = 'Must be 1–5';
           valid = false;
+        } else if (num < 3.0) {
+          const c = comments[obj.objective_id] ?? '';
+          if (!c.trim()) {
+            newCommentErrors[obj.objective_id] = 'Required for ratings below 3.0';
+            valid = false;
+          }
         }
       }
     });
+
     setErrors(newErrors);
+    setCommentErrors(newCommentErrors);
     return valid;
   };
 
+  // FIX 1: pendingCount correctly reflects unrated objectives
   const pendingCount = objectives.filter(o => {
     const val = ratings[o.objective_id];
     if (!val || val.trim() === '') return true;
@@ -160,8 +198,9 @@ export default function ManualRatingsPage() {
     setSaving(true);
     try {
       const ratingsList = objectives.map(obj => ({
-        objective_id:  obj.objective_id,
-        manual_rating: parseFloat(parseFloat(ratings[obj.objective_id]).toFixed(2)),
+        objective_id:   obj.objective_id,
+        manual_rating:  parseFloat(parseFloat(ratings[obj.objective_id]).toFixed(2)),
+        rating_comment: comments[obj.objective_id]?.trim() || null,
       }));
 
       const res = await fetch(`${API}/api/evaluator/submit`, {
@@ -182,7 +221,9 @@ export default function ManualRatingsPage() {
       setSubmitted(true);
       setIsDirty(false);
       setSubmitMsg('success');
-      setTimeout(() => router.push(`/${roleSlug}/team`), 1800);
+
+      // FIX 2: Redirect to rating-settings instead of team
+      setTimeout(() => router.push(`/${roleSlug}/rating-settings`), 1800);
 
     } catch (e: unknown) {
       setSubmitMsg(e instanceof Error ? e.message : 'Submission failed. Please try again.');
@@ -192,7 +233,8 @@ export default function ManualRatingsPage() {
 
   const handleCancel = () => {
     if (isDirty && !confirm('You have unsaved changes. Leave anyway?')) return;
-    router.push(`/${roleSlug}/team`);
+    // FIX 2: Redirect to rating-settings on cancel too
+    router.push(`/${roleSlug}/rating-settings`);
   };
 
   const grouped = objectives.reduce<Record<string, ManualObjective[]>>((acc, obj) => {
@@ -213,9 +255,7 @@ export default function ManualRatingsPage() {
         background: '#FEF2F2', border: '1px solid #FECACA',
         borderRadius: 10, padding: '20px 24px', maxWidth: 520,
       }}>
-        <div style={{ fontWeight: 700, color: '#DC2626', fontSize: 15, marginBottom: 8 }}>
-          ⚠️ Failed to Load
-        </div>
+        <div style={{ fontWeight: 700, color: '#DC2626', fontSize: 15, marginBottom: 8 }}>⚠️ Failed to Load</div>
         <div style={{ fontSize: 13, color: '#7F1D1D' }}>{globalError}</div>
       </div>
     </div>
@@ -235,9 +275,45 @@ export default function ManualRatingsPage() {
     textTransform: 'uppercase', letterSpacing: '0.05em',
   });
 
-  const tdStyle = (align: 'left' | 'center' = 'left', extra?: React.CSSProperties): React.CSSProperties => ({
-    padding: P, textAlign: align, verticalAlign: 'middle', ...extra,
+  const tdBase = (align: 'left' | 'center' = 'left', extra?: React.CSSProperties): React.CSSProperties => ({
+    padding: P, textAlign: align, verticalAlign: 'top', ...extra,
   });
+
+  // FIX 1: Determine submit bar status correctly
+  const hasNoObjectives  = objectives.length === 0;
+  const isSubmitDisabled = saving || hasNoObjectives;
+
+  // Submit bar status label
+  const renderStatusLabel = () => {
+    if (hasNoObjectives) {
+      return (
+        <>
+          <AlertTriangle size={14} />
+          No manual objectives found for this member
+        </>
+      );
+    }
+    if (pendingCount > 0) {
+      return (
+        <>
+          <AlertTriangle size={14} />
+          {pendingCount} objective{pendingCount > 1 ? 's' : ''} still need{pendingCount === 1 ? 's' : ''} a valid rating
+        </>
+      );
+    }
+    return (
+      <>
+        <CheckCircle size={14} />
+        All objectives rated — ready to submit
+      </>
+    );
+  };
+
+  const statusColor = hasNoObjectives
+    ? '#94A3B8'
+    : pendingCount > 0
+      ? '#D97706'
+      : '#16A34A';
 
   return (
     <div style={{
@@ -253,7 +329,7 @@ export default function ManualRatingsPage() {
         }}>
           <Link href="/" style={{ color: '#64748B', textDecoration: 'none' }}>Home</Link>
           <span>›</span>
-          <Link href={`/${roleSlug}/team`} style={{ color: '#64748B', textDecoration: 'none' }}>My Team</Link>
+          <Link href={`/${roleSlug}/rating-settings`} style={{ color: '#64748B', textDecoration: 'none' }}>Rating Settings</Link>
           <span>›</span>
           <span style={{ color: '#1E293B', fontWeight: 700 }}>Manual Ratings</span>
         </div>
@@ -314,8 +390,9 @@ export default function ManualRatingsPage() {
           fontSize: 13, color: '#854D0E',
         }}>
           <strong>Rating Mode</strong> — Enter a rating between <strong>1.00</strong> and{' '}
-          <strong>5.00</strong> for each objective. All objectives must be rated before
-          submitting. You can re-edit and resubmit anytime within the rating window.
+          <strong>5.00</strong> for each objective. Ratings below <strong>3.0</strong> require
+          a comment. All objectives must be rated before submitting.
+          You can re-edit and resubmit anytime within the rating window.
         </div>
 
         {/* Table */}
@@ -330,128 +407,199 @@ export default function ManualRatingsPage() {
           </div>
 
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 780 }}>
-              <colgroup>
-                <col style={{ width: '18%' }} />
-                <col style={{ width: '26%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '22%' }} />
-              </colgroup>
-              <thead>
-                <tr style={{ background: '#F1F5F9', borderBottom: '2px solid #E2E8F0' }}>
-                  <th style={thStyle('left')}>Category</th>
-                  <th style={thStyle('left')}>Objective</th>
-                  <th style={thStyle('left')}>KPI Scale</th>
-                  <th style={thStyle('center')}>Weight</th>
-                  <th style={thStyle('center')}>Rating (1–5)</th>
-                  <th style={thStyle('left')}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(grouped).map(([catName, objs], gi) => (
-                  <React.Fragment key={catName}>
-                    {objs.map((obj, oi) => {
-                      const hasError = !!errors[obj.objective_id];
-                      return (
-                        <tr key={obj.objective_id} style={{
-                          borderTop:    oi === 0 && gi > 0 ? '2px solid #CBD5E1' : 'none',
-                          borderBottom: '1px solid #E8EDF5',
-                          background:   '#fff',
+            {/* FIX 1: Show empty state when no objectives */}
+            {hasNoObjectives ? (
+              <div style={{
+                padding: '48px 24px', textAlign: 'center',
+                color: '#94A3B8', fontSize: 14,
+              }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+                <div style={{ fontWeight: 600, color: '#64748B', marginBottom: 4 }}>
+                  No Manual Objectives Found
+                </div>
+                <div style={{ fontSize: 13 }}>
+                  This team member has no manual KPI objectives assigned for {period} {year}.
+                </div>
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
+                <colgroup>
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '32%' }} />
+                </colgroup>
+                <thead>
+                  <tr style={{ background: '#F1F5F9', borderBottom: '2px solid #E2E8F0' }}>
+                    <th style={thStyle('left')}>Category</th>
+                    <th style={thStyle('left')}>Objective</th>
+                    <th style={thStyle('left')}>KPI Scale</th>
+                    <th style={thStyle('center')}>Weight</th>
+                    <th style={thStyle('center')}>Rating (1–5)</th>
+                    <th style={thStyle('left')}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <MessageSquare size={11} />
+                        Comment
+                        <span style={{
+                          fontSize: 10, fontWeight: 400, color: '#94A3B8',
+                          textTransform: 'none', letterSpacing: 0,
                         }}>
-                          <td style={tdStyle('left', {
-                            color:      '#1E293B',
-                            fontWeight: oi === 0 ? 700 : 400,
-                            fontSize:   13,
-                            borderLeft: oi === 0 ? '3px solid #2563EB' : '3px solid transparent',
-                            background: oi === 0 ? '#F8FAFF' : '#fff',
-                          })}>
-                            {oi === 0 ? catName : ''}
-                          </td>
-                          <td style={tdStyle('left', {
-                            color:      '#1C398E',
-                            fontWeight: 500,
-                            fontSize:   13,
-                            background: oi === 0 ? '#F8FAFF' : '#fff',
-                          })}>
-                            {obj.objective_name}
-                          </td>
-                          <td style={tdStyle('left', {
-                            background: oi === 0 ? '#F8FAFF' : '#fff',
-                          })}>
-                            <span style={{
-                              display:      'inline-flex',
-                              alignItems:   'center',
-                              gap:          4,
-                              padding:      '3px 10px',
-                              borderRadius: 6,
-                              fontSize:     11,
-                              fontWeight:   500,
-                              background:   '#F3F4F6',
-                              color:        '#4A5565',
-                              border:       '1px solid #D1D5DC',
-                            }}>
-                              Manual Rating
-                            </span>
-                          </td>
-                          <td style={tdStyle('center', {
-                            color:      '#475569',
-                            fontWeight: 500,
-                            fontSize:   13,
-                            background: oi === 0 ? '#F8FAFF' : '#fff',
-                          })}>
-                            {obj.weight}%
-                          </td>
-                          <td style={tdStyle('center', {
-                            background: oi === 0 ? '#F8FAFF' : '#fff',
-                          })}>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="1"
-                              max="5"
-                              value={ratings[obj.objective_id] ?? ''}
-                              onChange={e => handleRatingChange(obj.objective_id, e.target.value)}
-                              style={{
-                                width:        80,
-                                padding:      '5px 8px',
-                                textAlign:    'center',
-                                border:       `1px solid ${hasError ? '#F87171' : '#D1D5DC'}`,
-                                borderRadius: 6,
-                                fontSize:     13,
-                                color:        '#1E293B',
-                                background:   hasError ? '#FFF5F5' : '#fff',
-                                outline:      'none',
-                              }}
-                            />
-                          </td>
-                          <td style={tdStyle('left', {
-                            background:  oi === 0 ? '#F8FAFF' : '#fff',
-                            paddingLeft: 8,
-                          })}>
-                            {hasError && (
+                          (required if rating &lt; 3.0)
+                        </span>
+                      </span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(grouped).map(([catName, objs], gi) => (
+                    <React.Fragment key={catName}>
+                      {objs.map((obj, oi) => {
+                        const hasRatingError  = !!errors[obj.objective_id];
+                        const hasCommentError = !!commentErrors[obj.objective_id];
+                        const ratingNum       = parseFloat(ratings[obj.objective_id] ?? '');
+                        const isBelowThree    = !isNaN(ratingNum) && ratingNum < 3.0;
+                        const rowBg           = oi === 0 ? '#F8FAFF' : '#fff';
+
+                        return (
+                          <tr key={obj.objective_id} style={{
+                            borderTop:    oi === 0 && gi > 0 ? '2px solid #CBD5E1' : 'none',
+                            borderBottom: '1px solid #E8EDF5',
+                            background:   rowBg,
+                          }}>
+
+                            {/* Category */}
+                            <td style={tdBase('left', {
+                              color:      '#1E293B',
+                              fontWeight: oi === 0 ? 700 : 400,
+                              fontSize:   13,
+                              borderLeft: oi === 0 ? '3px solid #2563EB' : '3px solid transparent',
+                              background: rowBg,
+                            })}>
+                              {oi === 0 ? catName : ''}
+                            </td>
+
+                            {/* Objective name */}
+                            <td style={tdBase('left', {
+                              color: '#1C398E', fontWeight: 500, fontSize: 13, background: rowBg,
+                            })}>
+                              {obj.objective_name}
+                            </td>
+
+                            {/* KPI scale badge */}
+                            <td style={tdBase('left', { background: rowBg })}>
                               <span style={{
-                                fontSize:   11,
-                                color:      '#DC2626',
-                                display:    'flex',
-                                alignItems: 'center',
-                                gap:        4,
-                                whiteSpace: 'nowrap',
-                                fontWeight: 500,
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                                background: '#F3F4F6', color: '#4A5565', border: '1px solid #D1D5DC',
                               }}>
-                                <AlertTriangle size={11} />
-                                {errors[obj.objective_id]}
+                                Manual Rating
                               </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
+                            </td>
+
+                            {/* Weight */}
+                            <td style={tdBase('center', {
+                              color: '#475569', fontWeight: 500, fontSize: 13, background: rowBg,
+                            })}>
+                              {obj.weight}%
+                            </td>
+
+                            {/* Rating input */}
+                            <td style={tdBase('center', { background: rowBg })}>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="1"
+                                max="5"
+                                value={ratings[obj.objective_id] ?? ''}
+                                onChange={e => handleRatingChange(obj.objective_id, e.target.value)}
+                                style={{
+                                  width: 80,
+                                  padding: '5px 8px',
+                                  textAlign: 'center',
+                                  border: `1px solid ${hasRatingError ? '#F87171' : '#D1D5DC'}`,
+                                  borderRadius: 6,
+                                  fontSize: 13,
+                                  color: '#1E293B',
+                                  background: hasRatingError ? '#FFF5F5' : '#fff',
+                                  outline: 'none',
+                                }}
+                              />
+                              {hasRatingError && (
+                                <div style={{
+                                  fontSize: 11, color: '#DC2626',
+                                  display: 'flex', alignItems: 'center', gap: 3,
+                                  marginTop: 4, whiteSpace: 'nowrap',
+                                }}>
+                                  <AlertTriangle size={10} />
+                                  {errors[obj.objective_id]}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Comment input */}
+                            <td style={tdBase('left', { background: rowBg, paddingTop: 10, paddingBottom: 10 })}>
+                              <textarea
+                                placeholder={
+                                  isBelowThree
+                                    ? 'Comment required for ratings below 3.0…'
+                                    : 'Optional comment…'
+                                }
+                                value={comments[obj.objective_id] ?? ''}
+                                onChange={e => handleCommentChange(obj.objective_id, e.target.value)}
+                                rows={2}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 10px',
+                                  border: `1px solid ${
+                                    hasCommentError
+                                      ? '#F87171'
+                                      : isBelowThree
+                                        ? '#FCD34D'
+                                        : '#D1D5DC'
+                                  }`,
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  color: '#1E293B',
+                                  background: hasCommentError ? '#FFF5F5' : isBelowThree ? '#FFFBEB' : '#fff',
+                                  outline: 'none',
+                                  resize: 'vertical',
+                                  fontFamily: 'Inter, sans-serif',
+                                  lineHeight: '1.4',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                              {hasCommentError && (
+                                <div style={{
+                                  fontSize: 11, color: '#DC2626',
+                                  display: 'flex', alignItems: 'center', gap: 3,
+                                  marginTop: 2,
+                                }}>
+                                  <AlertTriangle size={10} />
+                                  {commentErrors[obj.objective_id]}
+                                </div>
+                              )}
+                              {isBelowThree && !hasCommentError && (
+                                <div style={{
+                                  fontSize: 11, color: '#92400E',
+                                  display: 'flex', alignItems: 'center', gap: 3,
+                                  marginTop: 2,
+                                }}>
+                                  <AlertTriangle size={10} />
+                                  Comment required for this rating
+                                </div>
+                              )}
+                            </td>
+
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
@@ -464,7 +612,7 @@ export default function ManualRatingsPage() {
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <CheckCircle size={15} />
-            Ratings submitted successfully! Redirecting to My Team…
+            Ratings submitted successfully! Redirecting to Rating Settings…
           </div>
         )}
 
@@ -477,7 +625,7 @@ export default function ManualRatingsPage() {
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <AlertTriangle size={15} />
-            Please fix the invalid ratings before submitting.
+            Please fix the errors above before submitting. Comments are required for ratings below 3.0.
           </div>
         )}
 
@@ -498,23 +646,15 @@ export default function ManualRatingsPage() {
           padding: '16px 20px', background: '#fff',
           border: '1px solid #E2E8F0', borderRadius: 12, flexWrap: 'wrap',
         }}>
+          {/* FIX 1: Status label with empty objectives guard */}
           <span style={{
             fontSize: 13, flex: 1,
-            color: pendingCount > 0 ? '#D97706' : '#16A34A',
+            color: statusColor,
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            {pendingCount > 0 ? (
-              <>
-                <AlertTriangle size={14} />
-                {pendingCount} objective{pendingCount > 1 ? 's' : ''} still need{pendingCount === 1 ? 's' : ''} a valid rating
-              </>
-            ) : (
-              <>
-                <CheckCircle size={14} />
-                All objectives rated — ready to submit
-              </>
-            )}
+            {renderStatusLabel()}
           </span>
+
           <button onClick={handleCancel} style={{
             padding: '10px 20px', borderRadius: 6,
             background: '#F1F5F9', border: '1px solid #E2E8F0',
@@ -522,12 +662,18 @@ export default function ManualRatingsPage() {
           }}>
             Cancel
           </button>
-          <button onClick={handleSubmit} disabled={saving} style={{
-            padding: '10px 24px', borderRadius: 6, border: 'none',
-            background: saving ? '#93C5FD' : '#16A34A',
-            cursor: saving ? 'not-allowed' : 'pointer',
-            fontSize: 13, color: '#fff', fontWeight: 600,
-          }}>
+
+          {/* FIX 1: Disable submit when no objectives */}
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitDisabled}
+            style={{
+              padding: '10px 24px', borderRadius: 6, border: 'none',
+              background: isSubmitDisabled ? '#93C5FD' : '#16A34A',
+              cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+              fontSize: 13, color: '#fff', fontWeight: 600,
+            }}
+          >
             {saving ? 'Submitting…' : submitted ? 'Resubmit Ratings' : 'Submit Ratings'}
           </button>
         </div>
