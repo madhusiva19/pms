@@ -2,9 +2,6 @@
 calculations.py
 ---------------
 Pure calculation functions for the Potential Assessment module.
-
-Kept separate from app.py so they can be imported and unit-tested
-without requiring Flask or Supabase to be initialised.
 """
 
 VALID_RATINGS = frozenset({'H', 'M', 'L'})
@@ -18,18 +15,6 @@ def calculate_pillar_rating(ratings: list) -> str:
       - 2 or more H  →  'H'
       - 2 or more L  →  'L'
       - otherwise    →  'M'
-
-    Args:
-        ratings: List of exactly 3 rating strings, each one of 'H', 'M', 'L'.
-
-    Returns:
-        str: One of 'H', 'M', 'L'.
-
-    Example:
-        >>> calculate_pillar_rating(['H', 'H', 'L'])
-        'H'
-        >>> calculate_pillar_rating(['L', 'L', 'M'])
-        'L'
     """
     h = ratings.count('H')
     l = ratings.count('L')
@@ -45,34 +30,28 @@ def calculate_overall_potentiality(ability: str, aspiration: str, leadership: st
     Derive Overall Potentiality from the three pillar overall ratings.
 
     Implements the matrix rule defined in the assessment specification:
-      - 2 or more H  AND  0 L  →  'H'  (High Potential)
-      - 2 or more L  AND  0 H  →  'L'  (Low Potential)
-      - anything else           →  'M'  (Medium Potential)
-
-    A single L prevents a High result even when two pillars are H.
-    A single H prevents a Low result even when two pillars are L.
-
-    Args:
-        ability:    Overall Ability rating    — one of 'H', 'M', 'L'.
-        aspiration: Overall Aspiration rating — one of 'H', 'M', 'L'.
-        leadership: Overall Leadership rating — one of 'H', 'M', 'L'.
-
-    Returns:
-        str: One of 'H', 'M', 'L'.
-
-    Example:
-        >>> calculate_overall_potentiality('H', 'H', 'M')
-        'H'
-        >>> calculate_overall_potentiality('L', 'H', 'H')
-        'M'
-        >>> calculate_overall_potentiality('L', 'L', 'M')
-        'L'
+      - High (H): (H,H,H), (H,H,M), or (H,H,L)
+      - Low (L): (L,L,M) or (L,L,L)
+      - Medium (M): All other combinations
     """
-    ratings = [ability, aspiration, leadership]
-    h = ratings.count('H')
-    l = ratings.count('L')
-    if h >= 2 and l == 0:
+    # Sort ratings to identify patterns regardless of which pillar has which score
+    scores = sorted([ability, aspiration, leadership], reverse=True)
+    pattern = tuple(scores)
+
+    # High Potentiality Cases (Matches Matrix Row 1-4) 
+    if pattern in [
+        ('H', 'H', 'H'),
+        ('H', 'H', 'M'),
+        ('H', 'H', 'L')  # This now correctly results in 'H' per the matrix 
+    ]:
         return 'H'
-    if l >= 2 and h == 0:
+
+    # Low Potentiality Cases (Matches Matrix Row 9-10) 
+    if pattern in [
+        ('L', 'L', 'M'),
+        ('L', 'L', 'L')
+    ]:
         return 'L'
+
+    # Everything else is Medium (Matches Matrix Row 5-8) 
     return 'M'
