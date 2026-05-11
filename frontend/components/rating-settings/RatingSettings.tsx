@@ -25,12 +25,15 @@ interface OverviewMember {
 interface TeamMember {
   id: string; full_name: string; designation: string; template_name: string | null;
 }
-interface ManualRatingStatus {
-  [userId: string]: { submitted: boolean; count: number };
+interface MemberRatingStatus {
+  submitted: boolean;
+  pending: number;
+  total: number;
 }
-// Deduplicate by name — the backend collapses same-name rows but we guard
-// client-side too. We also keep 'all_ids' if the backend provides it so
-// we can send the full set of real IDs when saving.
+interface ManualRatingStatus {
+  [userId: string]: MemberRatingStatus;
+}
+
 function dedupe(items: OrgItem[]): OrgItem[] {
   const seen = new Set<string>();
   return items.filter(item => {
@@ -130,23 +133,7 @@ function RemindBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-function EnterRatingsBtn({ onClick, isOpen }: { onClick: () => void; isOpen: boolean }) {
-  if (!isOpen) {
-    return (
-      <button
-        onClick={onClick}
-        style={{
-          padding: '6px 16px', borderRadius: 8,
-          border: 'none', background: BLUE, color: '#fff',
-          fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-          fontFamily: 'inherit', opacity: 0.92,
-        }}
-        title="Rating period is not currently open"
-      >
-        Enter Ratings
-      </button>
-    );
-  }
+function EnterRatingsBtn({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -216,8 +203,7 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
   );
 }
 
-// ── MultiSelect — top-level so it never remounts mid-render ───────
-// Defined OUTSIDE all modals to keep stable identity across re-renders.
+// ── MultiSelect ────────────────────────────────────────────────────
 interface OrgItem { id: string; name: string; all_ids?: string[]; }
 
 function MultiSelect({
@@ -225,23 +211,17 @@ function MultiSelect({
 }: {
   label: string;
   items: OrgItem[];
-  selected: string[];         // ['all'] means everything selected
+  selected: string[];
   onChange: (next: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-
   const allSelected = selected.includes('all');
   const displayLabel = allSelected ? `All ${label}` : `${selected.length} selected`;
 
-  const handleToggleAll = () => {
-    // If currently "all", uncheck all → select none (represent as empty [])
-    // If currently partial/none, select all → ['all']
-    onChange(allSelected ? [] : ['all']);
-  };
+  const handleToggleAll = () => onChange(allSelected ? [] : ['all']);
 
   const handleToggleItem = (id: string) => {
     if (allSelected) {
-      // Deselect this one item; all others remain selected
       const next = items.map(i => i.id).filter(i => i !== id);
       onChange(next.length === 0 ? [] : next);
     } else if (selected.includes(id)) {
@@ -249,7 +229,6 @@ function MultiSelect({
       onChange(next.length === 0 ? [] : next);
     } else {
       const next = [...selected, id];
-      // If every item is now checked, collapse to ['all']
       onChange(next.length === items.length ? ['all'] : next);
     }
   };
@@ -269,66 +248,38 @@ function MultiSelect({
           border: `1px solid ${open ? BLUE : BORDER}`,
           background: PAGE_BG, fontSize: 13, color: TEXT_BODY,
           cursor: 'pointer', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', fontFamily: 'inherit',
-          outline: 'none',
+          justifyContent: 'space-between', fontFamily: 'inherit', outline: 'none',
         }}
       >
         <span style={{ color: allSelected || selected.length > 0 ? TEXT_BODY : TEXT_FAINT }}>
           {displayLabel}
         </span>
-        <ChevronDown
-          size={13}
-          color={TEXT_MUTED}
-          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }}
-        />
+        <ChevronDown size={13} color={TEXT_MUTED} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }} />
       </button>
-
       {open && (
         <>
-          {/* Click-away backdrop */}
-          <div
-            style={{ position: 'fixed', inset: 0, zIndex: 49 }}
-            onClick={() => setOpen(false)}
-          />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setOpen(false)} />
           <div style={{
             position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
             background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            maxHeight: 220, overflowY: 'auto',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 220, overflowY: 'auto',
           }}>
-            {/* Select All row */}
             <label style={{
-              display: 'flex', alignItems: 'center', gap: 9,
-              padding: '9px 12px', cursor: 'pointer', fontSize: 13,
-              borderBottom: `1px solid ${BORDER}`, fontWeight: 600, color: BLUE,
-              background: allSelected ? BLUE_LIGHT : CARD_BG,
+              display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px',
+              cursor: 'pointer', fontSize: 13, borderBottom: `1px solid ${BORDER}`,
+              fontWeight: 600, color: BLUE, background: allSelected ? BLUE_LIGHT : CARD_BG,
             }}>
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={handleToggleAll}
-                style={{ accentColor: BLUE, width: 14, height: 14 }}
-              />
+              <input type="checkbox" checked={allSelected} onChange={handleToggleAll} style={{ accentColor: BLUE, width: 14, height: 14 }} />
               Select All
             </label>
-
-            {/* Individual items — already deduped before passing in */}
             {items.map(item => (
-              <label
-                key={item.id}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 9,
-                  padding: '8px 12px', cursor: 'pointer', fontSize: 13,
-                  color: TEXT_BODY, borderBottom: `1px solid ${BORDER}`,
-                  background: isChecked(item.id) ? '#F0F9FF' : CARD_BG,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={isChecked(item.id)}
-                  onChange={() => handleToggleItem(item.id)}
-                  style={{ accentColor: BLUE, width: 14, height: 14 }}
-                />
+              <label key={item.id} style={{
+                display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px',
+                cursor: 'pointer', fontSize: 13, color: TEXT_BODY,
+                borderBottom: `1px solid ${BORDER}`,
+                background: isChecked(item.id) ? '#F0F9FF' : CARD_BG,
+              }}>
+                <input type="checkbox" checked={isChecked(item.id)} onChange={() => handleToggleItem(item.id)} style={{ accentColor: BLUE, width: 14, height: 14 }} />
                 {item.name}
               </label>
             ))}
@@ -353,13 +304,11 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
   const [saved,  setSaved]  = useState(false);
   const [error,  setError]  = useState('');
 
-  // Org lists — deduped immediately on set
   const [countries,   setCountries]   = useState<OrgItem[]>([]);
   const [branches,    setBranches]    = useState<OrgItem[]>([]);
   const [departments, setDepartments] = useState<OrgItem[]>([]);
   const [subDepts,    setSubDepts]    = useState<OrgItem[]>([]);
 
-  // Selections — ['all'] means every item in that list is selected
   const [selCountries,   setSelCountries]   = useState<string[]>(['all']);
   const [selBranches,    setSelBranches]    = useState<string[]>(['all']);
   const [selDepartments, setSelDepartments] = useState<string[]>(['all']);
@@ -367,32 +316,14 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
 
   useEffect(() => {
     const uid = user?.id ?? '';
-
-    // Countries — only for HQ admin
     if (isHQ) {
-      fetch(`${API}/api/org/countries`)
-        .then(r => r.json())
-        .then((d: OrgItem[]) => setCountries(dedupe(d || [])))
-        .catch(() => {});
+      fetch(`${API}/api/org/countries`).then(r => r.json()).then((d: OrgItem[]) => setCountries(dedupe(d || []))).catch(() => {});
     }
-
-    fetch(`${API}/api/org/branches?evaluator_id=${uid}`)
-      .then(r => r.json())
-      .then((d: OrgItem[]) => setBranches(dedupe(d || [])))
-      .catch(() => {});
-
-    fetch(`${API}/api/org/departments?evaluator_id=${uid}`)
-      .then(r => r.json())
-      .then((d: OrgItem[]) => setDepartments(dedupe(d || [])))
-      .catch(() => {});
-
-    fetch(`${API}/api/org/sub-departments?evaluator_id=${uid}`)
-      .then(r => r.json())
-      .then((d: OrgItem[]) => setSubDepts(dedupe(d || [])))
-      .catch(() => {});
+    fetch(`${API}/api/org/branches?evaluator_id=${uid}`).then(r => r.json()).then((d: OrgItem[]) => setBranches(dedupe(d || []))).catch(() => {});
+    fetch(`${API}/api/org/departments?evaluator_id=${uid}`).then(r => r.json()).then((d: OrgItem[]) => setDepartments(dedupe(d || []))).catch(() => {});
+    fetch(`${API}/api/org/sub-departments?evaluator_id=${uid}`).then(r => r.json()).then((d: OrgItem[]) => setSubDepts(dedupe(d || []))).catch(() => {});
   }, [user?.id, isHQ]);
 
-  // Expand selection to real DB ids, including grouped same-name items
   const resolve = (sel: string[], list: OrgItem[]) => {
     const chosen = sel.includes('all') ? list : list.filter(i => sel.includes(i.id));
     return chosen.flatMap(i => i.all_ids ?? [i.id]);
@@ -406,14 +337,11 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
       const res = await fetch(`${API}/api/rating-periods/update`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          period,
-          pms_year:             pmsYear,
-          rating_start:         start,
-          rating_end:           end,
-          affected_countries:   isHQ ? resolve(selCountries,   countries)   : undefined,
-          affected_branches:    resolve(selBranches,    branches),
+          period, pms_year: pmsYear, rating_start: start, rating_end: end,
+          affected_countries:   isHQ ? resolve(selCountries, countries) : undefined,
+          affected_branches:    resolve(selBranches, branches),
           affected_departments: resolve(selDepartments, departments),
-          affected_sub_depts:   resolve(selSubDepts,    subDepts),
+          affected_sub_depts:   resolve(selSubDepts, subDepts),
         }),
       });
       if (!res.ok) throw new Error();
@@ -432,16 +360,13 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
       <div style={{
-        background: CARD_BG, borderRadius: 12, padding: 28,
-        width: '90%', maxWidth: 500,
+        background: CARD_BG, borderRadius: 12, padding: 28, width: '90%', maxWidth: 500,
         boxShadow: '0 20px 60px rgba(0,0,0,0.15)', fontFamily: 'inherit',
         maxHeight: '90vh', overflowY: 'auto',
       }}>
         <h3 style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 700, color: TEXT_HEAD }}>Edit Rating Period</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: TEXT_MUTED }}>{period} {pmsYear}</p>
         <div style={{ height: 1, background: BORDER, marginBottom: 18 }} />
-
-        {/* ── Date pickers ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_SUB, display: 'block', marginBottom: 6 }}>Rating Start</label>
@@ -452,71 +377,28 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
             <input type="date" value={end} onChange={e => setEnd(e.target.value)} style={inputStyle} />
           </div>
         </div>
-
-        {/* ── Apply To — role-scoped org filters ── */}
         <div style={{ marginTop: 22 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14,
-            paddingBottom: 10, borderBottom: `1px solid ${BORDER}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 10, borderBottom: `1px solid ${BORDER}` }}>
             <Filter size={13} color={BLUE} />
             <span style={{ fontSize: 12.5, fontWeight: 700, color: TEXT_HEAD }}>Apply To</span>
             <span style={{ fontSize: 11.5, color: TEXT_MUTED }}>— select which units are affected</span>
           </div>
-
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Countries: only visible to HQ admin */}
-            {isHQ && countries.length > 0 && (
-              <MultiSelect
-                label="Countries"
-                items={countries}
-                selected={selCountries}
-                onChange={setSelCountries}
-              />
-            )}
-
-            {branches.length > 0 && (
-              <MultiSelect
-                label="Branches"
-                items={branches}
-                selected={selBranches}
-                onChange={setSelBranches}
-              />
-            )}
-
-            {departments.length > 0 && (
-              <MultiSelect
-                label="Departments"
-                items={departments}
-                selected={selDepartments}
-                onChange={setSelDepartments}
-              />
-            )}
-
-            {subDepts.length > 0 && (
-              <MultiSelect
-                label="Sub-Departments"
-                items={subDepts}
-                selected={selSubDepts}
-                onChange={setSelSubDepts}
-              />
-            )}
+            {isHQ && countries.length > 0 && <MultiSelect label="Countries" items={countries} selected={selCountries} onChange={setSelCountries} />}
+            {branches.length > 0    && <MultiSelect label="Branches"        items={branches}    selected={selBranches}    onChange={setSelBranches} />}
+            {departments.length > 0 && <MultiSelect label="Departments"     items={departments} selected={selDepartments} onChange={setSelDepartments} />}
+            {subDepts.length > 0    && <MultiSelect label="Sub-Departments" items={subDepts}    selected={selSubDepts}    onChange={setSelSubDepts} />}
           </div>
         </div>
-
         {error && <p style={{ color: '#DC2626', fontSize: 12, margin: '12px 0 0' }}>{error}</p>}
         {saved && <p style={{ color: '#16A34A', fontSize: 12, margin: '12px 0 0' }}>Period updated successfully!</p>}
-
         <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{
-            padding: '7px 16px', borderRadius: 8,
-            border: `1px solid ${BORDER}`, background: CARD_BG,
-            fontSize: 13, cursor: 'pointer', color: TEXT_BODY, fontWeight: 600,
-          }}>Cancel</button>
+          <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 8, border: `1px solid ${BORDER}`, background: CARD_BG, fontSize: 13, cursor: 'pointer', color: TEXT_BODY, fontWeight: 600 }}>Cancel</button>
           <button onClick={handleSave} disabled={saving || saved} style={{
             padding: '7px 18px', borderRadius: 8, border: 'none',
             background: saved ? '#16A34A' : BLUE, color: '#fff',
             fontSize: 13, fontWeight: 600,
-            cursor: (saving || saved) ? 'not-allowed' : 'pointer',
-            opacity: saving ? 0.8 : 1,
+            cursor: (saving || saved) ? 'not-allowed' : 'pointer', opacity: saving ? 0.8 : 1,
           }}>
             {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
           </button>
@@ -540,64 +422,94 @@ export default function RatingSettings() {
   const [overview,       setOverview]       = useState<OverviewMember[]>([]);
   const [team,           setTeam]           = useState<TeamMember[]>([]);
   const [ratingStatus,   setRatingStatus]   = useState<ManualRatingStatus>({});
+  const [statusLoading,  setStatusLoading]  = useState(false);
   const [loading,        setLoading]        = useState(true);
   const [reminderTarget, setReminderTarget] = useState<OverviewMember | TeamMember | null>(null);
   const [editPeriodOpen, setEditPeriodOpen] = useState(false);
 
-  // Derive period/year from activePeriod — never hardcoded
-  const pmsYear        = activePeriod?.pms_year    ?? new Date().getFullYear();
-  const selectedPeriod = activePeriod?.period      ?? 'H1';
-  const ratingIsOpen   = periodData?.rating_open   ?? false;
+  const pmsYear        = activePeriod?.pms_year  ?? new Date().getFullYear();
+  const selectedPeriod = activePeriod?.period    ?? 'H1';
+  const ratingIsOpen   = periodData?.rating_open ?? false;
 
+  // ── FIX: Fetch rating statuses in ONE batch call instead of N calls ──
+  const fetchRatingStatuses = useCallback(async (
+    teamMembers: TeamMember[],
+    year: number,
+    period: string,
+  ) => {
+    if (!teamMembers.length || !year || !period) return;
+    setStatusLoading(true);
+    try {
+      const userIds = teamMembers.map(m => m.id).join(',');
+      const res  = await fetch(`${API}/api/rating-status/batch?user_ids=${userIds}&year=${year}&period=${period}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: ManualRatingStatus = await res.json();
+      setRatingStatus(data);
+    } catch (e) {
+      console.error('[RatingSettings] batch status fetch failed:', e);
+      // On failure, set every member to a "loading failed" sentinel
+      // so we show "—" instead of blank (blank = never fetched)
+      const fallback: ManualRatingStatus = {};
+      teamMembers.forEach(m => { fallback[m.id] = { submitted: false, pending: 0, total: 0 }; });
+      setRatingStatus(fallback);
+    }
+    setStatusLoading(false);
+  }, []);
+
+  // ── FIX: Two-phase fetch — period + team first, then status ──────
+  // Phase 1: fetch period, overview, and team in parallel
+  // Phase 2: once we have both the team list AND the resolved period,
+  //          fire the single batch status call.
+  // This eliminates the race where status was fetched with wrong/null period.
   const fetchAll = useCallback(async () => {
     if (!evaluatorId) return;
     setLoading(true);
+    setRatingStatus({}); // clear stale data immediately
+
     try {
       const [periodRes, overviewRes, teamRes] = await Promise.all([
         fetch(`${API}/api/rating-periods/current`),
-        fetch(`${API}/api/rating-settings/overview/${evaluatorId}`),   // no hardcoded year/period — backend picks active
+        fetch(`${API}/api/rating-settings/overview/${evaluatorId}`),
         fetch(`${API}/api/evaluator/${evaluatorId}/team`),
       ]);
-      const periodJson   = await periodRes.json();
-      const overviewJson = await overviewRes.json();
-      const teamJson     = await teamRes.json();
+
+      // Guard: parse each separately so one bad response doesn't kill all
+      const periodJson   = periodRes.ok   ? await periodRes.json()   : null;
+      const overviewJson = overviewRes.ok ? await overviewRes.json() : [];
+      const teamJson     = teamRes.ok     ? await teamRes.json()     : [];
+
+      // ── Resolve active period deterministically ──
+      // Priority: currently-open period → closest by start date → null
+      const periods: RatingPeriod[] = periodJson?.periods ?? [];
+      const best: RatingPeriod | null =
+        periods.find(p => p.is_active && p.period === periodJson?.active_period)
+        ?? getClosestPeriod(periods)
+        ?? null;
 
       setPeriodData(periodJson);
-
-      // Use the currently open/closest period from the API — no hardcoding
-      const best = periodJson?.periods?.find((p: RatingPeriod) => p.is_active && p.period === periodJson.active_period)
-                ?? getClosestPeriod(periodJson?.periods ?? []);
-      setActivePeriod(best ?? null);
-
+      setActivePeriod(best);
       setOverview(Array.isArray(overviewJson) ? overviewJson : []);
-      setTeam(Array.isArray(teamJson) ? teamJson : []);
+      const resolvedTeam: TeamMember[] = Array.isArray(teamJson) ? teamJson : [];
+      setTeam(resolvedTeam);
 
-      // Fetch rating status for each team member using the active period from API
-      const activePer  = best?.period    ?? 'H1';
-      const activeYear = best?.pms_year  ?? new Date().getFullYear();
-
-      if (Array.isArray(teamJson) && teamJson.length > 0) {
-        const statuses: ManualRatingStatus = {};
-        await Promise.all(teamJson.map(async (m: TeamMember) => {
-          try {
-            const res  = await fetch(`${API}/api/manual-objectives/${m.id}?year=${activeYear}&period=${activePer}`);
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              const submitted = data.filter((o: { manual_rating: number | null }) => o.manual_rating !== null).length;
-              statuses[m.id] = { submitted: submitted === data.length && data.length > 0, count: data.length - submitted };
-            }
-          } catch { statuses[m.id] = { submitted: false, count: 0 }; }
-        }));
-        setRatingStatus(statuses);
+      // ── Phase 2: batch status fetch with guaranteed-correct period ──
+      if (resolvedTeam.length > 0 && best) {
+        // Don't await — let it update independently so the page renders fast
+        fetchRatingStatuses(resolvedTeam, best.pms_year, best.period);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error('[RatingSettings] fetchAll failed:', e);
+    }
+
     setLoading(false);
-  }, [evaluatorId]);
+  }, [evaluatorId, fetchRatingStatuses]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   if (loading) return (
-    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: TEXT_MUTED, fontSize: 14 }}>Loading…</div>
+    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: TEXT_MUTED, fontSize: 14 }}>
+      Loading…
+    </div>
   );
 
   return (
@@ -637,10 +549,10 @@ export default function RatingSettings() {
             <p style={{ fontSize: 15, color: TEXT_SUB, margin: 0 }}>Manage manual ratings and monitor team progress</p>
           </div>
           {activePeriod && (
-            <div style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6,
+            <div style={{
+              alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6,
               padding: '6px 14px', borderRadius: 8,
-              background: '#F3F4F6', color: TEXT_SUB,
-              border: `1px solid ${BORDER}`,
+              background: '#F3F4F6', color: TEXT_SUB, border: `1px solid ${BORDER}`,
               fontSize: 13, fontWeight: 600,
             }}>
               <Calendar size={13} color={TEXT_MUTED} />
@@ -649,7 +561,7 @@ export default function RatingSettings() {
           )}
         </div>
 
-        {/* ── Rating Period Banner ──────────────────────────────── */}
+        {/* ── Rating Period Banner ───────────────────────────────── */}
         <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '18px 24px', marginBottom: 64, borderLeft: `28px solid ${BLUE}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
@@ -685,9 +597,7 @@ export default function RatingSettings() {
           </div>
         </div>
 
-        {/* ══════════════════════════════════════════════════════════
-            MY TEAM — MANUAL RATING REQUIRED
-        ══════════════════════════════════════════════════════════ */}
+        {/* ══ TEAM MEMBERS — MANUAL RATING REQUIRED ══════════════ */}
         <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', marginBottom: 64 }}>
           <SectionHeader
             title="Team Members Requiring Manual Ratings"
@@ -715,29 +625,52 @@ export default function RatingSettings() {
                   {team.map((member, idx) => {
                     const status = ratingStatus[member.id];
                     const isLast = idx === team.length - 1;
+
+                    // Three distinct states:
+                    // 1. statusLoading && no status yet → show spinner
+                    // 2. status exists → show pill
+                    // 3. status missing after load → show "—"
+                    const renderStatus = () => {
+                      if (statusLoading && !status) {
+                        return <span style={{ fontSize: 12, color: TEXT_FAINT }}>Loading…</span>;
+                      }
+                      if (!status) {
+                        return <span style={{ fontSize: 12, color: TEXT_FAINT }}>—</span>;
+                      }
+                      if (status.total === 0) {
+                        return <span style={{ fontSize: 12, color: TEXT_FAINT }}>No manual KPIs</span>;
+                      }
+                      return (
+                        <StatusPill
+                          complete={status.submitted}
+                          label={status.submitted
+                            ? 'All Submitted'
+                            : `${status.pending} pending`}
+                        />
+                      );
+                    };
+
                     return (
-                      <tr key={member.id}
+                      <tr
+                        key={member.id}
                         style={{ borderBottom: isLast ? 'none' : `1px solid ${BORDER}`, background: CARD_BG }}
                         onMouseEnter={e => (e.currentTarget.style.background = PAGE_BG)}
                         onMouseLeave={e => (e.currentTarget.style.background = CARD_BG)}
                       >
                         <td style={{ padding: '8px 20px 8px 28px' }}>
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: TEXT_HEAD }}>{member.full_name}</div>
-                        </td>
-                        <td style={{ padding: '8px 20px', textAlign: 'center' }}>
-                          {status ? (
-                            <StatusPill
-                              complete={status.submitted}
-                              label={status.submitted ? 'All Submitted' : `${status.count} pending`}
-                            />
-                          ) : (
-                            <span style={{ fontSize: 12, color: TEXT_FAINT }}>—</span>
+                          {member.designation && (
+                            <div style={{ fontSize: 11.5, color: TEXT_MUTED, marginTop: 2 }}>{member.designation}</div>
                           )}
                         </td>
                         <td style={{ padding: '8px 20px', textAlign: 'center' }}>
+                          {renderStatus()}
+                        </td>
+                        <td style={{ padding: '8px 20px', textAlign: 'center' }}>
                           <EnterRatingsBtn
-                            isOpen={ratingIsOpen}
-                            onClick={() => router.push(`/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}`)}
+                            onClick={() => router.push(
+                              `/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}`
+                            )}
                           />
                         </td>
                       </tr>
@@ -749,9 +682,7 @@ export default function RatingSettings() {
           )}
         </div>
 
-        {/* ══════════════════════════════════════════════════════════
-            RATING OVERVIEW  — no expand/collapse, no submitted/pending cols
-        ══════════════════════════════════════════════════════════ */}
+        {/* ══ RATING OVERVIEW ═════════════════════════════════════ */}
         <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', marginBottom: 64 }}>
           <SectionHeader
             title="Manual Rating Completion Overview"
@@ -776,21 +707,19 @@ export default function RatingSettings() {
                   {overview.map((member, idx) => (
                     <tr
                       key={member.id}
-                      style={{
-                        borderBottom: idx === overview.length - 1 ? 'none' : `1px solid ${BORDER}`,
-                        background: CARD_BG,
-                      }}
+                      style={{ borderBottom: idx === overview.length - 1 ? 'none' : `1px solid ${BORDER}`, background: CARD_BG }}
                       onMouseEnter={e => (e.currentTarget.style.background = PAGE_BG)}
                       onMouseLeave={e => (e.currentTarget.style.background = CARD_BG)}
                     >
                       <td style={{ padding: '8px 20px' }}>
                         <div style={{ fontSize: 13.5, fontWeight: 600, color: TEXT_HEAD }}>{member.name}</div>
+                        {member.designation && (
+                          <div style={{ fontSize: 11.5, color: TEXT_MUTED, marginTop: 2 }}>{member.designation}</div>
+                        )}
                       </td>
-
                       <td style={{ padding: '8px 16px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: BLUE }}>
                         {member.total}
                       </td>
-
                       <td style={{ padding: '8px 20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ flex: 1, height: 6, background: BORDER, borderRadius: 99, overflow: 'hidden' }}>
@@ -803,16 +732,13 @@ export default function RatingSettings() {
                           <span style={{ fontSize: 11.5, color: TEXT_MUTED, minWidth: 36, fontWeight: 600 }}>{member.pct}%</span>
                         </div>
                       </td>
-
                       <td style={{ padding: '8px 16px', textAlign: 'center' }}>
                         <StatusPill complete={member.status === 'complete'} />
                       </td>
-
                       <td style={{ padding: '8px 16px', textAlign: 'center' }}>
                         {member.pending > 0
                           ? <RemindBtn onClick={() => setReminderTarget(member)} />
-                          : <span style={{ fontSize: 12, color: TEXT_FAINT }}>—</span>
-                        }
+                          : <span style={{ fontSize: 12, color: TEXT_FAINT }}>—</span>}
                       </td>
                     </tr>
                   ))}
