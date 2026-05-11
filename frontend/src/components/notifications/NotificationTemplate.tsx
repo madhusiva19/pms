@@ -5,7 +5,10 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./notifications.module.css";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5000";
+// Strip trailing /api if the env var already includes it, so all
+// fetch() calls below can consistently use ${API}/api/...
+const _rawApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5000";
+const API = _rawApiUrl.endsWith("/api") ? _rawApiUrl.slice(0, -4) : _rawApiUrl;
 
 // ── Types ──────────────────────────────────────────────
 type AchievementNotification = {
