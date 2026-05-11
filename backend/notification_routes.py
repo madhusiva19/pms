@@ -1,28 +1,115 @@
-# notification_routes.py
+"""
+notification_routes.py — Objective Cut-off Notification System
+No per-user receiver_id needed — notifications are fetched by role/level.
+"""
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, request, jsonify
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timezone
 import uuid
 
 notifications_bp = Blueprint("notifications", __name__)
 
-# Injected by init_notifications()
 _supabase = None
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SCHEDULE DEFINITION
+# ─────────────────────────────────────────────────────────────────────────────
 
-def init_notifications(supabase_client):
-    global _supabase
-    _supabase = supabase_client
+CUTOFF_SCHEDULE = [
+    {
+        "mmdd":        "07-01",
+        "role":        "all",
+        "level":       99,          # visible to everyone
+        "title":       "Appraisal Year Started",
+        "message":     "New appraisal year has started. Objective setting window is now open.",
+        "action_link": "/notifications",
+    },
+    {
+        "mmdd":        "07-31",
+        "role":        "sub_dept_admin",
+        "level":       5,
+        "title":       "Objective Setting Reminder",
+        "message":     "Reminder: Objectives must be set for your team by 31st August. Please begin KPI assignment now.",
+        "action_link": "/template-management",
+    },
+    {
+        "mmdd":        "08-05",
+        "role":        "dept_admin",
+        "level":       4,
+        "title":       "Objective Setting Alert",
+        "message":     "Alert: Objective setting is in progress. Verify that your Sub Dept Admins have begun KPI assignments for their teams.",
+        "action_link": "/template-management",
+    },
+    {
+        "mmdd":        "08-10",
+        "role":        "branch_admin",
+        "level":       3,
+        "title":       "Objective Setting Escalation",
+        "message":     "Escalation: Objective setting deadline approaching. Confirm that Dept Admins under your branch are progressing with KPI assignments.",
+        "action_link": "/template-management",
+    },
+    {
+        "mmdd":        "08-15",
+        "role":        "country_admin",
+        "level":       2,
+        "title":       "Objective Setting Escalation",
+        "message":     "Escalation: Objective setting is nearing final deadline. Ensure all branches in your country have completed or are completing KPI objective assignments.",
+        "action_link": "/template-management",
+    },
+    {
+        "mmdd":        "08-25",
+        "role":        "hq_admin",
+        "level":       1,
+        "title":       "Final Escalation — Deadline in 6 Days",
+        "message":     "Final Escalation: Objective setting closes on 31st August. Any incomplete assignments will be frozen with the previous year's KPIs. Grace period available until 15th September.",
+        "action_link": "/template-management",
+    },
+    {
+        "mmdd":        "08-31",
+        "role":        "all",
+        "level":       99,
+        "title":       "Objective Setting Window Closed",
+        "message":     "Objective setting window is now CLOSED. All set objectives are saved. Incomplete objectives are automatically frozen with previous year KPIs.",
+        "action_link": "/notifications",
+    },
+    {
+        "mmdd":        "09-15",
+        "role":        "hq_admin",
+        "level":       1,
+        "title":       "Grace Period Ended — Templates Frozen",
+        "message":     "Grace period has ended. PMS templates are now fully frozen. No further changes permitted until the next appraisal cycle.",
+        "action_link": "/notifications",
+    },
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Level → which schedule entries are visible
+# Rule: an entry is visible if entry.level >= user_level OR entry.role == "all"
+# e.g. level=1 (HQ) sees everything; level=5 sees only level>=5 + "all"
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _entries_for_level(user_level: int) -> list:
+    result = []
+    for entry in CUTOFF_SCHEDULE:
+        if entry["role"] == "all":
+            result.append(entry)
+        elif entry["level"] >= user_level:
+            result.append(entry)
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_active_cycle():
-    """Fetch the active PMS cycle from DB. Returns None if not found."""
+def init_notifications(supabase_client):
+    global _supabase
+    _supabase = supabase_client
+
+
+def _get_active_cycle():
     try:
         result = (
             _supabase.table("pms_cycles")
@@ -34,418 +121,357 @@ def get_active_cycle():
         )
         return result.data[0] if result.data else None
     except Exception as e:
-        print(f"❌ get_active_cycle failed: {e}")
+        print(f"❌ _get_active_cycle: {e}")
         return None
 
 
-def get_users_by_org_level(org_level: int) -> list:
-    """Returns all active users matching the given org_level."""
-    try:
-        result = (
-            _supabase.table("users")
-            .select("id, full_name, org_level")
-            .eq("org_level", org_level)
-            .eq("is_active", True)
-            .execute()
-        )
-        return result.data or []
-    except Exception as e:
-        print(f"❌ get_users_by_org_level({org_level}) failed: {e}")
-        return []
+def _build_trigger_key(pms_year: int, mmdd: str, role: str) -> str:
+    return f"{pms_year}-{mmdd}:{role}"
 
 
-def get_all_active_users() -> list:
-    """Returns all active users regardless of level."""
-    try:
-        result = (
-            _supabase.table("users")
-            .select("id, full_name, org_level")
-            .eq("is_active", True)
-            .execute()
-        )
-        return result.data or []
-    except Exception as e:
-        print(f"❌ get_all_active_users failed: {e}")
-        return []
-
-
-def notification_already_sent(notification_type: str, cycle_id: int) -> bool:
-    """
-    Prevents duplicate notifications. Checks if a notification of this type
-    was already triggered for this PMS cycle.
-    We encode cycle_id in triggered_by field as: "scheduler:{type}:cycle:{id}"
-    """
-    trigger_key = f"scheduler:{notification_type}:cycle:{cycle_id}"
+def _already_fired(cycle_id: int, trigger_key: str) -> bool:
     try:
         result = (
             _supabase.table("notifications")
             .select("id")
-            .eq("triggered_by", trigger_key)
+            .eq("pms_cycle_id", cycle_id)
+            .eq("trigger_key", trigger_key)
             .limit(1)
             .execute()
         )
         return bool(result.data)
-    except Exception as e:
-        print(f"❌ notification_already_sent check failed: {e}")
+    except Exception:
         return False
 
 
-def insert_notifications(
-    user_ids: list,
-    notification_type: str,
-    title: str,
-    message: str,
-    action_link: str,
-    cycle_id: int,
-) -> None:
+def _fire_notification(cycle: dict, entry: dict) -> bool:
     """
-    Inserts one notification row per user_id.
-    Skips insert if already sent for this cycle (idempotent).
+    Inserts ONE notification row per schedule entry (not per user).
+    receiver_id is NULL — looked up by level/role on the frontend.
+    Returns True if inserted, False if already existed.
     """
-    if not user_ids:
-        print(f"⚠️  insert_notifications: no users to notify for type={notification_type}")
-        return
+    pms_year    = cycle["pms_year"]
+    cycle_id    = cycle["id"]
+    trigger_key = _build_trigger_key(pms_year, entry["mmdd"], entry["role"])
 
-    if notification_already_sent(notification_type, cycle_id):
-        print(f"ℹ️  Notification '{notification_type}' already sent for cycle {cycle_id} — skipping.")
-        return
+    if _already_fired(cycle_id, trigger_key):
+        print(f"⏭  Already fired: {trigger_key}")
+        return False
 
-    trigger_key = f"scheduler:{notification_type}:cycle:{cycle_id}"
-    rows = [
-        {
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        _supabase.table("notifications").insert({
             "id":           str(uuid.uuid4()),
-            "receiver_id":  str(uid),
-            "type":         notification_type,
-            "title":        title,
-            "message":      message,
+            "receiver_id":  None,           # no per-user targeting — fetched by level
+            "type":         "objective_cutoff",
+            "title":        entry["title"],
+            "message":      entry["message"],
+            "action_link":  entry["action_link"],
+            "triggered_by": "system",
             "is_read":      False,
-            "triggered_by": trigger_key,
-            "action_link":  action_link,
-            "created_at":   datetime.utcnow().isoformat(),
-        }
-        for uid in user_ids
-    ]
-
-    try:
-        _supabase.table("notifications").insert(rows).execute()
-        print(f"✅ Inserted {len(rows)} notifications for type='{notification_type}' cycle={cycle_id}")
+            "pms_cycle_id": cycle_id,
+            "trigger_key":  trigger_key,
+            "created_at":   now,
+        }).execute()
+        print(f"✅ Fired: {trigger_key}")
+        return True
     except Exception as e:
-        print(f"❌ insert_notifications failed: {e}")
-
-
-def format_date_display(d) -> str:
-    """Converts a date/string to '31 Aug 2025' format for notification messages."""
-    if isinstance(d, str):
-        d = datetime.fromisoformat(d).date()
-    return d.strftime("%-d %b %Y")   # Use "%#d %b %Y" on Windows
+        print(f"❌ _fire_notification({trigger_key}): {e}")
+        return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CORE SCHEDULER JOB — runs daily at 08:00
+# DAILY SCHEDULER JOB
 # ─────────────────────────────────────────────────────────────────────────────
 
-def check_and_send_notifications():
-    """
-    Runs once per day. Reads the active PMS cycle dates dynamically,
-    computes which notifications are due today, and inserts them.
-    
-    Notification schedule (all dates derived from the active cycle):
-      objective_setting_start  → All Users        (window open)
-      start + 30 days          → Sub Dept Admin   (level 5 reminder)
-      start + 35 days          → Dept Admin       (level 4 alert)
-      start + 40 days          → Branch Admin     (level 3 escalation)
-      start + 45 days          → Country Admin    (level 2 escalation)
-      start + 55 days          → HQ Admin         (level 1 final escalation)
-      objective_setting_end    → All Users        (window closed)
-      grace_period_end         → HQ Admin         (grace ended / fully frozen)
-    """
-    print(f"🔔 Running notification check at {datetime.utcnow().isoformat()}")
-
-    cycle = get_active_cycle()
+def run_cutoff_notifications_job():
+    print(f"🔔 run_cutoff_notifications_job: {datetime.now().isoformat()}")
+    cycle = _get_active_cycle()
     if not cycle:
-        print("⚠️  No active PMS cycle found — skipping notification check.")
+        print("⚠️  No active cycle — skipping notification job")
         return
 
-    cycle_id = cycle["id"]
-    today    = date.today()
+    pms_year = cycle["pms_year"]
+    today    = date.today().isoformat()
 
-    # ── Parse cycle dates ────────────────────────────────────────────────────
-    try:
-        obj_start = (
-            datetime.fromisoformat(cycle["objective_setting_start"]).date()
-            if cycle.get("objective_setting_start")
-            else datetime.fromisoformat(cycle["pms_start"]).date()
-        )
-        obj_end = datetime.fromisoformat(cycle["objective_setting_end"]).date()
-        grace_end = datetime.fromisoformat(cycle["grace_period_end"]).date()
-    except Exception as e:
-        print(f"❌ Failed to parse cycle dates: {e}")
-        return
+    for entry in CUTOFF_SCHEDULE:
+        trigger_date = f"{pms_year}-{entry['mmdd']}"
+        if today >= trigger_date:
+            _fire_notification(cycle, entry)
 
-    # We derive cascade dates as offsets from obj_start so they scale
-    # automatically when HQ Admin edits the cycle dates.
-    cycle_duration_days = (obj_end - obj_start).days   # typically 62 (2 months)
-
-    # Cascading reminder dates — proportional offsets
-    # Default cycle: 62 days. We use the same absolute offsets from spec
-    # but clamp them so they always fall before obj_end.
-    def offset_date(days: int) -> date:
-        d = obj_start + timedelta(days=days)
-        return min(d, obj_end - timedelta(days=1))
-
-    sub_dept_date   = offset_date(30)   # ~31 July in default cycle
-    dept_date       = offset_date(35)   # ~5 Aug
-    branch_date     = offset_date(40)   # ~10 Aug
-    country_date    = offset_date(45)   # ~15 Aug
-    hq_final_date   = offset_date(55)   # ~25 Aug
-
-    action_link = "/template-management"
-
-    # ── 1. Window Open — 1st July (obj_start) — All Users ───────────────────
-    if today == obj_start:
-        users = get_all_active_users()
-        user_ids = [u["id"] for u in users]
-        insert_notifications(
-            user_ids=user_ids,
-            notification_type="window_open",
-            title="Objective Setting Window Is Open",
-            message=(
-                f"A new appraisal year has started. The objective-setting window is now open "
-                f"and will close on {format_date_display(obj_end)}. "
-                f"Set KPIs for editable (non-locked) objectives now."
-            ),
-            action_link=action_link,
-            cycle_id=cycle_id,
-        )
-
-    # ── 2. Sub Dept Admin Reminder — ~31 July ───────────────────────────────
-    if today == sub_dept_date:
-        users    = get_users_by_org_level(5)
-        user_ids = [u["id"] for u in users]
-        insert_notifications(
-            user_ids=user_ids,
-            notification_type="subdept_reminder",
-            title="Reminder: Set Team Objectives by Deadline",
-            message=(
-                f"Objectives must be set for your team by {format_date_display(obj_end)}. "
-                f"Please begin KPI assignment now for all editable (non-locked) objectives."
-            ),
-            action_link=action_link,
-            cycle_id=cycle_id,
-        )
-
-    # ── 3. Dept Admin Alert — ~5 August ─────────────────────────────────────
-    if today == dept_date:
-        users    = get_users_by_org_level(4)
-        user_ids = [u["id"] for u in users]
-        insert_notifications(
-            user_ids=user_ids,
-            notification_type="dept_alert",
-            title="Alert: Verify Sub Dept Admin Progress",
-            message=(
-                "Objective setting is in progress. Verify that your Sub Dept Admins have "
-                "begun KPI assignments for their teams."
-            ),
-            action_link=action_link,
-            cycle_id=cycle_id,
-        )
-
-    # ── 4. Branch Admin Escalation — ~10 August ─────────────────────────────
-    if today == branch_date:
-        users    = get_users_by_org_level(3)
-        user_ids = [u["id"] for u in users]
-        insert_notifications(
-            user_ids=user_ids,
-            notification_type="branch_escalation",
-            title="Escalation: Objective Deadline Approaching",
-            message=(
-                "Confirm that Dept Admins under your branch are progressing with KPI assignments. "
-                f"Deadline: {format_date_display(obj_end)}."
-            ),
-            action_link=action_link,
-            cycle_id=cycle_id,
-        )
-
-    # ── 5. Country Admin Escalation — ~15 August ────────────────────────────
-    if today == country_date:
-        users    = get_users_by_org_level(2)
-        user_ids = [u["id"] for u in users]
-        insert_notifications(
-            user_ids=user_ids,
-            notification_type="country_escalation",
-            title="Escalation: Nearing Final Deadline",
-            message=(
-                f"Ensure all branches in your country have completed or are completing "
-                f"KPI objective assignments by {format_date_display(obj_end)}."
-            ),
-            action_link=action_link,
-            cycle_id=cycle_id,
-        )
-
-    # ── 6. HQ Admin Final Escalation — ~25 August ───────────────────────────
-    if today == hq_final_date:
-        users    = get_users_by_org_level(1)
-        user_ids = [u["id"] for u in users]
-        insert_notifications(
-            user_ids=user_ids,
-            notification_type="hq_final_escalation",
-            title="Final Escalation: Objective Setting Closing Soon",
-            message=(
-                f"Objective setting closes on {format_date_display(obj_end)}. "
-                f"Any incomplete assignments will be frozen with the previous year's KPIs. "
-                f"A grace period is available until {format_date_display(grace_end)}."
-            ),
-            action_link=action_link,
-            cycle_id=cycle_id,
-        )
-
-    # ── 7. Window Closed — 31 August (obj_end) — All Users ──────────────────
-    if today == obj_end:
-        users    = get_all_active_users()
-        user_ids = [u["id"] for u in users]
-        insert_notifications(
-            user_ids=user_ids,
-            notification_type="window_closed",
-            title="Objective Setting Window Is Now Closed",
-            message=(
-                f"The objective-setting window closed on {format_date_display(obj_end)}. "
-                f"All set objectives are saved. Incomplete objectives have been automatically "
-                f"frozen with the previous year's KPIs."
-            ),
-            action_link=action_link,
-            cycle_id=cycle_id,
-        )
-
-    # ── 8. Grace Period Ended — 15 September — HQ Admin only ─────────────────
-    if today == grace_end:
-        users    = get_users_by_org_level(1)
-        user_ids = [u["id"] for u in users]
-        insert_notifications(
-            user_ids=user_ids,
-            notification_type="grace_ended",
-            title="Grace Period Ended — Templates Fully Frozen",
-            message=(
-                f"Grace period ended on {format_date_display(grace_end)}. "
-                f"PMS templates are now fully frozen. "
-                f"No further changes are permitted until the next appraisal cycle."
-            ),
-            action_link=action_link,
-            cycle_id=cycle_id,
-        )
-
-    print(f"✅ Notification check complete for {today}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SCHEDULER STARTUP
-# ─────────────────────────────────────────────────────────────────────────────
 
 def start_scheduler():
-    """Start the APScheduler background scheduler. Call once at app startup."""
-    scheduler = BackgroundScheduler(timezone="UTC")
+    scheduler = BackgroundScheduler()
     scheduler.add_job(
-        check_and_send_notifications,
-        CronTrigger(hour=8, minute=0),   # Runs every day at 08:00 UTC
-        id="daily_notification_check",
+        run_cutoff_notifications_job,
+        CronTrigger(hour=8, minute=0),
+        id="cutoff_notifications",
         replace_existing=True,
-        misfire_grace_time=3600,         # Allow up to 1 hour late if server was down
+        misfire_grace_time=3600,
     )
     scheduler.start()
-    print("✅ Notification scheduler started (daily @ 08:00 UTC)")
+    print("✅ Notification scheduler started (daily @ 08:00)")
+    # Catch any dates already passed on startup
+    run_cutoff_notifications_job()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# API ROUTES
+# SEED — called when a new cycle is created
 # ─────────────────────────────────────────────────────────────────────────────
 
-@notifications_bp.route("/api/notifications/<user_id>", methods=["GET"])
-def get_notifications(user_id):
+def seed_notifications_for_cycle(cycle: dict):
+    pms_year = cycle["pms_year"]
+    today    = date.today().isoformat()
+    seeded   = 0
+
+    for entry in CUTOFF_SCHEDULE:
+        trigger_date = f"{pms_year}-{entry['mmdd']}"
+        if today >= trigger_date:
+            if _fire_notification(cycle, entry):
+                seeded += 1
+
+    print(f"✅ seed_notifications_for_cycle({pms_year}): {seeded} row(s) seeded")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REST ENDPOINTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@notifications_bp.route("/notifications/by-level", methods=["GET"])
+def get_notifications_by_level():
     """
-    Returns all notifications for the given user_id, ordered newest first.
-    Query param: ?unread_only=true to filter unread only.
+    GET /notifications/by-level
+    Header: X-User-Level: 1  (1=HQ, 2=Country, 3=Branch, 4=Dept, 5=SubDept)
+
+    Returns all triggered objective_cutoff notifications visible to this level,
+    newest first. No user_id needed.
+
+    Visibility rule: entry is shown if entry.level >= user_level OR role == "all"
+    e.g. level=1 sees everything (HQ sees all escalations)
+         level=3 sees branch_admin + dept_admin + sub_dept_admin + all
+         level=5 sees only sub_dept_admin + all
     """
     try:
-        unread_only = request.args.get("unread_only", "false").lower() == "true"
-        query = (
+        user_level = int(request.headers.get("X-User-Level", 99))
+
+        # Get the trigger_keys visible to this level
+        cycle = _get_active_cycle()
+        if not cycle:
+            return jsonify([]), 200
+
+        pms_year        = cycle["pms_year"]
+        visible_entries = _entries_for_level(user_level)
+        visible_keys    = [
+            _build_trigger_key(pms_year, e["mmdd"], e["role"])
+            for e in visible_entries
+        ]
+
+        if not visible_keys:
+            return jsonify([]), 200
+
+        rows = (
             _supabase.table("notifications")
             .select("*")
-            .eq("receiver_id", user_id)
+            .eq("type", "objective_cutoff")
+            .eq("pms_cycle_id", cycle["id"])
+            .in_("trigger_key", visible_keys)
             .order("created_at", desc=True)
-        )
-        if unread_only:
-            query = query.eq("is_read", False)
+            .execute()
+            .data
+        ) or []
 
-        result = query.execute()
-        return jsonify(result.data or []), 200
+        return jsonify(rows), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
-@notifications_bp.route("/api/notifications/<notification_id>/read", methods=["PATCH"])
-def mark_notification_read(notification_id):
-    """Mark a single notification as read."""
+@notifications_bp.route("/notifications/unread-count", methods=["GET"])
+def get_unread_count():
+    """
+    GET /notifications/unread-count
+    Header: X-User-Level: 1
+
+    Returns count of unread objective_cutoff notifications for this level.
+    Used for the sidebar bell badge.
+    """
     try:
+        user_level = int(request.headers.get("X-User-Level", 99))
+
+        cycle = _get_active_cycle()
+        if not cycle:
+            return jsonify({"unread_count": 0}), 200
+
+        pms_year        = cycle["pms_year"]
+        visible_entries = _entries_for_level(user_level)
+        visible_keys    = [
+            _build_trigger_key(pms_year, e["mmdd"], e["role"])
+            for e in visible_entries
+        ]
+
+        if not visible_keys:
+            return jsonify({"unread_count": 0}), 200
+
+        # Use level-keyed read state stored in a separate lightweight table
+        # or fall back to counting is_read=False rows visible to this level
+        result = (
+            _supabase.table("notifications")
+            .select("id")
+            .eq("type", "objective_cutoff")
+            .eq("pms_cycle_id", cycle["id"])
+            .eq("is_read", False)
+            .in_("trigger_key", visible_keys)
+            .execute()
+        )
+        count = len(result.data or [])
+        return jsonify({"unread_count": count}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@notifications_bp.route("/notifications/<notif_id>/read", methods=["PATCH"])
+def mark_notification_read(notif_id):
+    """
+    PATCH /notifications/<uuid>/read
+    Marks a single notification row as read.
+    Since there's one row per schedule entry (not per user), this marks it
+    read for ALL users at the same level — which is fine for a shared feed.
+    """
+    try:
+        now = datetime.now(timezone.utc).isoformat()
         _supabase.table("notifications").update({
             "is_read": True,
-            "read_at": datetime.utcnow().isoformat(),
-        }).eq("id", notification_id).execute()
+            "read_at": now,
+        }).eq("id", notif_id).execute()
         return jsonify({"message": "Marked as read"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
-@notifications_bp.route("/api/notifications/mark-all-read/<user_id>", methods=["PATCH"])
-def mark_all_notifications_read(user_id):
-    """Mark all notifications for a user as read."""
+@notifications_bp.route("/notifications/mark-all-read", methods=["PATCH"])
+def mark_all_read():
+    """
+    PATCH /notifications/mark-all-read
+    Header: X-User-Level: 1
+    Marks all visible objective_cutoff notifications as read for this level.
+    """
     try:
+        user_level = int(request.headers.get("X-User-Level", 99))
+
+        cycle = _get_active_cycle()
+        if not cycle:
+            return jsonify({"message": "No active cycle"}), 200
+
+        pms_year        = cycle["pms_year"]
+        visible_entries = _entries_for_level(user_level)
+        visible_keys    = [
+            _build_trigger_key(pms_year, e["mmdd"], e["role"])
+            for e in visible_entries
+        ]
+
+        if not visible_keys:
+            return jsonify({"message": "Nothing to mark"}), 200
+
+        now = datetime.now(timezone.utc).isoformat()
         _supabase.table("notifications").update({
             "is_read": True,
-            "read_at": datetime.utcnow().isoformat(),
-        }).eq("receiver_id", user_id).eq("is_read", False).execute()
+            "read_at": now,
+        }).eq("type", "objective_cutoff").eq("pms_cycle_id", cycle["id"]).in_(
+            "trigger_key", visible_keys
+        ).execute()
+
         return jsonify({"message": "All marked as read"}), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
-@notifications_bp.route("/api/notifications/unread-count/<user_id>", methods=["GET"])
-def get_unread_count(user_id):
-    """Returns the count of unread notifications for a user. Used for badge counters."""
+@notifications_bp.route("/notifications/cutoff-schedule", methods=["GET"])
+def get_cutoff_schedule():
+    """
+    GET /notifications/cutoff-schedule
+    Header: X-User-Level: 1
+
+    Returns the full schedule for the active cycle, split into:
+      - triggered: entries that have fired (DB rows exist)
+      - upcoming:  future entries (no DB row yet)
+
+    Used by the frontend to build the timeline without needing extra fetches.
+    """
     try:
-        result = (
-            _supabase.table("notifications")
-            .select("id", count="exact")
-            .eq("receiver_id", user_id)
-            .eq("is_read", False)
-            .execute()
-        )
-        return jsonify({"count": result.count or 0}), 200
+        user_level = int(request.headers.get("X-User-Level", 99))
+        cycle      = _get_active_cycle()
+        if not cycle:
+            return jsonify({"schedule": [], "cycle": None}), 200
+
+        pms_year        = cycle["pms_year"]
+        today           = date.today().isoformat()
+        visible_entries = _entries_for_level(user_level)
+
+        schedule_out = []
+        for entry in visible_entries:
+            trigger_date = f"{pms_year}-{entry['mmdd']}"
+            days_until   = max(0, (date.fromisoformat(trigger_date) - date.today()).days)
+            schedule_out.append({
+                "trigger_date":  trigger_date,
+                "role":          entry["role"],
+                "level":         entry["level"],
+                "title":         entry["title"],
+                "message":       entry["message"],
+                "action_link":   entry["action_link"],
+                "trigger_key":   _build_trigger_key(pms_year, entry["mmdd"], entry["role"]),
+                "is_triggered":  today >= trigger_date,
+                "days_until":    days_until,
+            })
+
+        return jsonify({
+            "schedule": schedule_out,
+            "cycle": {
+                "id":                    cycle["id"],
+                "pms_year":              pms_year,
+                "objective_setting_end": cycle.get("objective_setting_end"),
+                "grace_period_end":      cycle.get("grace_period_end"),
+            },
+        }), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
-@notifications_bp.route("/api/notifications/trigger-test", methods=["POST"])
-def trigger_test_notification():
+@notifications_bp.route("/notifications/fire-now", methods=["POST"])
+def fire_notification_now():
     """
-    DEV ONLY — manually fire the daily notification check.
-    POST body: { "simulate_date": "2025-07-01" }  (optional, overrides today)
-    Remove this route before production deployment.
+    POST /notifications/fire-now
+    Header: X-User-Level: 1  (HQ Admin only)
+    Body (optional): { "trigger_key": "2026-08-25:hq_admin" }
+
+    Manual trigger for testing. If trigger_key omitted, fires all due entries.
     """
-    data            = request.get_json() or {}
-    simulate_date   = data.get("simulate_date")
+    try:
+        user_level = int(request.headers.get("X-User-Level", 99))
+        if user_level > 1:
+            return jsonify({"error": "Only HQ Admin can manually trigger notifications"}), 403
 
-    if simulate_date:
-        # Temporarily monkey-patch date.today() for testing
-        import unittest.mock as mock
-        fake_date = datetime.fromisoformat(simulate_date).date()
+        data       = request.get_json() or {}
+        target_key = data.get("trigger_key", "").strip()
+        cycle      = _get_active_cycle()
+        if not cycle:
+            return jsonify({"error": "No active cycle"}), 404
 
-        class FakeDate(date):
-            @classmethod
-            def today(cls):
-                return fake_date
+        pms_year = cycle["pms_year"]
+        fired    = 0
+        for entry in CUTOFF_SCHEDULE:
+            key = _build_trigger_key(pms_year, entry["mmdd"], entry["role"])
+            if target_key and key != target_key:
+                continue
+            if _fire_notification(cycle, entry):
+                fired += 1
 
-        with mock.patch("notification_routes.date", FakeDate):
-            check_and_send_notifications()
-    else:
-        check_and_send_notifications()
+        return jsonify({"message": f"Fired {fired} notification(s)"}), 200
 
-    return jsonify({"message": "Notification check triggered"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+

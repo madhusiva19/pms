@@ -1,13 +1,5 @@
-// sub-dept-admin
-"use client";
-import TemplateNotificationContent from "@/components/notifications/TemplateNotificationContent";
-
-export default function SubDeptAdminNotificationPage() {
-  return (
-    <TemplateNotificationContent
-      userId="your-test-uuid-here"
-      level={5}
-      basePath="/sub-dept-admin"
-    />
-  );
-}
+// app/(country-admin)/notifications/page.tsx
+ import NotificationsPage from "@/components/notifications/NotificationsPage";
+ export default function Page() {
+  return <NotificationsPage level={2} />;
+ }

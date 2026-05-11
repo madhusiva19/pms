@@ -146,6 +146,7 @@ export default function Sidebar() {
           (item.href.includes('template-management') &&
           pathname?.includes('create-template'));
 
+
           return (
             <Link
               key={item.name}
