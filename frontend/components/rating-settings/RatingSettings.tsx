@@ -100,7 +100,7 @@ function StatusPill({ complete, label }: { complete: boolean; label?: string }) 
       border:     `1px solid ${complete ? '#BBF7D0' : '#FDE047'}`,
     }}>
       {complete ? <CheckCircle size={10} /> : <Clock size={10} />}
-      {label ?? (complete ? 'Complete' : 'Pending')}
+      {label ?? (complete ? 'Submitted' : 'Pending')}
     </span>
   );
 }
@@ -120,7 +120,6 @@ function RemindBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-// ── CHANGE: EnterRatingsBtn now accepts reenter prop ───────────────
 function EnterRatingsBtn({ onClick, reenter }: { onClick: () => void; reenter?: boolean }) {
   return (
     <button
@@ -621,10 +620,11 @@ export default function RatingSettings() {
                       if (status.total === 0) {
                         return <span style={{ fontSize: 12, color: '#9CA3AF' }}>No manual KPIs</span>;
                       }
+                      // ✅ Simple Pending / Submitted — no count needed since all-or-nothing
                       return (
                         <StatusPill
                           complete={status.submitted}
-                          label={status.submitted ? 'All Submitted' : `${status.pending} pending`}
+                          label={status.submitted ? 'Submitted' : 'Pending'}
                         />
                       );
                     };
@@ -643,7 +643,7 @@ export default function RatingSettings() {
                           {renderStatus()}
                         </td>
                         <td style={{ padding: '6px 20px', textAlign: 'center' }}>
-                          {/* ── CHANGE: pass reenter prop based on submitted status ── */}
+                          {/* ✅ Re-enter Ratings if already submitted, Enter Ratings if not */}
                           <EnterRatingsBtn
                             reenter={status?.submitted === true}
                             onClick={() => router.push(
