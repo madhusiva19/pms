@@ -232,21 +232,12 @@ def assign_employees(template_id):
         return jsonify({'error': str(e)}), 500
 
 
-# ─────────────────────────────────────────────────────────────────────
-# FIXED: get_assignments now filters by manager_id query param
-# ─────────────────────────────────────────────────────────────────────
-
 @app.route('/api/templates/<int:template_id>/assignments', methods=['GET'])
 def get_assignments(template_id):
     try:
-        manager_id = request.args.get('manager_id', '').strip()
-
-        # Fetch all assignments for this template
         result = supabase.table('template_assignments') \
             .select('user_id, users(id, full_name, designation_id, designations(name))') \
-            .eq('template_id', template_id) \
-            .execute()
-
+            .eq('template_id', template_id).execute()
         employees = []
         for row in result.data:
             if row.get('users'):
@@ -256,18 +247,7 @@ def get_assignments(template_id):
                     'name':        u['full_name'],
                     'designation': (u.get('designations') or {}).get('name', ''),
                 })
-
-        # If manager_id provided, filter to only that manager's direct reports
-        if manager_id:
-            team_res = supabase.table('users') \
-                .select('id') \
-                .eq('manager_id', manager_id) \
-                .execute()
-            team_ids = {u['id'] for u in (team_res.data or [])}
-            employees = [e for e in employees if e['id'] in team_ids]
-
         return jsonify(employees)
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -972,6 +952,11 @@ def get_evaluator_team(evaluator_id):
 
 @app.route('/api/evaluator/<evaluator_id>/profile', methods=['GET'])
 def get_evaluator_profile(evaluator_id):
+    """
+    Returns the evaluator's profile including their org context
+    (which branch/country/department they administer) based on their role.
+    Used by the Manual Ratings page header to show contextual info.
+    """
     try:
         user_res = supabase.table('users') \
             .select(
@@ -992,17 +977,33 @@ def get_evaluator_profile(evaluator_id):
         u    = user_res.data
         role = u.get('role', '')
 
+        # Map role → org context label + value from joined DB tables
         org_context = None
         if role == 'hq_admin':
-            org_context = {'label': 'HQ', 'value': 'Group Level'}
+            org_context = {
+                'label': 'HQ',
+                'value': 'Group Level',
+            }
         elif role == 'country_admin':
-            org_context = {'label': 'Country', 'value': (u.get('countries') or {}).get('name', '—')}
+            org_context = {
+                'label': 'Country',
+                'value': (u.get('countries') or {}).get('name', '—'),
+            }
         elif role == 'branch_admin':
-            org_context = {'label': 'Branch', 'value': (u.get('branches') or {}).get('name', '—')}
+            org_context = {
+                'label': 'Branch',
+                'value': (u.get('branches') or {}).get('name', '—'),
+            }
         elif role == 'dept_admin':
-            org_context = {'label': 'Department', 'value': (u.get('departments') or {}).get('name', '—')}
+            org_context = {
+                'label': 'Department',
+                'value': (u.get('departments') or {}).get('name', '—'),
+            }
         elif role == 'sub_dept_admin':
-            org_context = {'label': 'Sub-Department', 'value': (u.get('sub_departments') or {}).get('name', '—')}
+            org_context = {
+                'label': 'Sub-Department',
+                'value': (u.get('sub_departments') or {}).get('name', '—'),
+            }
 
         return jsonify({
             'id':          u['id'],
@@ -1123,6 +1124,7 @@ def get_batch_rating_status():
         if not user_ids:
             return jsonify({}), 200
 
+        # ── Query 1: template assignment per user ──────────────────
         assign_res = supabase.table('template_assignments') \
             .select('user_id, template_id') \
             .in_('user_id', user_ids) \
@@ -1136,16 +1138,13 @@ def get_batch_rating_status():
                 for uid in user_ids
             })
 
+        # ── Query 2: categories for all templates ──────────────────
         cat_res = supabase.table('categories') \
             .select('id, template_id') \
             .in_('template_id', template_ids) \
             .execute()
 
-        cats_by_template: dict = {}
-        for c in (cat_res.data or []):
-            cats_by_template.setdefault(c['template_id'], []).append(c['id'])
-
-        all_cat_ids = [c['id'] for c in (cat_res.data or [])]
+        all_cat_ids     = [c['id'] for c in (cat_res.data or [])]
         cat_to_template = {c['id']: c['template_id'] for c in (cat_res.data or [])}
 
         if not all_cat_ids:
@@ -1154,17 +1153,21 @@ def get_batch_rating_status():
                 for uid in user_ids
             })
 
+        # ── Query 3: manual objectives for all categories ──────────
         obj_res = supabase.table('objectives') \
             .select('id, category_id') \
             .in_('category_id', all_cat_ids) \
             .eq('kpi_scale', 'manual') \
             .execute()
 
+        # template_id → list of manual objective ids (use list, not set — JSON serialisable)
         objs_by_template: dict = {}
         for o in (obj_res.data or []):
             tmpl = cat_to_template.get(o['category_id'])
             if tmpl:
-                objs_by_template.setdefault(tmpl, set()).add(o['id'])
+                objs_by_template.setdefault(tmpl, [])
+                if o['id'] not in objs_by_template[tmpl]:
+                    objs_by_template[tmpl].append(o['id'])
 
         all_obj_ids = [o['id'] for o in (obj_res.data or [])]
 
@@ -1174,6 +1177,7 @@ def get_batch_rating_status():
                 for uid in user_ids
             })
 
+        # ── Query 4: submitted records for all users at once ───────
         submitted_res = supabase.table('performance_records') \
             .select('user_id, objective_id') \
             .in_('user_id', user_ids) \
@@ -1183,20 +1187,25 @@ def get_batch_rating_status():
             .not_.is_('manual_rating', 'null') \
             .execute()
 
+        # user_id → list of submitted objective ids
         submitted_by_user: dict = {}
         for r in (submitted_res.data or []):
-            submitted_by_user.setdefault(r['user_id'], set()).add(r['objective_id'])
+            submitted_by_user.setdefault(r['user_id'], [])
+            if r['objective_id'] not in submitted_by_user[r['user_id']]:
+                submitted_by_user[r['user_id']].append(r['objective_id'])
 
+        # ── Compute per-user result ────────────────────────────────
         result = {}
         for uid in user_ids:
             template_id   = assign_by_user.get(uid)
-            total_obj_ids = objs_by_template.get(template_id, set()) if template_id else set()
+            total_obj_ids = objs_by_template.get(template_id, []) if template_id else []
             total         = len(total_obj_ids)
-            submitted_ids = submitted_by_user.get(uid, set())
-            submitted     = len(submitted_ids & total_obj_ids)
-            pending       = max(0, total - submitted)
+            submitted_ids = submitted_by_user.get(uid, [])
+            # Count intersection: submitted objectives that belong to this user's template
+            done          = len([oid for oid in submitted_ids if oid in total_obj_ids])
+            pending       = max(0, total - done)
             result[uid]   = {
-                'submitted': submitted == total and total > 0,
+                'submitted': done == total and total > 0,
                 'pending':   pending,
                 'total':     total,
             }
@@ -1204,7 +1213,9 @@ def get_batch_rating_status():
         return jsonify(result)
 
     except Exception as e:
+        import traceback
         print(f"[ERROR] get_batch_rating_status: {e}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
