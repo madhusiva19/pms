@@ -232,12 +232,21 @@ def assign_employees(template_id):
         return jsonify({'error': str(e)}), 500
 
 
+# ─────────────────────────────────────────────────────────────────────
+# FIXED: get_assignments now filters by manager_id query param
+# ─────────────────────────────────────────────────────────────────────
+
 @app.route('/api/templates/<int:template_id>/assignments', methods=['GET'])
 def get_assignments(template_id):
     try:
+        manager_id = request.args.get('manager_id', '').strip()
+
+        # Fetch all assignments for this template
         result = supabase.table('template_assignments') \
             .select('user_id, users(id, full_name, designation_id, designations(name))') \
-            .eq('template_id', template_id).execute()
+            .eq('template_id', template_id) \
+            .execute()
+
         employees = []
         for row in result.data:
             if row.get('users'):
@@ -247,7 +256,18 @@ def get_assignments(template_id):
                     'name':        u['full_name'],
                     'designation': (u.get('designations') or {}).get('name', ''),
                 })
+
+        # If manager_id provided, filter to only that manager's direct reports
+        if manager_id:
+            team_res = supabase.table('users') \
+                .select('id') \
+                .eq('manager_id', manager_id) \
+                .execute()
+            team_ids = {u['id'] for u in (team_res.data or [])}
+            employees = [e for e in employees if e['id'] in team_ids]
+
         return jsonify(employees)
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -947,6 +967,58 @@ def get_evaluator_team(evaluator_id):
 
 
 # ─────────────────────────────────────────────────────────────────────
+# EVALUATOR PROFILE — org context for page header
+# ─────────────────────────────────────────────────────────────────────
+
+@app.route('/api/evaluator/<evaluator_id>/profile', methods=['GET'])
+def get_evaluator_profile(evaluator_id):
+    try:
+        user_res = supabase.table('users') \
+            .select(
+                'id, full_name, role, email,'
+                'designation_id, designations(name),'
+                'branch_id, branches(name),'
+                'department_id, departments(name),'
+                'country_id, countries(name),'
+                'sub_department_id, sub_departments(name)'
+            ) \
+            .eq('id', evaluator_id) \
+            .single() \
+            .execute()
+
+        if not user_res.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        u    = user_res.data
+        role = u.get('role', '')
+
+        org_context = None
+        if role == 'hq_admin':
+            org_context = {'label': 'HQ', 'value': 'Group Level'}
+        elif role == 'country_admin':
+            org_context = {'label': 'Country', 'value': (u.get('countries') or {}).get('name', '—')}
+        elif role == 'branch_admin':
+            org_context = {'label': 'Branch', 'value': (u.get('branches') or {}).get('name', '—')}
+        elif role == 'dept_admin':
+            org_context = {'label': 'Department', 'value': (u.get('departments') or {}).get('name', '—')}
+        elif role == 'sub_dept_admin':
+            org_context = {'label': 'Sub-Department', 'value': (u.get('sub_departments') or {}).get('name', '—')}
+
+        return jsonify({
+            'id':          u['id'],
+            'full_name':   u.get('full_name', ''),
+            'email':       u.get('email', ''),
+            'role':        role,
+            'designation': (u.get('designations') or {}).get('name', ''),
+            'org_context': org_context,
+        })
+
+    except Exception as e:
+        print(f"[ERROR] get_evaluator_profile: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────
 # MANUAL OBJECTIVES FOR A USER
 # ─────────────────────────────────────────────────────────────────────
 
@@ -1035,24 +1107,10 @@ def get_manual_objectives(user_id):
 
 # ─────────────────────────────────────────────────────────────────────
 # BATCH RATING STATUS
-# Resolves all team members in 4 DB queries instead of N fetches.
-# Eliminates blank status cells and the need to reload the page.
 # ─────────────────────────────────────────────────────────────────────
 
 @app.route('/api/rating-status/batch', methods=['GET'])
 def get_batch_rating_status():
-    """
-    Returns rating status for multiple users in one call.
-    Query params:
-      - user_ids : comma-separated list of user UUIDs
-      - year     : pms_year (int)
-      - period   : e.g. 'H1'
-    Response:
-      {
-        "<user_id>": { "submitted": bool, "pending": int, "total": int },
-        ...
-      }
-    """
     try:
         raw_ids = request.args.get('user_ids', '').strip()
         year    = request.args.get('year',    type=int)
@@ -1065,7 +1123,6 @@ def get_batch_rating_status():
         if not user_ids:
             return jsonify({}), 200
 
-        # ── Query 1: template assignment per user ──────────────────
         assign_res = supabase.table('template_assignments') \
             .select('user_id, template_id') \
             .in_('user_id', user_ids) \
@@ -1079,7 +1136,6 @@ def get_batch_rating_status():
                 for uid in user_ids
             })
 
-        # ── Query 2: categories for all templates ──────────────────
         cat_res = supabase.table('categories') \
             .select('id, template_id') \
             .in_('template_id', template_ids) \
@@ -1098,14 +1154,12 @@ def get_batch_rating_status():
                 for uid in user_ids
             })
 
-        # ── Query 3: manual objectives for all categories ──────────
         obj_res = supabase.table('objectives') \
             .select('id, category_id') \
             .in_('category_id', all_cat_ids) \
             .eq('kpi_scale', 'manual') \
             .execute()
 
-        # Build template_id → set of manual objective ids
         objs_by_template: dict = {}
         for o in (obj_res.data or []):
             tmpl = cat_to_template.get(o['category_id'])
@@ -1120,7 +1174,6 @@ def get_batch_rating_status():
                 for uid in user_ids
             })
 
-        # ── Query 4: submitted records for all users at once ───────
         submitted_res = supabase.table('performance_records') \
             .select('user_id, objective_id') \
             .in_('user_id', user_ids) \
@@ -1130,19 +1183,16 @@ def get_batch_rating_status():
             .not_.is_('manual_rating', 'null') \
             .execute()
 
-        # user_id → set of submitted objective ids
         submitted_by_user: dict = {}
         for r in (submitted_res.data or []):
             submitted_by_user.setdefault(r['user_id'], set()).add(r['objective_id'])
 
-        # ── Compute per-user result ────────────────────────────────
         result = {}
         for uid in user_ids:
             template_id   = assign_by_user.get(uid)
             total_obj_ids = objs_by_template.get(template_id, set()) if template_id else set()
             total         = len(total_obj_ids)
             submitted_ids = submitted_by_user.get(uid, set())
-            # Intersect so we only count objectives that belong to this user's template
             submitted     = len(submitted_ids & total_obj_ids)
             pending       = max(0, total - submitted)
             result[uid]   = {
