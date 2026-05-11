@@ -39,8 +39,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initializeAuth = async () => {
       try {
         // ── DEMO MODE SUPPORT ──────────────────────────────────────
-        const urlParams   = new URLSearchParams(window.location.search);
-        const demoRole    = urlParams.get('demo-role');
+        // FIX: Use sessionStorage instead of localStorage so each browser
+        // tab has its own isolated demo session and doesn't bleed into
+        // other tabs loaded with different roles.
+        const urlParams = new URLSearchParams(window.location.search);
+        const demoRole  = urlParams.get('demo-role');
         const validRoles: UserRole[] = [
           'hq_admin', 'country_admin', 'branch_admin',
           'dept_admin', 'sub_dept_admin', 'employee',
@@ -48,16 +51,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (validRoles.includes(demoRole as UserRole)) {
           console.log(`🔧 Demo mode enabled with role: ${demoRole}`);
-          localStorage.setItem('demo-role', demoRole!);
+          // ✅ sessionStorage: tab-scoped, not shared across tabs
+          sessionStorage.setItem('demo-role', demoRole!);
         }
 
-        const activeDemoRole  = demoRole || localStorage.getItem('demo-role');
+        // ✅ Only reads from THIS tab's sessionStorage
+        const activeDemoRole = demoRole || sessionStorage.getItem('demo-role');
 
         const demoEmail = urlParams.get('demo-email');
         if (demoEmail) {
-          localStorage.setItem('demo-email', demoEmail);
+          // ✅ sessionStorage: tab-scoped
+          sessionStorage.setItem('demo-email', demoEmail);
         }
-        const activeDemoEmail = demoEmail || localStorage.getItem('demo-email');
+        const activeDemoEmail = demoEmail || sessionStorage.getItem('demo-email');
 
         if (activeDemoEmail) {
           const { data: demoUser } = await supabase
@@ -93,7 +99,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } = await supabase.auth.getUser();
 
         if (authError || !authUser) {
-          // No session — set null instead of defaulting to hq_admin
           setUser(null);
           setLoading(false);
           return;
