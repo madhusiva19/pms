@@ -64,8 +64,9 @@ export default function ManualRatingsPage() {
     if (!userId) return;
     setLoading(true);
     try {
+      const evaluatorId = user?.id ?? EVALUATOR_ID;
       const [teamRes, objRes, periodRes] = await Promise.all([
-        fetch(`${API}/api/evaluator/${EVALUATOR_ID}/team`),
+        fetch(`${API}/api/evaluator/${evaluatorId}/team`),
         fetch(`${API}/api/manual-objectives/${userId}?year=${year}&period=${period}`),
         fetch(`${API}/api/rating-periods/current`),
       ]);
@@ -76,7 +77,25 @@ export default function ManualRatingsPage() {
 
       if (Array.isArray(teamData)) {
         const found = teamData.find((m: TeamMember) => m.id === userId);
-        if (found) setMember(found);
+        if (found) {
+          setMember(found);
+        } else {
+          // fallback: get name from performance endpoint
+          try {
+            const perfRes  = await fetch(`${API}/api/performance/${userId}/${year}/${period}`);
+            if (perfRes.ok) {
+              const perfData = await perfRes.json();
+              if (perfData?.employee) {
+                setMember({
+                  id:            userId,
+                  full_name:     perfData.employee.name ?? '',
+                  designation:   perfData.employee.designation ?? '',
+                  template_name: null,
+                });
+              }
+            }
+          } catch { /* silent */ }
+        }
       }
 
       if (Array.isArray(objData)) {
@@ -103,7 +122,7 @@ export default function ManualRatingsPage() {
       setGlobalError('Failed to load data. Make sure Flask is running on port 5000.');
     }
     setLoading(false);
-  }, [userId, year, period]);
+  }, [userId, year, period, user?.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -326,7 +345,7 @@ export default function ManualRatingsPage() {
           <span>›</span>
           <Link href={`/${roleSlug}/rating-settings`} style={{ color: '#64748B', textDecoration: 'none' }}>Rating Settings</Link>
           <span>›</span>
-          <span style={{ color: '#1E293B', fontWeight: 700 }}>Manual Ratings</span>
+          <span style={{ color: '#1E293B', fontWeight: 800 }}>Manual Ratings</span>
         </div>
 
         {/* Page header */}
@@ -335,11 +354,12 @@ export default function ManualRatingsPage() {
           alignItems: 'flex-start', marginBottom: 20, gap: 12, flexWrap: 'wrap',
         }}>
           <div>
+            {/* ── CHANGE 1: show actual member name, fallback to '—' ── */}
             <h1 style={{
               fontSize: 'clamp(20px, 4vw, 28px)', fontWeight: 600,
               color: '#101828', margin: '0 0 4px',
             }}>
-              {member?.full_name ?? 'Team Member'}
+              {member?.full_name ?? '—'}
             </h1>
             <p style={{ color: '#4A5565', margin: '0 0 10px', fontSize: 14 }}>
               {member?.designation ?? ''} · {period} {year}
@@ -399,9 +419,13 @@ export default function ManualRatingsPage() {
           marginBottom: 16,
           boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
         }}>
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid #E2E8F0' }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#1E293B' }}>
-              Manual Objectives — {period} {year}
+          {/* ── Full blue header bar, white text, no subtitle ── */}
+          <div style={{
+            padding: '18px 24px',
+            background: '#3B82F6',
+          }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#FFFFFF', lineHeight: 1.3 }}>
+              Manual Ratings
             </h3>
           </div>
 
@@ -437,7 +461,6 @@ export default function ManualRatingsPage() {
                     <th style={thStyle('center')}>Weight</th>
                     <th style={thStyle('center')}>Rating (1–5)</th>
                     <th style={thStyle('left')}>
-                      {/* ── Icon removed, plain text only ── */}
                       Comment
                       <span style={{
                         fontSize: 10, fontWeight: 400, color: '#94A3B8',
@@ -534,7 +557,7 @@ export default function ManualRatingsPage() {
                               )}
                             </td>
 
-                            {/* Comment input — resize: none removes the diagonal handle */}
+                            {/* Comment input */}
                             <td style={tdBase('left', { background: rowBg, paddingTop: 10, paddingBottom: 10 })}>
                               <textarea
                                 placeholder={
@@ -636,11 +659,15 @@ export default function ManualRatingsPage() {
           </div>
         )}
 
-        {/* ── Submit bar ── */}
+        {/* ── Submit bar: box-shadow only, matching table card style ── */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12,
           padding: '16px 20px', background: '#fff',
-          border: '1px solid #E2E8F0', borderRadius: 12,
+          borderTop: '1px solid #E2E8F0',
+          borderRight: '1px solid #E2E8F0',
+          borderBottom: '1px solid #E2E8F0',
+          borderLeft: '1px solid #E2E8F0',
+          borderRadius: 12,
           boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
           flexWrap: 'wrap',
         }}>
