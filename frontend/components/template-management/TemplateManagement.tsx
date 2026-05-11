@@ -270,6 +270,7 @@ export default function TemplatesListPage() {
                 tmpl={tmpl}
                 index={idx}
                 userRole={user?.role}
+                managerId={user?.id}
               />
             ))}
           </div>
@@ -310,20 +311,27 @@ function getAbbr(name: string): string {
   return (words[0][0] + (words[1]?.[0] ?? words[0][1])).toUpperCase();
 }
 
-function TemplateCard({ tmpl, index, userRole }: {
+function TemplateCard({ tmpl, index, userRole, managerId }: {
   tmpl: Template;
   index: number;
   userRole: string | undefined;
+  managerId: string | undefined;  // ✅ FIX: accept managerId prop
 }) {
   const [hovered, setHovered] = useState(false);
   const [assignedCount, setAssignedCount] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/api/templates/${tmpl.id}/assignments`)
+    // ✅ FIX: pass manager_id as query param so only this manager's
+    //         team members are counted, not all assigned employees globally
+    const url = managerId
+      ? `${API}/api/templates/${tmpl.id}/assignments?manager_id=${managerId}`
+      : `${API}/api/templates/${tmpl.id}/assignments`;
+
+    fetch(url)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setAssignedCount(data.length); })
       .catch(() => setAssignedCount(0));
-  }, [tmpl.id]);
+  }, [tmpl.id, managerId]);
 
   const isFrozen = tmpl.status === 'frozen';
   const roleSlug = userRole?.replace(/_/g, '-') ?? 'branch-admin';
@@ -408,7 +416,7 @@ function TemplateCard({ tmpl, index, userRole }: {
             </span>
           </div>
 
-          {/* Assigned count */}
+          {/* Assigned count — now scoped to this manager's team only */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
               <circle cx="5.5" cy="5" r="2" stroke="#94A3B8" strokeWidth="1.4"/>
