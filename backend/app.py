@@ -1811,7 +1811,7 @@ def _log_assessment_action(assessment_id: str, actor_id: str, actor_role: str,
 
 
 def _strip_supervisor_columns(items: list, assessment_status: str, requester_id: str,
-                               supervisor_id: str) -> list:
+                                supervisor_id: str) -> list:
     """
     Remove supervisor_rating and supervisor_justification from items
     unless status=completed AND requester is NOT the appraisee (i.e. supervisor view allowed).
@@ -2218,7 +2218,7 @@ def supervisor_submit_potential_assessment():
                 'supervisor_justification': item.get('supervisor_justification'),
             }).eq('id', item['id']).execute()
 
-        # Fetch all items to calculate pillar ratings
+        # Fetch all items to calculate pillar ratings strictly from supervisor ratings
         all_items_resp = supabase.table('potential_assessment_items') \
             .select('pillar, supervisor_rating') \
             .eq('assessment_id', assessment_id) \
@@ -2234,9 +2234,12 @@ def supervisor_submit_potential_assessment():
             if pillar in pillar_ratings and rating:
                 pillar_ratings[pillar].append(rating)
 
+        # Apply majority rule for individual pillars
         overall_ability    = _calculate_pillar_rating(pillar_ratings['ability'])
         overall_aspiration = _calculate_pillar_rating(pillar_ratings['aspiration'])
         overall_leadership = _calculate_pillar_rating(pillar_ratings['leadership'])
+        
+        # Calculate final overall potentiality strictly using supervisor ratings
         talent_block       = _calculate_overall_potentiality(overall_ability, overall_aspiration, overall_leadership)
 
         from datetime import datetime, timezone
