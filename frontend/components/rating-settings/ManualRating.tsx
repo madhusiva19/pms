@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, AlertTriangle, CheckCircle, Clock, MessageSquare } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
 interface ManualObjective {
@@ -181,7 +181,6 @@ export default function ManualRatingsPage() {
     return valid;
   };
 
-  // FIX 1: pendingCount correctly reflects unrated objectives
   const pendingCount = objectives.filter(o => {
     const val = ratings[o.objective_id];
     if (!val || val.trim() === '') return true;
@@ -222,7 +221,6 @@ export default function ManualRatingsPage() {
       setIsDirty(false);
       setSubmitMsg('success');
 
-      // FIX 2: Redirect to rating-settings instead of team
       setTimeout(() => router.push(`/${roleSlug}/rating-settings`), 1800);
 
     } catch (e: unknown) {
@@ -233,7 +231,6 @@ export default function ManualRatingsPage() {
 
   const handleCancel = () => {
     if (isDirty && !confirm('You have unsaved changes. Leave anyway?')) return;
-    // FIX 2: Redirect to rating-settings on cancel too
     router.push(`/${roleSlug}/rating-settings`);
   };
 
@@ -279,11 +276,9 @@ export default function ManualRatingsPage() {
     padding: P, textAlign: align, verticalAlign: 'top', ...extra,
   });
 
-  // FIX 1: Determine submit bar status correctly
   const hasNoObjectives  = objectives.length === 0;
   const isSubmitDisabled = saving || hasNoObjectives;
 
-  // Submit bar status label
   const renderStatusLabel = () => {
     if (hasNoObjectives) {
       return (
@@ -395,10 +390,14 @@ export default function ManualRatingsPage() {
           You can re-edit and resubmit anytime within the rating window.
         </div>
 
-        {/* Table */}
+        {/* ── Table card ── */}
         <div style={{
-          background: '#fff', border: '1px solid #E2E8F0',
-          borderRadius: 12, overflow: 'hidden', marginBottom: 16,
+          background: '#fff',
+          border: '1px solid #E2E8F0',
+          borderRadius: 12,
+          overflow: 'hidden',
+          marginBottom: 16,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
         }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid #E2E8F0' }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#1E293B' }}>
@@ -407,7 +406,6 @@ export default function ManualRatingsPage() {
           </div>
 
           <div style={{ overflowX: 'auto' }}>
-            {/* FIX 1: Show empty state when no objectives */}
             {hasNoObjectives ? (
               <div style={{
                 padding: '48px 24px', textAlign: 'center',
@@ -439,15 +437,13 @@ export default function ManualRatingsPage() {
                     <th style={thStyle('center')}>Weight</th>
                     <th style={thStyle('center')}>Rating (1–5)</th>
                     <th style={thStyle('left')}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <MessageSquare size={11} />
-                        Comment
-                        <span style={{
-                          fontSize: 10, fontWeight: 400, color: '#94A3B8',
-                          textTransform: 'none', letterSpacing: 0,
-                        }}>
-                          (required if rating &lt; 3.0)
-                        </span>
+                      {/* ── Icon removed, plain text only ── */}
+                      Comment
+                      <span style={{
+                        fontSize: 10, fontWeight: 400, color: '#94A3B8',
+                        textTransform: 'none', letterSpacing: 0, marginLeft: 4,
+                      }}>
+                        (required if rating &lt; 3.0)
                       </span>
                     </th>
                   </tr>
@@ -538,7 +534,7 @@ export default function ManualRatingsPage() {
                               )}
                             </td>
 
-                            {/* Comment input */}
+                            {/* Comment input — resize: none removes the diagonal handle */}
                             <td style={tdBase('left', { background: rowBg, paddingTop: 10, paddingBottom: 10 })}>
                               <textarea
                                 placeholder={
@@ -564,7 +560,7 @@ export default function ManualRatingsPage() {
                                   color: '#1E293B',
                                   background: hasCommentError ? '#FFF5F5' : isBelowThree ? '#FFFBEB' : '#fff',
                                   outline: 'none',
-                                  resize: 'vertical',
+                                  resize: 'none',
                                   fontFamily: 'Inter, sans-serif',
                                   lineHeight: '1.4',
                                   boxSizing: 'border-box',
@@ -640,13 +636,14 @@ export default function ManualRatingsPage() {
           </div>
         )}
 
-        {/* Submit bar */}
+        {/* ── Submit bar ── */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12,
           padding: '16px 20px', background: '#fff',
-          border: '1px solid #E2E8F0', borderRadius: 12, flexWrap: 'wrap',
+          border: '1px solid #E2E8F0', borderRadius: 12,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+          flexWrap: 'wrap',
         }}>
-          {/* FIX 1: Status label with empty objectives guard */}
           <span style={{
             fontSize: 13, flex: 1,
             color: statusColor,
@@ -663,7 +660,6 @@ export default function ManualRatingsPage() {
             Cancel
           </button>
 
-          {/* FIX 1: Disable submit when no objectives */}
           <button
             onClick={handleSubmit}
             disabled={isSubmitDisabled}
