@@ -32,6 +32,11 @@ interface RatingPeriod {
   reason:        string | null;
 }
 
+interface OrgContext {
+  label: string;
+  value: string;
+}
+
 const API          = 'http://127.0.0.1:5000';
 const EVALUATOR_ID = process.env.NEXT_PUBLIC_LOCKED_ADMIN_UUID ?? 'aaaaaaaa-0001-0001-0001-000000000001';
 
@@ -46,6 +51,7 @@ export default function ManualRatingsPage() {
 
   const roleSlug = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
 
+  const [orgContext,    setOrgContext]    = useState<OrgContext | null>(null);
   const [member,        setMember]        = useState<TeamMember | null>(null);
   const [objectives,    setObjectives]    = useState<ManualObjective[]>([]);
   const [ratings,       setRatings]       = useState<Record<number, string>>({});
@@ -65,15 +71,22 @@ export default function ManualRatingsPage() {
     setLoading(true);
     try {
       const evaluatorId = user?.id ?? EVALUATOR_ID;
-      const [teamRes, objRes, periodRes] = await Promise.all([
+      const [teamRes, objRes, periodRes, profileRes] = await Promise.all([
         fetch(`${API}/api/evaluator/${evaluatorId}/team`),
         fetch(`${API}/api/manual-objectives/${userId}?year=${year}&period=${period}`),
         fetch(`${API}/api/rating-periods/current`),
+        fetch(`${API}/api/evaluator/${userId}/profile`),
       ]);
 
-      const teamData   = await teamRes.json();
-      const objData    = await objRes.json();
-      const periodData = await periodRes.json();
+      const teamData    = await teamRes.json();
+      const objData     = await objRes.json();
+      const periodData  = await periodRes.json();
+      const profileData = profileRes.ok ? await profileRes.json() : null;
+
+      // Set org context from profile endpoint
+      if (profileData?.org_context) {
+        setOrgContext(profileData.org_context);
+      }
 
       if (Array.isArray(teamData)) {
         const found = teamData.find((m: TeamMember) => m.id === userId);
@@ -345,7 +358,7 @@ export default function ManualRatingsPage() {
           <span>›</span>
           <Link href={`/${roleSlug}/rating-settings`} style={{ color: '#64748B', textDecoration: 'none' }}>Rating Settings</Link>
           <span>›</span>
-          <span style={{ color: '#1E293B', fontWeight: 800 }}>Manual Ratings</span>
+          <span style={{ color: '#1E293B', fontWeight: 700 }}>Manual Ratings</span>
         </div>
 
         {/* Page header */}
@@ -362,7 +375,9 @@ export default function ManualRatingsPage() {
               {member?.full_name ?? '—'}
             </h1>
             <p style={{ color: '#4A5565', margin: '0 0 10px', fontSize: 14 }}>
-              {member?.designation ?? ''} · {period} {year}
+              {orgContext
+                ? `${orgContext.label} Administrator · ${orgContext.value}`
+                : member?.designation ?? ''}
             </p>
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
