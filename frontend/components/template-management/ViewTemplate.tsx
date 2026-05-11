@@ -265,7 +265,7 @@ export default function ViewTemplatePage() {
   useEffect(() => {
     if (!templateId || isNaN(templateId)) return;
     fetchTemplate();
-    fetch(`${API}/api/templates/${templateId}/assignments`)
+    fetch(`${API}/api/templates/${templateId}/assignments?manager_id=${user?.id}`)
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setAssignedEmployees(d); })
       .catch(() => {});
