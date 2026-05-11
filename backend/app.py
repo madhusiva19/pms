@@ -453,13 +453,10 @@ def _load_scale_meta():
 
 
 # ─────────────────────────────────────────────────────────────────────
-# HELPER: resolve the current active period (year + period label)
-# Returns (pms_year: int, period: str) from the active rating_periods row.
-# Falls back to the current calendar year and 'H1' if nothing is active.
+# HELPER: resolve the current active period
 # ─────────────────────────────────────────────────────────────────────
 
 def _active_period_params():
-    """Return (year, period) from the currently active rating_period row."""
     from datetime import date
     today = date.today()
 
@@ -475,12 +472,10 @@ def _active_period_params():
             if date.fromisoformat(str(start)[:10]) <= today <= date.fromisoformat(str(end)[:10]):
                 return int(rp['pms_year']), rp['period']
 
-    # No open window — return the most recent active period row by year
     if result.data:
         latest = sorted(result.data, key=lambda r: (r['pms_year'], r['period']), reverse=True)[0]
         return int(latest['pms_year']), latest['period']
 
-    # Absolute fallback: current year, H1
     return today.year, 'H1'
 
 
@@ -597,6 +592,7 @@ def get_performance(user_id, year, period):
                 'target':          rec.get('target'),
                 'actual':          rec.get('actual'),
                 'manual_rating':   rec.get('manual_rating'),
+                'rating_comment':  rec.get('rating_comment'),
                 'achievement_pct': achievement_pct,
                 'rating':          rating,
                 'score':           score,
@@ -694,8 +690,9 @@ def evaluator_submit():
         updated_count = 0
 
         for entry in ratings:
-            obj_id        = entry.get('objective_id')
-            manual_rating = entry.get('manual_rating')
+            obj_id         = entry.get('objective_id')
+            manual_rating  = entry.get('manual_rating')
+            rating_comment = entry.get('rating_comment', None)
 
             if not obj_id or manual_rating is None:
                 continue
@@ -703,7 +700,17 @@ def evaluator_submit():
             manual_rating = round(float(manual_rating), 2)
 
             if not (1.0 <= manual_rating <= 5.0):
-                return jsonify({'error': f'Rating for objective {obj_id} must be between 1.00 and 5.00'}), 400
+                return jsonify({
+                    'error': f'Rating for objective {obj_id} must be between 1.00 and 5.00'
+                }), 400
+
+            if manual_rating < 3.0:
+                if not rating_comment or not str(rating_comment).strip():
+                    return jsonify({
+                        'error': f'A comment is required for objective {obj_id} because the rating is below 3.0'
+                    }), 400
+
+            rating_comment = str(rating_comment).strip() if rating_comment and str(rating_comment).strip() else None
 
             obj     = obj_by_id.get(obj_id, {})
             mapping = mappings_by_obj.get(obj_id, {})
@@ -715,16 +722,17 @@ def evaluator_submit():
             score  = round(manual_rating * (weight / 100), 4)
 
             supabase.table('performance_records').upsert({
-                'user_id':       user_id,
-                'objective_id':  obj_id,
-                'period':        period,
-                'year':          year,
-                'target':        None,
-                'actual':        None,
-                'manual_rating': manual_rating,
-                'rating':        manual_rating,
-                'score':         score,
-                'status':        'approved',
+                'user_id':        user_id,
+                'objective_id':   obj_id,
+                'period':         period,
+                'year':           year,
+                'target':         None,
+                'actual':         None,
+                'manual_rating':  manual_rating,
+                'rating':         manual_rating,
+                'score':          score,
+                'rating_comment': rating_comment,
+                'status':         'approved',
             }, on_conflict='user_id,objective_id,period,year').execute()
 
             updated_count += 1
@@ -747,7 +755,6 @@ def evaluator_submit():
 def get_pending_evaluations():
     try:
         user_id = request.args.get('user_id')
-        # FIX: use active period from DB instead of hardcoded defaults
         active_year, active_period = _active_period_params()
         year   = request.args.get('year',   active_year)
         period = request.args.get('period', active_period)
@@ -941,14 +948,11 @@ def get_evaluator_team(evaluator_id):
 
 # ─────────────────────────────────────────────────────────────────────
 # MANUAL OBJECTIVES FOR A USER
-# FIX: year and period now default to the currently active period from DB
-#      instead of hardcoded 2026/H1
 # ─────────────────────────────────────────────────────────────────────
 
 @app.route('/api/manual-objectives/<user_id>', methods=['GET'])
 def get_manual_objectives(user_id):
     try:
-        # Resolve defaults dynamically from the active rating period
         active_year, active_period = _active_period_params()
         year   = request.args.get('year',   active_year, type=int)
         period = request.args.get('period', active_period)
@@ -991,7 +995,7 @@ def get_manual_objectives(user_id):
         obj_ids = [o['id'] for o in objectives]
 
         rec_res = supabase.table('performance_records') \
-            .select('objective_id, manual_rating') \
+            .select('objective_id, manual_rating, rating_comment') \
             .eq('user_id', user_id) \
             .eq('year', year) \
             .eq('period', period) \
@@ -1004,6 +1008,11 @@ def get_manual_objectives(user_id):
             if r.get('manual_rating') is not None
         }
 
+        comments = {
+            r['objective_id']: r.get('rating_comment')
+            for r in (rec_res.data or [])
+        }
+
         result = []
         for obj in objectives:
             result.append({
@@ -1014,12 +1023,138 @@ def get_manual_objectives(user_id):
                 'weight':         float(obj.get('weight', 0)),
                 'kpi_scale':      obj.get('kpi_scale', 'manual'),
                 'manual_rating':  existing.get(obj['id']),
+                'rating_comment': comments.get(obj['id']),
             })
 
         return jsonify(result)
 
     except Exception as e:
         print(f"[ERROR] get_manual_objectives: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────
+# BATCH RATING STATUS
+# Resolves all team members in 4 DB queries instead of N fetches.
+# Eliminates blank status cells and the need to reload the page.
+# ─────────────────────────────────────────────────────────────────────
+
+@app.route('/api/rating-status/batch', methods=['GET'])
+def get_batch_rating_status():
+    """
+    Returns rating status for multiple users in one call.
+    Query params:
+      - user_ids : comma-separated list of user UUIDs
+      - year     : pms_year (int)
+      - period   : e.g. 'H1'
+    Response:
+      {
+        "<user_id>": { "submitted": bool, "pending": int, "total": int },
+        ...
+      }
+    """
+    try:
+        raw_ids = request.args.get('user_ids', '').strip()
+        year    = request.args.get('year',    type=int)
+        period  = request.args.get('period',  '')
+
+        if not raw_ids or not year or not period:
+            return jsonify({'error': 'user_ids, year, and period are required'}), 400
+
+        user_ids = [uid.strip() for uid in raw_ids.split(',') if uid.strip()]
+        if not user_ids:
+            return jsonify({}), 200
+
+        # ── Query 1: template assignment per user ──────────────────
+        assign_res = supabase.table('template_assignments') \
+            .select('user_id, template_id') \
+            .in_('user_id', user_ids) \
+            .execute()
+        assign_by_user = {r['user_id']: r['template_id'] for r in (assign_res.data or [])}
+
+        template_ids = list(set(assign_by_user.values()))
+        if not template_ids:
+            return jsonify({
+                uid: {'submitted': False, 'pending': 0, 'total': 0}
+                for uid in user_ids
+            })
+
+        # ── Query 2: categories for all templates ──────────────────
+        cat_res = supabase.table('categories') \
+            .select('id, template_id') \
+            .in_('template_id', template_ids) \
+            .execute()
+
+        cats_by_template: dict = {}
+        for c in (cat_res.data or []):
+            cats_by_template.setdefault(c['template_id'], []).append(c['id'])
+
+        all_cat_ids = [c['id'] for c in (cat_res.data or [])]
+        cat_to_template = {c['id']: c['template_id'] for c in (cat_res.data or [])}
+
+        if not all_cat_ids:
+            return jsonify({
+                uid: {'submitted': False, 'pending': 0, 'total': 0}
+                for uid in user_ids
+            })
+
+        # ── Query 3: manual objectives for all categories ──────────
+        obj_res = supabase.table('objectives') \
+            .select('id, category_id') \
+            .in_('category_id', all_cat_ids) \
+            .eq('kpi_scale', 'manual') \
+            .execute()
+
+        # Build template_id → set of manual objective ids
+        objs_by_template: dict = {}
+        for o in (obj_res.data or []):
+            tmpl = cat_to_template.get(o['category_id'])
+            if tmpl:
+                objs_by_template.setdefault(tmpl, set()).add(o['id'])
+
+        all_obj_ids = [o['id'] for o in (obj_res.data or [])]
+
+        if not all_obj_ids:
+            return jsonify({
+                uid: {'submitted': False, 'pending': 0, 'total': 0}
+                for uid in user_ids
+            })
+
+        # ── Query 4: submitted records for all users at once ───────
+        submitted_res = supabase.table('performance_records') \
+            .select('user_id, objective_id') \
+            .in_('user_id', user_ids) \
+            .in_('objective_id', all_obj_ids) \
+            .eq('year', year) \
+            .eq('period', period) \
+            .not_.is_('manual_rating', 'null') \
+            .execute()
+
+        # user_id → set of submitted objective ids
+        submitted_by_user: dict = {}
+        for r in (submitted_res.data or []):
+            submitted_by_user.setdefault(r['user_id'], set()).add(r['objective_id'])
+
+        # ── Compute per-user result ────────────────────────────────
+        result = {}
+        for uid in user_ids:
+            template_id   = assign_by_user.get(uid)
+            total_obj_ids = objs_by_template.get(template_id, set()) if template_id else set()
+            total         = len(total_obj_ids)
+            submitted_ids = submitted_by_user.get(uid, set())
+            # Intersect so we only count objectives that belong to this user's template
+            submitted     = len(submitted_ids & total_obj_ids)
+            pending       = max(0, total - submitted)
+            result[uid]   = {
+                'submitted': submitted == total and total > 0,
+                'pending':   pending,
+                'total':     total,
+            }
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[ERROR] get_batch_rating_status: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -1096,13 +1231,11 @@ def get_current_rating_period():
 
 # ─────────────────────────────────────────────────────────────────────
 # RATING SETTINGS OVERVIEW
-# FIX: year and period now default to the currently active period from DB
 # ─────────────────────────────────────────────────────────────────────
 
 @app.route('/api/rating-settings/overview/<evaluator_id>', methods=['GET'])
 def get_rating_overview(evaluator_id):
     try:
-        # Resolve defaults dynamically
         active_year, active_period_str = _active_period_params()
         period   = request.args.get('period', active_period_str)
         pms_year = request.args.get('year',   active_year, type=int)
@@ -1305,16 +1438,10 @@ def get_current_pms_cycle():
 
 
 # ─────────────────────────────────────────────────────────────────────
-# ORG HIERARCHY — for rating period filter selectors
-# Returns countries / branches / departments / sub-departments
-# scoped to the calling evaluator's role:
-#   hq_admin     → all countries, all branches/depts/sub-depts
-#   country_admin → branches/depts/sub-depts in their own country
-#   branch_admin  → own branch only
+# ORG HIERARCHY
 # ─────────────────────────────────────────────────────────────────────
 
 def _get_evaluator_role(evaluator_id: str):
-    """Return (role, country_id) for the given evaluator."""
     res = supabase.table('users') \
         .select('role, country_id') \
         .eq('id', evaluator_id) \
@@ -1326,13 +1453,7 @@ def _get_evaluator_role(evaluator_id: str):
 
 
 def _unique_by_name(rows: list) -> list:
-    """
-    Collapse rows that share the same name into one entry.
-    The returned item uses the first seen id and accumulates all ids in 'all_ids'.
-    Frontend uses 'id' as the display key; 'all_ids' is sent when saving.
-    Sorted alphabetically by name.
-    """
-    seen: dict = {}          # name → {id, name, all_ids: []}
+    seen: dict = {}
     for row in rows:
         name = (row.get('name') or '').strip()
         if not name:
@@ -1346,7 +1467,6 @@ def _unique_by_name(rows: list) -> list:
 
 @app.route('/api/org/countries', methods=['GET'])
 def get_org_countries():
-    """Return all countries — unique by name. Only shown to hq_admin."""
     try:
         res = supabase.table('countries').select('id, name').order('name').execute()
         return jsonify(_unique_by_name(res.data or []))
@@ -1357,7 +1477,6 @@ def get_org_countries():
 
 @app.route('/api/org/branches', methods=['GET'])
 def get_org_branches():
-    """Return branches visible to the evaluator — unique by name."""
     try:
         evaluator_id = request.args.get('evaluator_id', '')
         role, country_id = _get_evaluator_role(evaluator_id)
@@ -1375,7 +1494,6 @@ def get_org_branches():
 
 @app.route('/api/org/departments', methods=['GET'])
 def get_org_departments():
-    """Return departments visible to the evaluator — unique by name."""
     try:
         evaluator_id = request.args.get('evaluator_id', '')
         role, country_id = _get_evaluator_role(evaluator_id)
@@ -1401,7 +1519,6 @@ def get_org_departments():
 
 @app.route('/api/org/sub-departments', methods=['GET'])
 def get_org_sub_departments():
-    """Return sub-departments visible to the evaluator — unique by name."""
     try:
         evaluator_id = request.args.get('evaluator_id', '')
         role, country_id = _get_evaluator_role(evaluator_id)
@@ -1434,7 +1551,7 @@ def get_org_sub_departments():
 
 
 # ─────────────────────────────────────────────────────────────────────
-# RATING PERIOD UPDATE (country_admin + hq_admin only)
+# RATING PERIOD UPDATE
 # ─────────────────────────────────────────────────────────────────────
 
 @app.route('/api/rating-periods/update', methods=['POST'])
@@ -1455,7 +1572,6 @@ def update_rating_period():
             .eq('pms_year', pms_year) \
             .execute()
 
-        # Optional: log which org units were affected (stored for audit)
         affected = {
             'affected_countries':   body.get('affected_countries', []),
             'affected_branches':    body.get('affected_branches', []),
