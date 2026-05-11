@@ -287,9 +287,8 @@ export interface TeamOverviewSummary {
   avg_team_score: number;
 }
 
-// ============================================================
 // POTENTIAL ASSESSMENT MODULE — New types (do not modify above)
-// ============================================================
+
 
 export interface AppraisalCycle {
   id: string;
