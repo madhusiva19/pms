@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, FileText, Users, LogOut, TrendingUp,
-  Bell, LucideFileBarChart, User, BarChart3, Settings,
+  Bell, LucideFileBarChart, User, BarChart3, Settings, Target,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
@@ -18,74 +18,80 @@ interface NavItem {
 
 // ── HQ Admin — Level 1
 const hqAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/hq-admin/dashboard',           icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/hq-admin/template-management', icon: FileText           },
-  { name: 'My Team',             href: '/hq-admin/team',                icon: Users              },
-  { name: 'Rating Settings',     href: '/hq-admin/rating-settings',     icon: Settings           },
-  { name: 'Reports',             href: '/hq-admin/reports',             icon: BarChart3          },
-  { name: 'Notifications',       href: '/hq-admin/notifications',        icon: Bell               },
-  { name: 'My Profile',          href: '/hq-admin/profile',             icon: User               },
+  { name: 'Dashboard',            href: '/hq-admin/dashboard',            icon: LayoutDashboard    },
+  { name: 'Template Management',  href: '/hq-admin/template-management',  icon: FileText           },
+  { name: 'My Team',              href: '/hq-admin/team',                 icon: Users              },
+  { name: 'Rating Settings',      href: '/hq-admin/rating-settings',      icon: Settings           },
+  { name: 'Potential Assessment', href: '/hq-admin/potential-assessment', icon: Target             },
+  { name: 'Reports',              href: '/hq-admin/reports',              icon: BarChart3          },
+  { name: 'Notifications',        href: '/hq-admin/notifications',        icon: Bell               },
+  { name: 'My Profile',           href: '/hq-admin/profile',              icon: User               },
 ];
 
 // ── Country Admin — Level 2
 const countryAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/country-admin/dashboard',           icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/country-admin/template-management', icon: FileText           },
-  { name: 'My Team',             href: '/country-admin/team',                icon: Users              },
-  { name: 'My Performance',      href: '/country-admin/my-performance',      icon: TrendingUp         },
-  { name: 'Rating Settings',     href: '/country-admin/rating-settings',     icon: Settings           },
-  { name: 'Reports',             href: '/country-admin/reports',             icon: BarChart3          },
-  { name: 'Notifications',       href: '/country-admin/notifications',        icon: Bell               },
-  { name: 'Training Passport',   href: '/country-admin/training',            icon: LucideFileBarChart },
-  { name: 'My Profile',          href: '/country-admin/profile',             icon: User               },
+  { name: 'Dashboard',            href: '/country-admin/dashboard',            icon: LayoutDashboard    },
+  { name: 'Template Management',  href: '/country-admin/template-management',  icon: FileText           },
+  { name: 'My Team',              href: '/country-admin/team',                 icon: Users              },
+  { name: 'My Performance',       href: '/country-admin/my-performance',       icon: TrendingUp         },
+  { name: 'Rating Settings',      href: '/country-admin/rating-settings',      icon: Settings           },
+  { name: 'Potential Assessment', href: '/country-admin/potential-assessment', icon: Target             },
+  { name: 'Reports',              href: '/country-admin/reports',              icon: BarChart3          },
+  { name: 'Notifications',        href: '/country-admin/notifications',        icon: Bell               },
+  { name: 'Training Passport',    href: '/country-admin/training',             icon: LucideFileBarChart },
+  { name: 'My Profile',           href: '/country-admin/profile',              icon: User               },
 ];
 
 // ── Branch Admin — Level 3
 const branchAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/branch-admin/dashboard',           icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/branch-admin/template-management', icon: FileText           },
-  { name: 'My Team',             href: '/branch-admin/team',                icon: Users              },
-  { name: 'My Performance',      href: '/branch-admin/my-performance',      icon: TrendingUp         },
-  { name: 'Rating Settings',     href: '/branch-admin/rating-settings',     icon: Settings           },
-  { name: 'Reports',             href: '/branch-admin/reports',             icon: BarChart3          },
-  { name: 'Notifications',       href: '/branch-admin/notifications',        icon: Bell               },
-  { name: 'Training Passport',   href: '/branch-admin/training',            icon: LucideFileBarChart },
-  { name: 'My Profile',          href: '/branch-admin/profile',             icon: User               },
+  { name: 'Dashboard',            href: '/branch-admin/dashboard',            icon: LayoutDashboard    },
+  { name: 'Template Management',  href: '/branch-admin/template-management',  icon: FileText           },
+  { name: 'My Team',              href: '/branch-admin/team',                 icon: Users              },
+  { name: 'My Performance',       href: '/branch-admin/my-performance',       icon: TrendingUp         },
+  { name: 'Rating Settings',      href: '/branch-admin/rating-settings',      icon: Settings           },
+  { name: 'Potential Assessment', href: '/branch-admin/potential-assessment', icon: Target             },
+  { name: 'Reports',              href: '/branch-admin/reports',              icon: BarChart3          },
+  { name: 'Notifications',        href: '/branch-admin/notifications',        icon: Bell               },
+  { name: 'Training Passport',    href: '/branch-admin/training',             icon: LucideFileBarChart },
+  { name: 'My Profile',           href: '/branch-admin/profile',              icon: User               },
 ];
 
 // ── Dept Admin — Level 4
 const deptAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/dept-admin/dashboard',           icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/dept-admin/template-management', icon: FileText           },
-  { name: 'My Team',             href: '/dept-admin/team',                icon: Users              },
-  { name: 'My Performance',      href: '/dept-admin/my-performance',      icon: TrendingUp         },
-  { name: 'Rating Settings',     href: '/dept-admin/rating-settings',     icon: Settings           },
-  { name: 'Reports',             href: '/dept-admin/reports',             icon: BarChart3          },
-  { name: 'Notifications',       href: '/dept-admin/notifications',        icon: Bell               },
-  { name: 'Training Passport',   href: '/dept-admin/training',            icon: LucideFileBarChart },
-  { name: 'My Profile',          href: '/dept-admin/profile',             icon: User               },
+  { name: 'Dashboard',            href: '/dept-admin/dashboard',            icon: LayoutDashboard    },
+  { name: 'Template Management',  href: '/dept-admin/template-management',  icon: FileText           },
+  { name: 'My Team',              href: '/dept-admin/team',                 icon: Users              },
+  { name: 'My Performance',       href: '/dept-admin/my-performance',       icon: TrendingUp         },
+  { name: 'Rating Settings',      href: '/dept-admin/rating-settings',      icon: Settings           },
+  { name: 'Potential Assessment', href: '/dept-admin/potential-assessment', icon: Target             },
+  { name: 'Reports',              href: '/dept-admin/reports',              icon: BarChart3          },
+  { name: 'Notifications',        href: '/dept-admin/notifications',        icon: Bell               },
+  { name: 'Training Passport',    href: '/dept-admin/training',             icon: LucideFileBarChart },
+  { name: 'My Profile',           href: '/dept-admin/profile',              icon: User               },
 ];
 
 // ── Sub Dept Admin — Level 5
 const subDeptAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/sub-dept-admin/dashboard',           icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/sub-dept-admin/template-management', icon: FileText           },
-  { name: 'My Team',             href: '/sub-dept-admin/team',                icon: Users              },
-  { name: 'My Performance',      href: '/sub-dept-admin/my-performance',      icon: TrendingUp         },
-  { name: 'Rating Settings',     href: '/sub-dept-admin/rating-settings',     icon: Settings           },
-  { name: 'Reports',             href: '/sub-dept-admin/reports',             icon: BarChart3          },
-  { name: 'Notifications',       href: '/sub-dept-admin/notifications',        icon: Bell               },
-  { name: 'Training Passport',   href: '/sub-dept-admin/training',            icon: LucideFileBarChart },
-  { name: 'My Profile',          href: '/sub-dept-admin/profile',             icon: User               },
+  { name: 'Dashboard',            href: '/sub-dept-admin/dashboard',            icon: LayoutDashboard    },
+  { name: 'Template Management',  href: '/sub-dept-admin/template-management',  icon: FileText           },
+  { name: 'My Team',              href: '/sub-dept-admin/team',                 icon: Users              },
+  { name: 'My Performance',       href: '/sub-dept-admin/my-performance',       icon: TrendingUp         },
+  { name: 'Rating Settings',      href: '/sub-dept-admin/rating-settings',      icon: Settings           },
+  { name: 'Potential Assessment', href: '/sub-dept-admin/potential-assessment', icon: Target             },
+  { name: 'Reports',              href: '/sub-dept-admin/reports',              icon: BarChart3          },
+  { name: 'Notifications',        href: '/sub-dept-admin/notifications',        icon: Bell               },
+  { name: 'Training Passport',    href: '/sub-dept-admin/training',             icon: LucideFileBarChart },
+  { name: 'My Profile',           href: '/sub-dept-admin/profile',              icon: User               },
 ];
 
 // ── Employee — Level 6
 const employeeNavItems: NavItem[] = [
-  { name: 'Dashboard',        href: '/employee/dashboard',      icon: LayoutDashboard    },
-  { name: 'My Performance',   href: '/employee/my-performance', icon: TrendingUp         },
-  { name: 'Notifications',    href: '/employee/notifications',   icon: Bell               },
-  { name: 'Training Passport', href: '/employee/training',      icon: LucideFileBarChart },
-  { name: 'My Profile',       href: '/employee/profile',        icon: User               },
+  { name: 'Dashboard',            href: '/employee/dashboard',            icon: LayoutDashboard    },
+  { name: 'My Performance',       href: '/employee/my-performance',       icon: TrendingUp         },
+  { name: 'Potential Assessment', href: '/employee/potential-assessment', icon: Target             },
+  { name: 'Notifications',        href: '/employee/notifications',        icon: Bell               },
+  { name: 'Training Passport',    href: '/employee/training',             icon: LucideFileBarChart },
+  { name: 'My Profile',           href: '/employee/profile',              icon: User               },
 ];
 
 function getNavItems(role: string | undefined): NavItem[] {
@@ -127,8 +133,11 @@ export default function Sidebar() {
   const userRole = user?.role      || '';
 
   const handleLogout = () => {
+    // Clear both localStorage and sessionStorage demo keys
     localStorage.removeItem('demo-role');
     localStorage.removeItem('demo-email');
+    sessionStorage.removeItem('demo-role');
+    sessionStorage.removeItem('demo-email');
     router.push('/');
   };
 
