@@ -1732,15 +1732,17 @@ def _send_pa_notification(recipient_id: str, notif_type: str, title: str, messag
     Called after self-submit (notifies supervisor) and supervisor-submit (notifies employee).
     """
     try:
-        supabase.table('potential_assessment_notifications').insert({
+        result = supabase.table('potential_assessment_notifications').insert({
             'recipient_id': recipient_id,
             'type': notif_type,
             'title': title,
             'message': message,
             'is_read': False,
         }).execute()
+        print(f'[PA NOTIFICATION] Sent "{notif_type}" to {recipient_id}: {title}')
+        return result
     except Exception as e:
-        print(f'[PA NOTIFICATION WARNING] Failed to send notification: {e}')
+        print(f'[PA NOTIFICATION ERROR] Failed to send notification to {recipient_id}: {e}')
 
 
 @app.route('/api/potential-assessment-notifications/<user_id>', methods=['GET'])
@@ -1755,8 +1757,10 @@ def get_pa_notifications(user_id: str):
             .eq('recipient_id', user_id) \
             .order('created_at', desc=True) \
             .execute()
+        print(f'[PA NOTIFICATIONS GET] user={user_id} → {len(resp.data or [])} records')
         return jsonify({'success': True, 'data': resp.data or []}), 200
     except Exception as e:
+        print(f'[PA NOTIFICATIONS GET ERROR] user={user_id}: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
