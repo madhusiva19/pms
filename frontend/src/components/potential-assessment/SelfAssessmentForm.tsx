@@ -75,10 +75,10 @@ export default function SelfAssessmentForm({
   assessmentData,
   onSubmitSuccess,
 }: SelfAssessmentFormProps) {
-  const [pillars, setPillars]     = useState<PillarDefinition[]>(ASSESSMENT_PILLARS);
+  const [pillars, setPillars] = useState<PillarDefinition[]>(ASSESSMENT_PILLARS);
   const [activeTab, setActiveTab] = useState<PillarKey>('ability');
-  const [ratings, setRatings]     = useState<RatingMap>(buildInitialRatings());
-  const [examples, setExamples]   = useState<ExampleMap>(buildInitialExamples());
+  const [ratings, setRatings] = useState<RatingMap>(buildInitialRatings());
+  const [examples, setExamples] = useState<ExampleMap>(buildInitialExamples());
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export default function SelfAssessmentForm({
   useEffect(() => {
     assessmentComponentsApi.getForRole(role)
       .then(comps => { if (comps.length > 0) setPillars(buildPillars(comps)); })
-      .catch(() => {});
+      .catch(() => { });
   }, [role]);
 
   // Pre-fill from existing data
@@ -175,11 +175,10 @@ export default function SelfAssessmentForm({
             <button
               key={pillar.key}
               onClick={() => setActiveTab(pillar.key)}
-              className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${
-                activeTab === pillar.key
+              className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${activeTab === pillar.key
                   ? 'bg-white text-[#1E3A8A] shadow-sm'
                   : 'text-[#64748B] hover:text-[#1E293B]'
-              }`}
+                }`}
             >
               {pillar.label}
               {!isReadOnly && (
@@ -197,7 +196,7 @@ export default function SelfAssessmentForm({
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-[#F8FAFC] border-b border-[#E5E7EB]">
-              <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-8">#</th>
+              <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-8"></th>
               <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Component</th>
               <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-44">Your Rating (H/M/L)</th>
               <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Incident / Example</th>
@@ -230,11 +229,10 @@ export default function SelfAssessmentForm({
                               ...prev,
                               [activePillar.key]: { ...prev[activePillar.key], [c]: opt },
                             }))}
-                            className={`w-9 h-9 rounded-lg text-[13px] font-semibold border transition-all ${
-                              rating === opt
+                            className={`w-9 h-9 rounded-lg text-[13px] font-semibold border transition-all ${rating === opt
                                 ? ratingBadgeStyles[opt] + ' border-2'
                                 : 'bg-white text-[#64748B] border-[#E5E7EB] hover:bg-[#F8FAFC]'
-                            }`}
+                              }`}
                           >
                             {opt}
                           </button>
@@ -297,11 +295,10 @@ export default function SelfAssessmentForm({
           <button
             disabled={!allFilled}
             onClick={() => setShowModal(true)}
-            className={`px-6 py-2.5 rounded-lg text-[13.5px] font-semibold text-white transition-all ${
-              allFilled
+            className={`px-6 py-2.5 rounded-lg text-[13.5px] font-semibold text-white transition-all ${allFilled
                 ? 'bg-[#1E3A8A] hover:bg-[#1E40AF] active:scale-[0.98]'
                 : 'bg-[#CBD5E1] cursor-not-allowed'
-            }`}
+              }`}
           >
             Submit Self-Assessment
           </button>

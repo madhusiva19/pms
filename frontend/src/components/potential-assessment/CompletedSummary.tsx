@@ -54,10 +54,10 @@ function PillarCard({ label, value }: { label: string; value: RatingValue | null
   const progress = value ? ratingProgress[value] : 0;
   const fullLabel = value ? ratingLabel[value] : '—';
   return (
-    <div className="border-2 border-[#BFDBFE] rounded-xl p-4 flex flex-col gap-3 bg-white hover:border-[#3B82F6] hover:shadow-md transition-all">
-      <p className="inline-block text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest bg-[#EFF6FF] px-2 py-0.5 rounded-md w-fit">{label}</p>
+    <div className="border-2 border-[#E2E8F0] rounded-xl p-4 flex flex-col gap-3 bg-white hover:border-[#94A3B8] hover:shadow-md transition-all">
+      <p className="inline-block text-[11px] font-semibold text-[#64748B] uppercase tracking-widest bg-[bg-[#EFF6FF]] px-2 py-0.5 rounded-md w-fit">{label}</p>
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-[#EFF6FF] border-2 border-[#BFDBFE] flex items-center justify-center text-[14px] font-bold text-[#2563EB] flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-[#F1F5F9] border-2 border-[#BFDBFE] flex items-center justify-center text-[14px] font-bold text-[#2563EB] flex-shrink-0">
           {value ?? '—'}
         </div>
         <span className="text-[14px] font-semibold text-[#1E293B]">{fullLabel}</span>
@@ -65,7 +65,7 @@ function PillarCard({ label, value }: { label: string; value: RatingValue | null
       <div className="flex items-center gap-2">
         <div className="flex-1 h-[5px] bg-[#E2E8F0] rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full bg-[#3B82F6] transition-all duration-500"
+            className="h-full rounded-full bg-[#94A3B8] transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -127,14 +127,26 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
         <table className="w-full border-collapse min-w-[860px]">
           <thead>
             <tr style={{ background: 'linear-gradient(to right, #F8FAFF, #EFF6FF)' }}>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#64748B] uppercase tracking-widest border-b border-[#E2E8F0] w-10">#</th>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#64748B] uppercase tracking-widest border-b border-[#E2E8F0] w-10"></th>
               <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#64748B] uppercase tracking-widest border-b border-[#E2E8F0]">Component</th>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest border-b border-[#E2E8F0] border-l border-l-[#BFDBFE] bg-[#EFF6FF]">Self Rating</th>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest border-b border-[#E2E8F0] bg-[#EFF6FF]">Self Example</th>
+
+              {/* Self Rating — distinct rating column */}
+              <th className="text-center px-4 py-3 text-[11px] font-semibold text-[#64748B] uppercase tracking-widest border-b border-[#E2E8F0] border-l border-l-[#E2E8F0] bg-[#EFF6FF] w-28">
+                Self Rating
+              </th>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#64748B] uppercase tracking-widest border-b border-[#E2E8F0] border-l border-l-[#E2E8F0] bg-[#EFF6FF]">
+                Self Example
+              </th>
+
               {!isAppraiseeView && (
                 <>
-                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest border-b border-[#E2E8F0] border-l-2 border-l-[#BFDBFE] bg-[#EFF6FF]">Supervisor Rating</th>
-                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#2563EB] uppercase tracking-widest border-b border-[#E2E8F0] bg-[#EFF6FF]">Supervisor Justification</th>
+                  {/* Supervisor Rating — distinct rating column, same treatment as Self Rating */}
+                  <th className="text-center px-4 py-3 text-[11px] font-semibold text-[#64748B] uppercase tracking-widest border-b border-[#E2E8F0] border-l border-l-[#E2E8F0] bg-[#F8FAFF] w-28">
+                    Supervisor Rating
+                  </th>
+                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#64748B] uppercase tracking-widest border-b border-[#E2E8F0] border-l border-l-[#E2E8F0] bg-[#F8FAFF]">
+                    Supervisor Justification
+                  </th>
                 </>
               )}
             </tr>
@@ -148,22 +160,40 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
                   <td className="px-5 py-4 align-top">
                     <span className="w-6 h-6 rounded-full bg-[#F1F5F9] text-[12px] font-bold text-[#94A3B8] flex items-center justify-center">{c}</span>
                   </td>
+
+                  {/* Component — plain */}
                   <td className="px-5 py-4 align-top max-w-[220px]">
                     <p className="text-[13.5px] text-[#1E293B] leading-6 font-medium">{desc}</p>
                   </td>
-                  <td className="px-5 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-top border-l border-l-[#DBEAFE]">
-                    <RatingBadge value={item?.self_rating ?? null} />
+
+                  {/* Self Rating — blue-tinted rating cell, centered */}
+                  <td className="px-4 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-middle border-l border-l-[#E2E8F0] ">
+                    <div className="flex items-center justify-center">
+                      <RatingBadge value={item?.self_rating ?? null} />
+                    </div>
                   </td>
-                  <td className="px-5 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-top">
-                    <p className="text-[13px] text-[#475569] leading-6 whitespace-pre-wrap max-w-[220px]">{item?.self_example || <span className="text-[#CBD5E1] italic">No example provided</span>}</p>
+
+                  {/* Self Example — blue-tinted */}
+                  <td className="px-5 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-top border-l border-l-[#E2E8F0]">
+                    <p className="text-[13px] text-[#475569] leading-6 whitespace-pre-wrap max-w-[220px]">
+                      {item?.self_example || <span className="text-[#CBD5E1] italic">No example provided</span>}
+                    </p>
                   </td>
+
                   {!isAppraiseeView && (
                     <>
-                      <td className="px-5 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-top border-l-2 border-l-[#BFDBFE]">
-                        <RatingBadge value={item?.supervisor_rating ?? null} />
+                      {/* Supervisor Rating — plain background like Component, centered */}
+                      <td className="px-4 py-4 align-middle border-l border-l-[#E2E8F0]">
+                        <div className="flex items-center justify-center">
+                          <RatingBadge value={item?.supervisor_rating ?? null} />
+                        </div>
                       </td>
-                      <td className="px-5 py-4 bg-[#F8FBFF] group-hover:bg-[#EFF6FF] transition-colors align-top">
-                        <p className="text-[13px] text-[#475569] leading-6 whitespace-pre-wrap max-w-[220px]">{item?.supervisor_justification || <span className="text-[#CBD5E1] italic">No justification provided</span>}</p>
+
+                      {/* Supervisor Justification — plain background like Component */}
+                      <td className="px-5 py-4 align-top border-l border-l-[#E2E8F0]">
+                        <p className="text-[13px] text-[#475569] leading-6 whitespace-pre-wrap max-w-[220px]">
+                          {item?.supervisor_justification || <span className="text-[#CBD5E1] italic">No justification provided</span>}
+                        </p>
                       </td>
                     </>
                   )}
@@ -173,7 +203,6 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
           </tbody>
         </table>
       </div>
-
       {/* Overall Summary Card */}
       <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 flex flex-col gap-6">
         <h3 className="text-[15px] font-semibold text-[#101828]">Overall Summary</h3>
