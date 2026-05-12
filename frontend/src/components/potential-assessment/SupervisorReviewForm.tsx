@@ -33,7 +33,7 @@ type SupJustMap = Record<PillarKey, Record<number, string>>;
 const RATING_OPTIONS: RatingValue[] = ['H', 'M', 'L'];
 
 const ratingBadgeStyles: Record<RatingValue, string> = {
-  H: 'bg-[#F3F4F6] text-[#16A34A] border-[#86EFAC]',
+  H: 'bg-[#DCFCE7] text-[#16A34A] border-[#86EFAC]',
   M: 'bg-[#FEF9C3] text-[#CA8A04] border-[#FDE047]',
   L: 'bg-[#FEE2E2] text-[#DC2626] border-[#FCA5A5]',
 };
@@ -152,7 +152,7 @@ export default function SupervisorReviewForm({
         <table className="w-full border-collapse min-w-[900px]">
           <thead>
             <tr className="bg-[#F8FAFC] border-b border-[#E5E7EB]">
-              <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-7">#</th>
+              <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-7"></th>
               <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Component</th>
               <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-28 bg-[#F0F4FF]">Appraisee Rating</th>
               <th className="text-left px-4 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide bg-[#F0F4FF]">Appraisee Example</th>
