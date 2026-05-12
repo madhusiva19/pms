@@ -43,8 +43,7 @@ type ReminderType =
   | "period_opened"
   | "deadline_warning"
   | "supervisor_alert"
-  | "manual_reminder"
-  | "rating_window";
+  | "manual_reminder";
 
 type ManualRatingNotification = {
   id: string;
@@ -77,7 +76,6 @@ const REMINDER_STYLES: Record<
   deadline_warning: { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon",        borderColor: "#FDE047", bg: "#FFFBEB" },
   supervisor_alert: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "🔴 Action Required", borderColor: "#FECACA", bg: "#FEF2F2" },
   manual_reminder:  { badge: "#F3E8FF", badgeColor: "#6B21A8", badgeText: "📢 Reminder",        borderColor: "#D8B4FE", bg: "#FAF5FF" },
-  rating_window:    { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "🗓 Rating Window",   borderColor: "#BFDBFE", bg: "#F0F7FF" },
 };
 
 function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
@@ -89,10 +87,15 @@ function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
   return "normal";
 }
 
+function formatDate(d: string) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 // ── Main Component ─────────────────────────────────────
 export default function Notifications() {
   const { user } = useAuth();
-  const router = useRouter();
+  const router   = useRouter();
 
   const userId     = user?.id ?? "";
   const roleSlug   = user?.role?.replace(/_/g, "-") ?? "employee";
@@ -112,7 +115,7 @@ export default function Notifications() {
     async function load() {
       setLoading(true);
       try {
-        // 1. DB notifications
+        // ── 1. DB manual rating notifications ─────────────────────
         const notifRes  = await fetch(`${API}/api/manual-rating-notifications/${userId}`);
         const notifData = await notifRes.json();
         const allNotifs = Array.isArray(notifData) ? notifData : [];
@@ -121,7 +124,7 @@ export default function Notifications() {
           "period_opened", "deadline_warning", "supervisor_alert", "manual_reminder",
         ];
 
-        // ── Achievement notifications ─────────────────────────────
+        // Achievement notifications (non-reminder types)
         const achievements: AchievementNotification[] = allNotifs
           .filter((n: { type: string }) => !reminderTypes.includes(n.type as ReminderType))
           .map((n: {
@@ -140,7 +143,7 @@ export default function Notifications() {
           }));
         setAchievementList(achievements);
 
-        // ── Manual rating reminder notifications ──────────────────
+        // Manual rating reminder notifications — DB only, no synthetic cards
         const reminders: ManualRatingNotification[] = allNotifs
           .filter((n: { type: string }) => reminderTypes.includes(n.type as ReminderType))
           .map((n: {
@@ -158,45 +161,35 @@ export default function Notifications() {
               ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
               : "",
           }));
+        setManualReminderList(reminders);
 
-        // ── Rating window period cards → merged into manual reminders
-        const periodRes  = await fetch(`${API}/api/rating-periods/current`);
-        const periodData = await periodRes.json();
+        // ── 2. Objective Cut-off — from PMS cycle only ─────────────
+        const cycleRes  = await fetch(`${API}/api/pms-cycle/current`);
+        const cycleData = await cycleRes.json();
+        const cycle     = cycleData.cycle;
 
-        const ratingWindowNotifs: ManualRatingNotification[] = (periodData.periods ?? []).map(
-          (p: { id: number; period: string; pms_year: number; rating_start: string; rating_end: string }) => ({
-            id:        `window-${p.id}`,
-            type:      "rating_window" as ReminderType,
-            title:     `Rating Window — ${p.period} ${p.pms_year}`,
-            message:   `The rating window for ${p.period} ${p.pms_year} runs from ${p.rating_start} to ${p.rating_end}. Ensure all manual ratings are completed before the window closes.`,
-            period:    p.period,
-            pmsYear:   p.pms_year,
-            isRead:    false,
-            createdAt: "",
-          })
-        );
-
-        setManualReminderList([...reminders, ...ratingWindowNotifs]);
-
-        // ── Cutoff notifications — objective setting deadlines ─────
-        const cutoffs: CutoffNotification[] = (periodData.periods ?? []).map(
-          (p: { id: number; period: string; pms_year: number; rating_start: string; rating_end: string }) => ({
-            id:         `cutoff-${p.id}`,
-            title:      `Objective Cut-off — ${p.period} ${p.pms_year}`,
-            message:    `The objective setting cut-off for ${p.period} ${p.pms_year} ends on ${p.rating_end}. Ensure all objectives are finalised before the deadline.`,
-            cutoffDate: p.rating_end,
-            status:     resolveCutoffStatus(p.rating_end),
-            isRead:     false,
-            actionUrl:  `/${roleSlug}/template-management`,
-          })
-        );
+        const cutoffs: CutoffNotification[] = cycle ? [{
+          id:         `cutoff-${cycle.id ?? "current"}`,
+          title:      `Objective Setting Cut-off — ${cycle.pms_year}`,
+          message:    `The objective setting window for ${cycle.pms_year} closes on ${formatDate(cycle.objective_setting_end)}.${
+            cycle.grace_period_end
+              ? ` A grace period is available until ${formatDate(cycle.grace_period_end)}.`
+              : ""
+          } Ensure all objectives are finalised before the deadline.`,
+          cutoffDate: cycle.grace_period_end ?? cycle.objective_setting_end,
+          status:     cycleData.editing_open
+            ? resolveCutoffStatus(cycle.grace_period_end ?? cycle.objective_setting_end)
+            : "frozen",
+          isRead:     false,
+          actionUrl:  `/${roleSlug}/template-management`,
+        }] : [];
         setCutoffList(cutoffs);
 
-        // ── Potential Assessment notifications ────────────────────
-        // Placeholder — replace with real API fetch when endpoint is ready:
-        // const potentialRes  = await fetch(`${API}/api/potential-assessment-notifications/${userId}`);
-        // const potentialData = await potentialRes.json();
-        // setPotentialList(Array.isArray(potentialData) ? potentialData : []);
+        // ── 3. Potential Assessment notifications (placeholder) ────
+        // Replace with real fetch when endpoint is ready:
+        // const potRes  = await fetch(`${API}/api/potential-assessment-notifications/${userId}`);
+        // const potData = await potRes.json();
+        // setPotentialList(Array.isArray(potData) ? potData : []);
         setPotentialList([]);
 
       } catch (err) {
@@ -210,8 +203,7 @@ export default function Notifications() {
 
   // ── Mark read helpers ─────────────────────────────────
   const callMarkRead = async (id: string) => {
-    // Synthetic cards (window-, cutoff-) have no DB record — skip API call
-    if (id.startsWith("window-") || id.startsWith("cutoff-")) return;
+    if (id.startsWith("cutoff-")) return; // synthetic — no DB record
     try {
       await fetch(`${API}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" });
     } catch (err) {
@@ -244,7 +236,7 @@ export default function Notifications() {
       setAchievementList(prev => prev.map(n => ({ ...n, isRead: true })));
       await Promise.all(unread.map(n => callMarkRead(n.id)));
     } else if (activeTab === "manual") {
-      const unread = manualReminderList.filter(n => !n.isRead && !n.id.startsWith("window-"));
+      const unread = manualReminderList.filter(n => !n.isRead);
       setManualReminderList(prev => prev.map(n => ({ ...n, isRead: true })));
       await Promise.all(unread.map(n => callMarkRead(n.id)));
     } else if (activeTab === "cutoff") {
@@ -363,11 +355,10 @@ export default function Notifications() {
                   >
                     Review Achievement →
                   </button>
-                  {!n.isRead && (
-                    <button type="button" className={styles.readBtn} onClick={() => markAchievementRead(n.id)}>
-                      Mark as read
-                    </button>
-                  )}
+                  {/* ✅ Always show Mark as read button */}
+                  <button type="button" className={styles.readBtn} onClick={() => markAchievementRead(n.id)}>
+                    Mark as read
+                  </button>
                 </div>
               </div>
             ))
@@ -382,8 +373,7 @@ export default function Notifications() {
             <div className={styles.emptyState}>No manual rating reminders at the moment.</div>
           ) : (
             manualReminderList.map(n => {
-              const s        = REMINDER_STYLES[n.type] ?? REMINDER_STYLES.manual_reminder;
-              const isWindow = n.id.startsWith("window-");
+              const s = REMINDER_STYLES[n.type] ?? REMINDER_STYLES.manual_reminder;
               return (
                 <div
                   key={n.id}
@@ -420,11 +410,10 @@ export default function Notifications() {
                     >
                       Go to Manual Ratings →
                     </button>
-                    {!n.isRead && !isWindow && (
-                      <button type="button" className={styles.readBtn} onClick={() => markManualReminderRead(n.id)}>
-                        Mark as read
-                      </button>
-                    )}
+                    {/* ✅ Always show Mark as read button */}
+                    <button type="button" className={styles.readBtn} onClick={() => markManualReminderRead(n.id)}>
+                      Mark as read
+                    </button>
                   </div>
                 </div>
               );
@@ -452,7 +441,7 @@ export default function Notifications() {
                       {!n.isRead && <span className={styles.unreadDot} />}
                       <div>
                         <p className={styles.notifTitle}>{n.title}</p>
-                        <p className={styles.notifRole}>Cut-off: {n.cutoffDate}</p>
+                        <p className={styles.notifRole}>Cut-off: {formatDate(n.cutoffDate)}</p>
                       </div>
                     </div>
                     <span style={{
@@ -471,11 +460,10 @@ export default function Notifications() {
                     >
                       Go to Template →
                     </button>
-                    {!n.isRead && (
-                      <button type="button" className={styles.readBtn} onClick={() => markCutoffRead(n.id)}>
-                        Mark as read
-                      </button>
-                    )}
+                    {/* ✅ Always show Mark as read button */}
+                    <button type="button" className={styles.readBtn} onClick={() => markCutoffRead(n.id)}>
+                      Mark as read
+                    </button>
                   </div>
                 </div>
               );
@@ -510,11 +498,10 @@ export default function Notifications() {
                   >
                     View Assessment →
                   </button>
-                  {!n.isRead && (
-                    <button type="button" className={styles.readBtn} onClick={() => markPotentialRead(n.id)}>
-                      Mark as read
-                    </button>
-                  )}
+                  {/* ✅ Always show Mark as read button */}
+                  <button type="button" className={styles.readBtn} onClick={() => markPotentialRead(n.id)}>
+                    Mark as read
+                  </button>
                 </div>
               </div>
             ))
