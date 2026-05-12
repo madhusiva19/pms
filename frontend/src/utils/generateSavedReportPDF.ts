@@ -194,7 +194,7 @@ function drawMultiCountrySection(
   const rowH     = 14;
 
   // Column headers
-  drawRect(pdf, 14, y, pageW - 28, 8, C.navy, 3);
+  drawRect(pdf, 14, y, pageW - 28, 8, C.blue, 3);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7.5);
   pdf.setTextColor(...C.white);
@@ -258,13 +258,13 @@ function drawYearComparisonSection(
   const scores = sorted.map(d => d.avg_score);
   const labels = sorted.map(d => String(d.year));
   if (scores.length >= 2) {
-    drawLineGraph(pdf, 25, y, pageW - 50, 40, scores, labels, C.teal);
+    drawLineGraph(pdf, 25, y, pageW - 50, 40, scores, labels, C.blue);
     y += 64;
   }
 
   // Table
   const rowH = 12;
-  drawRect(pdf, 14, y, pageW - 28, 8, C.teal, 3);
+  drawRect(pdf, 14, y, pageW - 28, 8, C.blue, 3);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7.5);
   pdf.setTextColor(...C.white);
@@ -459,14 +459,14 @@ export async function generateSavedReportPDF(
     y += 8;
     const avgScores: number[] = tm.avg_scores
       ?? report.selected_periods.map((_: any, i: number) => 3.2 + i * 0.2 + Math.random() * 0.3);
-    drawLineGraph(pdf, 25, y, pageW - 50, 40, avgScores, report.selected_periods, C.purple);
+    drawLineGraph(pdf, 25, y, pageW - 50, 40, avgScores, report.selected_periods, C.blue);
     y += 68;
 
     // Period breakdown header
     y = sectionHeader(pdf, 'Period Breakdown', y, pageW);
     y += 4;
     const colW = (pageW - 28) / report.selected_periods.length;
-    drawRect(pdf, 14, y, pageW - 28, 10, C.purple, 3);
+    drawRect(pdf, 14, y, pageW - 28, 10, C.blue, 3);
     report.selected_periods.forEach((p: string, i: number) => {
       pdf.setFontSize(8);
       pdf.setTextColor(255, 255, 255);
