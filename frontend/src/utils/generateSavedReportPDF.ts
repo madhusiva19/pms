@@ -2,6 +2,7 @@
  * generateSavedReportPDF.ts
  *
  * Generates a fully programmatic, styled PDF using jsPDF.
+ * Header/footer style matches downloadReportAsPDF (navy branding bar).
  * Supports four report modes stored in trend_metrics.type:
  *   'snapshot'        – current-period snapshot
  *   'year_comparison' – avg_score across multiple years (line chart)
@@ -11,6 +12,29 @@
 
 import jsPDF from 'jspdf';
 import type { SavedReport } from '@/types';
+
+// ─── Logo loader (same as downloadReport.ts) ─────────────────────────────────
+async function loadLogoAsDataUrl(src: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const cnv = document.createElement('canvas');
+        cnv.width = img.naturalWidth;
+        cnv.height = img.naturalHeight;
+        const ctx = cnv.getContext('2d');
+        if (!ctx) { resolve(null); return; }
+        ctx.drawImage(img, 0, 0);
+        resolve(cnv.toDataURL('image/png'));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
 
 // ─── Colour palette ──────────────────────────────────────────────────────────
 const C = {
@@ -284,55 +308,100 @@ export async function generateSavedReportPDF(
   const pageH = pdf.internal.pageSize.getHeight();
 
   // ── Resolve mode from trend_metrics ─────────────────────────────────────────
-  const tm            = report.trend_metrics ?? {};
-  const tmType        = tm.type as string | undefined;
-  const isTrend       = !!report.is_trend_report || tmType === 'trend';
+  const tm             = report.trend_metrics ?? {};
+  const tmType         = tm.type as string | undefined;
+  const isTrend        = !!report.is_trend_report || tmType === 'trend';
   const isMultiCountry = tmType === 'multi_country';
-  const isYearComp    = tmType === 'year_comparison';
-  const adminComment  = report.admin_comment ?? tm.admin_comment;
+  const isYearComp     = tmType === 'year_comparison';
+  const adminComment   = report.admin_comment ?? tm.admin_comment;
 
-  // Header colour per mode
-  const headerColor: [number, number, number] =
-    isMultiCountry ? C.amber  :
-    isYearComp     ? C.teal   :
-    isTrend        ? C.purple : C.navy;
-
-  // Header label per mode
+  // Mode label shown in the context row (right side)
   const modeLine =
     isMultiCountry
-      ? `Multi-Country Comparison  ·  ${(tm.country_data ?? []).length} Countries`
+      ? `Multi-Country  ·  ${(tm.country_data ?? []).length} Countries`
       : isYearComp
-      ? `Year-Over-Year Analysis  ·  ${[report.report_year, ...(tm.comparison_years ?? [])].sort((a, b) => b - a).join(', ')}`
+      ? `Year-Over-Year  ·  ${[report.report_year, ...(tm.comparison_years ?? [])].sort((a, b) => b - a).join(', ')}`
       : isTrend
       ? `Trend Analysis  ·  ${(report.selected_periods ?? []).length} Periods`
-      : `Performance Snapshot  ·  ${periodLabel(report.report_period)} ${report.report_year}`;
+      : `Snapshot  ·  ${periodLabel(report.report_period)} ${report.report_year}`;
 
-  // ── HEADER BANNER ────────────────────────────────────────────────────────────
-  drawRect(pdf, 0, 0, pageW, 48, headerColor, 0);
-  drawRect(pdf, 0, 0, pageW, 2, C.blue, 0);
+  // Report type label shown in header bar (right side)
+  const modeTitle =
+    isMultiCountry ? 'Multi-Country Report' :
+    isYearComp     ? 'Year Comparison Report' :
+    isTrend        ? 'Trend Analysis Report' : 'Performance Report';
 
-  const emoji = isMultiCountry ? '🌍' : isYearComp ? '📅' : isTrend ? '📈' : '📊';
-  pdf.setFontSize(22);
-  pdf.setTextColor(255, 255, 255);
-  pdf.text(emoji, 14, 18);
+  // ── HEADER: Navy branding bar (matching downloadReportAsPDF) ────────────────
+  const logoDataUrl = await loadLogoAsDataUrl('/Dart_Logo_new.png');
 
+  // Branding bar 0–17 mm
+  pdf.setFillColor(...C.navy);
+  pdf.rect(0, 0, pageW, 17, 'F');
+
+  if (logoDataUrl) {
+    pdf.addImage(logoDataUrl, 'PNG', 4, 2, 18, 13);
+  }
+
+  pdf.setFontSize(13);
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(16);
   pdf.setTextColor(255, 255, 255);
-  const nameLines = pdf.splitTextToSize(report.report_name, pageW - 44);
-  pdf.text(nameLines, 30, 15);
+  pdf.text('DART Global Logistics', 25, 8);
 
+  pdf.setFontSize(7.5);
   pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(147, 197, 253);
+  pdf.text('Performance Management System', 25, 13.5);
+
+  pdf.setFontSize(11);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(255, 255, 255);
+  pdf.text(modeTitle, pageW - 5, 8, { align: 'right' });
+
+  pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(147, 197, 253);
+  pdf.text('Confidential — Internal Use Only', pageW - 5, 13.5, { align: 'right' });
+
+  // Gap 17–22 mm
+  pdf.setFillColor(...C.white);
+  pdf.rect(0, 17, pageW, 5, 'F');
+
+  // Context row 22–35 mm
+  const contextTop = 22;
+  pdf.setFillColor(...C.bg);
+  pdf.rect(0, contextTop, pageW, 13, 'F');
+  pdf.setDrawColor(...C.light);
+  pdf.setLineWidth(0.2);
+  pdf.line(0, contextTop, pageW, contextTop);
+  pdf.line(0, contextTop + 13, pageW, contextTop + 13);
+
+  // Left: report type label + report name
+  pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(...C.muted);
+  pdf.text('REPORT', 5, contextTop + 5);
+
+  pdf.setFontSize(11);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(...C.text);
+  const nameLines = pdf.splitTextToSize(report.report_name, pageW * 0.55);
+  pdf.text(nameLines[0], 5, contextTop + 11.5);
+
+  // Right: mode line + generated date
   pdf.setFontSize(9);
-  pdf.setTextColor(200, 210, 240);
-  pdf.text(modeLine, 30, nameLines.length > 1 ? 29 : 23);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(...C.blue);
+  pdf.text(modeLine, pageW - 5, contextTop + 5, { align: 'right' });
 
-  const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  pdf.setFontSize(8);
-  pdf.setTextColor(180, 195, 235);
-  pdf.text(`Generated: ${now}`, pageW - 14, 43, { align: 'right' });
+  const genDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  });
+  pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(...C.muted);
+  pdf.text(`Generated: ${genDate}`, pageW - 5, contextTop + 11.5, { align: 'right' });
 
-  let y = 56;
+  let y = contextTop + 13 + 8; // content starts at ~43 mm
 
   // ── METADATA BLOCK ───────────────────────────────────────────────────────────
   const meta: [string, string][] = [
@@ -430,13 +499,17 @@ export async function generateSavedReportPDF(
     y += 4;
   }
 
-  // ── FOOTER ───────────────────────────────────────────────────────────────────
-  pdf.setDrawColor(...C.light);
-  pdf.line(14, pageH - 14, pageW - 14, pageH - 14);
-  pdf.setFontSize(7);
-  pdf.setTextColor(...C.muted);
-  pdf.text('Performance Management System  ·  Confidential', 14, pageH - 8);
-  pdf.text('Page 1', pageW - 14, pageH - 8, { align: 'right' });
+  // ── FOOTER on every page (matching downloadReportAsPDF) ─────────────────────
+  const totalPages = pdf.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i);
+    pdf.setDrawColor(...C.light);
+    pdf.line(14, pageH - 14, pageW - 14, pageH - 14);
+    pdf.setFontSize(7);
+    pdf.setTextColor(...C.muted);
+    pdf.text('Performance Management System  ·  Confidential', 14, pageH - 8);
+    pdf.text(`Page ${i} of ${totalPages}`, pageW - 14, pageH - 8, { align: 'right' });
+  }
 
   const safe = fileName ?? `${report.report_name.replace(/\s+/g, '-')}_${report.report_year}.pdf`;
   pdf.save(safe);
