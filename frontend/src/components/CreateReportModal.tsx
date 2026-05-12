@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  X, TrendingUp, BarChart2, Brain, Download,
+  X, TrendingUp, Brain, Download,
   CheckCircle, Globe, Clock, Loader2,
 } from 'lucide-react';
 import { generateSavedReportPDF } from '@/utils/generateSavedReportPDF';
@@ -11,7 +11,7 @@ import type { SavedReport, Country } from '@/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type ReportMode = 'snapshot' | 'year_comparison' | 'trend' | 'multi_country';
+type ReportMode = 'year_comparison' | 'trend' | 'multi_country';
 type SaveStep = 'idle' | 'fetching' | 'saving' | 'downloading' | 'done';
 
 interface CreateReportModalProps {
@@ -36,50 +36,34 @@ const AVAILABLE_PERIODS = [
   { value: 'year_end_2026', label: 'Year-End 2026' },
 ];
 
-const METRICS_OPTIONS: { key: 'evaluated' | 'avg_score' | 'top_performers'; label: string; desc: string }[] = [
-  { key: 'evaluated',       label: 'Total Evaluated',  desc: 'Number of employees evaluated' },
-  { key: 'avg_score',       label: 'Average Score',     desc: 'Mean performance rating' },
-  { key: 'top_performers',  label: 'Top Performers',    desc: 'Employees with rating ≥ 4.5' },
-];
-
 const MODE_CARDS = [
   {
-    id: 'snapshot' as ReportMode,
-    Icon: BarChart2,
+    id: 'year_comparison' as ReportMode,
+    Icon: Clock,
     activeBorder: 'border-[#2563EB]',
     activeBg: 'bg-[#EFF6FF]',
     activeIconBg: 'bg-[#2563EB]',
     activeBtnBg: 'bg-[#2563EB] hover:bg-[#1D4ED8]',
-    title: 'Snapshot Report',
-    desc: 'Save the current view as a report',
-  },
-  {
-    id: 'year_comparison' as ReportMode,
-    Icon: Clock,
-    activeBorder: 'border-[#0892B8]',
-    activeBg: 'bg-[#ECFEFF]',
-    activeIconBg: 'bg-[#0892B8]',
-    activeBtnBg: 'bg-[#0892B8] hover:bg-[#0779A0]',
     title: 'Compare Past Years',
     desc: 'Track trends across multiple years',
   },
   {
     id: 'trend' as ReportMode,
     Icon: TrendingUp,
-    activeBorder: 'border-[#8B5CF6]',
-    activeBg: 'bg-[#FAF5FF]',
-    activeIconBg: 'bg-[#8B5CF6]',
-    activeBtnBg: 'bg-[#8B5CF6] hover:bg-[#7C3AED]',
+    activeBorder: 'border-[#2563EB]',
+    activeBg: 'bg-[#EFF6FF]',
+    activeIconBg: 'bg-[#2563EB]',
+    activeBtnBg: 'bg-[#2563EB] hover:bg-[#1D4ED8]',
     title: 'Trend Analysis',
     desc: 'Mid-year vs year-end across periods',
   },
   {
     id: 'multi_country' as ReportMode,
     Icon: Globe,
-    activeBorder: 'border-[#F59E0B]',
-    activeBg: 'bg-[#FFFBEB]',
-    activeIconBg: 'bg-[#F59E0B]',
-    activeBtnBg: 'bg-[#F59E0B] hover:bg-[#D97706]',
+    activeBorder: 'border-[#2563EB]',
+    activeBg: 'bg-[#EFF6FF]',
+    activeIconBg: 'bg-[#2563EB]',
+    activeBtnBg: 'bg-[#2563EB] hover:bg-[#1D4ED8]',
     title: 'Multi-Country',
     desc: 'Compare countries side by side',
   },
@@ -95,20 +79,12 @@ export default function CreateReportModal({
 }: CreateReportModalProps) {
 
   // Mode
-  const [mode, setMode] = useState<ReportMode>('snapshot');
+  const [mode, setMode] = useState<ReportMode>('year_comparison');
 
   // Common fields
   const [reportName, setReportName] = useState('');
   const [reportDescription, setReportDescription] = useState('');
   const [adminComment, setAdminComment] = useState('');
-
-  // Snapshot options
-  const [metricsIncluded, setMetricsIncluded] = useState({
-    evaluated: true, avg_score: true, top_performers: true,
-  });
-  const [chartsIncluded, setChartsIncluded] = useState({ bell_curve: true });
-  const [includeAIInsights, setIncludeAIInsights] = useState(true);
-  const [includeComparison, setIncludeComparison] = useState(reportPeriod === 'both');
 
   // Year comparison
   const [selectedPastYears, setSelectedPastYears] = useState<number[]>([]);
@@ -131,14 +107,10 @@ export default function CreateReportModal({
 
   useEffect(() => {
     if (isOpen) {
-      setMode('snapshot');
+      setMode('year_comparison');
       setReportName('');
       setReportDescription('');
       setAdminComment('');
-      setMetricsIncluded({ evaluated: true, avg_score: true, top_performers: true });
-      setChartsIncluded({ bell_curve: true });
-      setIncludeAIInsights(true);
-      setIncludeComparison(reportPeriod === 'both');
       setSelectedPastYears([]);
       setSelectedPeriods([]);
       setSelectedCountryIds([]);
@@ -280,8 +252,6 @@ export default function CreateReportModal({
 
       // ── Step 2: Save to DB ─────────────────────────────────────────────────
       setSaveStep('saving');
-      const metricsArray = Object.entries(metricsIncluded).filter(([, v]) => v).map(([k]) => k);
-      const chartsArray  = Object.entries(chartsIncluded).filter(([, v]) => v).map(([k]) => k);
       const isTrendMode  = mode === 'trend';
 
       const dbPayload = {
@@ -295,10 +265,10 @@ export default function CreateReportModal({
         ...(branchId && { branch_id: branchId }),
         report_period: mode === 'multi_country' ? mcPeriod : reportPeriod,
         report_year: reportYear,
-        metrics_included: metricsArray,
-        charts_included: chartsArray,
-        include_ai_insights: includeAIInsights,
-        include_comparison: includeComparison,
+        metrics_included: [],
+        charts_included: [],
+        include_ai_insights: false,
+        include_comparison: false,
         created_by_email: userEmail,
         is_trend_report: isTrendMode,
         selected_periods: isTrendMode ? selectedPeriods : [],
@@ -414,7 +384,7 @@ export default function CreateReportModal({
               )}
 
               {/* ── Mode selector (2×2 grid) ── */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {MODE_CARDS.map(card => {
                   const isActive = mode === card.id;
                   const CardIcon = card.Icon;
@@ -501,79 +471,7 @@ export default function CreateReportModal({
                 />
               </div>
 
-              {/* ── SNAPSHOT: Report info + includes ── */}
-              {mode === 'snapshot' && (
-                <>
-                  <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
-                    <div className="px-5 py-3.5 bg-[#F9FAFB] border-b border-[#E2E8F0]">
-                      <span className="text-[13px] font-semibold text-[#101828]">Report Info</span>
-                    </div>
-                    <div className="px-5 py-4 grid grid-cols-3 gap-4">
-                      {[
-                        { label: 'Type',   value: reportType === 'country' ? 'Country Report' : 'Branch Report' },
-                        { label: 'Period', value: periodLabel },
-                        { label: 'Year',   value: String(reportYear) },
-                      ].map(({ label, value }) => (
-                        <div key={label} className="flex flex-col gap-0.5">
-                          <span className="text-[11.5px] font-medium text-[#94A3B8] uppercase tracking-wide">{label}</span>
-                          <span className="text-[13.5px] font-semibold text-[#1E293B]">{value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
-                    <div className="px-5 py-3.5 bg-[#F9FAFB] border-b border-[#E2E8F0]">
-                      <span className="text-[13px] font-semibold text-[#101828]">Include in Report</span>
-                    </div>
-
-                    {/* Metrics */}
-                    <div className="px-5 pt-4 pb-3 border-b border-[#F3F4F6]">
-                      <p className="text-[11.5px] font-semibold text-[#6B7280] uppercase tracking-wide mb-2">Metrics</p>
-                      {METRICS_OPTIONS.map(({ key, label, desc }) => (
-                        <label key={key} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-[#F9FAFB] cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={metricsIncluded[key]}
-                            onChange={() => setMetricsIncluded(p => ({ ...p, [key]: !p[key] }))}
-                            disabled={isLoading}
-                            className="w-4 h-4 accent-[#2563EB]"
-                          />
-                          <span className="text-[13px] font-medium text-[#374151]">{label}</span>
-                          <span className="text-[12px] text-[#94A3B8]">{desc}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Extras */}
-                    <div className="px-5 pt-3 pb-4">
-                      <p className="text-[11.5px] font-semibold text-[#6B7280] uppercase tracking-wide mb-2">Extras</p>
-                      <label className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-[#F9FAFB] cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={includeAIInsights}
-                          onChange={e => setIncludeAIInsights(e.target.checked)}
-                          disabled={isLoading}
-                          className="w-4 h-4 accent-[#2563EB]"
-                        />
-                        <span className="text-[13px] font-medium text-[#374151]">AI Insights</span>
-                      </label>
-                      {reportPeriod === 'both' && (
-                        <label className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-[#F9FAFB] cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={includeComparison}
-                            onChange={e => setIncludeComparison(e.target.checked)}
-                            disabled={isLoading}
-                            className="w-4 h-4 accent-[#2563EB]"
-                          />
-                          <span className="text-[13px] font-medium text-[#374151]">Mid-Year vs Year-End Comparison</span>
-                        </label>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
 
               {/* ── YEAR COMPARISON: Past year chips ── */}
               {mode === 'year_comparison' && (
@@ -638,7 +536,7 @@ export default function CreateReportModal({
                         <label
                           key={value}
                           className={`flex items-center gap-3 px-5 py-3.5 cursor-pointer transition-colors ${
-                            checked ? 'bg-[#FAF5FF]' : 'bg-white hover:bg-[#F9FAFB]'
+                            checked ? 'bg-[#EFF6FF]' : 'bg-white hover:bg-[#F9FAFB]'
                           }`}
                         >
                           <input
@@ -646,11 +544,11 @@ export default function CreateReportModal({
                             checked={checked}
                             onChange={() => togglePeriod(value)}
                             disabled={isLoading}
-                            className="w-4 h-4 accent-[#8B5CF6]"
+                            className="w-4 h-4 accent-[#2563EB]"
                           />
                           <span className="text-[13.5px] font-medium text-[#374151]">{label}</span>
                           {checked && (
-                            <span className="ml-auto text-[11px] font-semibold text-[#8B5CF6] bg-[#F5F3FF] px-2 py-0.5 rounded-full">
+                            <span className="ml-auto text-[11px] font-semibold text-[#2563EB] bg-[#DBEAFE] px-2 py-0.5 rounded-full">
                               Selected
                             </span>
                           )}
@@ -677,8 +575,8 @@ export default function CreateReportModal({
                         onClick={() => setMcPeriod(p)}
                         className={`px-4 py-2 rounded-lg border text-[13px] font-medium transition-all ${
                           mcPeriod === p
-                            ? 'border-[#F59E0B] bg-[#FFFBEB] text-[#B45309]'
-                            : 'border-[#E2E8F0] text-[#6B7280] hover:border-[#F59E0B]/50'
+                            ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
+                            : 'border-[#E2E8F0] text-[#6B7280] hover:border-[#2563EB]/50'
                         }`}
                       >
                         {p === 'mid_year' ? 'Mid-Year' : 'Year-End'} {reportYear}
@@ -715,7 +613,7 @@ export default function CreateReportModal({
                                 disabled
                                   ? 'opacity-40 cursor-not-allowed'
                                   : checked
-                                  ? 'bg-[#FFFBEB]'
+                                  ? 'bg-[#EFF6FF]'
                                   : 'hover:bg-[#F9FAFB]'
                               }`}
                             >
@@ -724,7 +622,7 @@ export default function CreateReportModal({
                                 checked={checked}
                                 onChange={() => !disabled && toggleCountry(country.id)}
                                 disabled={isLoading || disabled}
-                                className="w-4 h-4 accent-[#F59E0B]"
+                                className="w-4 h-4 accent-[#2563EB]"
                               />
                               <div className="flex-1 min-w-0">
                                 <span className="text-[13.5px] font-medium text-[#374151]">
@@ -735,7 +633,7 @@ export default function CreateReportModal({
                                 </span>
                               </div>
                               {checked && (
-                                <span className="text-[11px] font-semibold text-[#B45309] bg-[#FEF3C7] px-2 py-0.5 rounded-full">
+                                <span className="text-[11px] font-semibold text-[#2563EB] bg-[#DBEAFE] px-2 py-0.5 rounded-full">
                                   Selected
                                 </span>
                               )}
