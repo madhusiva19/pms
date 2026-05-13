@@ -38,6 +38,8 @@ const ratingBadgeStyles: Record<RatingValue, string> = {
   L: 'bg-[#FEE2E2] text-[#DC2626] border-[#FCA5A5]',
 };
 
+const supRatingBadgeStyle = 'bg-[#EFF6FF] text-[#1D4ED8] border-[#93C5FD]';
+
 function buildEmpty(): { ratings: SupRatingMap; justs: SupJustMap } {
   const ratings = {} as SupRatingMap;
   const justs = {} as SupJustMap;
@@ -178,18 +180,18 @@ export default function SupervisorReviewForm({
                     ) : <span className="text-[#94A3B8] text-[13px]">—</span>}
                   </td>
                   <td className="px-4 py-4 bg-[#F5F8FF] align-top">
-                    <p className="text-[13.5px] text-[#374151] leading-6 whitespace-pre-wrap max-w-[240px]">{selfExample || <span className="text-[#94A3B8]">—</span>}</p>
+                    <p className="text-[13.5px] text-[#374151] leading-6 whitespace-pre-wrap max-w-[240px]">{selfExample || <span className="text-[#94A3B8] italic">No example provided</span>}</p>
                   </td>
                   <td className="px-4 py-4 align-top">
                     {isReadOnly ? (
-                      supRating ? <span className={`inline-flex items-center px-3 py-1 rounded-full text-[13px] font-semibold border ${ratingBadgeStyles[supRating as RatingValue]}`}>{supRating}</span>
+                      supRating ? <span className={`inline-flex items-center px-3 py-1 rounded-full text-[13px] font-semibold border ${supRatingBadgeStyle}`}>{supRating}</span>
                         : <span className="text-[#94A3B8] text-[13px]">—</span>
                     ) : (
                       <div className="flex gap-1">
                         {RATING_OPTIONS.map((opt) => (
                           <button key={opt}
                             onClick={() => setSupRatings((prev) => ({ ...prev, [activePillar.key]: { ...prev[activePillar.key], [c]: opt } }))}
-                            className={`w-9 h-9 rounded-lg text-[13px] font-semibold border transition-all ${supRating === opt ? ratingBadgeStyles[opt] + ' border-2' : 'bg-white text-[#64748B] border-[#E5E7EB] hover:bg-[#F8FAFC]'}`}>
+                            className={`w-9 h-9 rounded-lg text-[13px] font-semibold border transition-all ${supRating === opt ? supRatingBadgeStyle + ' border-2' : 'bg-white text-[#64748B] border-[#E5E7EB] hover:bg-[#F8FAFC]'}`}>
                             {opt}
                           </button>
                         ))}
