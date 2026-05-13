@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./profile.module.css";
 import Sidebar from "@/components/sidebar/Sidebar";
+import AvatarUpload from "./AvatarUpload";
 import { refresh } from "next/cache";
 
 // ── Types ──────────────────────────────────────────────
@@ -37,6 +38,7 @@ export type ProfileData = {
   joinedDate: string;
   designation: string;
   email: string;
+  avatarUrl?: string | null; 
   country?: string;
   branch?: string;
   department?: string;
@@ -93,7 +95,7 @@ export default function ProfileTemplate({
   const [statusMsg, setStatusMsg] = useState("");
   const [selfAchievements, setSelfAchievements] = useState<SelfAchievement[]>(initialSelfAchievements);
   const [supervisorCommentsList, setSupervisorCommentsList] = useState<SupervisorComment[]>(initialSupervisorComments);
-
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl || null);
   const initials = profile?.fullName
     ? profile.fullName
     .split(" ")
@@ -102,6 +104,7 @@ export default function ProfileTemplate({
     .join("")
     .toUpperCase()
     : "??";
+const avatarBg = "#F9BE00";
 
   // ── Save (HQ Admin own profile only) ──
   const handleSave = async () => {
@@ -342,21 +345,42 @@ export default function ProfileTemplate({
         </div>
 
         {/* Profile Hero Card */}
-        <section className={styles.profileTopCard}>
-          <div className={styles.profileHero}>
-            <div className={styles.heroAvatar}><span className={styles.heroInitials}>{initials}</span></div>
-            <div className={styles.heroText}>
-              <div className={styles.heroName}>{profile.fullName}</div>
-              <div className={styles.heroMeta}>
-                <span className={styles.pill}>{profile.designation}</span>
-                {profile.branch  && <><span className={styles.dot}>•</span><span className={styles.muted}>{profile.branch}</span></>}
-                {profile.country && <><span className={styles.dot}>•</span><span className={styles.muted}>{profile.country}</span></>}
-              </div>
-              <div className={styles.heroEmail}>{profile.email}</div>
-            </div>
-          </div>
-          <div className={styles.heroAccent} />
-        </section>
+<section className={styles.profileTopCard}>
+  <div className={styles.profileHero}>
+
+    {/* Avatar */}
+    <div className={styles.heroAvatar}>
+      <AvatarUpload
+        currentUrl={avatarUrl}
+        initials={initials}
+        employeeId={employeeId}
+        onUpdate={(newUrl) => setAvatarUrl(newUrl)}
+        avatarBg={avatarBg}
+        viewMode={viewMode}
+      />
+    </div>
+
+    {/* Info */}
+    <div className={styles.heroText}>
+      <div className={styles.heroName}>{profile.fullName}</div>
+      <div className={styles.heroMeta}>
+        <span className={styles.pill}>{profile.designation}</span>
+        {profile.branch  && <><span className={styles.dot}>•</span><span className={styles.muted}>{profile.branch}</span></>}
+        {profile.country && <><span className={styles.dot}>•</span><span className={styles.muted}>{profile.country}</span></>}
+      </div>
+      <div className={styles.heroEmail}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="#9CA3AF" strokeWidth="1.8" style={{ flexShrink: 0 }}>
+          <path d="M4 6h16v12H4V6Z" strokeLinejoin="round"/>
+          <path d="M4.5 7l7.5 6 7.5-6" strokeLinejoin="round"/>
+        </svg>
+        {profile.email}
+      </div>
+    </div>
+
+  </div>
+  <div className={styles.heroAccent} />
+</section>
 
         {/* Details + Achievements Grid */}
         <section className={styles.grid}>

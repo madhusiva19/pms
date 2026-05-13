@@ -328,6 +328,7 @@ def login():
                 "branch_id":        user.get("branch_id"),
                 "dept_id":          user.get("department_id"),
                 "sub_dept_id":      user.get("sub_department_id"),
+                "avatar_url":       user.get("avatar_url"),
             }
         }), 200
 
@@ -344,21 +345,77 @@ def forgot_password():
         if not email:
             return jsonify({"message": "Email is required"}), 400
 
+        # Send reset email via Supabase Auth
         res = req.post(
             f"{SUPABASE_URL}/auth/v1/recover",
             headers={
                 "apikey":       SUPABASE_KEY,
                 "Content-Type": "application/json"
             },
-            json={"email": email}
+            json={"email": email,
+                  "redirect_to": "http://localhost:3000/reset-password"
+                 }
         )
 
-        return jsonify({"message": "Password reset email sent if account exists"}), 200
+        # Always return 200 — don't reveal if email exists (security)
+        return jsonify({"message": "Reset link sent if account exists"}), 200
 
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
+@app.post("/api/auth/reset-password")
+def reset_password():
+    try:
+        body       = request.get_json()
+        token_hash = body.get("token", "").strip()
+        password   = body.get("password", "").strip()
 
+        if not token_hash or not password:
+            return jsonify({"message": "Token and password required"}), 400
+
+        if len(password) < 8:
+            return jsonify({"message": "Password must be at least 8 characters"}), 400
+
+        # First verify the token hash
+        verify_res = req.post(
+            f"{SUPABASE_URL}/auth/v1/verify",
+            headers={
+                "apikey":       SUPABASE_KEY,
+                "Content-Type": "application/json"
+            },
+            json={
+                "token_hash": token_hash,
+                "type":       "recovery"
+            }
+        )
+
+        print("Verify status:", verify_res.status_code)
+        print("Verify body:", verify_res.json())
+
+        if verify_res.status_code != 200:
+            return jsonify({"message": "Reset link expired or invalid"}), 400
+
+        # Get access token from verify response
+        access_token = verify_res.json().get("access_token")
+
+        # Update password
+        update_res = req.put(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                "apikey":        SUPABASE_KEY,
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type":  "application/json"
+            },
+            json={"password": password}
+        )
+
+        if update_res.status_code == 200:
+            return jsonify({"message": "Password reset successfully"}), 200
+        else:
+            return jsonify({"message": "Reset failed"}), 400
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
 # ════════════════════════════════════════════════════════════════════════════
 # PROFILE ROUTES
 # ════════════════════════════════════════════════════════════════════════════
@@ -991,6 +1048,261 @@ def get_dashboard_stats(employee_id):
 
     except Exception as e:
         return jsonify({"message": str(e)}), 500
+    
+def get_score(entity_id: str, entity_type: str) -> float:
+    url = f"{SUPABASE_URL}/rest/v1/performance_scores"
+    headers = {
+        "apikey":        SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type":  "application/json"
+    }
+    # Use direct URL params instead of dict
+    full_url = f"{url}?select=avg_score&entity_type=eq.{entity_type}&entity_id=eq.{entity_id}"
+    res = req.get(full_url, headers=headers)
+    print(f"DEBUG url: {full_url}")
+    print(f"DEBUG response: {res.text}")
+    data = res.json()
+    return float(data[0]["avg_score"]) if data else 0.0
+
+@app.get("/api/dashboard/charts/<employee_id>")
+def get_dashboard_charts(employee_id):
+    try:
+        user = supabase.table("users")\
+            .select("org_level, country_id, branch_id, department_id, sub_department_id")\
+            .eq("id", employee_id)\
+            .execute()
+
+        if not user.data:
+            return jsonify({"message": "User not found"}), 404
+
+        u          = user.data[0]
+        org_level  = u["org_level"]
+        country_id = u.get("country_id")
+        branch_id  = u.get("branch_id")
+        dept_id    = u.get("department_id")
+
+        COLORS = ["#2563EB","#00C49F","#FFBB28","#FF8042","#8884D8",
+                  "#4F39F6","#E11D48","#0891B2","#65A30D","#D97706"]
+
+        bar = []
+        pie = []
+
+        if org_level == 1:
+            # HQ → by country
+            countries = supabase.table("countries")\
+                .select("id, name, total_employees")\
+                .execute()
+            for i, c in enumerate(countries.data):
+                # TODO: Replace 0 with real avg score from evaluations table
+                bar.append({
+                    "name":  c["name"],
+                    "score": get_score(c["id"], "country"),
+                    "fill":  COLORS[i % len(COLORS)]
+                })
+                pie.append({
+                    "name":  c["name"],
+                    "value": c.get("total_employees") or 0,
+                    "color": COLORS[i % len(COLORS)]
+                })
+
+        elif org_level == 2:
+            # CA → by branch (or dept if no branch like Sri Lanka)
+            branches = supabase.table("branches")\
+                .select("id, name, total_employees")\
+                .eq("country_id", country_id)\
+                .execute()
+
+            if branches.data:
+                for i, b in enumerate(branches.data):
+                    bar.append({
+                        "name":  b.get("name", "Unknown"),
+                        "score": get_score(b["id"], "branch"),
+                        "fill":  COLORS[i % len(COLORS)]
+                    })
+                    pie.append({
+                        "name":  b.get("name", "Unknown"),
+                        "value": b.get("total_employees") or 0,
+                        "color": COLORS[i % len(COLORS)]
+                    })
+            else:
+                # Sri Lanka — no branches, show departments
+                depts = supabase.table("departments")\
+                    .select("id, name, total_employees")\
+                    .eq("country_id", country_id)\
+                    .execute()
+                for i, d in enumerate(depts.data):
+                    bar.append({
+                        "name":  d["name"],
+                        "score": get_score(d["id"], "department"),
+                        "fill":  COLORS[i % len(COLORS)]
+                    })
+                    pie.append({
+                        "name":  d["name"],
+                        "value": d.get("total_employees") or 0,
+                        "color": COLORS[i % len(COLORS)]
+                    })
+
+        elif org_level == 3:
+            # BA → by department
+            depts = supabase.table("departments")\
+                .select("id, name, total_employees")\
+                .eq("branch_id", branch_id)\
+                .execute()
+            for i, d in enumerate(depts.data):
+                bar.append({
+                    "name":  d["name"],
+                    "score": get_score(d["id"], "department"),
+                    "fill":  COLORS[i % len(COLORS)]
+                })
+                pie.append({
+                    "name":  d["name"],
+                    "value": d.get("total_employees") or 0,
+                    "color": COLORS[i % len(COLORS)]
+                })
+
+        elif org_level == 4:
+            # DA → by sub department
+            subdepts = supabase.table("sub_departments")\
+                .select("id, name, total_employees")\
+                .eq("department_id", dept_id)\
+                .execute()
+            for i, sd in enumerate(subdepts.data):
+                bar.append({
+                    "name":  sd["name"],
+                    "score": get_score(sd["id"], "sub_department"),
+                    "fill":  COLORS[i % len(COLORS)]
+                })
+                pie.append({
+                    "name":  sd["name"],
+                    "value": sd.get("total_employees") or 0,
+                    "color": COLORS[i % len(COLORS)]
+                })
+
+        elif org_level == 5:
+            # SDA → individual employees
+            employees = supabase.table("users")\
+                .select("id, full_name")\
+                .eq("manager_id", employee_id)\
+                .execute()
+            for i, e in enumerate(employees.data):
+                parts = e["full_name"].split(" ")
+                short = f"{parts[0][0]}. {parts[-1]}" if len(parts) > 1 else e["full_name"]
+                bar.append({
+                    "name":  short,
+                    "score": get_score(e["id"], "employee"),
+                    "fill":  COLORS[i % len(COLORS)]
+                })
+            # No pie for SDA
+
+        return jsonify({"data": {"bar": bar, "pie": pie}}), 200
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.post("/api/profile/upload-avatar")
+def upload_avatar():
+    try:
+        SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+
+        employee_id  = request.form.get("employee_id")
+        file         = request.files.get("file")
+
+        if not file or not employee_id:
+            return jsonify({"message": "File and employee_id required"}), 400
+
+        # Validate file type
+        allowed_types = ["image/jpeg", "image/png", "image/webp"]
+        if file.content_type not in allowed_types:
+            return jsonify({"message": "Only JPG, PNG, WebP allowed"}), 400
+
+        # Validate file size (2MB max)
+        file_bytes = file.read()
+        if len(file_bytes) > 2 * 1024 * 1024:
+            return jsonify({"message": "Image must be under 2MB"}), 400
+
+        ext       = file.filename.split(".")[-1].lower()
+        file_name = f"{employee_id}-{int(datetime.now().timestamp())}.{ext}"
+
+        # Delete old avatar if exists
+        user_res = supabase.table("users")\
+            .select("avatar_url")\
+            .eq("id", employee_id)\
+            .execute()
+
+        if user_res.data and user_res.data[0].get("avatar_url"):
+            old_url      = user_res.data[0]["avatar_url"]
+            old_filename = old_url.split("/avatars/")[-1]
+            req.delete(
+                f"{SUPABASE_URL}/storage/v1/object/avatars/{old_filename}",
+                headers={
+                    "apikey":        SERVICE_KEY,
+                    "Authorization": f"Bearer {SERVICE_KEY}",
+                }
+            )
+
+        # Upload new avatar to Supabase Storage
+        upload_res = req.post(
+            f"{SUPABASE_URL}/storage/v1/object/avatars/{file_name}",
+            headers={
+                "apikey":        SERVICE_KEY,
+                "Authorization": f"Bearer {SERVICE_KEY}",
+                "Content-Type":  file.content_type,
+            },
+            data=file_bytes
+        )
+
+        if upload_res.status_code not in (200, 201):
+            return jsonify({"message": f"Upload failed: {upload_res.text}"}), 400
+
+        # Public URL
+        avatar_url = f"{SUPABASE_URL}/storage/v1/object/public/avatars/{file_name}"
+
+        # Save URL to users table
+        supabase.table("users")\
+            .update({"avatar_url": avatar_url})\
+            .eq("id", employee_id)\
+            .execute()
+
+        return jsonify({"avatar_url": avatar_url}), 200
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+
+@app.delete("/api/profile/remove-avatar/<employee_id>")
+def remove_avatar(employee_id):
+    try:
+        SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+
+        # Get current avatar URL
+        user_res = supabase.table("users")\
+            .select("avatar_url")\
+            .eq("id", employee_id)\
+            .execute()
+
+        if user_res.data and user_res.data[0].get("avatar_url"):
+            old_url      = user_res.data[0]["avatar_url"]
+            old_filename = old_url.split("/avatars/")[-1]
+
+            # Delete from storage
+            req.delete(
+                f"{SUPABASE_URL}/storage/v1/object/avatars/{old_filename}",
+                headers={
+                    "apikey":        SERVICE_KEY,
+                    "Authorization": f"Bearer {SERVICE_KEY}",
+                }
+            )
+
+        # Clear avatar_url in DB
+        supabase.table("users")\
+            .update({"avatar_url": None})\
+            .eq("id", employee_id)\
+            .execute()
+
+        return jsonify({"message": "Avatar removed"}), 200
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500       
 
 # ════════════════════════════════════════════════════════════════════════════
 # RUN SERVER — MUST BE LAST

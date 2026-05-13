@@ -191,7 +191,17 @@ export default function Sidebar() {
       {/* ── Footer ── */}
       <div className={styles.sideFooter}>
         <div className={styles.profileRow}>
-          <div className={styles.avatarCircle}>{userInitials}</div>
+          <div className={styles.avatarCircle}>
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt="Avatar"
+                  style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+                />
+              ) : (
+                userInitials
+              )}
+            </div>
           <div className={styles.profileText}>
             <div className={styles.profileName}>{userName}</div>
             <div className={styles.profileRole}>{userRole}</div>

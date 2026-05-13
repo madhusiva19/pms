@@ -51,7 +51,6 @@ export default function BranchAdminProfilePage() {
   const isOwnProfile = targetId === user.employee_id;
 
   return (
-    <div style={{ display: "flex" }}>
       <ProfileTemplate
         role="Branch Admin"
         sidebarName={user.full_name.split(" ")[0]}
@@ -61,6 +60,7 @@ export default function BranchAdminProfilePage() {
           joinedDate: profileData.date_joined ? new Date(profileData.date_joined).toLocaleDateString("en-GB").replace(/\//g, "-") : "Not set",
           designation: profileData.designation,
           email: profileData.email,
+          avatarUrl:   profileData.avatar_url || null,
           branch: profileData.iata_branch_code,
         }}
         dashboardPath="/branch-admin/dashboard"
@@ -70,6 +70,5 @@ export default function BranchAdminProfilePage() {
         initialSelfAchievements={selfEntries}
         initialSupervisorComments={supervisorEntries}
       />
-    </div>
   );
 }
