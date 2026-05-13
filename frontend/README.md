@@ -1,8 +1,17 @@
-## Project Overview
-Performance Management System (PMS) frontend built with Next.js.
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Branching
-main: stable release  
-dev: development integration  
-test: testing branch  
-uat: user acceptance testing branch
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
