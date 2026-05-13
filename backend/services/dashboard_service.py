@@ -31,12 +31,13 @@ def get_stats(employee_id):
     if not user.data:
         return {"message": "User not found"}, 404
 
-    u          = user.data[0]
-    org_level  = u["org_level"]
-    country_id = u.get("country_id")
-    branch_id  = u.get("branch_id")
-    dept_id    = u.get("department_id")
-    stats      = {}
+    u                  = user.data[0]
+    org_level          = u["org_level"]
+    country_id         = u.get("country_id")
+    branch_id          = u.get("branch_id")
+    dept_id            = u.get("department_id")
+    sub_department_id  = u.get("sub_department_id")
+    stats              = {}
 
     if org_level == 1:
         countries = supabase.table("countries").select("id", count="exact").execute()
@@ -49,6 +50,7 @@ def get_stats(employee_id):
         }
 
     elif org_level == 2:
+        country_data = supabase.table("countries").select("total_employees").eq("id", country_id).execute()
         branches = supabase.table("branches").select("id", count="exact").eq("country_id", country_id).execute()
         emp3     = supabase.table("users").select("id", count="exact").eq("org_level", 3).eq("country_id", country_id).execute()
         emp4     = supabase.table("users").select("id", count="exact").eq("org_level", 4).eq("country_id", country_id).execute()
@@ -56,36 +58,39 @@ def get_stats(employee_id):
         emp6     = supabase.table("users").select("id", count="exact").eq("org_level", 6).eq("country_id", country_id).execute()
         stats = {
             "Total Branches":    branches.count or 0,
-            "Total Employees":   (emp3.count or 0) + (emp4.count or 0) + (emp5.count or 0) + (emp6.count or 0),
+            "Total Employees": country_data.data[0]["total_employees"] if country_data.data else 0,
             "Total Departments": emp4.count or 0,
         }
 
     elif org_level == 3:
+        branch_data = supabase.table("branches").select("total_employees").eq("id", branch_id).execute()
         depts = supabase.table("departments").select("id", count="exact").eq("branch_id", branch_id).execute()
         emp4  = supabase.table("users").select("id", count="exact").eq("org_level", 4).eq("branch_id", branch_id).execute()
         emp5  = supabase.table("users").select("id", count="exact").eq("org_level", 5).eq("branch_id", branch_id).execute()
         emp6  = supabase.table("users").select("id", count="exact").eq("org_level", 6).eq("branch_id", branch_id).execute()
         stats = {
             "Total Departments": depts.count or 0,
-            "Total Employees":   (emp4.count or 0) + (emp5.count or 0) + (emp6.count or 0),
+            "Total Employees":   branch_data.data[0]["total_employees"] if branch_data.data else 0,
             "Total Sub-Depts":   emp5.count  or 0,
         }
 
     elif org_level == 4:
+        department_data = supabase.table("departments").select("total_employees").eq("id", dept_id).execute()
         subdepts = supabase.table("sub_departments").select("id", count="exact").eq("department_id", dept_id).execute()
         emp6     = supabase.table("users").select("id", count="exact").eq("org_level", 6).eq("department_id", dept_id).execute()
         stats = {
             "Total Sub-Departments": subdepts.count or 0,
-            "Total Employees":       emp6.count     or 0,
+            "Total Employees":       department_data.data[0]["total_employees"] if department_data.data else 0,
         }
 
     elif org_level == 5:
+        sub_department_data = supabase.table("sub_departments").select("total_employees").eq("id", sub_department_id).execute()
         employees = supabase.table("users")\
             .select("id", count="exact")\
             .eq("manager_id", employee_id)\
             .execute()
         stats = {
-            "Total Employees": employees.count or 0,
+            "Total Employees": sub_department_data.data[0]["total_employees"] if sub_department_data.data else 0,
         }
 
     return {"stats": stats}, 200
