@@ -10,6 +10,7 @@ interface User {
   role: string;
   org_level: number;
   iata_branch_code: string;
+  avatar_url?: string | null;
 }
 
 interface AuthContextType {

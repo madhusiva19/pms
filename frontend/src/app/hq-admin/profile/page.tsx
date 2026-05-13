@@ -73,7 +73,6 @@ export default function HQAdminProfilePage() {
   const isOwnProfile = targetId === user.employee_id;
 
   return (
-    <div style={{ display: "flex" }}>
       <ProfileTemplate
         role="HQ Admin"
         sidebarName={user.full_name.split(" ")[0]}
@@ -83,6 +82,7 @@ export default function HQAdminProfilePage() {
           joinedDate: profileData.date_joined ? new Date(profileData.date_joined).toLocaleDateString("en-GB").replace(/\//g, "-") : "Not set",
           designation: profileData.designation,
           email: profileData.email,
+          avatarUrl:   profileData.avatar_url || null,
         }}
         dashboardPath="/hq-admin/dashboard"
         employeeId={targetId}
@@ -91,6 +91,5 @@ export default function HQAdminProfilePage() {
         initialSelfAchievements={selfEntries}
         initialSupervisorComments={supervisorEntries}
       />
-    </div>
   );
 }
