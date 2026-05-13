@@ -55,7 +55,6 @@ export default function CountryAdminProfilePage() {
   console.log("full_name:", profileData?.full_name);
   
   return (
-    <div style={{ display: "flex" }}>
       <ProfileTemplate
         role="Country Admin"
         sidebarName={user.full_name.split(" ")[0]}
@@ -66,6 +65,7 @@ export default function CountryAdminProfilePage() {
           joinedDate: profileData.date_joined ? new Date(profileData.date_joined).toLocaleDateString("en-GB").replace(/\//g, "-") : "Not set",
           designation: profileData.designation,
           email: profileData.email,
+          avatarUrl:   profileData.avatar_url || null,
         }}
         dashboardPath="/country-admin/dashboard"
         employeeId={targetId}
@@ -74,6 +74,5 @@ export default function CountryAdminProfilePage() {
         initialSelfAchievements={selfEntries}
         initialSupervisorComments={supervisorEntries}
       />
-    </div>
   );
 }

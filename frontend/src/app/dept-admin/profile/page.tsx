@@ -52,7 +52,6 @@ export default function DeptAdminProfilePage() {
   const isOwnProfile = targetId === user.employee_id;
 
   return (
-    <div style={{ display: "flex" }}>
       <ProfileTemplate
         role="Dept Admin"
         sidebarName={user.full_name.split(" ")[0]}
@@ -62,6 +61,7 @@ export default function DeptAdminProfilePage() {
           joinedDate: profileData.date_joined ? new Date(profileData.date_joined).toLocaleDateString("en-GB").replace(/\//g, "-") : "Not set",
           designation: profileData.designation,
           email: profileData.email,
+          avatarUrl:   profileData.avatar_url || null,
           branch: profileData.iata_branch_code,
           department: "Operations",
         }}
@@ -72,6 +72,5 @@ export default function DeptAdminProfilePage() {
         initialSelfAchievements={selfEntries}
         initialSupervisorComments={supervisorEntries}
       />
-    </div>
   );
 }
