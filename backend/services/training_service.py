@@ -1,0 +1,141 @@
+import requests as req
+from datetime import datetime, timezone
+from models import supabase, SUPABASE_URL, SUPABASE_KEY
+
+
+def get_training_attended(employee_id):
+    result = supabase.table("training_passport")\
+        .select("*")\
+        .eq("user_id", employee_id)\
+        .order("training_date", desc=True)\
+        .execute()
+
+    return {"trainings": result.data}, 200
+
+
+def add_training_attended(body):
+    employee_id      = (body.get("employee_id")      or "").strip()
+    programme_name   = (body.get("programme_name")   or "").strip()
+    training_date    = (body.get("training_date")    or "").strip()
+    trainer_provider = (body.get("trainer_provider") or "").strip()
+    cycle_id         = (body.get("cycle_id")         or "").strip()
+
+    if not employee_id or not programme_name or not training_date or not trainer_provider:
+        return {"message": "All fields are required"}, 400
+
+    result = supabase.table("training_passport").insert({
+        "user_id":          employee_id,
+        "training_name":    programme_name,
+        "training_date":    training_date,
+        "trainer_provider": trainer_provider,
+        "provider":         trainer_provider,
+        "cycle_id":         cycle_id or None,
+    }).execute()
+
+    return {
+        "message": "Training record added",
+        "data":    result.data[0] if result.data else {}
+    }, 201
+
+
+def add_training_suggestion(body):
+    employee_id   = (body.get("employee_id")   or "").strip()
+    training_name = (body.get("training_name") or "").strip()
+    justification = (body.get("justification") or "").strip()
+
+    if not employee_id or not training_name or not justification:
+        return {"message": "All fields are required"}, 400
+
+    user = supabase.table("users")\
+        .select("manager_id")\
+        .eq("id", employee_id)\
+        .execute()
+
+    supervisor_id = None
+    if user.data:
+        supervisor_id = user.data[0].get("manager_id")
+
+    result = supabase.table("training_suggestions").insert({
+        "employee_id":   employee_id,
+        "supervisor_id": supervisor_id,
+        "training_name": training_name,
+        "justification": justification,
+        "status":        "pending",
+    }).execute()
+
+    return {
+        "message": "Suggestion submitted",
+        "data":    result.data[0] if result.data else {}
+    }, 201
+
+
+def get_training_suggestions(employee_id):
+    result = supabase.table("training_suggestions")\
+        .select("*")\
+        .eq("employee_id", employee_id)\
+        .order("created_at", desc=True)\
+        .execute()
+
+    return {"suggestions": result.data}, 200
+
+
+def get_subordinate_suggestions(supervisor_id):
+    result = supabase.table("training_suggestions")\
+        .select("*")\
+        .eq("supervisor_id", supervisor_id)\
+        .eq("status", "pending")\
+        .order("created_at", desc=True)\
+        .execute()
+
+    suggestions = []
+    for s in result.data:
+        employee_id = s.get("employee_id")
+        full_name   = ""
+        role        = ""
+        if employee_id:
+            user = supabase.table("users")\
+                .select("full_name, role")\
+                .eq("id", employee_id)\
+                .execute()
+            if user.data:
+                full_name = user.data[0].get("full_name", "")
+                role      = user.data[0].get("role", "")
+
+        suggestions.append({
+            **s,
+            "users": {
+                "full_name": full_name,
+                "role":      role,
+            }
+        })
+
+    return {"suggestions": suggestions}, 200
+
+
+def review_suggestion(suggestion_id, body):
+    action  = (body.get("action")  or "").strip()
+    comment = (body.get("comment") or "").strip()
+
+    if action not in ("approved", "rejected"):
+        return {"message": "Action must be approved or rejected"}, 400
+
+    url     = f"{SUPABASE_URL}/rest/v1/training_suggestions"
+    headers = {
+        "apikey":        SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type":  "application/json",
+        "Prefer":        "return=representation"
+    }
+    params   = {"id": f"eq.{suggestion_id}"}
+    body_req = {
+        "status":             action,
+        "supervisor_comment": comment,
+        "updated_at":         datetime.now(timezone.utc).isoformat()
+    }
+
+    response = req.patch(url, headers=headers, params=params, json=body_req)
+
+    if response.status_code in (200, 204):
+        return {"message": f"Suggestion {action}"}, 200
+
+    return {"message": f"Failed: {response.text}"}, 400
