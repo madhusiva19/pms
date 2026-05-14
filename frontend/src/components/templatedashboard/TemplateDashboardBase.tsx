@@ -5,6 +5,14 @@
  * Handles template listing, filtering, freeze management,
  * PMS cycle display, and role-based access control.
  *
+ * Fix — Variant visibility after re-freeze:
+ *  1. ManageFreezeModal frozen items section now shows an "Edit Variant" button
+ *     for any frozen branch/country that already has a content variant, so the
+ *     variant remains reachable even when the item is fully re-frozen.
+ *  2. The variant-count badge in TemplateCard's header is now a clickable button
+ *     that opens the Manage Freeze modal, providing a persistent entry-point
+ *     regardless of the current freeze/unfreeze state.
+ *
  * @module TemplateDashboardBase
  */
 
@@ -20,9 +28,9 @@ import {
   Settings, X, AlertTriangle, Globe, History,
   SlidersHorizontal, Flag, Star, ShieldCheck, Plus,
 } from "lucide-react";
-import { toast } from "sonner";
-import styles from "./TemplateDashboardBase.module.css";
-import { formatDate, daysUntil } from "@/lib/freezeUtils";
+import { toast }                  from "sonner";
+import styles                     from "./TemplateDashboardBase.module.css";
+import { formatDate, daysUntil }  from "@/lib/freezeUtils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -31,9 +39,6 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000"
 
 /** Number of days before objective-setting close that triggers a "closing soon" warning banner. */
 const CLOSING_WARNING_THRESHOLD_DAYS = 14;
-
-/** Maximum number of API tokens to request per Claude completion (not used directly here but kept for reference). */
-const MAX_TOKENS = 1000;
 
 /**
  * Colour palette cycled across template categories.
@@ -113,9 +118,9 @@ interface AssignedDepartment {
 }
 
 interface AssignedBranch {
-  id:         string;
-  name:       string;
-  code:       string | null;
+  id:          string;
+  name:        string;
+  code:        string | null;
   country_id?: string | null;
 }
 
@@ -144,10 +149,10 @@ interface AssignmentRule {
 
 /** An unfreeze exception record that temporarily opens a frozen template for a branch or country. */
 interface UnfreezeException {
-  id:           number;
-  branch_id:    string | null;
-  country_id:   string | null;
-  unfrozen_at:  string | null;
+  id:          number;
+  branch_id:   string | null;
+  country_id:  string | null;
+  unfrozen_at: string | null;
 }
 
 /** A branch- or country-specific override copy of a template's content. */
@@ -161,36 +166,36 @@ interface TemplateVariant {
 
 /** Full template record returned by the API. */
 interface TemplateRecord {
-  id:                      number;
-  name:                    string;
-  description?:            string;
-  categories?:             any[];
-  total_weight?:           number;
-  max_score?:              number;
-  lastModified?:           string;
-  created_at?:             string;
-  pms_cycle_id?:           number | null;
-  freeze_status?:          FreezeStatus;
-  is_past_cycle?:          boolean;
-  assignedDesignations?:   string[];
-  assignedDesignationIds?: number[];
-  assignedDepartments?:    AssignedDepartment[];
-  assignedDepartmentNames?: string[];
-  assignedDepartmentsIds?: string[];
-  assignedBranches?:       AssignedBranch[];
-  assignedBranchIds?:      string[];
-  assignedCountries?:      AssignedCountry[];
-  assignedCountryIds?:     string[];
-  assignedSubDepartments?: AssignedSubDept[];
+  id:                        number;
+  name:                      string;
+  description?:              string;
+  categories?:               any[];
+  total_weight?:             number;
+  max_score?:                number;
+  lastModified?:             string;
+  created_at?:               string;
+  pms_cycle_id?:             number | null;
+  freeze_status?:            FreezeStatus;
+  is_past_cycle?:            boolean;
+  assignedDesignations?:     string[];
+  assignedDesignationIds?:   number[];
+  assignedDepartments?:      AssignedDepartment[];
+  assignedDepartmentNames?:  string[];
+  assignedDepartmentsIds?:   string[];
+  assignedBranches?:         AssignedBranch[];
+  assignedBranchIds?:        string[];
+  assignedCountries?:        AssignedCountry[];
+  assignedCountryIds?:       string[];
+  assignedSubDepartments?:   AssignedSubDept[];
   assignedSubDepartmentIds?: string[];
-  assignedEmployees?:      string[];
-  assignedEmployeeIds?:    string[];
-  assignedRules?:          AssignmentRule[];
-  unfrozenBranchIds?:      string[];
-  unfrozenCountryIds?:     string[];
-  unfreezeExceptions?:     UnfreezeException[];
-  variants?:               TemplateVariant[];
-  hasVariants?:            boolean;
+  assignedEmployees?:        string[];
+  assignedEmployeeIds?:      string[];
+  assignedRules?:            AssignmentRule[];
+  unfrozenBranchIds?:        string[];
+  unfrozenCountryIds?:       string[];
+  unfreezeExceptions?:       UnfreezeException[];
+  variants?:                 TemplateVariant[];
+  hasVariants?:              boolean;
 }
 
 /** Form state for the Edit PMS Cycle Dates modal. */
@@ -242,7 +247,7 @@ function sortByLastModified<T extends { lastModified?: string; created_at?: stri
  * Provides safe fallbacks when cycle data is missing.
  */
 function buildFreezeDates(activeCycle: any): DynamicFreezeDates {
-  const now         = new Date();
+  const now          = new Date();
   const fallbackYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
 
   const pmsYearStart = activeCycle?.pms_start
@@ -323,6 +328,9 @@ function toInputDate(iso: string | null | undefined): string {
  *  - Unfreeze selected frozen branches/countries.
  *  - Re-freeze previously unfrozen ones.
  *  - Create or navigate to branch/country content variants.
+ *
+ * FIX: Frozen items that already have a variant now show an "Edit Variant"
+ * button so the variant stays reachable even after re-freezing.
  */
 function ManageFreezeModal({
   template,
@@ -456,7 +464,7 @@ function ManageFreezeModal({
       const response = await fetch(
         `${API_BASE}/templates/${template.id}/unfreeze-exceptions`,
         {
-          method: "POST",
+          method:  "POST",
           headers: { "Content-Type": "application/json", "X-User-Level": "1" },
           body:    JSON.stringify(requestBody),
         },
@@ -564,23 +572,39 @@ function ManageFreezeModal({
   return (
     <div className={styles.modalOverlay} role="dialog" aria-modal="true">
       <div style={{
-        background: "#fff", borderRadius: "20px", width: "600px",
-        maxWidth: "95vw", maxHeight: "90vh", overflow: "hidden",
-        display: "flex", flexDirection: "column",
-        boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid #e2e8f0",
+        background:    "#fff",
+        borderRadius:  "20px",
+        width:         "600px",
+        maxWidth:      "95vw",
+        maxHeight:     "90vh",
+        overflow:      "hidden",
+        display:       "flex",
+        flexDirection: "column",
+        boxShadow:     "0 24px 64px rgba(0,0,0,0.18)",
+        border:        "1px solid #e2e8f0",
       }}>
 
         {/* ── Modal header ── */}
         <div style={{
-          padding: "20px 24px 16px", borderBottom: "1px solid #f1f5f9",
-          background: "#fafbff", display: "flex", alignItems: "center",
-          justifyContent: "space-between", gap: "12px",
+          padding:         "20px 24px 16px",
+          borderBottom:    "1px solid #f1f5f9",
+          background:      "#fafbff",
+          display:         "flex",
+          alignItems:      "center",
+          justifyContent:  "space-between",
+          gap:             "12px",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div style={{
-              width: "38px", height: "38px", background: "#fff7ed",
-              border: "1px solid #fed7aa", borderRadius: "10px",
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              width:          "38px",
+              height:         "38px",
+              background:     "#fff7ed",
+              border:         "1px solid #fed7aa",
+              borderRadius:   "10px",
+              display:        "flex",
+              alignItems:     "center",
+              justifyContent: "center",
+              flexShrink:     0,
             }}>
               <ShieldCheck size={18} color="#ea580c" />
             </div>
@@ -597,9 +621,14 @@ function ManageFreezeModal({
             onClick={onClose}
             aria-label="Close modal"
             style={{
-              background: "#f1f5f9", border: "none", borderRadius: "8px",
-              padding: "7px", cursor: "pointer", color: "#64748b",
-              display: "flex", alignItems: "center",
+              background:   "#f1f5f9",
+              border:       "none",
+              borderRadius: "8px",
+              padding:      "7px",
+              cursor:       "pointer",
+              color:        "#64748b",
+              display:      "flex",
+              alignItems:   "center",
             }}
           >
             <X size={16} />
@@ -609,30 +638,48 @@ function ManageFreezeModal({
         {/* ── Scope chips (departments / sub-departments) ── */}
         {hasScopeChips && (
           <div style={{
-            margin: "14px 24px 0", padding: "10px 14px", background: "#f8fafc",
-            border: "1px solid #e2e8f0", borderRadius: "10px",
-            display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap",
+            margin:      "14px 24px 0",
+            padding:     "10px 14px",
+            background:  "#f8fafc",
+            border:      "1px solid #e2e8f0",
+            borderRadius: "10px",
+            display:     "flex",
+            gap:         "6px",
+            alignItems:  "center",
+            flexWrap:    "wrap",
           }}>
             <span style={{
-              fontSize: "11px", fontWeight: "700", color: "#64748b",
-              textTransform: "uppercase", letterSpacing: "0.4px", flexShrink: 0,
+              fontSize:      "11px",
+              fontWeight:    "700",
+              color:         "#64748b",
+              textTransform: "uppercase",
+              letterSpacing: "0.4px",
+              flexShrink:    0,
             }}>
               Scope:
             </span>
             {uniqueDeptNames.map(name => (
               <span key={name} style={{
-                fontSize: "11px", fontWeight: "700", padding: "2px 8px",
-                borderRadius: "6px", background: "#fef3c7", color: "#92400e",
-                border: "1px solid #fde68a",
+                fontSize:     "11px",
+                fontWeight:   "700",
+                padding:      "2px 8px",
+                borderRadius: "6px",
+                background:   "#fef3c7",
+                color:        "#92400e",
+                border:       "1px solid #fde68a",
               }}>
                 {name}
               </span>
             ))}
             {uniqueSubDeptNames.map(name => (
               <span key={name} style={{
-                fontSize: "11px", fontWeight: "700", padding: "2px 8px",
-                borderRadius: "6px", background: "#eff6ff", color: "#1e40af",
-                border: "1px solid #bfdbfe",
+                fontSize:     "11px",
+                fontWeight:   "700",
+                padding:      "2px 8px",
+                borderRadius: "6px",
+                background:   "#eff6ff",
+                color:        "#1e40af",
+                border:       "1px solid #bfdbfe",
               }}>
                 {name}
               </span>
@@ -649,17 +696,26 @@ function ManageFreezeModal({
                 key={tab.key}
                 onClick={() => { setActiveTab(tab.key); setSelectedToUnfreeze(new Set()); }}
                 style={{
-                  padding: "8px 16px", border: "none", cursor: "pointer",
-                  fontSize: "13px", fontWeight: "700", background: "transparent",
+                  padding:      "8px 16px",
+                  border:       "none",
+                  cursor:       "pointer",
+                  fontSize:     "13px",
+                  fontWeight:   "700",
+                  background:   "transparent",
                   borderBottom: isActiveTab ? "2px solid #3b82f6" : "2px solid transparent",
-                  color: isActiveTab ? "#1e40af" : "#64748b",
-                  marginBottom: "-1px", transition: "all 0.15s",
-                  display: "flex", alignItems: "center", gap: "6px",
+                  color:        isActiveTab ? "#1e40af" : "#64748b",
+                  marginBottom: "-1px",
+                  transition:   "all 0.15s",
+                  display:      "flex",
+                  alignItems:   "center",
+                  gap:          "6px",
                 }}
               >
                 {tab.label}
                 <span style={{
-                  fontSize: "11px", fontWeight: "800", padding: "1px 7px",
+                  fontSize:   "11px",
+                  fontWeight: "800",
+                  padding:    "1px 7px",
                   borderRadius: "10px",
                   background: isActiveTab ? "#eff6ff" : "#f1f5f9",
                   color:      isActiveTab ? "#1e40af" : "#64748b",
@@ -668,9 +724,13 @@ function ManageFreezeModal({
                 </span>
                 {tab.unfrozenCount > 0 && (
                   <span style={{
-                    fontSize: "10px", fontWeight: "800", padding: "1px 6px",
-                    borderRadius: "10px", background: "#f0fdf4", color: "#166534",
-                    border: "1px solid #bbf7d0",
+                    fontSize:     "10px",
+                    fontWeight:   "800",
+                    padding:      "1px 6px",
+                    borderRadius: "10px",
+                    background:   "#f0fdf4",
+                    color:        "#166534",
+                    border:       "1px solid #bbf7d0",
                   }}>
                     {tab.unfrozenCount} unfrozen
                   </span>
@@ -689,8 +749,11 @@ function ManageFreezeModal({
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
                 <Unlock size={13} color="#166534" />
                 <span style={{
-                  fontSize: "11px", fontWeight: "800", color: "#166534",
-                  textTransform: "uppercase", letterSpacing: "0.5px",
+                  fontSize:      "11px",
+                  fontWeight:    "800",
+                  color:         "#166534",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
                 }}>
                   Currently Unfrozen — {currentUnfrozenItems.length}
                 </span>
@@ -701,10 +764,10 @@ function ManageFreezeModal({
 
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 {currentUnfrozenItems.map(item => {
-                  const isRefreezing    = refreezingIds.has(item.id);
-                  const branchId        = isBranchTab ? item.id : null;
-                  const countryId       = !isBranchTab ? item.id : null;
-                  const existingVariant = variants.find(
+                  const isRefreezing      = refreezingIds.has(item.id);
+                  const branchId          = isBranchTab ? item.id : null;
+                  const countryId         = !isBranchTab ? item.id : null;
+                  const existingVariant   = variants.find(
                     v => (branchId  && v.branch_id  === branchId)  ||
                          (countryId && v.country_id === countryId),
                   );
@@ -714,9 +777,14 @@ function ManageFreezeModal({
                     <div
                       key={item.id}
                       style={{
-                        display: "flex", alignItems: "center", gap: "10px",
-                        padding: "11px 14px", borderRadius: "10px",
-                        background: "#f0fdf4", border: "1.5px solid #bbf7d0", flexWrap: "wrap",
+                        display:    "flex",
+                        alignItems: "center",
+                        gap:        "10px",
+                        padding:    "11px 14px",
+                        borderRadius: "10px",
+                        background: "#f0fdf4",
+                        border:     "1.5px solid #bbf7d0",
+                        flexWrap:   "wrap",
                       }}
                     >
                       <Unlock size={14} color="#16a34a" style={{ flexShrink: 0 }} />
@@ -732,14 +800,21 @@ function ManageFreezeModal({
                             c => c.id === (item as AssignedBranch).country_id,
                           );
                           return parentCountry
-                            ? <div style={{ fontSize: "11px", color: "#4ade80", marginTop: "2px" }}>
+                            ? (
+                              <div style={{ fontSize: "11px", color: "#4ade80", marginTop: "2px" }}>
                                 {parentCountry.code ?? parentCountry.name}
                               </div>
+                            )
                             : null;
                         })()}
 
                         {existingVariant && (
-                          <div style={{ fontSize: "10px", color: "#166534", marginTop: "3px", fontWeight: "600" }}>
+                          <div style={{
+                            fontSize:   "10px",
+                            color:      "#166534",
+                            marginTop:  "3px",
+                            fontWeight: "600",
+                          }}>
                             Has custom variant · last modified{" "}
                             {existingVariant.lastModified
                               ? new Date(existingVariant.lastModified).toLocaleDateString(
@@ -756,10 +831,18 @@ function ManageFreezeModal({
                         <button
                           onClick={() => handleEditVariant(existingVariant.id)}
                           style={{
-                            display: "inline-flex", alignItems: "center", gap: "5px",
-                            padding: "5px 11px", borderRadius: "7px", cursor: "pointer",
-                            fontSize: "11px", fontWeight: "700", whiteSpace: "nowrap",
-                            background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af",
+                            display:    "inline-flex",
+                            alignItems: "center",
+                            gap:        "5px",
+                            padding:    "5px 11px",
+                            borderRadius: "7px",
+                            cursor:     "pointer",
+                            fontSize:   "11px",
+                            fontWeight: "700",
+                            whiteSpace: "nowrap",
+                            background: "#eff6ff",
+                            border:     "1px solid #bfdbfe",
+                            color:      "#1e40af",
                             transition: "all 0.15s",
                           }}
                         >
@@ -770,13 +853,18 @@ function ManageFreezeModal({
                           onClick={() => handleCreateVariant(branchId, countryId)}
                           disabled={isCreatingVariant}
                           style={{
-                            display: "inline-flex", alignItems: "center", gap: "5px",
-                            padding: "5px 11px", borderRadius: "7px",
-                            cursor: isCreatingVariant ? "not-allowed" : "pointer",
-                            fontSize: "11px", fontWeight: "700", whiteSpace: "nowrap",
+                            display:    "inline-flex",
+                            alignItems: "center",
+                            gap:        "5px",
+                            padding:    "5px 11px",
+                            borderRadius: "7px",
+                            cursor:     isCreatingVariant ? "not-allowed" : "pointer",
+                            fontSize:   "11px",
+                            fontWeight: "700",
+                            whiteSpace: "nowrap",
                             background: isCreatingVariant ? "#e2e8f0" : "#f0fdf4",
-                            border: `1px solid ${isCreatingVariant ? "#e2e8f0" : "#bbf7d0"}`,
-                            color:  isCreatingVariant ? "#94a3b8" : "#166534",
+                            border:     `1px solid ${isCreatingVariant ? "#e2e8f0" : "#bbf7d0"}`,
+                            color:      isCreatingVariant ? "#94a3b8" : "#166534",
                             transition: "all 0.15s",
                           }}
                         >
@@ -791,13 +879,18 @@ function ManageFreezeModal({
                         onClick={() => handleRefreeze(item.id)}
                         disabled={isRefreezing}
                         style={{
-                          display: "inline-flex", alignItems: "center", gap: "5px",
-                          padding: "5px 11px", borderRadius: "7px",
-                          cursor: isRefreezing ? "not-allowed" : "pointer",
-                          fontSize: "11px", fontWeight: "700", whiteSpace: "nowrap",
+                          display:    "inline-flex",
+                          alignItems: "center",
+                          gap:        "5px",
+                          padding:    "5px 11px",
+                          borderRadius: "7px",
+                          cursor:     isRefreezing ? "not-allowed" : "pointer",
+                          fontSize:   "11px",
+                          fontWeight: "700",
+                          whiteSpace: "nowrap",
                           background: isRefreezing ? "#e2e8f0" : "#fff",
-                          border: `1px solid ${isRefreezing ? "#e2e8f0" : "#fca5a5"}`,
-                          color:  isRefreezing ? "#94a3b8" : "#dc2626",
+                          border:     `1px solid ${isRefreezing ? "#e2e8f0" : "#fca5a5"}`,
+                          color:      isRefreezing ? "#94a3b8" : "#dc2626",
                           transition: "all 0.15s",
                         }}
                       >
@@ -816,14 +909,21 @@ function ManageFreezeModal({
           {currentFrozenItems.length > 0 && (
             <div style={{ marginTop: currentUnfrozenItems.length > 0 ? "20px" : "16px" }}>
               <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                marginBottom: "10px", flexWrap: "wrap", gap: "8px",
+                display:         "flex",
+                alignItems:      "center",
+                justifyContent:  "space-between",
+                marginBottom:    "10px",
+                flexWrap:        "wrap",
+                gap:             "8px",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <Lock size={13} color="#1e3a8a" />
                   <span style={{
-                    fontSize: "11px", fontWeight: "800", color: "#1e3a8a",
-                    textTransform: "uppercase", letterSpacing: "0.5px",
+                    fontSize:      "11px",
+                    fontWeight:    "800",
+                    color:         "#1e3a8a",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
                   }}>
                     Currently Frozen — {currentFrozenItems.length}
                   </span>
@@ -831,8 +931,14 @@ function ManageFreezeModal({
                 </div>
                 {currentFrozenItems.length > 1 && (
                   <label style={{
-                    display: "flex", alignItems: "center", gap: "6px", cursor: "pointer",
-                    fontSize: "12px", fontWeight: "600", color: "#475569", userSelect: "none",
+                    display:    "flex",
+                    alignItems: "center",
+                    gap:        "6px",
+                    cursor:     "pointer",
+                    fontSize:   "12px",
+                    fontWeight: "600",
+                    color:      "#475569",
+                    userSelect: "none",
                   }}>
                     <input
                       type="checkbox"
@@ -847,49 +953,127 @@ function ManageFreezeModal({
 
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 {currentFrozenItems.map(item => {
-                  const isSelected = selectedToUnfreeze.has(item.id);
+                  const isSelected  = selectedToUnfreeze.has(item.id);
+                  const branchId    = isBranchTab ? item.id : null;
+                  const countryId   = !isBranchTab ? item.id : null;
+
+                  /**
+                   * FIX: Look up whether a variant already exists for this frozen item.
+                   * Previously this check only happened in the unfrozen section,
+                   * so variants became unreachable after re-freezing.
+                   */
+                  const existingVariant = variants.find(
+                    v => (branchId  && v.branch_id  === branchId)  ||
+                         (countryId && v.country_id === countryId),
+                  );
+
                   return (
-                    <label
+                    <div
                       key={item.id}
                       style={{
-                        display: "flex", alignItems: "center", gap: "12px",
-                        padding: "11px 14px", borderRadius: "10px",
-                        cursor: "pointer", userSelect: "none",
+                        display:    "flex",
+                        alignItems: "center",
+                        gap:        "12px",
+                        padding:    "11px 14px",
+                        borderRadius: "10px",
                         background: isSelected ? "#eff6ff" : "#f8fafc",
-                        border: `1.5px solid ${isSelected ? "#3b82f6" : "#e2e8f0"}`,
+                        border:     `1.5px solid ${isSelected ? "#3b82f6" : "#e2e8f0"}`,
                         transition: "all 0.15s",
+                        flexWrap:   "wrap",
                       }}
                     >
+                      {/* Checkbox — selecting marks the item for bulk unfreeze */}
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleItemSelection(item.id)}
                         style={{
-                          width: "16px", height: "16px",
-                          accentColor: "#3b82f6", cursor: "pointer", flexShrink: 0,
+                          width:      "16px",
+                          height:     "16px",
+                          accentColor: "#3b82f6",
+                          cursor:     "pointer",
+                          flexShrink: 0,
                         }}
                       />
-                      <Lock size={13} color={isSelected ? "#3b82f6" : "#94a3b8"} style={{ flexShrink: 0 }} />
+                      <Lock
+                        size={13}
+                        color={isSelected ? "#3b82f6" : "#94a3b8"}
+                        style={{ flexShrink: 0 }}
+                      />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{
-                          fontSize: "13px", fontWeight: "700",
-                          color: isSelected ? "#1e40af" : "#475569",
+                          fontSize:   "13px",
+                          fontWeight: "700",
+                          color:      isSelected ? "#1e40af" : "#475569",
                         }}>
                           {(item as any).code ? `${(item as any).code} — ` : ""}
                           {item.name}
                         </div>
+
+                        {/* Show parent country for a branch item */}
                         {isBranchTab && (item as AssignedBranch).country_id && (() => {
                           const parentCountry = assignedCountries.find(
                             c => c.id === (item as AssignedBranch).country_id,
                           );
                           return parentCountry
-                            ? <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>
+                            ? (
+                              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>
                                 {parentCountry.code ?? parentCountry.name}
                               </div>
+                            )
                             : null;
                         })()}
+
+                        {/*
+                          FIX: Show a note when this frozen item already has a variant,
+                          so the user knows a custom version exists and can be accessed.
+                        */}
+                        {existingVariant && (
+                          <div style={{
+                            fontSize:   "10px",
+                            color:      "#1e40af",
+                            marginTop:  "3px",
+                            fontWeight: "600",
+                          }}>
+                            Has custom variant · last modified{" "}
+                            {existingVariant.lastModified
+                              ? new Date(existingVariant.lastModified).toLocaleDateString(
+                                  "en-GB",
+                                  { day: "numeric", month: "short" },
+                                )
+                              : "—"}
+                          </div>
+                        )}
                       </div>
-                    </label>
+
+                      {/*
+                        FIX: "Edit Variant" button for frozen items that already have a variant.
+                        Previously this button only existed in the unfrozen section,
+                        making the variant completely unreachable after re-freezing.
+                      */}
+                      {existingVariant && (
+                        <button
+                          onClick={() => handleEditVariant(existingVariant.id)}
+                          style={{
+                            display:    "inline-flex",
+                            alignItems: "center",
+                            gap:        "5px",
+                            padding:    "5px 11px",
+                            borderRadius: "7px",
+                            cursor:     "pointer",
+                            fontSize:   "11px",
+                            fontWeight: "700",
+                            whiteSpace: "nowrap",
+                            background: "#eff6ff",
+                            border:     "1px solid #bfdbfe",
+                            color:      "#1e40af",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <Pencil size={11} /> Edit Variant
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -898,7 +1082,12 @@ function ManageFreezeModal({
 
           {/* Empty state */}
           {currentFrozenItems.length === 0 && currentUnfrozenItems.length === 0 && (
-            <p style={{ fontSize: "13px", color: "#94a3b8", textAlign: "center", padding: "32px 0" }}>
+            <p style={{
+              fontSize:  "13px",
+              color:     "#94a3b8",
+              textAlign: "center",
+              padding:   "32px 0",
+            }}>
               No {isBranchTab ? "branches" : "countries"} assigned to this template.
             </p>
           )}
@@ -906,10 +1095,17 @@ function ManageFreezeModal({
           {/* All-unfrozen confirmation message */}
           {currentFrozenItems.length === 0 && currentUnfrozenItems.length > 0 && (
             <div style={{
-              marginTop: "16px", padding: "12px 16px", background: "#f0fdf4",
-              border: "1px solid #bbf7d0", borderRadius: "10px",
-              fontSize: "12px", color: "#166534", fontWeight: "600",
-              display: "flex", alignItems: "center", gap: "8px",
+              marginTop:    "16px",
+              padding:      "12px 16px",
+              background:   "#f0fdf4",
+              border:       "1px solid #bbf7d0",
+              borderRadius: "10px",
+              fontSize:     "12px",
+              color:        "#166534",
+              fontWeight:   "600",
+              display:      "flex",
+              alignItems:   "center",
+              gap:          "8px",
             }}>
               <CheckCircle2 size={14} color="#16a34a" />
               All {isBranchTab ? "branches" : "countries"} are currently unfrozen.
@@ -919,25 +1115,38 @@ function ManageFreezeModal({
 
         {/* ── Modal footer ── */}
         <div style={{
-          padding: "14px 24px 20px", borderTop: "1px solid #f1f5f9",
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+          padding:         "14px 24px 20px",
+          borderTop:       "1px solid #f1f5f9",
+          display:         "flex",
+          alignItems:      "center",
+          justifyContent:  "space-between",
+          gap:             "12px",
         }}>
           <div style={{ fontSize: "12px", color: "#64748b" }}>
             {currentTabSelected.length > 0
-              ? <span style={{ fontWeight: "700", color: "#1e40af" }}>
+              ? (
+                <span style={{ fontWeight: "700", color: "#1e40af" }}>
                   {currentTabSelected.length} selected to unfreeze
                 </span>
-              : <span>
+              )
+              : (
+                <span>
                   Select frozen {isBranchTab ? "branches" : "countries"} above to unfreeze them
-                </span>}
+                </span>
+              )}
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
             <button
               onClick={onClose}
               style={{
-                padding: "9px 20px", borderRadius: "9px",
-                border: "1px solid #e2e8f0", background: "#f8fafc",
-                color: "#475569", fontWeight: "700", fontSize: "13px", cursor: "pointer",
+                padding:      "9px 20px",
+                borderRadius: "9px",
+                border:       "1px solid #e2e8f0",
+                background:   "#f8fafc",
+                color:        "#475569",
+                fontWeight:   "700",
+                fontSize:     "13px",
+                cursor:       "pointer",
               }}
             >
               Close
@@ -946,19 +1155,25 @@ function ManageFreezeModal({
               onClick={handleUnfreezeSelected}
               disabled={currentTabSelected.length === 0 || isSaving}
               style={{
-                padding: "9px 20px", borderRadius: "9px", border: "none",
-                background: currentTabSelected.length > 0 && !isSaving
+                padding:      "9px 20px",
+                borderRadius: "9px",
+                border:       "none",
+                background:   currentTabSelected.length > 0 && !isSaving
                   ? "linear-gradient(135deg, #2563eb, #1d4ed8)"
                   : "#e2e8f0",
-                color:  currentTabSelected.length > 0 && !isSaving ? "#fff" : "#94a3b8",
-                fontWeight: "700", fontSize: "13px",
-                cursor: currentTabSelected.length > 0 && !isSaving ? "pointer" : "not-allowed",
-                transition: "all 0.15s", display: "inline-flex", alignItems: "center", gap: "6px",
+                color:      currentTabSelected.length > 0 && !isSaving ? "#fff" : "#94a3b8",
+                fontWeight: "700",
+                fontSize:   "13px",
+                cursor:     currentTabSelected.length > 0 && !isSaving ? "pointer" : "not-allowed",
+                transition: "all 0.15s",
+                display:    "inline-flex",
+                alignItems: "center",
+                gap:        "6px",
               }}
             >
               {isSaving
                 ? <><Loader2 size={13} className={styles.spinner} /> Unfreezing…</>
-                : <><Unlock size={13} /> Unfreeze {currentTabSelected.length > 0 ? `${currentTabSelected.length} Selected` : "Selected"}</>}
+                : <><Unlock  size={13} /> Unfreeze {currentTabSelected.length > 0 ? `${currentTabSelected.length} Selected` : "Selected"}</>}
             </button>
           </div>
         </div>
@@ -986,8 +1201,8 @@ function FilterDropdown({
   selected: string[];
   onChange: (selected: string[]) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef        = useRef<HTMLDivElement>(null);
+  const [isOpen,    setIsOpen]    = useState(false);
+  const containerRef              = useRef<HTMLDivElement>(null);
 
   // Close on outside click
   useEffect(() => {
@@ -1101,7 +1316,11 @@ function ActiveFilterChip({
     <span className={`${styles.chip} ${colorClass}`}>
       <span className={styles.chipCategory}>{category}:</span>
       {label}
-      <button className={styles.chipRemoveBtn} onClick={onRemove} aria-label={`Remove ${category} filter: ${label}`}>
+      <button
+        className={styles.chipRemoveBtn}
+        onClick={onRemove}
+        aria-label={`Remove ${category} filter: ${label}`}
+      >
         <X size={10} />
       </button>
     </span>
@@ -1143,7 +1362,13 @@ function HorizontalFilterBar({
 
   /** Clears all dropdown filters while preserving the text search. */
   function clearDropdownFilters(): void {
-    onFilterChange({ search: filters.search, designations: [], departments: [], branches: [], countries: [] });
+    onFilterChange({
+      search:       filters.search,
+      designations: [],
+      departments:  [],
+      branches:     [],
+      countries:    [],
+    });
   }
 
   return (
@@ -1179,7 +1404,7 @@ function HorizontalFilterBar({
         </div>
 
         {/* Dropdown filters */}
-        <FilterDropdown label="Designation" icon={<Users    size={13} />} options={allDesignations} selected={filters.designations} onChange={v => onFilterChange({ ...filters, designations: v })} />
+        <FilterDropdown label="Designation" icon={<Users     size={13} />} options={allDesignations} selected={filters.designations} onChange={v => onFilterChange({ ...filters, designations: v })} />
         <FilterDropdown label="Department"  icon={<Building2 size={13} />} options={allDepartments}  selected={filters.departments}  onChange={v => onFilterChange({ ...filters, departments:  v })} />
         <FilterDropdown label="Branch"      icon={<GitBranch size={13} />} options={allBranches}     selected={filters.branches}     onChange={v => onFilterChange({ ...filters, branches:     v })} />
         <FilterDropdown label="Country"     icon={<Globe     size={13} />} options={allCountries}    selected={filters.countries}    onChange={v => onFilterChange({ ...filters, countries:    v })} />
@@ -1215,20 +1440,40 @@ function HorizontalFilterBar({
         <div className={styles.chipsRow}>
           <span className={styles.chipsRowLabel}>Active:</span>
           {filters.designations.map(d => (
-            <ActiveFilterChip key={`designation-${d}`} label={d} category="Designation" colorClass={styles.chipDesignation}
-              onRemove={() => onFilterChange({ ...filters, designations: filters.designations.filter(x => x !== d) })} />
+            <ActiveFilterChip
+              key={`designation-${d}`}
+              label={d}
+              category="Designation"
+              colorClass={styles.chipDesignation}
+              onRemove={() => onFilterChange({ ...filters, designations: filters.designations.filter(x => x !== d) })}
+            />
           ))}
           {filters.departments.map(d => (
-            <ActiveFilterChip key={`department-${d}`} label={d} category="Department" colorClass={styles.chipDepartment}
-              onRemove={() => onFilterChange({ ...filters, departments: filters.departments.filter(x => x !== d) })} />
+            <ActiveFilterChip
+              key={`department-${d}`}
+              label={d}
+              category="Department"
+              colorClass={styles.chipDepartment}
+              onRemove={() => onFilterChange({ ...filters, departments: filters.departments.filter(x => x !== d) })}
+            />
           ))}
           {filters.branches.map(b => (
-            <ActiveFilterChip key={`branch-${b}`} label={b} category="Branch" colorClass={styles.chipBranch}
-              onRemove={() => onFilterChange({ ...filters, branches: filters.branches.filter(x => x !== b) })} />
+            <ActiveFilterChip
+              key={`branch-${b}`}
+              label={b}
+              category="Branch"
+              colorClass={styles.chipBranch}
+              onRemove={() => onFilterChange({ ...filters, branches: filters.branches.filter(x => x !== b) })}
+            />
           ))}
           {filters.countries.map(c => (
-            <ActiveFilterChip key={`country-${c}`} label={c} category="Country" colorClass={styles.chipCountry}
-              onRemove={() => onFilterChange({ ...filters, countries: filters.countries.filter(x => x !== c) })} />
+            <ActiveFilterChip
+              key={`country-${c}`}
+              label={c}
+              category="Country"
+              colorClass={styles.chipCountry}
+              onRemove={() => onFilterChange({ ...filters, countries: filters.countries.filter(x => x !== c) })}
+            />
           ))}
         </div>
       )}
@@ -1290,7 +1535,7 @@ function EditCycleDatesModal({
     mid_year_review:       toInputDate(activeCycle?.mid_year_review),
     year_end_review:       toInputDate(activeCycle?.year_end_review),
   });
-  const [isSaving,      setIsSaving]      = useState(false);
+  const [isSaving,       setIsSaving]       = useState(false);
   const [isAcknowledged, setIsAcknowledged] = useState(false);
 
   /**
@@ -1315,9 +1560,9 @@ function EditCycleDatesModal({
 
   async function handleSave(): Promise<void> {
     const validationError = validateForm();
-    if (validationError) { toast.error(validationError); return; }
-    if (!isAcknowledged) { toast.error("Please acknowledge the impact of this change."); return; }
-    if (!activeCycle?.id) { toast.error("No active PMS cycle found."); return; }
+    if (validationError)   { toast.error(validationError); return; }
+    if (!isAcknowledged)   { toast.error("Please acknowledge the impact of this change."); return; }
+    if (!activeCycle?.id)  { toast.error("No active PMS cycle found."); return; }
 
     setIsSaving(true);
     try {
@@ -1338,7 +1583,7 @@ function EditCycleDatesModal({
         throw new Error(errorBody.error ?? "Update failed");
       }
 
-      const refreshRes  = await fetch(`${API_BASE}/pms-cycles/active`);
+      const refreshRes   = await fetch(`${API_BASE}/pms-cycles/active`);
       const updatedCycle = refreshRes.ok ? await refreshRes.json() : activeCycle;
       toast.success("PMS cycle dates updated successfully.");
       onSaved(updatedCycle);
@@ -1449,7 +1694,7 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
     key:        "start",
     label:      "Cycle Start",
     shortDate:  freezeDates.pmsYearStart.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
-    icon:       <Flag     size={22} />,
+    icon:       <Flag      size={22} />,
     bgGradient: "linear-gradient(135deg,#6366f1,#818cf8)",
     shadow:     "rgba(99,102,241,0.35)",
     iconBg:     "#eef2ff",
@@ -1459,7 +1704,7 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
     key:        "objective",
     label:      "Objective Setting",
     shortDate:  freezeDates.objectiveSettingEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
-    icon:       <Target   size={22} />,
+    icon:       <Target    size={22} />,
     bgGradient: "linear-gradient(135deg,#0ea5e9,#38bdf8)",
     shadow:     "rgba(14,165,233,0.35)",
     iconBg:     "#e0f2fe",
@@ -1469,7 +1714,7 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
     key:        "grace",
     label:      "Grace Period",
     shortDate:  freezeDates.graceEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
-    icon:       <Clock3   size={22} />,
+    icon:       <Clock3    size={22} />,
     bgGradient: "linear-gradient(135deg,#f59e0b,#fbbf24)",
     shadow:     "rgba(245,158,11,0.35)",
     iconBg:     "#fef3c7",
@@ -1479,7 +1724,7 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
     key:        "frozen",
     label:      "Templates Frozen",
     shortDate:  freezeDates.graceEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
-    icon:       <Lock     size={22} />,
+    icon:       <Lock      size={22} />,
     bgGradient: "linear-gradient(135deg,#1e3a8a,#3b5bdb)",
     shadow:     "rgba(30,58,138,0.35)",
     iconBg:     "#dbeafe",
@@ -1503,7 +1748,7 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
     shortDate:  freezeDates.yearEndReview
                   ? freezeDates.yearEndReview.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
                   : "—",
-    icon:       <Star     size={22} />,
+    icon:       <Star      size={22} />,
     bgGradient: "linear-gradient(135deg,#8b5cf6,#a78bfa)",
     shadow:     "rgba(139,92,246,0.35)",
     iconBg:     "#f3e8ff",
@@ -1669,8 +1914,8 @@ function StatusBanner({
   freezeDates: DynamicFreezeDates;
   level:       number;
 }) {
-  const isHqAdmin      = level === 1;
-  const daysRemaining  = daysUntil(freezeDates.objectiveSettingEnd);
+  const isHqAdmin     = level === 1;
+  const daysRemaining = daysUntil(freezeDates.objectiveSettingEnd);
 
   if (permissions.freezeStatus === "frozen") {
     return (
@@ -1747,6 +1992,10 @@ function StatusBanner({
  * Card component representing a single template.
  * Displays key stats, assignment summary, category breakdown,
  * and contextual action buttons based on role and freeze status.
+ *
+ * FIX: The variant-count badge in the card header is now a clickable button
+ * that opens the Manage Freeze modal, giving a persistent entry-point to reach
+ * variants regardless of whether any branches are currently unfrozen.
  */
 function TemplateCard({
   template,
@@ -1787,7 +2036,7 @@ function TemplateCard({
   const isGrace     = effectiveStatus === "grace";
 
   // ── Objective counts ──
-  const lockedCount     = categories.reduce(
+  const lockedCount = categories.reduce(
     (sum: number, cat: any) =>
       sum + (cat.objectives?.filter((obj: any) => obj.control === "Locked").length ?? 0),
     0,
@@ -1796,15 +2045,15 @@ function TemplateCard({
     (sum: number, cat: any) => sum + (cat.objectives?.length ?? 0),
     0,
   );
-  const editableCount   = totalObjectives - lockedCount;
-  const totalRules      = template.assignedRules?.length ?? 0;
+  const editableCount = totalObjectives - lockedCount;
+  const totalRules    = template.assignedRules?.length ?? 0;
 
   // ── Unfreeze / variant state ──
-  const unfrozenBranchCount  = template.unfrozenBranchIds?.length  ?? 0;
-  const unfrozenCountryCount = template.unfrozenCountryIds?.length ?? 0;
+  const unfrozenBranchCount   = template.unfrozenBranchIds?.length  ?? 0;
+  const unfrozenCountryCount  = template.unfrozenCountryIds?.length ?? 0;
   const hasUnfreezeExceptions = unfrozenBranchCount > 0 || unfrozenCountryCount > 0;
-  const variantCount = template.variants?.length ?? 0;
-  const hasVariants  = (template.hasVariants ?? false) || variantCount > 0;
+  const variantCount          = template.variants?.length ?? 0;
+  const hasVariants           = (template.hasVariants ?? false) || variantCount > 0;
 
   /** True when the current user has unfreeze exceptions that allow editing. */
   const hasUnfreezeAccess = isHqAdmin && !isPastCycle && hasUnfreezeExceptions;
@@ -1910,10 +2159,15 @@ function TemplateCard({
       {/* Past-cycle notice bar */}
       {isPastCycle && (
         <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "6px 14px", background: "#f8fafc",
+          display:      "flex",
+          alignItems:   "center",
+          gap:          6,
+          padding:      "6px 14px",
+          background:   "#f8fafc",
           borderBottom: "1px solid #e2e8f0",
-          fontSize: "11px", color: "#64748b", fontWeight: 600,
+          fontSize:     "11px",
+          color:        "#64748b",
+          fontWeight:   600,
         }}>
           <History size={12} color="#94a3b8" />
           Past PMS Cycle — Permanently Frozen (Read Only)
@@ -1923,33 +2177,53 @@ function TemplateCard({
       {/* Partial-unfreeze banner */}
       {hasUnfreezeExceptions && !isPastCycle && (
         <div style={{
-          display: "flex", alignItems: "center", gap: "8px",
-          padding: "6px 14px", background: "#fff7ed",
+          display:      "flex",
+          alignItems:   "center",
+          gap:          "8px",
+          padding:      "6px 14px",
+          background:   "#fff7ed",
           borderBottom: "1px solid #fed7aa",
-          fontSize: "11px", color: "#9a3412", fontWeight: "600",
+          fontSize:     "11px",
+          color:        "#9a3412",
+          fontWeight:   "600",
         }}>
           <Unlock size={11} color="#ea580c" />
           Partially unfrozen:
           {unfrozenBranchCount > 0 && (
             <span style={{
-              background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a",
-              borderRadius: "10px", padding: "1px 7px", fontSize: "10px", fontWeight: "700",
+              background:   "#fef3c7",
+              color:        "#92400e",
+              border:       "1px solid #fde68a",
+              borderRadius: "10px",
+              padding:      "1px 7px",
+              fontSize:     "10px",
+              fontWeight:   "700",
             }}>
               {unfrozenBranchCount} branch{unfrozenBranchCount !== 1 ? "es" : ""}
             </span>
           )}
           {unfrozenCountryCount > 0 && (
             <span style={{
-              background: "#ecfeff", color: "#0891b2", border: "1px solid #a5f3fc",
-              borderRadius: "10px", padding: "1px 7px", fontSize: "10px", fontWeight: "700",
+              background:   "#ecfeff",
+              color:        "#0891b2",
+              border:       "1px solid #a5f3fc",
+              borderRadius: "10px",
+              padding:      "1px 7px",
+              fontSize:     "10px",
+              fontWeight:   "700",
             }}>
               {unfrozenCountryCount} countr{unfrozenCountryCount !== 1 ? "ies" : "y"}
             </span>
           )}
           {hasVariants && (
             <span style={{
-              background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0",
-              borderRadius: "10px", padding: "1px 7px", fontSize: "10px", fontWeight: "700",
+              background:   "#f0fdf4",
+              color:        "#166534",
+              border:       "1px solid #bbf7d0",
+              borderRadius: "10px",
+              padding:      "1px 7px",
+              fontSize:     "10px",
+              fontWeight:   "700",
             }}>
               {variantCount} variant{variantCount !== 1 ? "s" : ""}
             </span>
@@ -1966,26 +2240,60 @@ function TemplateCard({
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className={styles.cardTitleRow}>
-                <h3 className={styles.cardTitle} style={isPastCycle ? { color: "#64748b" } : undefined}>
+                <h3
+                  className={styles.cardTitle}
+                  style={isPastCycle ? { color: "#64748b" } : undefined}
+                >
                   {template.name}
                 </h3>
                 <CycleStatusBadge status={effectiveStatus} />
+
+                {/*
+                  FIX: The variant badge is now a clickable button that opens the
+                  Manage Freeze modal. This gives a persistent entry-point to reach
+                  variant templates even when all branches are currently re-frozen
+                  (i.e. hasUnfreezeExceptions is false and the partial-unfreeze banner
+                  is not shown). Previously the only variant count indicator lived
+                  inside that banner, making variants unreachable after re-freezing.
+                */}
                 {hasVariants && !isPastCycle && (
-                  <span style={{
-                    display: "inline-flex", alignItems: "center", gap: "4px",
-                    padding: "2px 8px", borderRadius: "20px",
-                    fontSize: "10px", fontWeight: "700",
-                    background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe",
-                  }}>
-                    <GitBranch size={9} /> {variantCount} variant{variantCount !== 1 ? "s" : ""}
-                  </span>
+                  <button
+                    onClick={canManageFreezeThisCard ? onManageFreeze : undefined}
+                    title={
+                      canManageFreezeThisCard
+                        ? "Open Manage Freeze to view or edit variants"
+                        : `${variantCount} branch variant${variantCount !== 1 ? "s" : ""}`
+                    }
+                    style={{
+                      display:    "inline-flex",
+                      alignItems: "center",
+                      gap:        "4px",
+                      padding:    "2px 8px",
+                      borderRadius: "20px",
+                      fontSize:   "10px",
+                      fontWeight: "700",
+                      background: "#eff6ff",
+                      color:      "#1e40af",
+                      border:     "1px solid #bfdbfe",
+                      cursor:     canManageFreezeThisCard ? "pointer" : "default",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <GitBranch size={9} />
+                    {variantCount} variant{variantCount !== 1 ? "s" : ""}
+                  </button>
                 )}
               </div>
               <p className={styles.cardDescription}>
                 {template.description || "Standard organisational evaluation template."}
               </p>
               {!isHqAdmin && effectiveStatus === "open" && editableCount > 0 && (
-                <p style={{ fontSize: "11px", color: "#7c3aed", fontWeight: "600", marginTop: "4px" }}>
+                <p style={{
+                  fontSize:   "11px",
+                  color:      "#7c3aed",
+                  fontWeight: "600",
+                  marginTop:  "4px",
+                }}>
                   <Unlock size={10} style={{ display: "inline", marginRight: "3px" }} />
                   {editableCount} editable objective{editableCount !== 1 ? "s" : ""} accessible to you
                 </p>
@@ -2013,8 +2321,8 @@ function TemplateCard({
                 title={isPastCycle
                   ? "Duplicate into current cycle"
                   : !canCopyThisCard
-                    ? (getCopyDisabledReason() ?? undefined)
-                    : "Duplicate template"}
+                  ? (getCopyDisabledReason() ?? undefined)
+                  : "Duplicate template"}
               >
                 {isDuplicating
                   ? <Loader2 size={13} className={styles.spinner} />
@@ -2027,13 +2335,19 @@ function TemplateCard({
                 onClick={onManageFreeze}
                 title="Manage freeze exceptions for specific branches/countries"
                 style={{
-                  display: "inline-flex", alignItems: "center", gap: "5px",
-                  padding: "6px 12px", borderRadius: "6px",
+                  display:    "inline-flex",
+                  alignItems: "center",
+                  gap:        "5px",
+                  padding:    "6px 12px",
+                  borderRadius: "6px",
                   background:  hasUnfreezeExceptions ? "#fff7ed" : "#f0f5ff",
                   border:      `1px solid ${hasUnfreezeExceptions ? "#fed7aa" : "#c7d5f0"}`,
                   color:       hasUnfreezeExceptions ? "#ea580c" : "#1e3a8a",
-                  fontSize: "12px", fontWeight: "700", cursor: "pointer",
-                  transition: "all 0.15s", whiteSpace: "nowrap",
+                  fontSize:    "12px",
+                  fontWeight:  "700",
+                  cursor:      "pointer",
+                  transition:  "all 0.15s",
+                  whiteSpace:  "nowrap",
                 }}
               >
                 <ShieldCheck size={13} />
@@ -2125,8 +2439,10 @@ function TemplateCard({
                       </div>
                       <div className={styles.categoryDetailBar}>
                         <div style={{
-                          height: "100%", width: `${catWeight}%`,
-                          background: palette.fill, borderRadius: "3px",
+                          height:       "100%",
+                          width:        `${catWeight}%`,
+                          background:   palette.fill,
+                          borderRadius: "3px",
                         }} />
                       </div>
                       <div className={styles.categoryDetailStats}>
@@ -2146,9 +2462,13 @@ function TemplateCard({
         <span>{isAssignExpanded ? "Hide" : "Show"} Assignments</span>
         {!isAssignExpanded && totalRules > 0 && (
           <span style={{
-            marginLeft: "auto", fontSize: "11px", fontWeight: "600",
-            color: "#64748b", background: "#f1f5f9",
-            padding: "2px 8px", borderRadius: "10px",
+            marginLeft:   "auto",
+            fontSize:     "11px",
+            fontWeight:   "600",
+            color:        "#64748b",
+            background:   "#f1f5f9",
+            padding:      "2px 8px",
+            borderRadius: "10px",
           }}>
             {assignmentSummary}
           </span>
@@ -2176,10 +2496,16 @@ function TemplateCard({
                     <div className={styles.rolesDeptsChips}>
                       {scopeRules.map((rule, index) => (
                         <span key={index} style={{
-                          display: "inline-flex", alignItems: "center", gap: "4px",
-                          padding: "3px 10px", borderRadius: "20px",
-                          fontSize: "11px", fontWeight: "700",
-                          background: "#ecfeff", color: "#0891b2", border: "1px solid #a5f3fc",
+                          display:      "inline-flex",
+                          alignItems:   "center",
+                          gap:          "4px",
+                          padding:      "3px 10px",
+                          borderRadius: "20px",
+                          fontSize:     "11px",
+                          fontWeight:   "700",
+                          background:   "#ecfeff",
+                          color:        "#0891b2",
+                          border:       "1px solid #a5f3fc",
                         }}>
                           {SCOPE_LABELS[rule.scope!] ?? rule.scope}
                           {rule.country_id && (
@@ -2208,7 +2534,7 @@ function TemplateCard({
 
                 {/* Sub-department chips (deduplicated by name) */}
                 {(template.assignedSubDepartments?.length ?? 0) > 0 && (() => {
-                  const seen      = new Set<string>();
+                  const seen       = new Set<string>();
                   const uniqueSubs = (template.assignedSubDepartments ?? []).filter(sub => {
                     const key = sub.name.trim().toLowerCase();
                     if (seen.has(key)) return false;
@@ -2224,9 +2550,13 @@ function TemplateCard({
                       <div className={styles.rolesDeptsChips}>
                         {uniqueSubs.map(sub => (
                           <span key={sub.name} style={{
-                            padding: "3px 10px", borderRadius: "20px",
-                            fontSize: "11px", fontWeight: "700",
-                            background: "#ecfeff", color: "#0891b2", border: "1px solid #a5f3fc",
+                            padding:      "3px 10px",
+                            borderRadius: "20px",
+                            fontSize:     "11px",
+                            fontWeight:   "700",
+                            background:   "#ecfeff",
+                            color:        "#0891b2",
+                            border:       "1px solid #a5f3fc",
                           }}>
                             {sub.code ? `[${sub.code}] ` : ""}{sub.name}
                           </span>
@@ -2246,10 +2576,16 @@ function TemplateCard({
                     <div className={styles.rolesDeptsChips}>
                       {template.assignedCountries!.map(country => (
                         <span key={country.id} style={{
-                          display: "inline-flex", alignItems: "center", gap: "4px",
-                          padding: "3px 10px", borderRadius: "20px",
-                          fontSize: "11px", fontWeight: "700",
-                          background: "#ecfeff", color: "#0891b2", border: "1px solid #a5f3fc",
+                          display:      "inline-flex",
+                          alignItems:   "center",
+                          gap:          "4px",
+                          padding:      "3px 10px",
+                          borderRadius: "20px",
+                          fontSize:     "11px",
+                          fontWeight:   "700",
+                          background:   "#ecfeff",
+                          color:        "#0891b2",
+                          border:       "1px solid #a5f3fc",
                         }}>
                           {country.code ?? country.name}
                           {(template.unfrozenCountryIds ?? []).includes(country.id) && (
@@ -2277,14 +2613,21 @@ function TemplateCard({
                       </div>
                       <div className={styles.rolesDeptsChips}>
                         {[...grouped.values()].map(dept => (
-                          <span key={dept.name} className={styles.deptsChip} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          <span
+                            key={dept.name}
+                            className={styles.deptsChip}
+                            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                          >
                             {dept.code ? `[${dept.code}] ` : ""}
                             {dept.name}
                             {dept.branchCount > 0 && (
                               <span style={{
-                                fontSize: "10px", fontWeight: "700",
-                                background: "#ddd6fe", color: "#5b21b6",
-                                padding: "1px 6px", borderRadius: "10px",
+                                fontSize:     "10px",
+                                fontWeight:   "700",
+                                background:   "#ddd6fe",
+                                color:        "#5b21b6",
+                                padding:      "1px 6px",
+                                borderRadius: "10px",
                               }}>
                                 {dept.branchCount} branch{dept.branchCount !== 1 ? "es" : ""}
                               </span>
@@ -2309,12 +2652,16 @@ function TemplateCard({
                         const hasVariant = (template.variants ?? []).some(v => v.branch_id === branch.id);
                         return (
                           <span key={branch.id} style={{
-                            display: "inline-flex", alignItems: "center", gap: "4px",
-                            padding: "3px 10px", borderRadius: "20px",
-                            fontSize: "11px", fontWeight: "700",
-                            background: isUnfrozen ? "#f0fdf4" : "#f5f3ff",
-                            color:      isUnfrozen ? "#166534" : "#5b21b6",
-                            border:     `1px solid ${isUnfrozen ? "#bbf7d0" : "#ddd6fe"}`,
+                            display:      "inline-flex",
+                            alignItems:   "center",
+                            gap:          "4px",
+                            padding:      "3px 10px",
+                            borderRadius: "20px",
+                            fontSize:     "11px",
+                            fontWeight:   "700",
+                            background:   isUnfrozen ? "#f0fdf4" : "#f5f3ff",
+                            color:        isUnfrozen ? "#166534" : "#5b21b6",
+                            border:       `1px solid ${isUnfrozen ? "#bbf7d0" : "#ddd6fe"}`,
                           }}>
                             {branch.code ?? branch.name}
                             {isUnfrozen && <Unlock    size={9} color="#16a34a" />}
@@ -2346,22 +2693,22 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
   const router = useRouter();
 
   // ── Page-level state ──
-  const [templates,           setTemplates]           = useState<TemplateRecord[]>([]);
-  const [confirmDeleteId,     setConfirmDeleteId]      = useState<number | null>(null);
-  const [isLoading,           setIsLoading]            = useState(true);
-  const [expandedCardId,      setExpandedCardId]       = useState<number | null>(null);
-  const [expandedAssignId,    setExpandedAssignId]     = useState<number | null>(null);
-  const [isDuplicatingId,     setIsDuplicatingId]      = useState<number | null>(null);
-  const [activeCycle,         setActiveCycle]          = useState<any>(null);
-  const [showEditCycleModal,  setShowEditCycleModal]   = useState(false);
-  const [freezeModalTemplate, setFreezeModalTemplate]  = useState<TemplateRecord | null>(null);
-  const [filters,             setFilters]              = useState<FilterState>({
+  const [templates,           setTemplates]          = useState<TemplateRecord[]>([]);
+  const [confirmDeleteId,     setConfirmDeleteId]     = useState<number | null>(null);
+  const [isLoading,           setIsLoading]           = useState(true);
+  const [expandedCardId,      setExpandedCardId]      = useState<number | null>(null);
+  const [expandedAssignId,    setExpandedAssignId]    = useState<number | null>(null);
+  const [isDuplicatingId,     setIsDuplicatingId]     = useState<number | null>(null);
+  const [activeCycle,         setActiveCycle]         = useState<any>(null);
+  const [showEditCycleModal,  setShowEditCycleModal]  = useState(false);
+  const [freezeModalTemplate, setFreezeModalTemplate] = useState<TemplateRecord | null>(null);
+  const [filters,             setFilters]             = useState<FilterState>({
     search: "", designations: [], departments: [], branches: [], countries: [],
   });
 
   // ── Derived values ──
-  const freezeDates = useMemo(() => buildFreezeDates(activeCycle),            [activeCycle]);
-  const permissions = useMemo(() => computePermissions(level, freezeDates),  [level, freezeDates]);
+  const freezeDates = useMemo(() => buildFreezeDates(activeCycle),           [activeCycle]);
+  const permissions = useMemo(() => computePermissions(level, freezeDates), [level, freezeDates]);
   const rolePrefix  = getRolePrefix(level);
 
   const confirmDeleteTemplate = useMemo(
@@ -2382,10 +2729,10 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     const countrySet     = new Set<string>();
 
     templates.forEach(template => {
-      template.assignedDesignations?.forEach(d  => designationSet.add(d));
-      template.assignedDepartments?.forEach(d   => departmentSet.add(d.name));
-      template.assignedBranches?.forEach(b      => branchSet.add(b.name));
-      template.assignedCountries?.forEach(c     => {
+      template.assignedDesignations?.forEach(d => designationSet.add(d));
+      template.assignedDepartments?.forEach(d  => departmentSet.add(d.name));
+      template.assignedBranches?.forEach(b     => branchSet.add(b.name));
+      template.assignedCountries?.forEach(c    => {
         const label = c.name?.trim() || c.code?.trim();
         if (label) countrySet.add(label);
       });
@@ -2436,7 +2783,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
 
     if (filters.search.trim()) {
       const query = filters.search.toLowerCase().trim();
-      result = result.filter(t => t.name?.toLowerCase().includes(query));
+      result      = result.filter(t => t.name?.toLowerCase().includes(query));
     }
     if (filters.designations.length > 0) {
       result = result.filter(t =>
@@ -2590,7 +2937,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
 
   // ── Derived booleans ──
   const hasAnyFilter =
-    !!filters.search ||
+    !!filters.search              ||
     filters.designations.length > 0 ||
     filters.departments.length  > 0 ||
     filters.branches.length     > 0 ||
@@ -2610,14 +2957,18 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
             </div>
             <h3 className={styles.modalTitle}>Delete Template?</h3>
             {confirmDeleteTemplate?.is_past_cycle
-              ? <p className={styles.modalText}>
+              ? (
+                <p className={styles.modalText}>
                   This template belongs to a past PMS cycle and{" "}
                   <strong>cannot be deleted</strong>. Past-cycle templates are permanently
                   frozen for audit purposes.
                 </p>
-              : <p className={styles.modalText}>
+              )
+              : (
+                <p className={styles.modalText}>
                   This action cannot be undone. All assignments will also be removed.
-                </p>}
+                </p>
+              )}
             <div className={styles.modalActions}>
               <button
                 className={styles.modalCancelBtn}
@@ -2669,12 +3020,12 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
           </p>
           <p className={styles.pageSubtitle}>
             <span className={styles.rolePill}>{permissions.roleLabel}</span>
-            {permissions.freezeStatus === "open"   && (
+            {permissions.freezeStatus === "open" && (
               <span className={styles.subtitleNote}>
                 Objective window closes <strong>{formatDate(freezeDates.objectiveSettingEnd)}</strong>
               </span>
             )}
-            {permissions.freezeStatus === "grace"  && (
+            {permissions.freezeStatus === "grace" && (
               <span className={styles.subtitleNoteAmber}>
                 Grace period until <strong>{formatDate(freezeDates.graceEnd)}</strong>
               </span>
@@ -2748,11 +3099,19 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
             </p>
             {hasAnyFilter && (
               <button
-                onClick={() => setFilters({ search: "", designations: [], departments: [], branches: [], countries: [] })}
+                onClick={() => setFilters({
+                  search: "", designations: [], departments: [], branches: [], countries: [],
+                })}
                 style={{
-                  marginTop: "12px", padding: "8px 16px", borderRadius: "8px",
-                  border: "1.5px solid #e2e8f0", background: "#f8fafc",
-                  color: "#374151", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                  marginTop:    "12px",
+                  padding:      "8px 16px",
+                  borderRadius: "8px",
+                  border:       "1.5px solid #e2e8f0",
+                  background:   "#f8fafc",
+                  color:        "#374151",
+                  fontSize:     "13px",
+                  fontWeight:   600,
+                  cursor:       "pointer",
                 }}
               >
                 Clear all filters
@@ -2767,9 +3126,9 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
                 template={template}
                 level={level}
                 permissions={permissions}
-                isCategoryExpanded={expandedCardId   === template.id}
-                isAssignExpanded={expandedAssignId   === template.id}
-                isDuplicating={isDuplicatingId       === template.id}
+                isCategoryExpanded={expandedCardId  === template.id}
+                isAssignExpanded={expandedAssignId  === template.id}
+                isDuplicating={isDuplicatingId      === template.id}
                 onToggleCategoryExpand={() =>
                   setExpandedCardId(prev  => prev === template.id ? null : template.id)
                 }
