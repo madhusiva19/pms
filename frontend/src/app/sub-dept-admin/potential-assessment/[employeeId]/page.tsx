@@ -31,14 +31,18 @@ export default function SubDeptAdminReviewEmployeePage() {
 
   useEffect(() => { if (!authLoading && (!user || user.role !== 'sub_dept_admin')) router.push('/'); }, [user, authLoading, router]);
 
+  const loadData = async (activeCycle: AppraisalCycle) => {
+    const data = await potentialAssessmentApi.getForEmployee(employeeId, activeCycle.name, user!.id);
+    if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
+  };
+
   useEffect(() => {
     if (authLoading || !user || !employeeId) return;
     setLoading(true);
     appraisalCyclesApi.getActive().then(async (activeCycle) => {
       setCycle(activeCycle);
-      const data = await potentialAssessmentApi.getForEmployee(employeeId, activeCycle.name, user.id);
-      if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
-      const subs = await potentialAssessmentApi.getSubordinates(user.id, activeCycle.name);
+      await loadData(activeCycle);
+      const subs = await potentialAssessmentApi.getSubordinates(user.id, activeCycle.name, 'sub_dept_admin');
       const found = subs.find((s) => s.id === employeeId);
       if (found) setAppraisee(found);
     }).catch((err) => setError(err?.response?.data?.error ?? 'Failed to load.')).finally(() => setLoading(false));
@@ -67,7 +71,7 @@ export default function SubDeptAdminReviewEmployeePage() {
       {error && <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">{error}</div>}
       {(status === 'not_started' || status === 'pending_self') ? <div className="bg-[#FEF9C3] border border-[#FDE68A] rounded-xl px-5 py-4 text-[13.5px] text-[#92400E]">This employee has not yet submitted their self-assessment.</div>
       : status === 'completed' && assessment ? <CompletedSummary assessmentData={assessment} />
-      : assessment ? <SupervisorReviewForm assessmentId={assessment.id} supervisorId={user.id} supervisorRole="sub_dept_admin" currentStatus={status} assessmentData={assessment} onSubmitSuccess={(updated) => { setAssessment({ ...assessment, ...updated }); setStatus('completed'); }} />
+      : assessment ? <SupervisorReviewForm assessmentId={assessment.id} supervisorId={user.id} supervisorRole="sub_dept_admin" currentStatus={status} assessmentData={assessment} onSubmitSuccess={() => { if (cycle) loadData(cycle); }} />
       : <div className="text-[#94A3B8] text-[14px]">No assessment data available.</div>}
     </div>
   );
