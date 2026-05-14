@@ -4,7 +4,7 @@ Unit tests for calculations.py — potential assessment rating logic.
 Run with:  pytest
 """
 import pytest
-from calculations import calculate_pillar_rating, calculate_overall_potentiality
+from utils.calculations import calculate_pillar_rating, calculate_overall_potentiality
 
 
 class TestCalculatePillarRating:
@@ -72,7 +72,7 @@ class TestCalculateOverallPotentiality:
     def test_mml_returns_m(self):
         assert calculate_overall_potentiality('M', 'M', 'L') == 'M'
 
-    # ── Low Potentiality cases ───────────────────────────────────────────────
+    # ── Low Potentiality cases──
 
     def test_llm_returns_l(self):
         assert calculate_overall_potentiality('L', 'L', 'M') == 'L'
