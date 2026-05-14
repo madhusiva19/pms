@@ -39,18 +39,21 @@ export default function CountryAdminReviewPage() {
     if (!authLoading && (!user || user.role !== 'country_admin')) router.push('/');
   }, [user, authLoading, router]);
 
+  const loadData = async (activeCycle: AppraisalCycle) => {
+    const [data, subs] = await Promise.all([
+      potentialAssessmentApi.getForEmployee(branchAdminId, activeCycle.name, user!.id),
+      potentialAssessmentApi.getSubordinates(user!.id, activeCycle.name, user!.role),
+    ]);
+    if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
+    const found = subs.find((s) => s.id === branchAdminId);
+    if (found) setAppraisee(found);
+  };
+
   useEffect(() => {
     if (authLoading || !user || !branchAdminId) return;
     setLoading(true);
     appraisalCyclesApi.getActive()
-      .then(async (activeCycle) => {
-        setCycle(activeCycle);
-        const data = await potentialAssessmentApi.getForEmployee(branchAdminId, activeCycle.name, user.id);
-        if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
-        const subs = await potentialAssessmentApi.getSubordinates(user.id, activeCycle.name, user.role);
-        const found = subs.find((s) => s.id === branchAdminId);
-        if (found) setAppraisee(found);
-      })
+      .then(async (activeCycle) => { setCycle(activeCycle); await loadData(activeCycle); })
       .catch((err) => setError(err?.response?.data?.error ?? 'Failed to load.'))
       .finally(() => setLoading(false));
   }, [user, authLoading, branchAdminId]);
@@ -96,7 +99,7 @@ export default function CountryAdminReviewPage() {
       ) : assessment ? (
         <SupervisorReviewForm assessmentId={assessment.id} supervisorId={user.id} supervisorRole="country_admin"
           currentStatus={status} assessmentData={assessment}
-          onSubmitSuccess={(updated) => { setAssessment({ ...assessment, ...updated }); setStatus('completed'); }} />
+          onSubmitSuccess={() => { if (cycle) loadData(cycle); }} />
       ) : <div className="text-[#94A3B8] text-[14px]">No assessment data available.</div>}
     </div>
   );
