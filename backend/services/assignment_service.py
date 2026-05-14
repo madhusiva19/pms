@@ -20,10 +20,6 @@ def _build_rule_rows(template_id: int, rules: list) -> list:
     Convert frontend rules into clean rows for template_assignment_combinations.
     Each row represents one logical rule (scope or designation+dept combination).
 
-    IMPORTANT: Direct user assignments (rules with user_id) are intentionally
-    excluded here — they belong only in template_assignments, not in
-    template_assignment_combinations. This prevents direct users from appearing
-    as logical rules in the combinations table.
     """
     rows = []
     seen = set()
@@ -67,9 +63,6 @@ def _build_rule_rows(template_id: int, rules: list) -> list:
 
 def _resolve_matched_users(template_id: int, rules: list, all_users: list) -> list:
     """
-    Expand rules into matched user rows for template_assignments.
-    Returns rows where user_id is always populated.
-
     Handles three rule types:
       1. Direct user rules  (rule has user_id)         → stored directly
       2. Scope rules        (rule has scope key)        → matched by designation ± country
@@ -129,7 +122,7 @@ def _resolve_matched_users(template_id: int, rules: list, all_users: list) -> li
                 u_subdept_name = subdept_id_to_name.get(u_subdept_id)
                 if u_subdept_name != rule_subdept_name:
                     return False
-            # No sub_department_id on user → still include (sub_dept is best-effort)
+            # No sub_department_id on user - still include (sub_dept is best-effort)
 
         return True
 
