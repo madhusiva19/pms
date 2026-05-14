@@ -152,6 +152,7 @@ export default function Sidebar() {
             src="/Dart_Logo_new.png"
             alt="DGL PMS Logo"
             fill
+            sizes="139px"
             className="object-contain object-left"
             priority
           />
