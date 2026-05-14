@@ -31,17 +31,23 @@ export default function DeptAdminReviewPage() {
 
   useEffect(() => { if (!authLoading && (!user || user.role !== 'dept_admin')) router.push('/'); }, [user, authLoading, router]);
 
+  const loadData = async (activeCycle: AppraisalCycle) => {
+    const [data, subs] = await Promise.all([
+      potentialAssessmentApi.getForEmployee(subDeptAdminId, activeCycle.name, user!.id),
+      potentialAssessmentApi.getSubordinates(user!.id, activeCycle.name, user!.role),
+    ]);
+    if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
+    const found = subs.find((s) => s.id === subDeptAdminId);
+    if (found) setAppraisee(found);
+  };
+
   useEffect(() => {
     if (authLoading || !user || !subDeptAdminId) return;
     setLoading(true);
-    appraisalCyclesApi.getActive().then(async (activeCycle) => {
-      setCycle(activeCycle);
-      const data = await potentialAssessmentApi.getForEmployee(subDeptAdminId, activeCycle.name, user.id);
-      if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
-      const subs = await potentialAssessmentApi.getSubordinates(user.id, activeCycle.name, user.role);
-      const found = subs.find((s) => s.id === subDeptAdminId);
-      if (found) setAppraisee(found);
-    }).catch((err) => setError(err?.response?.data?.error ?? 'Failed to load.')).finally(() => setLoading(false));
+    appraisalCyclesApi.getActive()
+      .then(async (activeCycle) => { setCycle(activeCycle); await loadData(activeCycle); })
+      .catch((err) => setError(err?.response?.data?.error ?? 'Failed to load.'))
+      .finally(() => setLoading(false));
   }, [user, authLoading, subDeptAdminId]);
 
   if (authLoading || loading) return <LoadingSpinner />;
@@ -63,7 +69,7 @@ export default function DeptAdminReviewPage() {
       {error && <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">{error}</div>}
       {(status === 'not_started' || status === 'pending_self') ? <div className="bg-[#FEF9C3] border border-[#FDE68A] rounded-xl px-5 py-4 text-[13.5px] text-[#92400E]">This Sub Dept Admin has not yet submitted their self-assessment.</div>
       : status === 'completed' && assessment ? <CompletedSummary assessmentData={assessment} />
-      : assessment ? <SupervisorReviewForm assessmentId={assessment.id} supervisorId={user.id} supervisorRole="dept_admin" currentStatus={status} assessmentData={assessment} onSubmitSuccess={(updated) => { setAssessment({ ...assessment, ...updated }); setStatus('completed'); }} />
+      : assessment ? <SupervisorReviewForm assessmentId={assessment.id} supervisorId={user.id} supervisorRole="dept_admin" currentStatus={status} assessmentData={assessment} onSubmitSuccess={() => { if (cycle) loadData(cycle); }} />
       : <div className="text-[#94A3B8] text-[14px]">No assessment data available.</div>}
     </div>
   );
