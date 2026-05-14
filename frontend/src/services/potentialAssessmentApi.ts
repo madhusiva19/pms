@@ -34,11 +34,16 @@ paClient.interceptors.response.use(
 
 // ── Active Cycle ──────────────────────────────────────────────────────────────
 
+let _activeCycleCache: AppraisalCycle | null = null;
+
 export const appraisalCyclesApi = {
   getActive: async (): Promise<AppraisalCycle> => {
+    if (_activeCycleCache) return _activeCycleCache;
     const res = await paClient.get('/appraisal-cycles/active');
-    return res.data.data;
+    _activeCycleCache = res.data.data;
+    return _activeCycleCache!;
   },
+  clearCache: () => { _activeCycleCache = null; },
 };
 
 // ── Self Assessment ───────────────────────────────────────────────────────────
