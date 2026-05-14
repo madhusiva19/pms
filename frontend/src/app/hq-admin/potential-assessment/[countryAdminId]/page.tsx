@@ -39,22 +39,21 @@ export default function HQAdminReviewPage() {
     if (!authLoading && (!user || user.role !== 'hq_admin')) router.push('/');
   }, [user, authLoading, router]);
 
+  const loadData = async (activeCycle: AppraisalCycle) => {
+    const [data, subs] = await Promise.all([
+      potentialAssessmentApi.getForEmployee(countryAdminId, activeCycle.name, user!.id),
+      potentialAssessmentApi.getSubordinates(user!.id, activeCycle.name, user!.role),
+    ]);
+    if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
+    const found = subs.find((s) => s.id === countryAdminId);
+    if (found) setAppraisee(found);
+  };
+
   useEffect(() => {
     if (authLoading || !user || !countryAdminId) return;
     setLoading(true);
     appraisalCyclesApi.getActive()
-      .then(async (activeCycle) => {
-        setCycle(activeCycle);
-        const data = await potentialAssessmentApi.getForEmployee(countryAdminId, activeCycle.name, user.id);
-        if ('id' in data) {
-          setAssessment(data as any);
-          setStatus((data as any).status);
-        }
-        // Fetch appraisee name
-        const subs = await potentialAssessmentApi.getSubordinates(user.id, activeCycle.name, user.role);
-        const found = subs.find((s) => s.id === countryAdminId);
-        if (found) setAppraisee(found);
-      })
+      .then(async (activeCycle) => { setCycle(activeCycle); await loadData(activeCycle); })
       .catch((err) => setError(err?.response?.data?.error ?? 'Failed to load assessment.'))
       .finally(() => setLoading(false));
   }, [user, authLoading, countryAdminId]);
@@ -112,7 +111,7 @@ export default function HQAdminReviewPage() {
           supervisorRole="hq_admin"
           currentStatus={status}
           assessmentData={assessment}
-          onSubmitSuccess={(updated) => { setAssessment({ ...assessment, ...updated }); setStatus('completed'); }}
+          onSubmitSuccess={() => { if (cycle) loadData(cycle); }}
         />
       ) : (
         <div className="text-[#94A3B8] text-[14px]">No assessment data available.</div>
