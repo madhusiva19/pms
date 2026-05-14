@@ -3,15 +3,6 @@
 /**
  * SelfAssessmentForm — Reusable component
  * Used by: Country Admin, Branch Admin, Dept Admin, Sub Dept Admin, Employee
- * 
- * Props:
- *   employeeId     — UUID of the appraisee
- *   supervisorId   — UUID of the assigned supervisor (resolved by caller)
- *   role           — appraisee's role string
- *   cycle          — active appraisal cycle name e.g. "2024-25"
- *   currentStatus  — assessment status from parent (after API fetch)
- *   assessmentData — full assessment record if it exists
- *   onSubmitSuccess — callback after successful self-submission
  */
 
 import React, { useState, useEffect } from 'react';
@@ -40,7 +31,6 @@ interface SelfAssessmentFormProps {
 
 type RatingMap = Record<PillarKey, Record<number, RatingValue | ''>>;
 type ExampleMap = Record<PillarKey, Record<number, string>>;
-
 
 const RATING_OPTIONS: RatingValue[] = ['H', 'M', 'L'];
 
@@ -166,19 +156,22 @@ export default function SelfAssessmentForm({
           </span>
         </div>
       )}
-
-      {/* Tab switcher */}
+         {/* tab Switcher */}
       <div className="flex gap-1 p-1 bg-[#F3F4F6] rounded-lg w-fit">
         {pillars.map((pillar) => {
           const filled = [1, 2, 3].filter((c) => ratings[pillar.key][c] !== '').length;
           return (
+            // BUTTON — Pillar tab (Ability / Aspiration / Leadership)
+           
             <button
+              type="button"
               key={pillar.key}
               onClick={() => setActiveTab(pillar.key)}
-              className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${activeTab === pillar.key
-                  ? 'bg-white text-[#1E3A8A] shadow-sm'
+              className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${
+                activeTab === pillar.key
+                  ? 'bg-[#1D4ED8] text-white shadow-sm'
                   : 'text-[#64748B] hover:text-[#1E293B]'
-                }`}
+              }`}
             >
               {pillar.label}
               {!isReadOnly && (
@@ -196,7 +189,7 @@ export default function SelfAssessmentForm({
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-[#F8FAFC] border-b border-[#E5E7EB]">
-              <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-8"></th>
+              <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-8">#</th>
               <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Component</th>
               <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-44">Your Rating (H/M/L)</th>
               <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Incident / Example</th>
@@ -222,17 +215,22 @@ export default function SelfAssessmentForm({
                       )
                     ) : (
                       <div className="flex gap-1">
+                        {/* BUTTONS — H / M / L rating toggles (one set per component row)
+                            Selected:   ratingBadgeStyles[opt]  green bg for H / yellow for M / red for L
+                            Unselected: bg-white text-[#64748B] border-[#E5E7EB] hover:bg-[#F8FAFC] */}
                         {RATING_OPTIONS.map((opt) => (
                           <button
+                            type="button"
                             key={opt}
                             onClick={() => setRatings((prev) => ({
                               ...prev,
                               [activePillar.key]: { ...prev[activePillar.key], [c]: opt },
                             }))}
-                            className={`w-9 h-9 rounded-lg text-[13px] font-semibold border transition-all ${rating === opt
+                            className={`w-9 h-9 rounded-lg text-[13px] font-semibold border transition-all ${
+                              rating === opt
                                 ? ratingBadgeStyles[opt] + ' border-2'
                                 : 'bg-white text-[#64748B] border-[#E5E7EB] hover:bg-[#F8FAFC]'
-                              }`}
+                            }`}
                           >
                             {opt}
                           </button>
@@ -265,12 +263,15 @@ export default function SelfAssessmentForm({
         </table>
       </div>
 
-      {/* Tab navigation helpers */}
+      {/* Tab navigation + submit row */}
       {!isReadOnly && (
         <div className="flex items-center justify-between">
           <div className="flex gap-2">
             {activeTab !== 'ability' && (
+              // BUTTON — "← Previous" tab navigation
+              // Color: text-[#64748B] border-[#E5E7EB]  hover: bg-[#F8FAFC]
               <button
+                type="button"
                 onClick={() => {
                   const idx = PILLAR_KEYS.indexOf(activeTab);
                   setActiveTab(PILLAR_KEYS[idx - 1]);
@@ -281,7 +282,10 @@ export default function SelfAssessmentForm({
               </button>
             )}
             {activeTab !== 'leadership' && (
+              // BUTTON — "Next →" tab navigation
+              // Color: text-[#3B82F6] border-[#BEDBFF]  hover: bg-[#EFF6FF]
               <button
+                type="button"
                 onClick={() => {
                   const idx = PILLAR_KEYS.indexOf(activeTab);
                   setActiveTab(PILLAR_KEYS[idx + 1]);
@@ -292,13 +296,16 @@ export default function SelfAssessmentForm({
               </button>
             )}
           </div>
+
           <button
+            type="button"
             disabled={!allFilled}
             onClick={() => setShowModal(true)}
-            className={`px-6 py-2.5 rounded-lg text-[13.5px] font-semibold text-white transition-all ${allFilled
+            className={`px-6 py-2.5 rounded-lg text-[13.5px] font-semibold text-white transition-all ${
+              allFilled
                 ? 'bg-[#1E3A8A] hover:bg-[#1E40AF] active:scale-[0.98]'
                 : 'bg-[#CBD5E1] cursor-not-allowed'
-              }`}
+            }`}
           >
             Submit Self-Assessment
           </button>
@@ -311,7 +318,11 @@ export default function SelfAssessmentForm({
         </p>
       )}
 
-      {/* Confirmation Modal */}
+      {/* ============================================================
+          CONFIRMATION MODAL
+          Overlay
+          Modal card
+          ============================================================ */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 flex flex-col gap-5">
@@ -332,14 +343,21 @@ export default function SelfAssessmentForm({
               </div>
             )}
             <div className="flex gap-3 justify-end">
+              {/* BUTTON — "Cancel" (modal dismiss)
+                  Color: text-[#374151] border-[#E5E7EB]  hover: bg-[#F8FAFC] */}
               <button
+                type="button"
                 disabled={submitting}
                 onClick={() => { setShowModal(false); setSubmitError(null); }}
                 className="px-4 py-2 text-[13.5px] font-medium text-[#374151] border border-[#E5E7EB] rounded-lg hover:bg-[#F8FAFC] transition-colors"
               >
                 Cancel
               </button>
+              {/* BUTTON — "Yes, Submit" (modal confirm / final submission)
+                  Color: bg-[#1E3A8A] hover:bg-[#1E40AF]  (dark blue)
+                  Disabled state opacity: disabled:opacity-70 */}
               <button
+                type="button"
                 disabled={submitting}
                 onClick={handleSubmit}
                 className="flex items-center gap-2 px-4 py-2 bg-[#1E3A8A] text-white text-[13.5px] font-semibold rounded-lg hover:bg-[#1E40AF] transition-colors disabled:opacity-70"
