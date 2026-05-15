@@ -1,0 +1,507 @@
+"""
+routes/templates.py
+--------------------
+Flask Blueprint for all template-related endpoints.
+
+Endpoints
+---------
+GET  /api/templates                              List all templates
+GET  /api/templates/<id>                         Single template with categories + objectives
+PUT  /api/templates/<id>/update                  Save edits (weights, new objectives)
+DEL  /api/templates/<id>/objectives/<obj_id>     Delete a single objective
+POST /api/templates/<id>/assign                  Set the employee assignment list
+GET  /api/templates/<id>/assignments             List employees assigned to a template
+GET  /api/employees                              Search employees by name (scoped to manager)
+GET  /api/employees/<user_id>/assignment         Get a single employee's current template
+GET  /api/kpi-scales                             Full KPI scale catalogue
+"""
+
+import traceback
+
+from flask import Blueprint, jsonify, request
+
+from utils.db import LOCKED_ADMIN_UUID, supabase
+
+templates_bp = Blueprint("templates", __name__)
+
+
+# ---------------------------------------------------------------------------
+# Template listing and detail
+# ---------------------------------------------------------------------------
+
+@templates_bp.route("/api/templates", methods=["GET"])
+def get_templates():
+    """Return all templates (id, name, description, status, created_by)."""
+    try:
+        result = supabase.table("templates").select("*").execute()
+        return jsonify(result.data)
+
+    except Exception as exc:
+        print(f"[ERROR] get_templates: {exc}")
+        return jsonify({"error": str(exc)}), 500
+
+
+@templates_bp.route("/api/templates/<int:template_id>", methods=["GET"])
+def get_template(template_id: int):
+    """
+    Return a single template with its categories and objectives.
+
+    Tries to include `kpi_scale` on objectives; falls back gracefully
+    if that column does not exist yet in the DB schema.
+    """
+    try:
+        tmpl_res = (
+            supabase.table("templates")
+            .select("*")
+            .eq("id", template_id)
+            .execute()
+        )
+
+        if not tmpl_res.data:
+            return jsonify({"error": "Template not found"}), 404
+
+        template = tmpl_res.data[0]
+
+        cat_res = (
+            supabase.table("categories")
+            .select("*")
+            .eq("template_id", template_id)
+            .order("id")
+            .execute()
+        )
+        categories = cat_res.data or []
+        cat_ids    = [c["id"] for c in categories]
+
+        all_objectives: list[dict] = []
+        if cat_ids:
+            try:
+                obj_res = (
+                    supabase.table("objectives")
+                    .select("id, name, weight, max_score, control_type, category_id, kpi_scale")
+                    .in_("category_id", cat_ids)
+                    .execute()
+                )
+            except Exception:
+                # Fallback for schemas without kpi_scale column
+                obj_res = (
+                    supabase.table("objectives")
+                    .select("id, name, weight, max_score, control_type, category_id")
+                    .in_("category_id", cat_ids)
+                    .execute()
+                )
+            all_objectives = obj_res.data or []
+
+        for cat in categories:
+            cat["objectives"] = [
+                o for o in all_objectives if o["category_id"] == cat["id"]
+            ]
+
+        template["categories"] = categories
+        return jsonify(template)
+
+    except Exception as exc:
+        return jsonify({"error": str(exc), "detail": traceback.format_exc()}), 500
+
+
+# ---------------------------------------------------------------------------
+# Template editing
+# ---------------------------------------------------------------------------
+
+@templates_bp.route("/api/templates/<int:template_id>/update", methods=["PUT"])
+def update_template(template_id: int):
+    """
+    Persist template edits.
+
+    New objectives (isNew: true) are inserted.
+    Existing objectives only have their weight updated — names and
+    control types are intentionally locked to prevent accidental changes.
+    """
+    try:
+        body = request.get_json()
+
+        if not body or "categories" not in body:
+            return jsonify({"error": "Invalid payload — 'categories' key required"}), 400
+
+        for cat in body["categories"]:
+            for obj in cat.get("objectives", []):
+                if obj.get("isNew"):
+                    supabase.table("objectives").insert({
+                        "name":         obj["name"],
+                        "weight":       obj["weight"],
+                        "max_score":    obj.get("max_score", 5),
+                        "control_type": obj["control_type"],
+                        "category_id":  obj["category_id"],
+                        "kpi_scale":    obj.get("kpi_scale"),
+                    }).execute()
+                else:
+                    supabase.table("objectives").update(
+                        {"weight": obj["weight"]}
+                    ).eq("id", obj["id"]).execute()
+
+        return jsonify({"success": True})
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@templates_bp.route(
+    "/api/templates/<int:template_id>/objectives/<int:obj_id>",
+    methods=["DELETE"],
+)
+def delete_objective(template_id: int, obj_id: int):
+    """Hard-delete a single objective row."""
+    try:
+        supabase.table("objectives").delete().eq("id", obj_id).execute()
+        return jsonify({"success": True})
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Employee assignment
+# ---------------------------------------------------------------------------
+
+@templates_bp.route("/api/templates/<int:template_id>/assign", methods=["POST"])
+def assign_employees(template_id: int):
+    """
+    Replace the full assignment list for a template.
+
+    Rules
+    -----
+    - LOCKED_ADMIN_UUID can never be reassigned from this endpoint.
+    - Employees already on another template are automatically moved here.
+    - The list must contain at least one id.
+    """
+    try:
+        body = request.get_json()
+
+        if not body:
+            return jsonify({"error": "Invalid payload"}), 400
+
+        requested_ids = [str(uid) for uid in body.get("employee_ids", [])]
+
+        if LOCKED_ADMIN_UUID in requested_ids:
+            return jsonify({
+                "error": (
+                    "This user is assigned to a template by their superior "
+                    "and cannot be reassigned from this page."
+                ),
+                "locked_employee_id": LOCKED_ADMIN_UUID,
+            }), 403
+
+        if not requested_ids:
+            return jsonify({
+                "error": (
+                    "employee_ids cannot be empty. "
+                    "Pass at least one employee ID to assign."
+                )
+            }), 400
+
+        # Remove these employees from any other template first
+        (
+            supabase.table("template_assignments")
+            .delete()
+            .in_("user_id", requested_ids)
+            .neq("template_id", template_id)
+            .execute()
+        )
+
+        # Clear existing assignments for THIS template (preserve locked admin)
+        (
+            supabase.table("template_assignments")
+            .delete()
+            .eq("template_id", template_id)
+            .neq("user_id", LOCKED_ADMIN_UUID)
+            .execute()
+        )
+
+        rows = [
+            {"template_id": template_id, "user_id": uid}
+            for uid in requested_ids
+        ]
+        supabase.table("template_assignments").insert(rows).execute()
+
+        return jsonify({
+            "success":  True,
+            "assigned": len(requested_ids),
+            "message": (
+                f"{len(requested_ids)} employee(s) assigned to template {template_id}. "
+                "Any prior assignments on other templates were automatically removed."
+            ),
+        })
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@templates_bp.route("/api/templates/<int:template_id>/assignments", methods=["GET"])
+def get_assignments(template_id: int):
+    """
+    List employees assigned to a template.
+
+    When a ``manager_id`` query param is supplied the list is filtered to
+    only that manager's direct reports.  This is the fix for the bug where
+    all globally assigned employees were shown instead of just the current
+    manager's team members.
+
+    Both TemplateManagement.tsx (card count) and ViewTemplate.tsx (assigned
+    list panel) pass manager_id, so both views are now correctly scoped.
+    """
+    try:
+        manager_id = request.args.get("manager_id", "").strip()
+
+        # Fetch all assignments for this template
+        result = (
+            supabase.table("template_assignments")
+            .select("user_id, users(id, full_name, designation_id, designations(name))")
+            .eq("template_id", template_id)
+            .execute()
+        )
+
+        # When manager_id is provided, resolve their direct reports and
+        # use that set to filter the assignment list
+        if manager_id:
+            team_res = (
+                supabase.table("users")
+                .select("id")
+                .eq("manager_id", manager_id)
+                .execute()
+            )
+            team_ids: set[str] | None = {u["id"] for u in (team_res.data or [])}
+        else:
+            # No manager filter — return all assigned employees (admin use)
+            team_ids = None
+
+        employees = []
+        for row in result.data:
+            user = row.get("users")
+            if not user:
+                continue
+            # Skip employees who are not in this manager's team
+            if team_ids is not None and user["id"] not in team_ids:
+                continue
+            employees.append({
+                "id":          user["id"],
+                "name":        user["full_name"],
+                "designation": (user.get("designations") or {}).get("name", ""),
+            })
+
+        return jsonify(employees)
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Employee search
+# ---------------------------------------------------------------------------
+
+@templates_bp.route("/api/employees", methods=["GET"])
+def search_employees():
+    """
+    Full-text search for employees by name (case-insensitive ILIKE).
+
+    The ``manager_id`` query param scopes results to only that manager's
+    direct reports.  This fixes the original bug where the search always
+    used LOCKED_ADMIN_UUID as the manager filter, returning the wrong set
+    of employees for every other manager in the system.
+
+    Returns up to 10 results, each enriched with their current template
+    assignment so the UI can warn about conflicts before reassigning.
+    """
+    query      = request.args.get("search",     "").strip()
+    manager_id = request.args.get("manager_id", "").strip()
+
+    if not query:
+        return jsonify([])
+
+    try:
+        user_query = (
+            supabase.table("users")
+            .select("id, full_name, designation_id, designations(name)")
+            .ilike("full_name", f"%{query}%")
+            .limit(10)
+        )
+
+        # Scope search results to this manager's direct reports only
+        if manager_id:
+            user_query = user_query.eq("manager_id", manager_id)
+
+        user_res = user_query.execute()
+        users    = user_res.data or []
+
+        if not users:
+            return jsonify([])
+
+        # Enrich each result with their current template assignment
+        user_ids   = [u["id"] for u in users]
+        assign_res = (
+            supabase.table("template_assignments")
+            .select("user_id, template_id, templates(id, name)")
+            .in_("user_id", user_ids)
+            .execute()
+        )
+
+        assign_by_user: dict = {}
+        for row in assign_res.data or []:
+            assign_by_user[row["user_id"]] = {
+                "template_id":   row["template_id"],
+                "template_name": (
+                    row["templates"]["name"] if row.get("templates") else None
+                ),
+            }
+
+        result = []
+        for user in users:
+            assignment = assign_by_user.get(user["id"])
+            result.append({
+                "id":                    user["id"],
+                "name":                  user["full_name"],
+                "designation":           (user.get("designations") or {}).get("name", ""),
+                "current_template_id":   assignment["template_id"]   if assignment else None,
+                "current_template_name": assignment["template_name"] if assignment else None,
+            })
+
+        return jsonify(result)
+
+    except Exception as exc:
+        print(f"[ERROR] search_employees: {exc}")
+        return jsonify({"error": str(exc)}), 500
+
+
+@templates_bp.route("/api/employees/<user_id>/assignment", methods=["GET"])
+def get_employee_assignment(user_id: str):
+    """Return the current template assignment for a single employee."""
+    try:
+        result = (
+            supabase.table("template_assignments")
+            .select("template_id, templates(id, name)")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+
+        if result.data:
+            row = result.data[0]
+            return jsonify({
+                "assigned":      True,
+                "template_id":   row["template_id"],
+                "template_name": (
+                    row["templates"]["name"] if row.get("templates") else None
+                ),
+            })
+
+        return jsonify({"assigned": False, "template_id": None, "template_name": None})
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# KPI scale catalogue
+# ---------------------------------------------------------------------------
+
+@templates_bp.route("/api/kpi-scales", methods=["GET"])
+def get_kpi_scales():
+    """
+    Return the full KPI scale catalogue with metadata sourced from the DB.
+
+    Each entry contains the scale key, human-readable label, group name,
+    and technical parameters (scale_type, input_type, ll, ul, inverse).
+    """
+    try:
+        SCALE_META: dict[str, tuple[str, str]] = {
+            "financial_achievement": ("Financial Achievement",        "Interpolated"),
+            "to_gp_contribution":    ("T/O & GP Contribution",        "Interpolated"),
+            "effective_sales_ratio": ("Effective Sales Ratio",        "Interpolated"),
+            "individual_gp_margin":  ("Individual GP Margin %",       "Interpolated"),
+            "ees_360":               ("EES / 360 Degree Feedback",    "Interpolated"),
+            "nps_ccr":               ("NPS / CCR Score",              "Interpolated"),
+            "employee_retention":    ("Employee Retention",           "Interpolated"),
+            "overall_dpam":          ("Overall DPAM Score",           "Interpolated"),
+            "statutory_legal_dpam":  ("Statutory & Legal Compliance", "Bracket"),
+            "wip_score":             ("WIP Score (Days)",              "Bracket"),
+            "operations_score":      ("Operations Score / DPAM Ops",  "Bracket"),
+            "individual_sales_gp":   ("Individual Sales GP",          "Bracket"),
+            "manual":                ("Manual Rating (1-5)",           "Manual"),
+        }
+        SORT_ORDER = list(SCALE_META.keys())
+
+        obj_rows = (
+            supabase.table("objectives")
+            .select("id, kpi_scale")
+            .not_.is_("kpi_scale", "null")
+            .execute()
+            .data
+            or []
+        )
+
+        scale_to_obj_ids: dict[str, list] = {}
+        for obj in obj_rows:
+            sk = obj.get("kpi_scale")
+            if sk:
+                scale_to_obj_ids.setdefault(sk, []).append(obj["id"])
+
+        all_obj_ids = [oid for ids in scale_to_obj_ids.values() for oid in ids]
+        mapping_rows: list[dict] = []
+
+        if all_obj_ids:
+            mapping_rows = (
+                supabase.table("kpi_scale_mappings")
+                .select("objective_id, scale_type, input_type, ll, ul, inverse")
+                .in_("objective_id", all_obj_ids)
+                .execute()
+                .data
+                or []
+            )
+
+        mapping_by_obj: dict = {m["objective_id"]: m for m in mapping_rows}
+        seen: set[str]       = set()
+        catalogue: list[dict] = []
+
+        for scale_key, obj_ids in scale_to_obj_ids.items():
+            if scale_key in seen:
+                continue
+            seen.add(scale_key)
+
+            mapping = next(
+                (mapping_by_obj[oid] for oid in obj_ids if oid in mapping_by_obj),
+                {},
+            )
+
+            label, group_name = SCALE_META.get(scale_key, (scale_key, "Other"))
+            catalogue.append({
+                "scale_key":  scale_key,
+                "label":      label,
+                "group_name": group_name,
+                "scale_type": mapping.get("scale_type"),
+                "input_type": mapping.get("input_type"),
+                "ll":         mapping.get("ll"),
+                "ul":         mapping.get("ul"),
+                "inverse":    mapping.get("inverse", False),
+                "sort_order": (
+                    SORT_ORDER.index(scale_key) if scale_key in SORT_ORDER else 99
+                ),
+            })
+
+        # Add any scale keys defined in metadata but not yet used in objectives
+        for scale_key, (label, group_name) in SCALE_META.items():
+            if scale_key not in seen:
+                catalogue.append({
+                    "scale_key":  scale_key,
+                    "label":      label,
+                    "group_name": group_name,
+                    "scale_type": None,
+                    "input_type": None,
+                    "ll":         None,
+                    "ul":         None,
+                    "inverse":    False,
+                    "sort_order": SORT_ORDER.index(scale_key),
+                })
+
+        catalogue.sort(key=lambda x: x["sort_order"])
+        return jsonify(catalogue)
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
