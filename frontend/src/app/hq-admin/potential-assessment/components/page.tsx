@@ -1,5 +1,7 @@
 'use client';
 
+  {/* HQ admin assesment component page*/}
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -206,8 +208,8 @@ export default function HQAdminAssessmentComponentsPage() {
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: 'Total Components',   count: components.length,                                    pillCls: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]' },
-          { label: 'Global (All Roles)', count: components.filter(c => c.scope === 'global').length,  pillCls: 'bg-[#F0FDF4] text-[#16A34A] border-[#BBF7D0]' },
-          { label: 'Role-Specific',      count: components.filter(c => c.scope === 'role').length,    pillCls: 'bg-[#FFF7ED] text-[#C2410C] border-[#FED7AA]' },
+          { label: 'Global (All Roles)', count: components.filter(c => c.scope === 'global').length,  pillCls: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]' },
+          { label: 'Role-Specific',      count: components.filter(c => c.scope === 'role').length,    pillCls: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]' },
         ].map(({ label, count, pillCls }) => (
           <div key={label} className="bg-white rounded-xl border border-[#E5E7EB] border-l-4 border-l-[#1E3A8A] px-5 py-4 flex flex-col gap-3">
             <span className={`inline-flex w-fit items-center px-2.5 py-1 rounded-full text-[12px] font-semibold border ${pillCls}`}>
