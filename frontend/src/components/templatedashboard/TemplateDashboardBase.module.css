@@ -107,19 +107,30 @@
 .headerActions     { display: flex; align-items: center; gap: var(--tdb-space-md); flex-shrink: 0; }
 
 .createBtn {
-  padding: 10px 20px;
-  border-radius: var(--tdb-radius-md);
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  padding: 12px 28px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #6366f1, #06b6d4);
   color: #fff;
-  font-weight: 700;
-  font-size: 13px;
+  font-weight: 600;
+  font-size: 14px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(59,130,246,0.3);
-  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+  transition: background 0.3s, box-shadow 0.2s, transform 0.15s;
   white-space: nowrap;
 }
-.createBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(59,130,246,0.4); }
+
+.createBtn:hover {
+  background: linear-gradient(135deg, #4f46e5, #0891b2);
+  box-shadow: 0 6px 20px rgba(79,70,229,0.45);
+  transform: translateY(-1px);
+}
+
+.createBtn:active {
+  background: linear-gradient(135deg, #4338ca, #0e7490);
+  transform: translateY(0px);
+  box-shadow: 0 2px 8px rgba(67,56,202,0.35);
+}
 
 /* ─── Status Pills ────────────────────────────────────────────────────────── */
 .statusPill         { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 20px; font-size: 11px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }

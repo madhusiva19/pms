@@ -5,14 +5,6 @@
  * Handles template listing, filtering, freeze management,
  * PMS cycle display, and role-based access control.
  *
- * Fix — Variant visibility after re-freeze:
- *  1. ManageFreezeModal frozen items section now shows an "Edit Variant" button
- *     for any frozen branch/country that already has a content variant, so the
- *     variant remains reachable even when the item is fully re-frozen.
- *  2. The variant-count badge in TemplateCard's header is now a clickable button
- *     that opens the Manage Freeze modal, providing a persistent entry-point
- *     regardless of the current freeze/unfreeze state.
- *
  * @module TemplateDashboardBase
  */
 
@@ -27,6 +19,7 @@ import {
   Users, Building2, BarChart3, TrendingUp, GitBranch,
   Settings, X, AlertTriangle, Globe, History,
   SlidersHorizontal, Flag, Star, ShieldCheck, Plus,
+  CalendarDays,
 } from "lucide-react";
 import { toast }                  from "sonner";
 import styles                     from "./TemplateDashboardBase.module.css";
@@ -175,6 +168,8 @@ interface TemplateRecord {
   lastModified?:             string;
   created_at?:               string;
   pms_cycle_id?:             number | null;
+  /** PMS year label, e.g. "2024/2025". Populated by the API or derived client-side. */
+  pms_year?:                 string | null;
   freeze_status?:            FreezeStatus;
   is_past_cycle?:            boolean;
   assignedDesignations?:     string[];
@@ -213,6 +208,8 @@ interface FilterState {
   departments:  string[];
   branches:     string[];
   countries:    string[];
+  /** PMS year labels selected for filtering, e.g. ["2024/2025"]. */
+  years:        string[];
 }
 
 // ─── Pure Utility Functions ───────────────────────────────────────────────────
@@ -320,6 +317,37 @@ function toInputDate(iso: string | null | undefined): string {
   }
 }
 
+/**
+ * Derives a human-readable PMS year label (e.g. "2024/2025") for a template.
+ * Prefers template.pms_year if set, then falls back to matching pms_cycle_id
+ * against the allCycles list, then falls back to the active cycle year.
+ */
+function resolvePmsYearLabel(
+  template:    TemplateRecord,
+  allCycles:   any[],
+  activeCycle: any,
+): string {
+  if (template.pms_year) return template.pms_year;
+
+  if (template.pms_cycle_id) {
+    const matched = allCycles.find(c => c.id === template.pms_cycle_id);
+    if (matched?.pms_year) return String(matched.pms_year);
+    if (matched?.pms_start) {
+      const startYear = new Date(matched.pms_start).getFullYear();
+      return `${startYear}/${startYear + 1}`;
+    }
+  }
+
+  // Fallback: use the active cycle year
+  if (activeCycle?.pms_year) return String(activeCycle.pms_year);
+  if (activeCycle?.pms_start) {
+    const startYear = new Date(activeCycle.pms_start).getFullYear();
+    return `${startYear}/${startYear + 1}`;
+  }
+
+  return "Unknown";
+}
+
 // ─── ManageFreezeModal ────────────────────────────────────────────────────────
 
 /**
@@ -328,9 +356,6 @@ function toInputDate(iso: string | null | undefined): string {
  *  - Unfreeze selected frozen branches/countries.
  *  - Re-freeze previously unfrozen ones.
  *  - Create or navigate to branch/country content variants.
- *
- * FIX: Frozen items that already have a variant now show an "Edit Variant"
- * button so the variant stays reachable even after re-freezing.
  */
 function ManageFreezeModal({
   template,
@@ -414,7 +439,6 @@ function ManageFreezeModal({
         return;
       }
     }
-    // Fallback: show message and close without a fresh record
     toast.success(successMessage);
     onClose();
   }
@@ -474,7 +498,6 @@ function ManageFreezeModal({
         throw new Error(errorBody.error ?? "Unfreeze failed");
       }
 
-      // Deselect the just-unfrozen items
       setSelectedToUnfreeze(prev => {
         const next = new Set(prev);
         currentTabSelected.forEach(id => next.delete(id));
@@ -518,11 +541,10 @@ function ManageFreezeModal({
       const data = await response.json();
 
       if (!response.ok) {
-        // 409 = variant already exists — navigate to it instead
         if (response.status === 409 && data.variant_id) {
           onClose();
           router.push(
-            `${rolePrefix}/template-management/create-assign-template?edit=${template.id}&variantId=${data.variant_id}`,
+            `${rolePrefix}/template-management/template-creation?edit=${template.id}&variantId=${data.variant_id}`,
           );
           return;
         }
@@ -532,7 +554,7 @@ function ManageFreezeModal({
       toast.success("Variant created — opening editor…");
       onClose();
       router.push(
-        `${rolePrefix}/template-management/create-assign-template?edit=${template.id}&variantId=${data.variant.id}`,
+        `${rolePrefix}/template-management/template-creation?edit=${template.id}&variantId=${data.variant.id}`,
       );
     } catch (err: any) {
       toast.error(err.message ?? "Failed to create variant.");
@@ -541,10 +563,23 @@ function ManageFreezeModal({
     }
   }
 
+  /** Navigate to edit a variant (item is currently UNFROZEN — full edit allowed). */
   function handleEditVariant(variantId: number): void {
     onClose();
     router.push(
-      `${rolePrefix}/template-management/create-assign-template?edit=${template.id}&variantId=${variantId}`,
+      `${rolePrefix}/template-management/template-creation?edit=${template.id}&variantId=${variantId}`,
+    );
+  }
+
+  /**
+   * Navigate to VIEW a variant in read-only mode.
+   * Used when the parent branch/country is currently FROZEN.
+   * The variant cannot be edited until the item is unfrozen.
+   */
+  function handleViewVariant(variantId: number): void {
+    onClose();
+    router.push(
+      `${rolePrefix}/template-management/template-creation?edit=${template.id}&variantId=${variantId}&mode=view`,
     );
   }
 
@@ -794,7 +829,6 @@ function ManageFreezeModal({
                           {item.name}
                         </div>
 
-                        {/* Show parent country for a branch item */}
                         {isBranchTab && (item as AssignedBranch).country_id && (() => {
                           const parentCountry = assignedCountries.find(
                             c => c.id === (item as AssignedBranch).country_id,
@@ -826,7 +860,7 @@ function ManageFreezeModal({
                         )}
                       </div>
 
-                      {/* Edit or Create Variant button */}
+                      {/* Edit Variant (unfrozen — full edit allowed) */}
                       {existingVariant ? (
                         <button
                           onClick={() => handleEditVariant(existingVariant.id)}
@@ -957,11 +991,6 @@ function ManageFreezeModal({
                   const branchId    = isBranchTab ? item.id : null;
                   const countryId   = !isBranchTab ? item.id : null;
 
-                  /**
-                   * FIX: Look up whether a variant already exists for this frozen item.
-                   * Previously this check only happened in the unfrozen section,
-                   * so variants became unreachable after re-freezing.
-                   */
                   const existingVariant = variants.find(
                     v => (branchId  && v.branch_id  === branchId)  ||
                          (countryId && v.country_id === countryId),
@@ -982,7 +1011,7 @@ function ManageFreezeModal({
                         flexWrap:   "wrap",
                       }}
                     >
-                      {/* Checkbox — selecting marks the item for bulk unfreeze */}
+                      {/* Checkbox */}
                       <input
                         type="checkbox"
                         checked={isSelected}
@@ -1010,7 +1039,6 @@ function ManageFreezeModal({
                           {item.name}
                         </div>
 
-                        {/* Show parent country for a branch item */}
                         {isBranchTab && (item as AssignedBranch).country_id && (() => {
                           const parentCountry = assignedCountries.find(
                             c => c.id === (item as AssignedBranch).country_id,
@@ -1024,36 +1052,42 @@ function ManageFreezeModal({
                             : null;
                         })()}
 
-                        {/*
-                          FIX: Show a note when this frozen item already has a variant,
-                          so the user knows a custom version exists and can be accessed.
-                        */}
                         {existingVariant && (
                           <div style={{
                             fontSize:   "10px",
-                            color:      "#1e40af",
+                            color:      "#64748b",
                             marginTop:  "3px",
                             fontWeight: "600",
+                            display:    "flex",
+                            alignItems: "center",
+                            gap:        "4px",
                           }}>
-                            Has custom variant · last modified{" "}
+                            <Lock size={9} color="#94a3b8" />
+                            Has custom variant (frozen) · last modified{" "}
                             {existingVariant.lastModified
                               ? new Date(existingVariant.lastModified).toLocaleDateString(
                                   "en-GB",
                                   { day: "numeric", month: "short" },
                                 )
                               : "—"}
+                            {" · "}
+                            <span style={{ color: "#94a3b8", fontStyle: "italic" }}>
+                              Unfreeze to edit
+                            </span>
                           </div>
                         )}
                       </div>
 
                       {/*
-                        FIX: "Edit Variant" button for frozen items that already have a variant.
-                        Previously this button only existed in the unfrozen section,
-                        making the variant completely unreachable after re-freezing.
+                        FIX: "View Variant" button for frozen items that already have a variant.
+                        This is deliberately read-only (mode=view). The variant cannot be edited
+                        while the branch/country is frozen — the admin must unfreeze it first,
+                        at which point the button switches to "Edit Variant" in the unfrozen section.
                       */}
                       {existingVariant && (
                         <button
-                          onClick={() => handleEditVariant(existingVariant.id)}
+                          onClick={() => handleViewVariant(existingVariant.id)}
+                          title="View variant (read-only — unfreeze to edit)"
                           style={{
                             display:    "inline-flex",
                             alignItems: "center",
@@ -1064,13 +1098,13 @@ function ManageFreezeModal({
                             fontSize:   "11px",
                             fontWeight: "700",
                             whiteSpace: "nowrap",
-                            background: "#eff6ff",
-                            border:     "1px solid #bfdbfe",
-                            color:      "#1e40af",
+                            background: "#f8fafc",
+                            border:     "1px solid #e2e8f0",
+                            color:      "#64748b",
                             transition: "all 0.15s",
                           }}
                         >
-                          <Pencil size={11} /> Edit Variant
+                          <Eye size={11} /> View Variant
                         </button>
                       )}
                     </div>
@@ -1204,7 +1238,6 @@ function FilterDropdown({
   const [isOpen,    setIsOpen]    = useState(false);
   const containerRef              = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent): void {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -1332,6 +1365,9 @@ function ActiveFilterChip({
 /**
  * Full-width filter bar containing a search input, category dropdowns,
  * active filter chips, and a result count indicator.
+ *
+ * NEW: A "PMS Year" dropdown is positioned after the Country dropdown,
+ * allowing templates to be filtered by their PMS cycle year.
  */
 function HorizontalFilterBar({
   filters,
@@ -1340,6 +1376,7 @@ function HorizontalFilterBar({
   allDepartments,
   allBranches,
   allCountries,
+  allYears,
   totalCount,
   filteredCount,
   isLoading,
@@ -1350,6 +1387,8 @@ function HorizontalFilterBar({
   allDepartments:  string[];
   allBranches:     string[];
   allCountries:    string[];
+  /** Sorted list of unique PMS year labels available across all templates. */
+  allYears:        string[];
   totalCount:      number;
   filteredCount:   number;
   isLoading:       boolean;
@@ -1358,9 +1397,9 @@ function HorizontalFilterBar({
     filters.designations.length +
     filters.departments.length  +
     filters.branches.length     +
-    filters.countries.length;
+    filters.countries.length    +
+    filters.years.length;
 
-  /** Clears all dropdown filters while preserving the text search. */
   function clearDropdownFilters(): void {
     onFilterChange({
       search:       filters.search,
@@ -1368,6 +1407,7 @@ function HorizontalFilterBar({
       departments:  [],
       branches:     [],
       countries:    [],
+      years:        [],
     });
   }
 
@@ -1404,10 +1444,12 @@ function HorizontalFilterBar({
         </div>
 
         {/* Dropdown filters */}
-        <FilterDropdown label="Designation" icon={<Users     size={13} />} options={allDesignations} selected={filters.designations} onChange={v => onFilterChange({ ...filters, designations: v })} />
-        <FilterDropdown label="Department"  icon={<Building2 size={13} />} options={allDepartments}  selected={filters.departments}  onChange={v => onFilterChange({ ...filters, departments:  v })} />
-        <FilterDropdown label="Branch"      icon={<GitBranch size={13} />} options={allBranches}     selected={filters.branches}     onChange={v => onFilterChange({ ...filters, branches:     v })} />
-        <FilterDropdown label="Country"     icon={<Globe     size={13} />} options={allCountries}    selected={filters.countries}    onChange={v => onFilterChange({ ...filters, countries:    v })} />
+        <FilterDropdown label="Designation" icon={<Users       size={13} />} options={allDesignations} selected={filters.designations} onChange={v => onFilterChange({ ...filters, designations: v })} />
+        <FilterDropdown label="Department"  icon={<Building2   size={13} />} options={allDepartments}  selected={filters.departments}  onChange={v => onFilterChange({ ...filters, departments:  v })} />
+        <FilterDropdown label="Branch"      icon={<GitBranch   size={13} />} options={allBranches}     selected={filters.branches}     onChange={v => onFilterChange({ ...filters, branches:     v })} />
+        <FilterDropdown label="Country"     icon={<Globe       size={13} />} options={allCountries}    selected={filters.countries}    onChange={v => onFilterChange({ ...filters, countries:    v })} />
+        {/* NEW: PMS Year filter — positioned right after Country */}
+        <FilterDropdown label="PMS Year"    icon={<CalendarDays size={13} />} options={allYears}       selected={filters.years}        onChange={v => onFilterChange({ ...filters, years:        v })} />
 
         {activeFilterCount > 0 && (
           <button className={styles.clearFiltersBtn} onClick={clearDropdownFilters}>
@@ -1475,6 +1517,16 @@ function HorizontalFilterBar({
               onRemove={() => onFilterChange({ ...filters, countries: filters.countries.filter(x => x !== c) })}
             />
           ))}
+          {/* NEW: Year chips */}
+          {filters.years.map(y => (
+            <ActiveFilterChip
+              key={`year-${y}`}
+              label={y}
+              category="PMS Year"
+              colorClass={styles.chipYear ?? styles.chipBranch}
+              onRemove={() => onFilterChange({ ...filters, years: filters.years.filter(x => x !== y) })}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -1483,7 +1535,6 @@ function HorizontalFilterBar({
 
 // ─── EditCycleDatesModal ──────────────────────────────────────────────────────
 
-/** Configuration for each editable date field in the cycle dates form. */
 const CYCLE_DATE_FIELD_CONFIG: Array<{
   field:    keyof CycleDatesForm;
   label:    string;
@@ -1516,10 +1567,6 @@ const CYCLE_DATE_FIELD_CONFIG: Array<{
   },
 ];
 
-/**
- * Modal that allows an HQ Admin to update the key date milestones
- * for the active PMS cycle. Changes take effect immediately for all users.
- */
 function EditCycleDatesModal({
   activeCycle,
   onClose,
@@ -1538,10 +1585,6 @@ function EditCycleDatesModal({
   const [isSaving,       setIsSaving]       = useState(false);
   const [isAcknowledged, setIsAcknowledged] = useState(false);
 
-  /**
-   * Validates the form values before submission.
-   * @returns A human-readable error message, or null if valid.
-   */
   function validateForm(): string | null {
     if (!form.objective_setting_end) return "Objective Setting End date is required.";
     if (!form.grace_period_end)      return "Grace Period End date is required.";
@@ -1604,8 +1647,6 @@ function EditCycleDatesModal({
   return (
     <div className={styles.modalOverlay} role="dialog" aria-modal="true">
       <div className={styles.editCycleModalCard}>
-
-        {/* Header */}
         <div className={styles.editCycleHeader}>
           <div className={styles.editCycleHeaderLeft}>
             <div className={styles.editCycleIconWrap}>
@@ -1623,7 +1664,6 @@ function EditCycleDatesModal({
           </button>
         </div>
 
-        {/* Impact warning */}
         <div className={styles.editCycleWarning}>
           <AlertTriangle size={15} color="#d97706" style={{ flexShrink: 0, marginTop: 1 }} />
           <p className={styles.editCycleWarningText}>
@@ -1632,7 +1672,6 @@ function EditCycleDatesModal({
           </p>
         </div>
 
-        {/* Date fields */}
         <div className={styles.editCycleDateGrid}>
           {CYCLE_DATE_FIELD_CONFIG.map(({ field, label, required, hint }) => (
             <div key={field} className={styles.editCycleDateGroup}>
@@ -1654,7 +1693,6 @@ function EditCycleDatesModal({
           ))}
         </div>
 
-        {/* Acknowledgement checkbox */}
         <label className={styles.editCycleAckRow}>
           <input
             type="checkbox"
@@ -1668,7 +1706,6 @@ function EditCycleDatesModal({
           </span>
         </label>
 
-        {/* Action buttons */}
         <div className={styles.editCycleActions}>
           <button className={styles.editCycleCancelBtn} onClick={onClose}>
             Cancel
@@ -1688,7 +1725,6 @@ function EditCycleDatesModal({
 
 // ─── PmsCyclePanel ────────────────────────────────────────────────────────────
 
-/** Milestone definitions used to populate the PMS cycle timeline cards. */
 const buildMilestones = (freezeDates: DynamicFreezeDates) => [
   {
     key:        "start",
@@ -1756,10 +1792,6 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
   },
 ];
 
-/**
- * Displays the PMS cycle progress panel — year label, key stats,
- * a progress bar, and milestone icon cards.
- */
 function PmsCyclePanel({
   freezeDates,
   activeCycle,
@@ -1787,7 +1819,6 @@ function PmsCyclePanel({
     Math.max(0, Math.round(((now.getTime() - yearStart) / (yearEnd - yearStart)) * 100)),
   );
 
-  /** Determines which milestone card should be highlighted as "current". */
   const activeMilestoneKey =
     now < freezeDates.objectiveSettingEnd ? "objective" :
     now < freezeDates.graceEnd            ? "grace"     :
@@ -1800,7 +1831,6 @@ function PmsCyclePanel({
 
   return (
     <div className={styles.cyclePanelWrapper}>
-      {/* Left column: stats and progress */}
       <div className={styles.cyclePanelLeft}>
         <div className={styles.cyclePanelLeftTop}>
           <div className={styles.cyclePanelYearBadge}>
@@ -1833,7 +1863,6 @@ function PmsCyclePanel({
         )}
       </div>
 
-      {/* Right column: milestone icon cards */}
       <div className={styles.cyclePanelRight}>
         {milestones.map(milestone => {
           const isActiveMilestone = activeMilestoneKey === milestone.key;
@@ -1876,7 +1905,6 @@ function PmsCyclePanel({
 
 // ─── CycleStatusBadge ─────────────────────────────────────────────────────────
 
-/** Small pill badge indicating whether templates are open, in grace, or frozen. */
 function CycleStatusBadge({ status }: { status: FreezeStatus | string }) {
   if (status === "open") {
     return (
@@ -1901,10 +1929,6 @@ function CycleStatusBadge({ status }: { status: FreezeStatus | string }) {
 
 // ─── StatusBanner ─────────────────────────────────────────────────────────────
 
-/**
- * Top-of-page contextual banner that describes the current freeze state
- * and remaining days to the objective-setting deadline.
- */
 function StatusBanner({
   permissions,
   freezeDates,
@@ -1988,15 +2012,6 @@ function StatusBanner({
 
 // ─── TemplateCard ─────────────────────────────────────────────────────────────
 
-/**
- * Card component representing a single template.
- * Displays key stats, assignment summary, category breakdown,
- * and contextual action buttons based on role and freeze status.
- *
- * FIX: The variant-count badge in the card header is now a clickable button
- * that opens the Manage Freeze modal, giving a persistent entry-point to reach
- * variants regardless of whether any branches are currently unfrozen.
- */
 function TemplateCard({
   template,
   level,
@@ -2029,13 +2044,11 @@ function TemplateCard({
   const categories = template.categories ?? [];
   const isHqAdmin  = level === 1;
 
-  // ── Derived status values ──
   const effectiveStatus: FreezeStatus = template.freeze_status ?? permissions.freezeStatus;
   const isPastCycle = template.is_past_cycle ?? false;
   const isFrozen    = effectiveStatus === "frozen";
   const isGrace     = effectiveStatus === "grace";
 
-  // ── Objective counts ──
   const lockedCount = categories.reduce(
     (sum: number, cat: any) =>
       sum + (cat.objectives?.filter((obj: any) => obj.control === "Locked").length ?? 0),
@@ -2048,32 +2061,40 @@ function TemplateCard({
   const editableCount = totalObjectives - lockedCount;
   const totalRules    = template.assignedRules?.length ?? 0;
 
-  // ── Unfreeze / variant state ──
   const unfrozenBranchCount   = template.unfrozenBranchIds?.length  ?? 0;
   const unfrozenCountryCount  = template.unfrozenCountryIds?.length ?? 0;
   const hasUnfreezeExceptions = unfrozenBranchCount > 0 || unfrozenCountryCount > 0;
   const variantCount          = template.variants?.length ?? 0;
   const hasVariants           = (template.hasVariants ?? false) || variantCount > 0;
 
-  /** True when the current user has unfreeze exceptions that allow editing. */
-  const hasUnfreezeAccess = isHqAdmin && !isPastCycle && hasUnfreezeExceptions;
-
-  // ── Permission flags for this specific card ──
-  const canEditThisCard         = !isPastCycle && (permissions.canEdit || hasUnfreezeAccess);
+  /**
+   * Unfreeze exceptions grant permission to CREATE/EDIT a branch *variant* via
+   * Manage Freeze only. They never unlock the parent template for direct editing.
+   * Keep this comment here so future readers don't accidentally add hasUnfreezeExceptions
+   * to canEditThisCard.
+   */
+  const canEditThisCard         = !isPastCycle && permissions.canEdit;   // parent edit — no exception carve-out
   const canDeleteThisCard       = !isPastCycle && isHqAdmin && permissions.canDelete;
   const canCopyThisCard         = isHqAdmin && permissions.canCreate;
   const canManageFreezeThisCard = isHqAdmin && !isPastCycle && (isFrozen || isGrace);
 
-  // ── Disabled-reason helpers ──
-
   function getEditDisabledReason(): string | null {
-    if (isPastCycle) return "This template belongs to a past PMS cycle and is permanently frozen.";
-    if (isFrozen && hasUnfreezeAccess) return null;
-    if (!permissions.canEdit && !isHqAdmin) {
-      if (isFrozen) return "Templates are fully frozen. Editing is not permitted.";
-      if (isGrace)  return "Grace period is active. Only HQ Admin may edit during this period.";
+    if (isPastCycle) {
+      return "This template belongs to a past PMS cycle and is permanently frozen.";
     }
-    if (isFrozen) return "Templates are fully frozen. No edits are permitted in this period.";
+    if (isFrozen) {
+      // hasUnfreezeExceptions is intentionally NOT a carve-out here.
+      // Unfreeze exceptions only allow variant creation via Manage Freeze.
+      return hasUnfreezeExceptions
+        ? "The parent template is frozen. Use Manage Freeze to create or edit a branch/country variant instead."
+        : "Templates are fully frozen. No edits are permitted in this period.";
+    }
+    if (isGrace && !isHqAdmin) {
+      return "Grace period is active. Only HQ Admin may edit templates during this period.";
+    }
+    if (!permissions.canEdit) {
+      return "You do not have permission to edit templates.";
+    }
     return null;
   }
 
@@ -2089,8 +2110,6 @@ function TemplateCard({
     if (isFrozen)   return "Templates are fully frozen. Duplication is not permitted in this period.";
     return null;
   }
-
-  // ── Click handlers with error feedback ──
 
   function handleEditClick(): void {
     const reason = getEditDisabledReason();
@@ -2110,13 +2129,10 @@ function TemplateCard({
     onDuplicate();
   }
 
-  // ── Display helpers ──
-
   const lastUpdatedDisplay = new Date(
     template.lastModified ?? template.created_at ?? Date.now(),
   ).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
-  /** Builds a concise human-readable assignment summary for the collapsed row. */
   const assignmentSummary = useMemo((): string => {
     const parts: string[] = [];
     if (template.assignedDesignations?.length) {
@@ -2142,7 +2158,6 @@ function TemplateCard({
   const scopeRules    = template.assignedRules?.filter(r => r.scope) ?? [];
   const hasScopeRules = scopeRules.length > 0;
 
-  /** Summary stat cells shown in the card's statistics row. */
   const statCells = [
     { label: "Categories",       value: categories.length },
     { label: "Total KPIs",       value: totalObjectives },
@@ -2156,7 +2171,6 @@ function TemplateCard({
       className={styles.card}
       style={isPastCycle ? { opacity: 0.85, borderLeft: "3px solid #94a3b8" } : undefined}
     >
-      {/* Past-cycle notice bar */}
       {isPastCycle && (
         <div style={{
           display:      "flex",
@@ -2174,7 +2188,6 @@ function TemplateCard({
         </div>
       )}
 
-      {/* Partial-unfreeze banner */}
       {hasUnfreezeExceptions && !isPastCycle && (
         <div style={{
           display:      "flex",
@@ -2248,14 +2261,6 @@ function TemplateCard({
                 </h3>
                 <CycleStatusBadge status={effectiveStatus} />
 
-                {/*
-                  FIX: The variant badge is now a clickable button that opens the
-                  Manage Freeze modal. This gives a persistent entry-point to reach
-                  variant templates even when all branches are currently re-frozen
-                  (i.e. hasUnfreezeExceptions is false and the partial-unfreeze banner
-                  is not shown). Previously the only variant count indicator lived
-                  inside that banner, making variants unreachable after re-freezing.
-                */}
                 {hasVariants && !isPastCycle && (
                   <button
                     onClick={canManageFreezeThisCard ? onManageFreeze : undefined}
@@ -2404,7 +2409,6 @@ function TemplateCard({
           : <ChevronDown size={14} color="#3b82f6" />}
       </button>
 
-      {/* Expanded category grid */}
       {isCategoryExpanded && (
         <div className={styles.expandedSection}>
           <div className={styles.expandedSectionHeading}>
@@ -2478,7 +2482,6 @@ function TemplateCard({
           : <ChevronDown size={14} color="#3b82f6" />}
       </button>
 
-      {/* Expanded assignments section */}
       {isAssignExpanded && (
         <div className={styles.expandedSection}>
           {totalRules === 0
@@ -2486,7 +2489,6 @@ function TemplateCard({
             : (
               <div className={styles.rolesDeptsSection}>
 
-                {/* Global scope assignments */}
                 {hasScopeRules && (
                   <div className={styles.rolesDeptsGroup}>
                     <div className={styles.rolesDeptsLabel}>
@@ -2517,7 +2519,6 @@ function TemplateCard({
                   </div>
                 )}
 
-                {/* Designation chips */}
                 {(template.assignedDesignations?.length ?? 0) > 0 && (
                   <div className={styles.rolesDeptsGroup}>
                     <div className={styles.rolesDeptsLabel}>
@@ -2532,7 +2533,6 @@ function TemplateCard({
                   </div>
                 )}
 
-                {/* Sub-department chips (deduplicated by name) */}
                 {(template.assignedSubDepartments?.length ?? 0) > 0 && (() => {
                   const seen       = new Set<string>();
                   const uniqueSubs = (template.assignedSubDepartments ?? []).filter(sub => {
@@ -2566,7 +2566,6 @@ function TemplateCard({
                   );
                 })()}
 
-                {/* Country chips */}
                 {(template.assignedCountries?.length ?? 0) > 0 && (
                   <div className={styles.rolesDeptsGroup}>
                     <div className={styles.rolesDeptsLabel}>
@@ -2597,7 +2596,6 @@ function TemplateCard({
                   </div>
                 )}
 
-                {/* Department chips (grouped and deduplicated by name) */}
                 {(template.assignedDepartments?.length ?? 0) > 0 && (() => {
                   const grouped = new Map<string, { name: string; code: string | null; branchCount: number }>();
                   template.assignedDepartments!.forEach(dept => {
@@ -2639,7 +2637,6 @@ function TemplateCard({
                   );
                 })()}
 
-                {/* Branch chips */}
                 {(template.assignedBranches?.length ?? 0) > 0 && (
                   <div className={styles.rolesDeptsGroup}>
                     <div className={styles.rolesDeptsLabel}>
@@ -2682,17 +2679,9 @@ function TemplateCard({
 
 // ─── TemplateDashboardBase ────────────────────────────────────────────────────
 
-/**
- * Root component for the Template Management page.
- * Fetches templates and the active PMS cycle on mount, then coordinates
- * all sub-components: filter bar, cycle panel, template cards, and modals.
- *
- * @param level - Numeric admin role level (1 = HQ Admin … 5 = Sub-Dept Admin).
- */
 export default function TemplateDashboardBase({ level }: { level: number }) {
   const router = useRouter();
 
-  // ── Page-level state ──
   const [templates,           setTemplates]          = useState<TemplateRecord[]>([]);
   const [confirmDeleteId,     setConfirmDeleteId]     = useState<number | null>(null);
   const [isLoading,           setIsLoading]           = useState(true);
@@ -2700,13 +2689,14 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
   const [expandedAssignId,    setExpandedAssignId]    = useState<number | null>(null);
   const [isDuplicatingId,     setIsDuplicatingId]     = useState<number | null>(null);
   const [activeCycle,         setActiveCycle]         = useState<any>(null);
+  /** All PMS cycles fetched from the API, used for year-label resolution. */
+  const [allCycles,           setAllCycles]           = useState<any[]>([]);
   const [showEditCycleModal,  setShowEditCycleModal]  = useState(false);
   const [freezeModalTemplate, setFreezeModalTemplate] = useState<TemplateRecord | null>(null);
   const [filters,             setFilters]             = useState<FilterState>({
-    search: "", designations: [], departments: [], branches: [], countries: [],
+    search: "", designations: [], departments: [], branches: [], countries: [], years: [],
   });
 
-  // ── Derived values ──
   const freezeDates = useMemo(() => buildFreezeDates(activeCycle),           [activeCycle]);
   const permissions = useMemo(() => computePermissions(level, freezeDates), [level, freezeDates]);
   const rolePrefix  = getRolePrefix(level);
@@ -2721,7 +2711,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     permissions.freezeStatus === "grace"  ? styles.periodGrace  :
     styles.periodOpen;
 
-  /** Unique filter options derived from all loaded templates. */
   const filterOptions = useMemo(() => {
     const designationSet = new Set<string>();
     const departmentSet  = new Set<string>();
@@ -2746,15 +2735,29 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     };
   }, [templates]);
 
+  /**
+   * Unique PMS year labels derived from all loaded templates.
+   * Sorted newest-first (descending string sort works for "YYYY/YYYY" format).
+   */
+  const allYearOptions = useMemo((): string[] => {
+    const yearSet = new Set<string>();
+    templates.forEach(t => {
+      const label = resolvePmsYearLabel(t, allCycles, activeCycle);
+      if (label && label !== "Unknown") yearSet.add(label);
+    });
+    return [...yearSet].sort((a, b) => b.localeCompare(a));
+  }, [templates, allCycles, activeCycle]);
+
   // ── Data fetching ──
 
   useEffect(() => {
     async function loadDashboardData(): Promise<void> {
       try {
         setIsLoading(true);
-        const [templateRes, cycleRes] = await Promise.all([
+        const [templateRes, cycleRes, allCyclesRes] = await Promise.all([
           fetch(`${API_BASE}/templates`),
           fetch(`${API_BASE}/pms-cycles/active`),
+          fetch(`${API_BASE}/pms-cycles`),          // NEW: fetch all cycles for year resolution
         ]);
 
         if (!templateRes.ok) {
@@ -2766,8 +2769,10 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         if (cycleRes.ok) {
           setActiveCycle(await cycleRes.json());
         }
+        if (allCyclesRes.ok) {
+          setAllCycles(await allCyclesRes.json());
+        }
       } catch (err) {
-        // Non-blocking — user can still see empty state and retry
         toast.error("Could not load templates. Please refresh and try again.");
       } finally {
         setIsLoading(false);
@@ -2807,13 +2812,19 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         ),
       );
     }
+    // NEW: Year filter — match template's resolved PMS year label
+    if (filters.years.length > 0) {
+      result = result.filter(t => {
+        const yearLabel = resolvePmsYearLabel(t, allCycles, activeCycle);
+        return filters.years.includes(yearLabel);
+      });
+    }
 
     return sortByLastModified(result);
-  }, [templates, filters]);
+  }, [templates, filters, allCycles, activeCycle]);
 
   // ── Template action handlers ──
 
-  /** Optimistically bumps a template's lastModified to keep it sorted first. */
   function bumpTemplateToTop(id: number): void {
     setTemplates(prev =>
       sortByLastModified(
@@ -2823,7 +2834,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
   }
 
   function handleViewTemplate(id: number): void {
-    router.push(`${rolePrefix}/template-management/create-assign-template?edit=${id}&mode=view`);
+    router.push(`${rolePrefix}/template-management/template-creation?edit=${id}&mode=view`);
   }
 
   function handleEditTemplate(id: number, template: TemplateRecord): void {
@@ -2834,27 +2845,33 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
       return;
     }
 
-    const hasExceptions = level === 1 && (
-      (template.unfrozenBranchIds?.length  ?? 0) > 0 ||
-      (template.unfrozenCountryIds?.length ?? 0) > 0
-    );
-
-    if (effectiveStatus === "frozen" && !hasExceptions) {
-      toast.error("Templates are fully frozen. No edits are permitted in this period.");
-      return;
-    }
-    if (!permissions.canEdit && !hasExceptions) {
+    // ── Parent template is ALWAYS frozen when the cycle is frozen ───────────────────────────
+    // Unfreeze exceptions ONLY permit variant creation/editing via Manage Freeze.
+    // They do NOT grant edit access to the parent template under any circumstance.
+    if (effectiveStatus === "frozen") {
+      const hasExceptions =
+        (template.unfrozenBranchIds?.length  ?? 0) > 0 ||
+        (template.unfrozenCountryIds?.length ?? 0) > 0;
       toast.error(
-        effectiveStatus === "grace"
-          ? "Grace period is active. Only HQ Admin may edit."
-          : "You do not have permission to edit templates.",
+        hasExceptions
+          ? "The parent template is frozen. Use \"Manage Freeze\" to create or edit a branch/country variant instead."
+          : "Templates are fully frozen. No edits are permitted in this period.",
       );
       return;
     }
 
+    if (effectiveStatus === "grace" && !permissions.canEdit) {
+      toast.error("Grace period is active. Only HQ Admin may edit templates during this period.");
+      return;
+    }
+
+    if (!permissions.canEdit) {
+      toast.error("You do not have permission to edit templates.");
+      return;
+    }
+
     bumpTemplateToTop(id);
-    const unfreezeParam = hasExceptions ? "&unfreezeMode=1" : "";
-    router.push(`${rolePrefix}/template-management/create-assign-template?edit=${id}${unfreezeParam}`);
+    router.push(`${rolePrefix}/template-management/template-creation?edit=${id}`);
   }
 
   async function handleDuplicateTemplate(template: TemplateRecord): Promise<void> {
@@ -2888,7 +2905,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
       }
       toast.success(`"${template.name}" duplicated into the current cycle.`);
     } catch (err: any) {
-      // Roll back optimistic state
       setTemplates(previousTemplates);
       toast.error(err.message ?? "Could not duplicate template.");
     } finally {
@@ -2909,7 +2925,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     }
 
     const previousTemplates = [...templates];
-    // Optimistic removal
     setTemplates(prev => prev.filter(t => t.id !== id));
     setConfirmDeleteId(null);
 
@@ -2921,13 +2936,11 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
       }
       toast.success("Template deleted.");
     } catch (err: any) {
-      // Roll back on failure
       setTemplates(previousTemplates);
       toast.error(err.message ?? "Could not delete template.");
     }
   }
 
-  /** Merges an updated template record into state after a freeze-modal save. */
   function handleFreezeModalSaved(updated: TemplateRecord): void {
     setTemplates(prev =>
       sortByLastModified(prev.map(t => t.id === updated.id ? updated : t)),
@@ -2935,15 +2948,13 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     setFreezeModalTemplate(updated);
   }
 
-  // ── Derived booleans ──
   const hasAnyFilter =
     !!filters.search              ||
     filters.designations.length > 0 ||
     filters.departments.length  > 0 ||
     filters.branches.length     > 0 ||
-    filters.countries.length    > 0;
-
-  // ── Render ──
+    filters.countries.length    > 0 ||
+    filters.years.length        > 0;
 
   return (
     <div className={styles.wrapper}>
@@ -2992,7 +3003,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         </div>
       )}
 
-      {/* ── Edit cycle dates modal ── */}
       {showEditCycleModal && activeCycle && (
         <EditCycleDatesModal
           activeCycle={activeCycle}
@@ -3001,7 +3011,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         />
       )}
 
-      {/* ── Manage freeze modal ── */}
       {freezeModalTemplate && (
         <ManageFreezeModal
           template={freezeModalTemplate}
@@ -3043,7 +3052,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
           {permissions.canCreate && (
             <button
               className={styles.createBtn}
-              onClick={() => router.push(`${rolePrefix}/template-management/create-assign-template`)}
+              onClick={() => router.push(`${rolePrefix}/template-management/template-creation`)}
             >
               + Create New Template
             </button>
@@ -3051,10 +3060,8 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         </div>
       </div>
 
-      {/* ── Status banner ── */}
       <StatusBanner permissions={permissions} freezeDates={freezeDates} level={level} />
 
-      {/* ── PMS cycle panel ── */}
       {!isLoading && (
         <PmsCyclePanel
           freezeDates={freezeDates}
@@ -3066,7 +3073,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         />
       )}
 
-      {/* ── Filter bar ── */}
+      {/* ── Filter bar (now includes PMS Year) ── */}
       <HorizontalFilterBar
         filters={filters}
         onFilterChange={setFilters}
@@ -3074,6 +3081,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         allDepartments={filterOptions.departments}
         allBranches={filterOptions.branches}
         allCountries={filterOptions.countries}
+        allYears={allYearOptions}
         totalCount={templates.length}
         filteredCount={filteredTemplates.length}
         isLoading={isLoading}
@@ -3100,7 +3108,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
             {hasAnyFilter && (
               <button
                 onClick={() => setFilters({
-                  search: "", designations: [], departments: [], branches: [], countries: [],
+                  search: "", designations: [], departments: [], branches: [], countries: [], years: [],
                 })}
                 style={{
                   marginTop:    "12px",
@@ -3148,3 +3156,4 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     </div>
   );
 }
+
