@@ -107,13 +107,13 @@ CUTOFF_SCHEDULE = [
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_entries_for_level(user_level: int) -> list:
-    """Return schedule entries visible to the given user level."""
     result = []
     for entry in CUTOFF_SCHEDULE:
         if entry["role"] == "all":
             result.append(entry)
-        elif entry["level"] >= user_level:
+        elif entry["level"] == user_level:
             result.append(entry)
+    print(f"Level {user_level} visible keys: {[e['role'] for e in result]}")
     return result
 
 
