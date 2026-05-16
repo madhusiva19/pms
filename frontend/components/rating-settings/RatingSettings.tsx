@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { Clock, CheckCircle, Send, Calendar, Settings, Filter, ChevronDown } from 'lucide-react';
+import { Clock, CheckCircle, Send, Calendar, Settings, Filter, ChevronDown, Lock } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 
@@ -27,12 +27,14 @@ interface TeamMember {
 }
 interface MemberRatingStatus {
   submitted: boolean;
-  pending: number;
-  total: number;
+  pending:   number;
+  total:     number;
 }
 interface ManualRatingStatus {
   [userId: string]: MemberRatingStatus;
 }
+
+// ── Helpers ────────────────────────────────────────────────────────
 
 function dedupe(items: OrgItem[]): OrgItem[] {
   const seen = new Set<string>();
@@ -51,7 +53,7 @@ function formatDate(d: string) {
 
 function getClosestPeriod(periods: RatingPeriod[]): RatingPeriod | null {
   if (!periods || periods.length === 0) return null;
-  const now = Date.now();
+  const now  = Date.now();
   const open = periods.find(p => p.is_active);
   if (open) return open;
   return periods.reduce((best, cur) => {
@@ -61,7 +63,11 @@ function getClosestPeriod(periods: RatingPeriod[]): RatingPeriod | null {
   });
 }
 
-function TH({ children, center, width }: { children: React.ReactNode; center?: boolean; width?: string }) {
+// ── Sub-components ─────────────────────────────────────────────────
+
+function TH({ children, center, width }: {
+  children: React.ReactNode; center?: boolean; width?: string;
+}) {
   return (
     <th style={{
       padding: '10px 16px',
@@ -84,7 +90,9 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
       borderLeft: '28px solid #2563EB',
       background: '#FFFFFF',
     }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: '#101828', lineHeight: 1.3 }}>{title}</h3>
+      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: '#101828', lineHeight: 1.3 }}>
+        {title}
+      </h3>
       <p style={{ margin: 0, fontSize: 12.5, color: '#6B7280' }}>{subtitle}</p>
     </div>
   );
@@ -120,13 +128,38 @@ function RemindBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-function EnterRatingsBtn({ onClick, reenter }: { onClick: () => void; reenter?: boolean }) {
+// FIX 1: EnterRatingsBtn now accepts ratingIsOpen.
+// When the period is closed it renders a disabled "Period Closed" badge
+// instead of a clickable button — preventing any navigation.
+function EnterRatingsBtn({
+  onClick,
+  reenter,
+  ratingIsOpen,
+}: {
+  onClick: () => void;
+  reenter?: boolean;
+  ratingIsOpen: boolean;
+}) {
+  if (!ratingIsOpen) {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '6px 14px', borderRadius: 8,
+        background: '#F3F4F6', color: '#9CA3AF',
+        fontSize: 12.5, fontWeight: 600,
+        border: '1px solid #E5E7EB',
+        cursor: 'not-allowed',
+      }}>
+        <Lock size={11} /> Period Closed
+      </span>
+    );
+  }
+
   return (
     <button
       onClick={onClick}
       style={{
-        padding: '6px 16px', borderRadius: 8,
-        border: 'none',
+        padding: '6px 16px', borderRadius: 8, border: 'none',
         background: reenter ? '#6B7280' : '#2563EB',
         color: '#fff',
         fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
@@ -145,7 +178,7 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
   onClose: () => void; onSent: () => void;
 }) {
   const name = 'full_name' in member ? member.full_name : member.name;
-  const [msg, setMsg] = useState(
+  const [msg,     setMsg]     = useState(
     `Hi ${name}, please complete your pending manual ratings for ${period} ${pmsYear} as soon as possible. The rating window is closing soon.`
   );
   const [sending, setSending] = useState(false);
@@ -155,12 +188,21 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
     setSending(true);
     try {
       await fetch(`${API}/api/manual-rating-notifications/send-reminder`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender_id: senderId, recipient_id: member.id, period, pms_year: pmsYear, message: msg }),
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender_id:    senderId,
+          recipient_id: member.id,
+          period,
+          pms_year:     pmsYear,
+          message:      msg,
+        }),
       });
       setSent(true);
       setTimeout(() => { onSent(); onClose(); }, 1200);
-    } catch { setSending(false); }
+    } catch {
+      setSending(false);
+    }
   };
 
   return (
@@ -169,21 +211,40 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
         <h3 style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 700, color: '#101828' }}>Send Reminder</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#6B7280' }}>To: {name}</p>
         <div style={{ height: 1, background: '#E5E7EB', marginBottom: 16 }} />
-        <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={5} style={{
-          width: '100%', padding: '10px 12px', boxSizing: 'border-box',
-          border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13,
-          color: '#374151', resize: 'vertical', outline: 'none',
-          fontFamily: 'inherit', background: '#F9FAFB', lineHeight: 1.6,
-        }} />
-        {sent && <p style={{ margin: '10px 0 0', fontSize: 13, color: '#16A34A' }}>✓ Reminder sent successfully!</p>}
+        <textarea
+          value={msg}
+          onChange={e => setMsg(e.target.value)}
+          rows={5}
+          style={{
+            width: '100%', padding: '10px 12px', boxSizing: 'border-box',
+            border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13,
+            color: '#374151', resize: 'vertical', outline: 'none',
+            fontFamily: 'inherit', background: '#F9FAFB', lineHeight: 1.6,
+          }}
+        />
+        {sent && (
+          <p style={{ margin: '10px 0 0', fontSize: 13, color: '#16A34A' }}>
+            ✓ Reminder sent successfully!
+          </p>
+        )}
         <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#FFFFFF', fontSize: 13, cursor: 'pointer', color: '#374151', fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleSend} disabled={sending || sent} style={{
-            padding: '7px 18px', borderRadius: 8, border: 'none',
-            background: sent ? '#16A34A' : '#2563EB', color: '#fff',
-            fontSize: 13, fontWeight: 600,
-            cursor: (sending || sent) ? 'not-allowed' : 'pointer', opacity: sending ? 0.8 : 1,
-          }}>
+          <button
+            onClick={onClose}
+            style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#FFFFFF', fontSize: 13, cursor: 'pointer', color: '#374151', fontWeight: 600 }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={sending || sent}
+            style={{
+              padding: '7px 18px', borderRadius: 8, border: 'none',
+              background: sent ? '#16A34A' : '#2563EB', color: '#fff',
+              fontSize: 13, fontWeight: 600,
+              cursor: (sending || sent) ? 'not-allowed' : 'pointer',
+              opacity: sending ? 0.8 : 1,
+            }}
+          >
             {sending ? 'Sending…' : sent ? 'Sent!' : 'Send Reminder'}
           </button>
         </div>
@@ -203,9 +264,9 @@ function MultiSelect({
   selected: string[];
   onChange: (next: string[]) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const allSelected = selected.includes('all');
-  const displayLabel = allSelected ? `All ${label}` : `${selected.length} selected`;
+  const [open, setOpen]  = useState(false);
+  const allSelected      = selected.includes('all');
+  const displayLabel     = allSelected ? `All ${label}` : `${selected.length} selected`;
 
   const handleToggleAll = () => onChange(allSelected ? [] : ['all']);
 
@@ -243,8 +304,13 @@ function MultiSelect({
         <span style={{ color: allSelected || selected.length > 0 ? '#374151' : '#9CA3AF' }}>
           {displayLabel}
         </span>
-        <ChevronDown size={13} color="#6B7280" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }} />
+        <ChevronDown
+          size={13}
+          color="#6B7280"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }}
+        />
       </button>
+
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setOpen(false)} />
@@ -256,9 +322,15 @@ function MultiSelect({
             <label style={{
               display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px',
               cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #E5E7EB',
-              fontWeight: 600, color: '#2563EB', background: allSelected ? '#EFF6FF' : '#FFFFFF',
+              fontWeight: 600, color: '#2563EB',
+              background: allSelected ? '#EFF6FF' : '#FFFFFF',
             }}>
-              <input type="checkbox" checked={allSelected} onChange={handleToggleAll} style={{ accentColor: '#2563EB', width: 14, height: 14 }} />
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={handleToggleAll}
+                style={{ accentColor: '#2563EB', width: 14, height: 14 }}
+              />
               Select All
             </label>
             {items.map(item => (
@@ -268,7 +340,12 @@ function MultiSelect({
                 borderBottom: '1px solid #E5E7EB',
                 background: isChecked(item.id) ? '#F0F9FF' : '#FFFFFF',
               }}>
-                <input type="checkbox" checked={isChecked(item.id)} onChange={() => handleToggleItem(item.id)} style={{ accentColor: '#2563EB', width: 14, height: 14 }} />
+                <input
+                  type="checkbox"
+                  checked={isChecked(item.id)}
+                  onChange={() => handleToggleItem(item.id)}
+                  style={{ accentColor: '#2563EB', width: 14, height: 14 }}
+                />
                 {item.name}
               </label>
             ))}
@@ -285,6 +362,9 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
   onClose: () => void; onSaved: () => void;
 }) {
   const { user } = useAuth();
+
+  // FIX 3: hq_admin can also edit rating periods.
+  // isHQ gives them the extra Countries multi-select in the "Apply To" section.
   const isHQ = user?.role === 'hq_admin';
 
   const [start,  setStart]  = useState(currentStart?.slice(0, 10) ?? '');
@@ -305,12 +385,28 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
 
   useEffect(() => {
     const uid = user?.id ?? '';
+
     if (isHQ) {
-      fetch(`${API}/api/org/countries`).then(r => r.json()).then((d: OrgItem[]) => setCountries(dedupe(d || []))).catch(() => {});
+      fetch(`${API}/api/org/countries`)
+        .then(r => r.json())
+        .then((d: OrgItem[]) => setCountries(dedupe(d || [])))
+        .catch(() => {});
     }
-    fetch(`${API}/api/org/branches?evaluator_id=${uid}`).then(r => r.json()).then((d: OrgItem[]) => setBranches(dedupe(d || []))).catch(() => {});
-    fetch(`${API}/api/org/departments?evaluator_id=${uid}`).then(r => r.json()).then((d: OrgItem[]) => setDepartments(dedupe(d || []))).catch(() => {});
-    fetch(`${API}/api/org/sub-departments?evaluator_id=${uid}`).then(r => r.json()).then((d: OrgItem[]) => setSubDepts(dedupe(d || []))).catch(() => {});
+
+    fetch(`${API}/api/org/branches?evaluator_id=${uid}`)
+      .then(r => r.json())
+      .then((d: OrgItem[]) => setBranches(dedupe(d || [])))
+      .catch(() => {});
+
+    fetch(`${API}/api/org/departments?evaluator_id=${uid}`)
+      .then(r => r.json())
+      .then((d: OrgItem[]) => setDepartments(dedupe(d || [])))
+      .catch(() => {});
+
+    fetch(`${API}/api/org/sub-departments?evaluator_id=${uid}`)
+      .then(r => r.json())
+      .then((d: OrgItem[]) => setSubDepts(dedupe(d || [])))
+      .catch(() => {});
   }, [user?.id, isHQ]);
 
   const resolve = (sel: string[], list: OrgItem[]) => {
@@ -321,22 +417,34 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
   const handleSave = async () => {
     if (!start || !end)                   { setError('Both dates are required.'); return; }
     if (new Date(end) <= new Date(start)) { setError('End date must be after start date.'); return; }
-    setSaving(true); setError('');
+
+    setSaving(true);
+    setError('');
+
     try {
       const res = await fetch(`${API}/api/rating-periods/update`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          period, pms_year: pmsYear, rating_start: start, rating_end: end,
+          period,
+          pms_year:             pmsYear,
+          rating_start:         start,
+          rating_end:           end,
           affected_countries:   isHQ ? resolve(selCountries, countries) : undefined,
           affected_branches:    resolve(selBranches, branches),
           affected_departments: resolve(selDepartments, departments),
           affected_sub_depts:   resolve(selSubDepts, subDepts),
         }),
       });
+
       if (!res.ok) throw new Error();
+
       setSaved(true);
       setTimeout(() => { onSaved(); onClose(); }, 1000);
-    } catch { setError('Failed to save. Please try again.'); }
+    } catch {
+      setError('Failed to save. Please try again.');
+    }
+
     setSaving(false);
   };
 
@@ -356,16 +464,22 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
         <h3 style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 700, color: '#101828' }}>Edit Rating Period</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#6B7280' }}>{period} {pmsYear}</p>
         <div style={{ height: 1, background: '#E5E7EB', marginBottom: 18 }} />
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 6 }}>Rating Start</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 6 }}>
+              Rating Start
+            </label>
             <input type="date" value={start} onChange={e => setStart(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 6 }}>Rating End</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 6 }}>
+              Rating End
+            </label>
             <input type="date" value={end} onChange={e => setEnd(e.target.value)} style={inputStyle} />
           </div>
         </div>
+
         <div style={{ marginTop: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
             <Filter size={13} color="#2563EB" />
@@ -373,22 +487,42 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
             <span style={{ fontSize: 11.5, color: '#6B7280' }}>— select which units are affected</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {isHQ && countries.length > 0 && <MultiSelect label="Countries" items={countries} selected={selCountries} onChange={setSelCountries} />}
-            {branches.length > 0    && <MultiSelect label="Branches"        items={branches}    selected={selBranches}    onChange={setSelBranches} />}
-            {departments.length > 0 && <MultiSelect label="Departments"     items={departments} selected={selDepartments} onChange={setSelDepartments} />}
-            {subDepts.length > 0    && <MultiSelect label="Sub-Departments" items={subDepts}    selected={selSubDepts}    onChange={setSelSubDepts} />}
+            {isHQ && countries.length > 0 && (
+              <MultiSelect label="Countries"       items={countries}   selected={selCountries}   onChange={setSelCountries} />
+            )}
+            {branches.length > 0 && (
+              <MultiSelect label="Branches"        items={branches}    selected={selBranches}    onChange={setSelBranches} />
+            )}
+            {departments.length > 0 && (
+              <MultiSelect label="Departments"     items={departments} selected={selDepartments} onChange={setSelDepartments} />
+            )}
+            {subDepts.length > 0 && (
+              <MultiSelect label="Sub-Departments" items={subDepts}    selected={selSubDepts}    onChange={setSelSubDepts} />
+            )}
           </div>
         </div>
+
         {error && <p style={{ color: '#DC2626', fontSize: 12, margin: '12px 0 0' }}>{error}</p>}
         {saved && <p style={{ color: '#16A34A', fontSize: 12, margin: '12px 0 0' }}>Period updated successfully!</p>}
+
         <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#FFFFFF', fontSize: 13, cursor: 'pointer', color: '#374151', fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving || saved} style={{
-            padding: '7px 18px', borderRadius: 8, border: 'none',
-            background: saved ? '#16A34A' : '#2563EB', color: '#fff',
-            fontSize: 13, fontWeight: 600,
-            cursor: (saving || saved) ? 'not-allowed' : 'pointer', opacity: saving ? 0.8 : 1,
-          }}>
+          <button
+            onClick={onClose}
+            style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#FFFFFF', fontSize: 13, cursor: 'pointer', color: '#374151', fontWeight: 600 }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || saved}
+            style={{
+              padding: '7px 18px', borderRadius: 8, border: 'none',
+              background: saved ? '#16A34A' : '#2563EB', color: '#fff',
+              fontSize: 13, fontWeight: 600,
+              cursor: (saving || saved) ? 'not-allowed' : 'pointer',
+              opacity: saving ? 0.8 : 1,
+            }}
+          >
             {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
           </button>
         </div>
@@ -397,14 +531,22 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ══════════════════════════════════════════════════════════════════
 export default function RatingSettings() {
   const { user } = useAuth();
   const router   = useRouter();
 
-  const roleSlug      = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
-  const canEditPeriod = user?.role === 'country_admin' || user?.role === 'hq_admin';
-  const evaluatorId   = user?.id ?? '';
+  const roleSlug = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
+
+  // FIX 3: hq_admin was missing — now both hq_admin and country_admin can edit
+  const canEditPeriod = (
+    user?.role === 'country_admin' ||
+    user?.role === 'hq_admin'
+  );
+
+  const evaluatorId = user?.id ?? '';
 
   const [periodData,     setPeriodData]     = useState<RatingPeriodState | null>(null);
   const [activePeriod,   setActivePeriod]   = useState<RatingPeriod | null>(null);
@@ -416,20 +558,22 @@ export default function RatingSettings() {
   const [reminderTarget, setReminderTarget] = useState<OverviewMember | TeamMember | null>(null);
   const [editPeriodOpen, setEditPeriodOpen] = useState(false);
 
-  const pmsYear        = activePeriod?.pms_year  ?? new Date().getFullYear();
-  const selectedPeriod = activePeriod?.period    ?? 'H1';
+  const pmsYear        = activePeriod?.pms_year ?? new Date().getFullYear();
+  const selectedPeriod = activePeriod?.period   ?? 'H1';
   const ratingIsOpen   = periodData?.rating_open ?? false;
 
   const fetchRatingStatuses = useCallback(async (
     teamMembers: TeamMember[],
-    year: number,
-    period: string,
+    year:        number,
+    period:      string,
   ) => {
     if (!teamMembers.length || !year || !period) return;
     setStatusLoading(true);
     try {
       const userIds = teamMembers.map(m => m.id).join(',');
-      const res  = await fetch(`${API}/api/rating-status/batch?user_ids=${userIds}&year=${year}&period=${period}`);
+      const res     = await fetch(
+        `${API}/api/rating-status/batch?user_ids=${userIds}&year=${year}&period=${period}`
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ManualRatingStatus = await res.json();
       setRatingStatus(data);
@@ -467,6 +611,7 @@ export default function RatingSettings() {
       setPeriodData(periodJson);
       setActivePeriod(best);
       setOverview(Array.isArray(overviewJson) ? overviewJson : []);
+
       const resolvedTeam: TeamMember[] = Array.isArray(teamJson) ? teamJson : [];
       setTeam(resolvedTeam);
 
@@ -498,14 +643,18 @@ export default function RatingSettings() {
       {reminderTarget && (
         <ReminderModal
           member={reminderTarget} period={selectedPeriod} pmsYear={pmsYear}
-          senderId={evaluatorId} onClose={() => setReminderTarget(null)} onSent={fetchAll}
+          senderId={evaluatorId}
+          onClose={() => setReminderTarget(null)}
+          onSent={fetchAll}
         />
       )}
+
       {editPeriodOpen && activePeriod && (
         <EditPeriodModal
           period={selectedPeriod} pmsYear={activePeriod.pms_year}
           currentStart={activePeriod.rating_start} currentEnd={activePeriod.rating_end}
-          onClose={() => setEditPeriodOpen(false)} onSaved={fetchAll}
+          onClose={() => setEditPeriodOpen(false)}
+          onSaved={fetchAll}
         />
       )}
 
@@ -537,7 +686,7 @@ export default function RatingSettings() {
           )}
         </div>
 
-        {/* ── Rating Period Banner ───────────────────────────────── */}
+        {/* ── Rating Period Banner ──────────────────────────────── */}
         <div style={{
           background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 6,
           padding: '18px 24px', marginBottom: 64, borderLeft: '28px solid #2563EB',
@@ -564,20 +713,25 @@ export default function RatingSettings() {
                   : (periodData?.reason ?? 'No period configured.')}
               </p>
             </div>
+
+            {/* FIX 3: hq_admin now sees the Edit Period button too */}
             {canEditPeriod && activePeriod && (
-              <button onClick={() => setEditPeriodOpen(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '7px 14px', borderRadius: 10,
-                border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#2563EB',
-                fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-              }}>
+              <button
+                onClick={() => setEditPeriodOpen(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 10,
+                  border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#2563EB',
+                  fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
                 <Settings size={13} /> Edit Period
               </button>
             )}
           </div>
         </div>
 
-        {/* ══ TEAM MEMBERS — MANUAL RATING REQUIRED ══════════════ */}
+        {/* ══ TEAM MEMBERS — MANUAL RATING REQUIRED ════════════ */}
         <div style={{
           background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 6,
           overflow: 'hidden', marginBottom: 64,
@@ -588,8 +742,36 @@ export default function RatingSettings() {
             subtitle={`Enter manual ratings for each team member · ${selectedPeriod} ${pmsYear}`}
           />
 
+          {/* FIX 1 & 2: show a closed banner when the period is not open */}
+          {!ratingIsOpen && (
+            <div style={{
+              margin: '20px 24px',
+              background: '#FEF9C3', border: '1px solid #FDE047',
+              borderRadius: 8, padding: '12px 16px',
+              fontSize: 13, color: '#854D0E',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <Lock size={14} />
+              The rating window is currently closed. Ratings cannot be entered or modified.
+              {canEditPeriod && (
+                <button
+                  onClick={() => setEditPeriodOpen(true)}
+                  style={{
+                    marginLeft: 8, padding: '3px 10px', borderRadius: 6,
+                    border: '1px solid #FDE047', background: 'transparent',
+                    color: '#854D0E', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  Open Period →
+                </button>
+              )}
+            </div>
+          )}
+
           {team.length === 0 ? (
-            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>No team members found.</div>
+            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+              No team members found.
+            </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
@@ -611,6 +793,10 @@ export default function RatingSettings() {
                     const isLast = idx === team.length - 1;
 
                     const renderStatus = () => {
+                      // FIX 2: hide Pending/Submitted pills when period is closed
+                      if (!ratingIsOpen) {
+                        return <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>;
+                      }
                       if (statusLoading && !status) {
                         return <span style={{ fontSize: 12, color: '#9CA3AF' }}>Loading…</span>;
                       }
@@ -620,7 +806,6 @@ export default function RatingSettings() {
                       if (status.total === 0) {
                         return <span style={{ fontSize: 12, color: '#9CA3AF' }}>No manual KPIs</span>;
                       }
-                      // ✅ Simple Pending / Submitted — no count needed since all-or-nothing
                       return (
                         <StatusPill
                           complete={status.submitted}
@@ -632,19 +817,25 @@ export default function RatingSettings() {
                     return (
                       <tr
                         key={member.id}
-                        style={{ borderBottom: isLast ? 'none' : '1px solid #E5E7EB', background: '#FFFFFF' }}
+                        style={{
+                          borderBottom: isLast ? 'none' : '1px solid #E5E7EB',
+                          background: '#FFFFFF',
+                        }}
                         onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
                         onMouseLeave={e => (e.currentTarget.style.background = '#FFFFFF')}
                       >
                         <td style={{ padding: '6px 20px 6px 28px' }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#101828' }}>{member.full_name}</div>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#101828' }}>
+                            {member.full_name}
+                          </div>
                         </td>
                         <td style={{ padding: '6px 20px', textAlign: 'center' }}>
                           {renderStatus()}
                         </td>
                         <td style={{ padding: '6px 20px', textAlign: 'center' }}>
-                          {/* ✅ Re-enter Ratings if already submitted, Enter Ratings if not */}
+                          {/* FIX 1: ratingIsOpen controls whether button is clickable */}
                           <EnterRatingsBtn
+                            ratingIsOpen={ratingIsOpen}
                             reenter={status?.submitted === true}
                             onClick={() => router.push(
                               `/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}`
@@ -660,7 +851,7 @@ export default function RatingSettings() {
           )}
         </div>
 
-        {/* ══ RATING OVERVIEW ═════════════════════════════════════ */}
+        {/* ══ RATING OVERVIEW ══════════════════════════════════ */}
         <div style={{
           background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 6,
           overflow: 'hidden', marginBottom: 64,
@@ -672,7 +863,9 @@ export default function RatingSettings() {
           />
 
           {overview.length === 0 ? (
-            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>No team members found.</div>
+            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+              No team members found.
+            </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -689,12 +882,17 @@ export default function RatingSettings() {
                   {overview.map((member, idx) => (
                     <tr
                       key={member.id}
-                      style={{ borderBottom: idx === overview.length - 1 ? 'none' : '1px solid #E5E7EB', background: '#FFFFFF' }}
+                      style={{
+                        borderBottom: idx === overview.length - 1 ? 'none' : '1px solid #E5E7EB',
+                        background: '#FFFFFF',
+                      }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
                       onMouseLeave={e => (e.currentTarget.style.background = '#FFFFFF')}
                     >
                       <td style={{ padding: '6px 20px' }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 600, color: '#101828' }}>{member.name}</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: '#101828' }}>
+                          {member.name}
+                        </div>
                       </td>
                       <td style={{ padding: '6px 16px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: '#2563EB' }}>
                         {member.total}
@@ -708,16 +906,24 @@ export default function RatingSettings() {
                               transition: 'width 0.4s',
                             }} />
                           </div>
-                          <span style={{ fontSize: 11.5, color: '#6B7280', minWidth: 36, fontWeight: 600 }}>{member.pct}%</span>
+                          <span style={{ fontSize: 11.5, color: '#6B7280', minWidth: 36, fontWeight: 600 }}>
+                            {member.pct}%
+                          </span>
                         </div>
                       </td>
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        <StatusPill complete={member.status === 'complete'} />
+                        {/* FIX 2: hide status pill in overview when period is closed */}
+                        {ratingIsOpen
+                          ? <StatusPill complete={member.status === 'complete'} />
+                          : <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
+                        }
                       </td>
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        {member.pending > 0
+                        {/* Only show Remind button when period is open and ratings are pending */}
+                        {ratingIsOpen && member.pending > 0
                           ? <RemindBtn onClick={() => setReminderTarget(member)} />
-                          : <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>}
+                          : <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
+                        }
                       </td>
                     </tr>
                   ))}
