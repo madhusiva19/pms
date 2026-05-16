@@ -10,6 +10,9 @@
 import { ASSESSMENT_PILLARS, type PillarDefinition } from './assessmentContent';
 import type { AssessmentComponent, RatingValue } from '@/types';
 
+// Single source of truth for the 3 questions per pillar — avoids repeating [1,2,3] inline
+const COMPONENT_NUMBERS = [1, 2, 3] as const;
+
 /**
  * Merges DB-sourced assessment components with the hardcoded defaults.
  *
@@ -29,7 +32,7 @@ import type { AssessmentComponent, RatingValue } from '@/types';
 export function buildPillars(dbComponents: AssessmentComponent[]): PillarDefinition[] {
   return ASSESSMENT_PILLARS.map(pillar => ({
     ...pillar,
-    components: ([1, 2, 3] as const).map(num => {
+    components: COMPONENT_NUMBERS.map(num => {
       const found = dbComponents.find(
         c => c.pillar === pillar.key && c.component_number === num
       );
