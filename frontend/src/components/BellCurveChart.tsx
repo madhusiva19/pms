@@ -54,8 +54,8 @@ export default function BellCurveChart({ data, title, subtitle }: BellCurveChart
 
       {/* Chart */}
       <div className="px-6 pt-4 pb-5">
-        <div style={{ height: 350, width: '70%' }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ minHeight: 350, width: '70%' }}>
+          <ResponsiveContainer width="100%" height={350}>
             <BarChart
               data={chartData}
               margin={{ top: 8, right: 8, left: 0, bottom: 0 }}

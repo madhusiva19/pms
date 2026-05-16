@@ -32,6 +32,8 @@ type SupRatingMap = Record<PillarKey, Record<number, RatingValue | ''>>;
 type SupJustMap = Record<PillarKey, Record<number, string>>;
 
 const RATING_OPTIONS: RatingValue[] = ['H', 'M', 'L'];
+// Single source of truth for the 3 questions per pillar — avoids repeating [1,2,3] inline
+const COMPONENT_NUMBERS = [1, 2, 3] as const;
 
 const ratingBadgeStyles: Record<RatingValue, string> = {
   H: 'bg-[#DCFCE7] text-[#16A34A] border-[#86EFAC]',
@@ -97,7 +99,7 @@ export default function SupervisorReviewForm({
   }, [assessmentData.appraisee_role]);
 
   const allFilled = PILLAR_KEYS.every((p) =>
-    [1, 2, 3].every((c) => supRatings[p][c] !== '' && supJusts[p][c].trim() !== '')
+    COMPONENT_NUMBERS.every((c) => supRatings[p][c] !== '' && supJusts[p][c].trim() !== '')
   );
 
   const handleSubmit = async () => {
@@ -106,7 +108,7 @@ export default function SupervisorReviewForm({
     try {
       const items: SupervisorSubmitItemPayload[] = [];
       PILLAR_KEYS.forEach((p) => {
-        [1, 2, 3].forEach((c) => {
+        COMPONENT_NUMBERS.forEach((c) => {
           const item = itemLookup[p][c];
           if (item) {
             items.push({
@@ -139,8 +141,11 @@ export default function SupervisorReviewForm({
       {/* Tab switcher */}
       <div className="flex gap-1 p-1 bg-[#F3F4F6] rounded-lg w-fit">
         {pillars.map((pillar) => {
-          const filled = isReadOnly ? 3 : [1, 2, 3].filter((c) => supRatings[pillar.key][c] !== '').length;
+          const filled = isReadOnly ? 3 : COMPONENT_NUMBERS.filter((c) => supRatings[pillar.key][c] !== '').length;
           return (
+            // BUTTON — Pillar tab (Ability / Aspiration / Leadership)
+            // Why: lets the supervisor navigate between pillars without losing entered data;
+            // active tab highlighted white so it is clear which pillar is being reviewed
             <button key={pillar.key} onClick={() => setActiveTab(pillar.key)}
               className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${activeTab === pillar.key ? 'bg-white text-[#1E3A8A] shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
               {pillar.label}
@@ -150,7 +155,9 @@ export default function SupervisorReviewForm({
         })}
       </div>
 
-      {/* Table */}
+      {/* TABLE — supervisor review grid: Component | Appraisee Rating | Appraisee Example | Your Rating | Your Justification
+          Why: side-by-side layout lets supervisor see the appraisee's self-rating and example
+          before entering their own rating and justification for each of the 9 components */}
       <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden overflow-x-auto">
         <table className="w-full border-collapse min-w-[900px]">
           <thead>
@@ -189,6 +196,10 @@ export default function SupervisorReviewForm({
                         : <span className="text-[#94A3B8] text-[13px]">—</span>
                     ) : (
                       <div className="flex gap-1">
+                        {/* BUTTONS — H / M / L supervisor rating toggles (one set per component row)
+                            Why: supervisor must explicitly rate each component; blue badge style
+                            (supRatingBadgeStyle) visually distinguishes the supervisor's choice
+                            from the appraisee's green/yellow/red self-rating badge */}
                         {RATING_OPTIONS.map((opt) => (
                           <button key={opt}
                             onClick={() => setSupRatings((prev) => ({ ...prev, [activePillar.key]: { ...prev[activePillar.key], [c]: opt } }))}
@@ -219,19 +230,26 @@ export default function SupervisorReviewForm({
       {!isReadOnly && (
         <div className="flex items-center justify-between">
           <div className="flex gap-2">
-            {activeTab !== 'ability' && (
+            {activeTab !== PILLAR_KEYS[0] && (
+              // BUTTON — "← Previous" pillar tab navigation
+              // Why: allows supervisor to go back and correct a rating before final submission
               <button onClick={() => setActiveTab(PILLAR_KEYS[PILLAR_KEYS.indexOf(activeTab) - 1])}
                 className="px-3 py-2 text-[13px] text-[#64748B] border border-[#E5E7EB] rounded-lg hover:bg-[#F8FAFC] transition-colors">
                 ← Previous
               </button>
             )}
-            {activeTab !== 'leadership' && (
+            {activeTab !== PILLAR_KEYS[PILLAR_KEYS.length - 1] && (
+              // BUTTON — "Next →" pillar tab navigation
+              // Why: guides the supervisor through all 3 pillars in sequence before the Submit button becomes reachable
               <button onClick={() => setActiveTab(PILLAR_KEYS[PILLAR_KEYS.indexOf(activeTab) + 1])}
                 className="flex items-center gap-1 px-3 py-2 text-[13px] text-[#3B82F6] border border-[#BEDBFF] rounded-lg hover:bg-[#EFF6FF] transition-colors">
                 Next <ChevronRight className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
+          {/* BUTTON — "Submit Review" (opens confirmation modal)
+              Why: disabled until all 9 ratings AND justifications are filled; an incomplete
+              submission would cause the backend pillar calculation to fail or produce wrong results */}
           <button disabled={!allFilled} onClick={() => setShowModal(true)}
             className={`px-6 py-2.5 rounded-lg text-[13.5px] font-semibold text-white transition-all ${allFilled ? 'bg-[#1E3A8A] hover:bg-[#1E40AF] active:scale-[0.98]' : 'bg-[#CBD5E1] cursor-not-allowed'}`}>
             Submit Review
@@ -258,10 +276,15 @@ export default function SupervisorReviewForm({
             </div>
             {submitError && <div className="bg-[#FEE2E2] border border-[#FCA5A5] rounded-lg px-4 py-3 text-[13px] text-[#DC2626]">{submitError}</div>}
             <div className="flex gap-3 justify-end">
+              {/* BUTTON — "Cancel" (dismiss confirmation modal without submitting)
+                  Why: gives the supervisor a chance to re-check ratings before the irreversible finalisation */}
               <button disabled={submitting} onClick={() => { setShowModal(false); setSubmitError(null); }}
                 className="px-4 py-2 text-[13.5px] font-medium text-[#374151] border border-[#E5E7EB] rounded-lg hover:bg-[#F8FAFC] transition-colors">
                 Cancel
               </button>
+              {/* BUTTON — "Finalise Assessment" (triggers supervisor-submit API call)
+                  Why: once clicked the backend calculates pillar ratings and Overall Potentiality,
+                  sets status to 'completed', and the assessment can never be edited again */}
               <button disabled={submitting} onClick={handleSubmit}
                 className="flex items-center gap-2 px-4 py-2 bg-[#1E3A8A] text-white text-[13.5px] font-semibold rounded-lg hover:bg-[#1E40AF] transition-colors disabled:opacity-70">
                 {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</> : <><CheckCircle className="w-4 h-4" /> Finalise Assessment</>}
