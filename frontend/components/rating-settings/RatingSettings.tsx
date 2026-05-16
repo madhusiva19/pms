@@ -128,9 +128,6 @@ function RemindBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-// FIX 1: EnterRatingsBtn now accepts ratingIsOpen.
-// When the period is closed it renders a disabled "Period Closed" badge
-// instead of a clickable button — preventing any navigation.
 function EnterRatingsBtn({
   onClick,
   reenter,
@@ -357,21 +354,20 @@ function MultiSelect({
 }
 
 // ── Edit Period Modal ──────────────────────────────────────────────
-function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, onSaved }: {
+function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorId, onClose, onSaved }: {
   period: string; pmsYear: number; currentStart: string; currentEnd: string;
+  evaluatorId: string;
   onClose: () => void; onSaved: () => void;
 }) {
   const { user } = useAuth();
-
-  // FIX 3: hq_admin can also edit rating periods.
-  // isHQ gives them the extra Countries multi-select in the "Apply To" section.
   const isHQ = user?.role === 'hq_admin';
 
-  const [start,  setStart]  = useState(currentStart?.slice(0, 10) ?? '');
-  const [end,    setEnd]    = useState(currentEnd?.slice(0, 10) ?? '');
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
-  const [error,  setError]  = useState('');
+  const [start,    setStart]    = useState(currentStart?.slice(0, 10) ?? '');
+  const [end,      setEnd]      = useState(currentEnd?.slice(0, 10) ?? '');
+  const [selfOnly, setSelfOnly] = useState(false);   // ← NEW: apply to self only
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [error,    setError]    = useState('');
 
   const [countries,   setCountries]   = useState<OrgItem[]>([]);
   const [branches,    setBranches]    = useState<OrgItem[]>([]);
@@ -430,10 +426,13 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
           pms_year:             pmsYear,
           rating_start:         start,
           rating_end:           end,
-          affected_countries:   isHQ ? resolve(selCountries, countries) : undefined,
-          affected_branches:    resolve(selBranches, branches),
-          affected_departments: resolve(selDepartments, departments),
-          affected_sub_depts:   resolve(selSubDepts, subDepts),
+          // ── NEW: when selfOnly is true, send the evaluator id and skip org filters ──
+          self_only:            selfOnly,
+          evaluator_id:         selfOnly ? evaluatorId : undefined,
+          affected_countries:   (!selfOnly && isHQ) ? resolve(selCountries, countries) : undefined,
+          affected_branches:    !selfOnly ? resolve(selBranches, branches)    : undefined,
+          affected_departments: !selfOnly ? resolve(selDepartments, departments) : undefined,
+          affected_sub_depts:   !selfOnly ? resolve(selSubDepts, subDepts)    : undefined,
         }),
       });
 
@@ -465,6 +464,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#6B7280' }}>{period} {pmsYear}</p>
         <div style={{ height: 1, background: '#E5E7EB', marginBottom: 18 }} />
 
+        {/* Date inputs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 6 }}>
@@ -480,13 +480,48 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, onClose, o
           </div>
         </div>
 
+        {/* ── Apply To section ── */}
         <div style={{ marginTop: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
             <Filter size={13} color="#2563EB" />
             <span style={{ fontSize: 12.5, fontWeight: 700, color: '#101828' }}>Apply To</span>
             <span style={{ fontSize: 11.5, color: '#6B7280' }}>— select which units are affected</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* ── NEW: Self-only toggle (shown only to hq_admin) ── */}
+          {isHQ && (
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+              padding: '12px 14px', borderRadius: 8, marginBottom: 14,
+              background: selfOnly ? '#EFF6FF' : '#F9FAFB',
+              border: `1px solid ${selfOnly ? '#BFDBFE' : '#E5E7EB'}`,
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}>
+              <input
+                type="checkbox"
+                checked={selfOnly}
+                onChange={e => setSelfOnly(e.target.checked)}
+                style={{ accentColor: '#2563EB', width: 15, height: 15, marginTop: 1, flexShrink: 0 }}
+              />
+              <span>
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: selfOnly ? '#2563EB' : '#374151' }}>
+                  Apply to myself only
+                </span>
+                <span style={{ display: 'block', fontSize: 11.5, color: '#6B7280', marginTop: 2 }}>
+                  Updates only your own rating period — does not affect countries, branches, or other units.
+                </span>
+              </span>
+            </label>
+          )}
+
+          {/* Org-unit filter selects — greyed out when selfOnly */}
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: 12,
+            opacity: selfOnly ? 0.35 : 1,
+            pointerEvents: selfOnly ? 'none' : 'auto',
+            transition: 'opacity 0.2s',
+          }}>
             {isHQ && countries.length > 0 && (
               <MultiSelect label="Countries"       items={countries}   selected={selCountries}   onChange={setSelCountries} />
             )}
@@ -540,7 +575,6 @@ export default function RatingSettings() {
 
   const roleSlug = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
 
-  // FIX 3: hq_admin was missing — now both hq_admin and country_admin can edit
   const canEditPeriod = (
     user?.role === 'country_admin' ||
     user?.role === 'hq_admin'
@@ -649,10 +683,12 @@ export default function RatingSettings() {
         />
       )}
 
+      {/* ── Pass evaluatorId into EditPeriodModal so self_only works ── */}
       {editPeriodOpen && activePeriod && (
         <EditPeriodModal
           period={selectedPeriod} pmsYear={activePeriod.pms_year}
           currentStart={activePeriod.rating_start} currentEnd={activePeriod.rating_end}
+          evaluatorId={evaluatorId}
           onClose={() => setEditPeriodOpen(false)}
           onSaved={fetchAll}
         />
@@ -714,7 +750,6 @@ export default function RatingSettings() {
               </p>
             </div>
 
-            {/* FIX 3: hq_admin now sees the Edit Period button too */}
             {canEditPeriod && activePeriod && (
               <button
                 onClick={() => setEditPeriodOpen(true)}
@@ -742,7 +777,6 @@ export default function RatingSettings() {
             subtitle={`Enter manual ratings for each team member · ${selectedPeriod} ${pmsYear}`}
           />
 
-          {/* FIX 1 & 2: show a closed banner when the period is not open */}
           {!ratingIsOpen && (
             <div style={{
               margin: '20px 24px',
@@ -793,7 +827,6 @@ export default function RatingSettings() {
                     const isLast = idx === team.length - 1;
 
                     const renderStatus = () => {
-                      // FIX 2: hide Pending/Submitted pills when period is closed
                       if (!ratingIsOpen) {
                         return <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>;
                       }
@@ -833,7 +866,6 @@ export default function RatingSettings() {
                           {renderStatus()}
                         </td>
                         <td style={{ padding: '6px 20px', textAlign: 'center' }}>
-                          {/* FIX 1: ratingIsOpen controls whether button is clickable */}
                           <EnterRatingsBtn
                             ratingIsOpen={ratingIsOpen}
                             reenter={status?.submitted === true}
@@ -912,14 +944,12 @@ export default function RatingSettings() {
                         </div>
                       </td>
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        {/* FIX 2: hide status pill in overview when period is closed */}
                         {ratingIsOpen
                           ? <StatusPill complete={member.status === 'complete'} />
                           : <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
                         }
                       </td>
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        {/* Only show Remind button when period is open and ratings are pending */}
                         {ratingIsOpen && member.pending > 0
                           ? <RemindBtn onClick={() => setReminderTarget(member)} />
                           : <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
