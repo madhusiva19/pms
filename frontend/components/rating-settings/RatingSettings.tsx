@@ -509,7 +509,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
                   Apply to myself only
                 </span>
                 <span style={{ display: 'block', fontSize: 11.5, color: '#6B7280', marginTop: 2 }}>
-                  Updates only your own rating period — does not affect countries, branches, or other units.
+                  Updates only your own rating period.
                 </span>
               </span>
             </label>
