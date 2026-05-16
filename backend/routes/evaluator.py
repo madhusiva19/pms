@@ -682,8 +682,6 @@ def update_rating_period():
             if not evaluator_id:
                 return jsonify({"error": "evaluator_id is required when self_only is true"}), 400
 
-            # Resolve the evaluator's own org identifiers so we can scope
-            # the update to only their row in rating_periods.
             user_res = (
                 supabase.table("users")
                 .select("id, role, branch_id, department_id, sub_department_id, country_id")
@@ -698,10 +696,6 @@ def update_rating_period():
             user = user_res.data
             role = user.get("role", "")
 
-            # Build a targeted query that matches only this evaluator's period row.
-            # rating_periods rows are scoped by evaluator_id when they exist;
-            # fall back to a global update filtered by period + pms_year only
-            # for roles that own a single group-level row (hq_admin).
             query = (
                 supabase.table("rating_periods")
                 .update(update_payload)
@@ -743,8 +737,6 @@ def update_rating_period():
                 .execute()
             )
 
-            # Apply per-unit overrides where the rating_periods table has
-            # org-scoped rows (branch_id / department_id / etc. columns).
             for branch_id in (affected_branches or []):
                 (
                     supabase.table("rating_periods")
@@ -807,12 +799,21 @@ def get_rating_overview(evaluator_id: str):
     """
     Return a per-team-member overview of manual rating completion for the
     evaluator's direct reports.
+
+    For each team member (subordinate of the evaluator), we count:
+      - total:     how many of THEIR own direct reports exist (people they must rate)
+      - submitted: how many of those have at least one manual rating recorded
+      - pending:   total - submitted
+
+    This means the "Members To Rate" column shows e.g. 0 / 3 → 1 / 3 → 3 / 3
+    as the member progressively rates their own subordinates.
     """
     try:
         active_year, active_period_str = get_active_period_params()
         period   = request.args.get("period", active_period_str)
         pms_year = request.args.get("year",   active_year, type=int)
 
+        # The evaluator's direct reports (shown as rows in the overview table)
         team_res = (
             supabase.table("users")
             .select("id, full_name, role, designation_id, designations(name)")
@@ -824,63 +825,49 @@ def get_rating_overview(evaluator_id: str):
         overview = []
 
         for member in team:
-            assign_res = (
-                supabase.table("template_assignments")
-                .select("template_id")
-                .eq("user_id", member["id"])
-                .limit(1)
-                .execute()
-            )
-
-            if not assign_res.data:
-                continue
-
-            template_id = assign_res.data[0]["template_id"]
-
-            cat_res = (
-                supabase.table("categories")
+            # ── How many people does THIS member need to rate? ───────────────
+            # i.e. their own direct reports
+            subordinates_res = (
+                supabase.table("users")
                 .select("id")
-                .eq("template_id", template_id)
+                .eq("manager_id", member["id"])
                 .execute()
             )
-            cat_ids = [c["id"] for c in (cat_res.data or [])]
+            subordinate_ids = [u["id"] for u in (subordinates_res.data or [])]
+            total_members   = len(subordinate_ids)
 
-            total_manual = 0
-            if cat_ids:
-                obj_res = (
-                    supabase.table("objectives")
-                    .select("id")
-                    .in_("category_id", cat_ids)
-                    .eq("kpi_scale", "manual")
+            # ── How many of those subordinates have been rated already? ──────
+            submitted = 0
+            if subordinate_ids:
+                rated_res = (
+                    supabase.table("performance_records")
+                    .select("user_id")
+                    .in_("user_id", subordinate_ids)
+                    .eq("period", period)
+                    .eq("year", pms_year)
+                    .not_.is_("manual_rating", "null")
                     .execute()
                 )
-                total_manual = len(obj_res.data or [])
+                # Count distinct subordinates with at least one rating submitted
+                submitted = len(set(
+                    r["user_id"] for r in (rated_res.data or [])
+                ))
 
-            submitted_res = (
-                supabase.table("performance_records")
-                .select("objective_id")
-                .eq("user_id", member["id"])
-                .eq("period", period)
-                .eq("year", pms_year)
-                .not_.is_("manual_rating", "null")
-                .execute()
-            )
-            submitted = len(submitted_res.data or [])
-            pending   = max(0, total_manual - submitted)
+            pending = max(0, total_members - submitted)
 
             overview.append({
                 "id":          member["id"],
                 "name":        member["full_name"],
                 "role":        member["role"],
                 "designation": (member.get("designations") or {}).get("name", ""),
-                "total":       total_manual,
-                "submitted":   submitted,
-                "pending":     pending,
+                "total":       total_members,  # total people they need to rate
+                "submitted":   submitted,       # how many rated so far
+                "pending":     pending,         # how many still remaining
                 "pct":         round(
-                    (submitted / total_manual * 100) if total_manual > 0 else 0, 1
+                    (submitted / total_members * 100) if total_members > 0 else 0, 1
                 ),
-                "status":      (
-                    "complete" if pending == 0 and total_manual > 0 else "pending"
+                "status": (
+                    "complete" if pending == 0 and total_members > 0 else "pending"
                 ),
             })
 
