@@ -111,8 +111,8 @@ export default function ComparisonChart({
 
       {/* Chart */}
       <div className="pt-2 pb-2">
-        <div style={{ height: 350, width: '70%' }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ minHeight: 350, width: '70%' }}>
+          <ResponsiveContainer width="100%" height={350}>
             <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
             <XAxis

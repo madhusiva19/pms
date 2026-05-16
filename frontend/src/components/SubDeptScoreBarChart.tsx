@@ -54,8 +54,8 @@ export default function SubDeptScoreBarChart({
 
       {/* Chart */}
       <div className="px-6 pt-4 pb-5">
-        <div style={{ height: 380, width: '80%' }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ minHeight: 380, width: '80%' }}>
+          <ResponsiveContainer width="100%" height={380}>
             <BarChart
               data={chartData}
               margin={{ top: 8, right: 8, left: 0, bottom: 30 }}
