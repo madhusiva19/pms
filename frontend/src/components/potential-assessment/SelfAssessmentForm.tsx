@@ -33,6 +33,8 @@ type RatingMap = Record<PillarKey, Record<number, RatingValue | ''>>;
 type ExampleMap = Record<PillarKey, Record<number, string>>;
 
 const RATING_OPTIONS: RatingValue[] = ['H', 'M', 'L'];
+// Single source of truth for the 3 questions per pillar — avoids repeating [1,2,3] inline
+const COMPONENT_NUMBERS = [1, 2, 3] as const;
 
 const ratingBadgeStyles: Record<RatingValue, string> = {
   H: 'bg-[#DCFCE7] text-[#16A34A] border-[#86EFAC]',
@@ -97,7 +99,7 @@ export default function SelfAssessmentForm({
   const isReadOnly = currentStatus !== 'not_started' && currentStatus !== 'pending_self';
 
   const allFilled = PILLAR_KEYS.every((p) =>
-    [1, 2, 3].every((c) => ratings[p][c] !== '')
+    COMPONENT_NUMBERS.every((c) => ratings[p][c] !== '')
   );
 
   const handleSubmit = async () => {
@@ -106,7 +108,7 @@ export default function SelfAssessmentForm({
     try {
       const items: SelfSubmitItemPayload[] = [];
       PILLAR_KEYS.forEach((p) => {
-        [1, 2, 3].forEach((c) => {
+        COMPONENT_NUMBERS.forEach((c) => {
           items.push({
             pillar: p,
             component_number: c as 1 | 2 | 3,
@@ -159,7 +161,7 @@ export default function SelfAssessmentForm({
          {/* tab Switcher */}
       <div className="flex gap-1 p-1 bg-[#F3F4F6] rounded-lg w-fit">
         {pillars.map((pillar) => {
-          const filled = [1, 2, 3].filter((c) => ratings[pillar.key][c] !== '').length;
+          const filled = COMPONENT_NUMBERS.filter((c) => ratings[pillar.key][c] !== '').length;
           return (
             // BUTTON — Pillar tab (Ability / Aspiration / Leadership)
            
@@ -267,7 +269,7 @@ export default function SelfAssessmentForm({
       {!isReadOnly && (
         <div className="flex items-center justify-between">
           <div className="flex gap-2">
-            {activeTab !== 'ability' && (
+            {activeTab !== PILLAR_KEYS[0] && (
               // BUTTON — "← Previous" tab navigation
               // Color: text-[#64748B] border-[#E5E7EB]  hover: bg-[#F8FAFC]
               <button
@@ -281,7 +283,7 @@ export default function SelfAssessmentForm({
                 ← Previous
               </button>
             )}
-            {activeTab !== 'leadership' && (
+            {activeTab !== PILLAR_KEYS[PILLAR_KEYS.length - 1] && (
               // BUTTON — "Next →" tab navigation
               // Color: text-[#3B82F6] border-[#BEDBFF]  hover: bg-[#EFF6FF]
               <button
@@ -297,6 +299,10 @@ export default function SelfAssessmentForm({
             )}
           </div>
 
+          {/* BUTTON — "Submit Self-Assessment" (opens confirmation modal)
+              Why: disabled until all 9 ratings are selected so the backend never receives
+              an incomplete payload; once confirmed, status locks to 'pending_supervisor'
+              and the form becomes permanently read-only for the appraisee */}
           <button
             type="button"
             disabled={!allFilled}
