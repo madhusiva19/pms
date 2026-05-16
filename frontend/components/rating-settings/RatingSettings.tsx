@@ -364,7 +364,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
 
   const [start,    setStart]    = useState(currentStart?.slice(0, 10) ?? '');
   const [end,      setEnd]      = useState(currentEnd?.slice(0, 10) ?? '');
-  const [selfOnly, setSelfOnly] = useState(false);   // ← NEW: apply to self only
+  const [selfOnly, setSelfOnly] = useState(false);
   const [saving,   setSaving]   = useState(false);
   const [saved,    setSaved]    = useState(false);
   const [error,    setError]    = useState('');
@@ -426,13 +426,12 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
           pms_year:             pmsYear,
           rating_start:         start,
           rating_end:           end,
-          // ── NEW: when selfOnly is true, send the evaluator id and skip org filters ──
           self_only:            selfOnly,
           evaluator_id:         selfOnly ? evaluatorId : undefined,
           affected_countries:   (!selfOnly && isHQ) ? resolve(selCountries, countries) : undefined,
-          affected_branches:    !selfOnly ? resolve(selBranches, branches)    : undefined,
-          affected_departments: !selfOnly ? resolve(selDepartments, departments) : undefined,
-          affected_sub_depts:   !selfOnly ? resolve(selSubDepts, subDepts)    : undefined,
+          affected_branches:    !selfOnly ? resolve(selBranches, branches)             : undefined,
+          affected_departments: !selfOnly ? resolve(selDepartments, departments)       : undefined,
+          affected_sub_depts:   !selfOnly ? resolve(selSubDepts, subDepts)             : undefined,
         }),
       });
 
@@ -480,7 +479,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
           </div>
         </div>
 
-        {/* ── Apply To section ── */}
+        {/* Apply To section */}
         <div style={{ marginTop: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
             <Filter size={13} color="#2563EB" />
@@ -488,7 +487,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
             <span style={{ fontSize: 11.5, color: '#6B7280' }}>— select which units are affected</span>
           </div>
 
-          {/* ── NEW: Self-only toggle (shown only to hq_admin) ── */}
+          {/* Self-only toggle — hq_admin only */}
           {isHQ && (
             <label style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,
@@ -509,13 +508,13 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
                   Apply to myself only
                 </span>
                 <span style={{ display: 'block', fontSize: 11.5, color: '#6B7280', marginTop: 2 }}>
-                  Updates only your own rating period.
+                  Updates only your own rating period — does not affect countries, branches, or other units.
                 </span>
               </span>
             </label>
           )}
 
-          {/* Org-unit filter selects — greyed out when selfOnly */}
+          {/* Org-unit filters — greyed out when selfOnly */}
           <div style={{
             display: 'flex', flexDirection: 'column', gap: 12,
             opacity: selfOnly ? 0.35 : 1,
@@ -683,7 +682,6 @@ export default function RatingSettings() {
         />
       )}
 
-      {/* ── Pass evaluatorId into EditPeriodModal so self_only works ── */}
       {editPeriodOpen && activePeriod && (
         <EditPeriodModal
           period={selectedPeriod} pmsYear={activePeriod.pms_year}
@@ -926,9 +924,18 @@ export default function RatingSettings() {
                           {member.name}
                         </div>
                       </td>
-                      <td style={{ padding: '6px 16px', textAlign: 'center', fontSize: 13.5, fontWeight: 700, color: '#2563EB' }}>
-                        {member.total}
+
+                      {/* ── submitted / total ── */}
+                      <td style={{ padding: '6px 16px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2563EB' }}>
+                          {member.submitted}
+                        </span>
+                        <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 400 }}> / </span>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#374151' }}>
+                          {member.total}
+                        </span>
                       </td>
+
                       <td style={{ padding: '6px 20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ flex: 1, height: 6, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
@@ -943,12 +950,14 @@ export default function RatingSettings() {
                           </span>
                         </div>
                       </td>
+
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
                         {ratingIsOpen
                           ? <StatusPill complete={member.status === 'complete'} />
                           : <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
                         }
                       </td>
+
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
                         {ratingIsOpen && member.pending > 0
                           ? <RemindBtn onClick={() => setReminderTarget(member)} />
