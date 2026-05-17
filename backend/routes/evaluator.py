@@ -652,15 +652,24 @@ def get_current_rating_period():
 @evaluator_bp.route("/api/rating-periods/update", methods=["POST"])
 def update_rating_period():
     """
-    Update the start and end dates of a rating period.
+    Update rating period dates with full 5-combination scope control.
 
-    Scope modes
-    -----------
-    self_only=True  → Update only the rating_period row that belongs to the
-                      calling evaluator's own org unit (resolved via evaluator_id).
-                      No other units are touched.
-    self_only=False → Broadcast the change to the affected_* unit lists
-                      supplied by the client (default behaviour for country/HQ admins).
+    Scope combinations
+    ------------------
+    include_self=True  + units selected (all)      → Myself + All units
+    include_self=True  + units selected (specific)  → Myself + Selected units
+    include_self=True  + no units selected           → Myself only
+    include_self=False + units selected (all)        → All units (excluding myself)
+    include_self=False + units selected (specific)   → Selected units only
+
+    Fields
+    ------
+    include_self         bool  — also update the evaluator's own period row
+    evaluator_id         str   — always required so backend can resolve the self row
+    affected_countries   list  — country ids  (HQ admin only)
+    affected_branches    list  — branch ids
+    affected_departments list  — department ids
+    affected_sub_depts   list  — sub-department ids
     """
     try:
         body      = request.get_json()
@@ -672,61 +681,35 @@ def update_rating_period():
         if not all([period, pms_year, new_start, new_end]):
             return jsonify({"error": "Missing required fields"}), 400
 
-        self_only    = bool(body.get("self_only", False))
-        evaluator_id = body.get("evaluator_id")  # required when self_only=True
+        include_self = bool(body.get("include_self", False))
+        evaluator_id = body.get("evaluator_id")
 
         update_payload = {"rating_start": new_start, "rating_end": new_end}
 
-        if self_only:
-            # ── Scope: update only the evaluator's own rating period row ──────
-            if not evaluator_id:
-                return jsonify({"error": "evaluator_id is required when self_only is true"}), 400
+        affected_countries   = body.get("affected_countries",   [])
+        affected_branches    = body.get("affected_branches",    [])
+        affected_departments = body.get("affected_departments", [])
+        affected_sub_depts   = body.get("affected_sub_depts",   [])
 
-            user_res = (
-                supabase.table("users")
-                .select("id, role, branch_id, department_id, sub_department_id, country_id")
-                .eq("id", evaluator_id)
-                .single()
-                .execute()
-            )
+        has_units = any([
+            affected_countries,
+            affected_branches,
+            affected_departments,
+            affected_sub_depts,
+        ])
 
-            if not user_res.data:
-                return jsonify({"error": "Evaluator not found"}), 404
+        # Guard: nothing selected at all
+        if not has_units and not include_self:
+            return jsonify({
+                "success": False,
+                "message": (
+                    "No scope selected — please choose at least one unit "
+                    "or enable Include Myself."
+                ),
+            }), 400
 
-            user = user_res.data
-            role = user.get("role", "")
-
-            query = (
-                supabase.table("rating_periods")
-                .update(update_payload)
-                .eq("period", period)
-                .eq("pms_year", pms_year)
-            )
-
-            # Narrow scope by org unit where the column exists on the table
-            if role == "branch_admin" and user.get("branch_id"):
-                query = query.eq("branch_id", user["branch_id"])
-            elif role == "dept_admin" and user.get("department_id"):
-                query = query.eq("department_id", user["department_id"])
-            elif role == "sub_dept_admin" and user.get("sub_department_id"):
-                query = query.eq("sub_department_id", user["sub_department_id"])
-            elif role == "country_admin" and user.get("country_id"):
-                query = query.eq("country_id", user["country_id"])
-            # hq_admin: no additional filter — they own the global row
-
-            query.execute()
-
-            print(
-                f"[INFO] Rating period {period} {pms_year} updated (self_only) "
-                f"by evaluator {evaluator_id} (role={role})."
-            )
-
-        else:
-            # ── Scope: broadcast to selected org units ────────────────────────
-            affected_countries   = body.get("affected_countries",   [])
-            affected_branches    = body.get("affected_branches",    [])
-            affected_departments = body.get("affected_departments", [])
-            affected_sub_depts   = body.get("affected_sub_depts",   [])
+        # ── Step 1: Update org-unit rows ──────────────────────────────────
+        if has_units:
 
             # Always update the base (global) row first
             (
@@ -736,6 +719,16 @@ def update_rating_period():
                 .eq("pms_year", pms_year)
                 .execute()
             )
+
+            for country_id in (affected_countries or []):
+                (
+                    supabase.table("rating_periods")
+                    .update(update_payload)
+                    .eq("period", period)
+                    .eq("pms_year", pms_year)
+                    .eq("country_id", country_id)
+                    .execute()
+                )
 
             for branch_id in (affected_branches or []):
                 (
@@ -767,20 +760,58 @@ def update_rating_period():
                     .execute()
                 )
 
-            for country_id in (affected_countries or []):
-                (
-                    supabase.table("rating_periods")
-                    .update(update_payload)
-                    .eq("period", period)
-                    .eq("pms_year", pms_year)
-                    .eq("country_id", country_id)
-                    .execute()
-                )
+            print(
+                f"[INFO] Rating period {period} {pms_year} updated for units — "
+                f"countries: {affected_countries}, branches: {affected_branches}, "
+                f"departments: {affected_departments}, sub_depts: {affected_sub_depts}."
+            )
+
+        # ── Step 2: Optionally update the evaluator's own row ─────────────
+        if include_self:
+
+            if not evaluator_id:
+                return jsonify({
+                    "error": "evaluator_id is required when include_self is true"
+                }), 400
+
+            user_res = (
+                supabase.table("users")
+                .select("id, role, branch_id, department_id, sub_department_id, country_id")
+                .eq("id", evaluator_id)
+                .single()
+                .execute()
+            )
+
+            if not user_res.data:
+                return jsonify({"error": "Evaluator not found"}), 404
+
+            user = user_res.data
+            role = user.get("role", "")
+
+            # Build a targeted query scoped to only the evaluator's own row
+            query = (
+                supabase.table("rating_periods")
+                .update(update_payload)
+                .eq("period", period)
+                .eq("pms_year", pms_year)
+            )
+
+            # Narrow by org-unit column matching the evaluator's role
+            if role == "branch_admin" and user.get("branch_id"):
+                query = query.eq("branch_id", user["branch_id"])
+            elif role == "dept_admin" and user.get("department_id"):
+                query = query.eq("department_id", user["department_id"])
+            elif role == "sub_dept_admin" and user.get("sub_department_id"):
+                query = query.eq("sub_department_id", user["sub_department_id"])
+            elif role == "country_admin" and user.get("country_id"):
+                query = query.eq("country_id", user["country_id"])
+            # hq_admin: no additional filter — they own the global row
+
+            query.execute()
 
             print(
-                f"[INFO] Rating period {period} {pms_year} updated (broadcast). "
-                f"Affected — countries: {affected_countries}, branches: {affected_branches}, "
-                f"departments: {affected_departments}, sub_depts: {affected_sub_depts}."
+                f"[INFO] Rating period {period} {pms_year} also updated for "
+                f"evaluator {evaluator_id} (role={role}) — include_self=True."
             )
 
         return jsonify({"success": True})
@@ -805,7 +836,7 @@ def get_rating_overview(evaluator_id: str):
       - submitted: how many of those have at least one manual rating recorded
       - pending:   total - submitted
 
-    This means the "Members To Rate" column shows e.g. 0 / 3 → 1 / 3 → 3 / 3
+    The "Members To Rate" column therefore shows e.g. 0 / 3 → 2 / 3 → 3 / 3
     as the member progressively rates their own subordinates.
     """
     try:
@@ -825,6 +856,7 @@ def get_rating_overview(evaluator_id: str):
         overview = []
 
         for member in team:
+
             # ── How many people does THIS member need to rate? ───────────────
             # i.e. their own direct reports
             subordinates_res = (
