@@ -16,10 +16,14 @@ def calculate_pillar_rating(ratings: list) -> str:
     """
     h = ratings.count('H')
     l = ratings.count('L')
+    # H is checked before L so that ['H','H','L'] correctly returns H
+    # (two H's outweigh one L under majority rule)
     if h >= 2:
         return 'H'
+    # Only reached when H count < 2, so no conflict with the H branch above
     if l >= 2:
         return 'L'
+    # Neither majority: covers ties like ['H','M','L'] or all-M
     return 'M'
 
 
@@ -36,8 +40,11 @@ def calculate_overall_potentiality(ability: str, aspiration: str, leadership: st
     h = ratings.count('H')
     l = ratings.count('L')
 
+    # l == 0 guard: a single L blocks High even when two pillars are H (per spec matrix row H,H,L → M)
     if h >= 2 and l == 0:
         return 'H'
+    # h == 0 guard: a single H blocks Low even when two pillars are L (per spec matrix row H,L,L → M)
     if l >= 2 and h == 0:
         return 'L'
+    # All remaining combinations (mixed or all-M) resolve to Medium
     return 'M'
