@@ -362,12 +362,12 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
   const { user } = useAuth();
   const isHQ = user?.role === 'hq_admin';
 
-  const [start,    setStart]    = useState(currentStart?.slice(0, 10) ?? '');
-  const [end,      setEnd]      = useState(currentEnd?.slice(0, 10) ?? '');
-  const [selfOnly, setSelfOnly] = useState(false);
-  const [saving,   setSaving]   = useState(false);
-  const [saved,    setSaved]    = useState(false);
-  const [error,    setError]    = useState('');
+  const [start,       setStart]       = useState(currentStart?.slice(0, 10) ?? '');
+  const [end,         setEnd]         = useState(currentEnd?.slice(0, 10) ?? '');
+  const [includeSelf, setIncludeSelf] = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [saved,       setSaved]       = useState(false);
+  const [error,       setError]       = useState('');
 
   const [countries,   setCountries]   = useState<OrgItem[]>([]);
   const [branches,    setBranches]    = useState<OrgItem[]>([]);
@@ -410,9 +410,35 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
     return chosen.flatMap(i => i.all_ids ?? [i.id]);
   };
 
+  // ── Derive whether org units are actually selected ─────────────
+  const listsWithItems = [
+    { sel: selCountries,   list: countries,   show: isHQ },
+    { sel: selBranches,    list: branches,    show: true },
+    { sel: selDepartments, list: departments, show: true },
+    { sel: selSubDepts,    list: subDepts,    show: true },
+  ].filter(l => l.show && l.list.length > 0);
+
+  const hasOrgSelection = listsWithItems.some(
+    ({ sel }) => sel.includes('all') || sel.length > 0
+  );
+
+  const allUnitsSelected = listsWithItems.length > 0 &&
+    listsWithItems.every(({ sel }) => sel.includes('all'));
+
+  // ── Live summary label ─────────────────────────────────────────
+  const summaryLabel = (() => {
+    if (!includeSelf && !hasOrgSelection) return { text: 'Nothing selected', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' };
+    if (includeSelf && allUnitsSelected)  return { text: 'Will update: Myself + All units',      color: '#166534', bg: '#DCFCE7', border: '#BBF7D0' };
+    if (includeSelf && hasOrgSelection)   return { text: 'Will update: Myself + Selected units', color: '#166534', bg: '#DCFCE7', border: '#BBF7D0' };
+    if (includeSelf && !hasOrgSelection)  return { text: 'Will update: Myself only',             color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE' };
+    if (!includeSelf && allUnitsSelected) return { text: 'Will update: All units (excluding myself)',      color: '#854D0E', bg: '#FEF9C3', border: '#FDE047' };
+    return                                       { text: 'Will update: Selected units (excluding myself)', color: '#854D0E', bg: '#FEF9C3', border: '#FDE047' };
+  })();
+
   const handleSave = async () => {
     if (!start || !end)                   { setError('Both dates are required.'); return; }
     if (new Date(end) <= new Date(start)) { setError('End date must be after start date.'); return; }
+    if (!includeSelf && !hasOrgSelection) { setError('Please select at least one scope — include myself and/or one or more org units.'); return; }
 
     setSaving(true);
     setError('');
@@ -426,21 +452,24 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
           pms_year:             pmsYear,
           rating_start:         start,
           rating_end:           end,
-          self_only:            selfOnly,
-          evaluator_id:         selfOnly ? evaluatorId : undefined,
-          affected_countries:   (!selfOnly && isHQ) ? resolve(selCountries, countries) : undefined,
-          affected_branches:    !selfOnly ? resolve(selBranches, branches)             : undefined,
-          affected_departments: !selfOnly ? resolve(selDepartments, departments)       : undefined,
-          affected_sub_depts:   !selfOnly ? resolve(selSubDepts, subDepts)             : undefined,
+          include_self:         includeSelf,
+          evaluator_id:         evaluatorId,
+          affected_countries:   isHQ ? resolve(selCountries, countries)  : undefined,
+          affected_branches:    resolve(selBranches, branches),
+          affected_departments: resolve(selDepartments, departments),
+          affected_sub_depts:   resolve(selSubDepts, subDepts),
         }),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Save failed');
+      }
 
       setSaved(true);
       setTimeout(() => { onSaved(); onClose(); }, 1000);
-    } catch {
-      setError('Failed to save. Please try again.');
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to save. Please try again.');
     }
 
     setSaving(false);
@@ -479,62 +508,71 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
           </div>
         </div>
 
-        {/* Apply To section */}
-        <div style={{ marginTop: 22 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
-            <Filter size={13} color="#2563EB" />
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#101828' }}>Apply To</span>
-            <span style={{ fontSize: 11.5, color: '#6B7280' }}>— select which units are affected</span>
-          </div>
+        {/* Apply To section — hq_admin only */}
+        {isHQ && (
+          <div style={{ marginTop: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
+              <Filter size={13} color="#2563EB" />
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#101828' }}>Scope</span>
+              <span style={{ fontSize: 11.5, color: '#6B7280' }}>— choose who this update applies to</span>
+            </div>
 
-          {/* Self-only toggle — hq_admin only */}
-          {isHQ && (
+            {/* Include myself — independent checkbox */}
             <label style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,
               padding: '12px 14px', borderRadius: 8, marginBottom: 14,
-              background: selfOnly ? '#EFF6FF' : '#F9FAFB',
-              border: `1px solid ${selfOnly ? '#BFDBFE' : '#E5E7EB'}`,
+              background: includeSelf ? '#EFF6FF' : '#F9FAFB',
+              border: `1px solid ${includeSelf ? '#BFDBFE' : '#E5E7EB'}`,
               cursor: 'pointer',
               transition: 'all 0.15s',
             }}>
               <input
                 type="checkbox"
-                checked={selfOnly}
-                onChange={e => setSelfOnly(e.target.checked)}
+                checked={includeSelf}
+                onChange={e => setIncludeSelf(e.target.checked)}
                 style={{ accentColor: '#2563EB', width: 15, height: 15, marginTop: 1, flexShrink: 0 }}
               />
               <span>
-                <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: selfOnly ? '#2563EB' : '#374151' }}>
-                  Apply to myself only
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: includeSelf ? '#2563EB' : '#374151' }}>
+                  Include myself
                 </span>
                 <span style={{ display: 'block', fontSize: 11.5, color: '#6B7280', marginTop: 2 }}>
-                  Updates only your own rating period — does not affect countries, branches, or other units.
+                  Also updates your own rating period row — independent of the org unit filters below.
                 </span>
               </span>
             </label>
-          )}
 
-          {/* Org-unit filters — greyed out when selfOnly */}
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: 12,
-            opacity: selfOnly ? 0.35 : 1,
-            pointerEvents: selfOnly ? 'none' : 'auto',
-            transition: 'opacity 0.2s',
-          }}>
-            {isHQ && countries.length > 0 && (
-              <MultiSelect label="Countries"       items={countries}   selected={selCountries}   onChange={setSelCountries} />
-            )}
-            {branches.length > 0 && (
-              <MultiSelect label="Branches"        items={branches}    selected={selBranches}    onChange={setSelBranches} />
-            )}
-            {departments.length > 0 && (
-              <MultiSelect label="Departments"     items={departments} selected={selDepartments} onChange={setSelDepartments} />
-            )}
-            {subDepts.length > 0 && (
-              <MultiSelect label="Sub-Departments" items={subDepts}    selected={selSubDepts}    onChange={setSelSubDepts} />
-            )}
+            {/* Org-unit filters — always active, fully independent */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {countries.length > 0 && (
+                <MultiSelect label="Countries"       items={countries}   selected={selCountries}   onChange={setSelCountries} />
+              )}
+              {branches.length > 0 && (
+                <MultiSelect label="Branches"        items={branches}    selected={selBranches}    onChange={setSelBranches} />
+              )}
+              {departments.length > 0 && (
+                <MultiSelect label="Departments"     items={departments} selected={selDepartments} onChange={setSelDepartments} />
+              )}
+              {subDepts.length > 0 && (
+                <MultiSelect label="Sub-Departments" items={subDepts}    selected={selSubDepts}    onChange={setSelSubDepts} />
+              )}
+            </div>
+
+            {/* Live summary pill */}
+            <div style={{
+              marginTop: 16,
+              padding: '8px 14px', borderRadius: 8,
+              background: summaryLabel.bg,
+              border: `1px solid ${summaryLabel.border}`,
+              fontSize: 12, fontWeight: 600,
+              color: summaryLabel.color,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <Filter size={11} />
+              {summaryLabel.text}
+            </div>
           </div>
-        </div>
+        )}
 
         {error && <p style={{ color: '#DC2626', fontSize: 12, margin: '12px 0 0' }}>{error}</p>}
         {saved && <p style={{ color: '#16A34A', fontSize: 12, margin: '12px 0 0' }}>Period updated successfully!</p>}
@@ -925,7 +963,6 @@ export default function RatingSettings() {
                         </div>
                       </td>
 
-                      {/* ── submitted / total ── */}
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
                         <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2563EB' }}>
                           {member.submitted}
