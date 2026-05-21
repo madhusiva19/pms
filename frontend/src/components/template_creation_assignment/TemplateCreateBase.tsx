@@ -1546,4 +1546,3 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
     </div>
   );
 }
-
