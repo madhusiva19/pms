@@ -414,12 +414,6 @@ export default function BranchReportPage() {
               <MetricCard
                 title="Total Evaluated"
                 value={metrics.total_evaluated}
-                subtitle={
-                  activeTab === 'year_end'
-                    ? '100% completion'
-                    : `out of ${branch.total_employees}`
-                }
-                subtitleColor={activeTab === 'year_end' ? 'text-[#00A63E]' : 'text-[#6A7282]'}
                 icon={Users}
                 iconColor="#155DFC"
                 iconBgColor="#FFFFFF"

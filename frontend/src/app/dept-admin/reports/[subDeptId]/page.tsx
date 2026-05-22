@@ -341,8 +341,6 @@ export default function DeptAdminReportDetailPage() {
               <MetricCard
                 title="Total Evaluated"
                 value={metrics.total_evaluated}
-                subtitle="In team"
-                subtitleColor="text-[#6A7282]"
                 icon={Users}
                 iconColor="#155DFC"
                 iconBgColor="#FFFFFF"
