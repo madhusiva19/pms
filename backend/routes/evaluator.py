@@ -529,19 +529,25 @@ def get_batch_rating_status():
             })
 
         # ── 4. Submitted records for all users at once ────────────────────
+        # Fetch all records for these users/objectives/period, then filter
+        # out null manual_rating in Python — avoids Supabase client IS NOT NULL
+        # syntax variations that differ across library versions.
         submitted_res = (
             supabase.table("performance_records")
-            .select("user_id, objective_id")
+            .select("user_id, objective_id, manual_rating")
             .in_("user_id", user_ids)
             .in_("objective_id", all_obj_ids)
-            .eq("year", year)
-            .eq("period", period)
-            .not_.is_("manual_rating", "null")
+            .eq("year", int(year))
+            .eq("period", str(period))
             .execute()
         )
 
+
         submitted_by_user: dict[str, list] = {}
         for r in submitted_res.data or []:
+            # Filter out rows where manual_rating was never set
+            if r.get("manual_rating") is None:
+                continue
             submitted_by_user.setdefault(r["user_id"], [])
             if r["objective_id"] not in submitted_by_user[r["user_id"]]:
                 submitted_by_user[r["user_id"]].append(r["objective_id"])
@@ -879,16 +885,16 @@ def get_rating_overview(evaluator_id: str):
             if subordinate_ids:
                 rated_res = (
                     supabase.table("performance_records")
-                    .select("user_id")
+                    .select("user_id, manual_rating")
                     .in_("user_id", subordinate_ids)
-                    .eq("period", period)
-                    .eq("year", pms_year)
-                    .not_.is_("manual_rating", "null")
+                    .eq("period", str(period))
+                    .eq("year", int(pms_year))
                     .execute()
                 )
-                # Count distinct subordinates with at least one rating submitted
+                # Count distinct subordinates with at least one non-null rating
                 submitted = len(set(
                     r["user_id"] for r in (rated_res.data or [])
+                    if r.get("manual_rating") is not None
                 ))
 
             pending = max(0, total_members - submitted)
