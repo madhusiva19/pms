@@ -278,8 +278,6 @@ export default function SubDeptAdminReportDetailPage() {
               <MetricCard
                 title="Total Evaluated"
                 value={metrics.total_evaluated}
-                subtitle="In sub-department"
-                subtitleColor="text-[#6A7282]"
                 icon={Users}
                 iconColor="#155DFC"
                 iconBgColor="#FFFFFF"
