@@ -663,15 +663,9 @@ export default function RatingSettings() {
     setRatingStatus({});
 
     try {
-      const [periodRes, overviewRes, teamRes] = await Promise.all([
-        fetch(`${API}/api/rating-periods/current`),
-        fetch(`${API}/api/rating-settings/overview/${evaluatorId}`),
-        fetch(`${API}/api/evaluator/${evaluatorId}/team`),
-      ]);
-
-      const periodJson   = periodRes.ok   ? await periodRes.json()   : null;
-      const overviewJson = overviewRes.ok ? await overviewRes.json() : [];
-      const teamJson     = teamRes.ok     ? await teamRes.json()     : [];
+      // Fetch period first so we can pass correct year/period to overview
+      const periodRes = await fetch(`${API}/api/rating-periods/current`);
+      const periodJson = periodRes.ok ? await periodRes.json() : null;
 
       const periods: RatingPeriod[] = periodJson?.periods ?? [];
       const best: RatingPeriod | null =
@@ -681,6 +675,19 @@ export default function RatingSettings() {
 
       setPeriodData(periodJson);
       setActivePeriod(best);
+
+      // Now fetch overview and team with the correct year/period from the period response
+      const overviewYear   = best?.pms_year ?? new Date().getFullYear();
+      const overviewPeriod = best?.period   ?? 'H1';
+
+      const [overviewRes, teamRes] = await Promise.all([
+        fetch(`${API}/api/rating-settings/overview/${evaluatorId}?year=${overviewYear}&period=${overviewPeriod}`),
+        fetch(`${API}/api/evaluator/${evaluatorId}/team`),
+      ]);
+
+      const overviewJson = overviewRes.ok ? await overviewRes.json() : [];
+      const teamJson     = teamRes.ok     ? await teamRes.json()     : [];
+
       setOverview(Array.isArray(overviewJson) ? overviewJson : []);
 
       const resolvedTeam: TeamMember[] = Array.isArray(teamJson) ? teamJson : [];
