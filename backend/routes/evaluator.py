@@ -836,6 +836,12 @@ def get_rating_overview(evaluator_id: str):
       - submitted: how many of those have at least one manual rating recorded
       - pending:   total - submitted
 
+    Status values
+    -------------
+    "complete"  — total > 0 and all subordinates have been rated
+    "n/a"       — total == 0 (this member has no subordinates to rate)
+    "pending"   — total > 0 and at least one subordinate is still unrated
+
     The "Members To Rate" column therefore shows e.g. 0 / 3 → 2 / 3 → 3 / 3
     as the member progressively rates their own subordinates.
     """
@@ -887,20 +893,29 @@ def get_rating_overview(evaluator_id: str):
 
             pending = max(0, total_members - submitted)
 
+            # ── FIX: distinguish "no subordinates" from "pending" ────────────
+            # "n/a"      → member has no subordinates to rate at all
+            # "complete" → all subordinates have been rated
+            # "pending"  → some subordinates still unrated
+            if total_members == 0:
+                status = "n/a"
+            elif pending == 0:
+                status = "complete"
+            else:
+                status = "pending"
+
             overview.append({
                 "id":          member["id"],
                 "name":        member["full_name"],
                 "role":        member["role"],
                 "designation": (member.get("designations") or {}).get("name", ""),
-                "total":       total_members,  # total people they need to rate
-                "submitted":   submitted,       # how many rated so far
-                "pending":     pending,         # how many still remaining
+                "total":       total_members,
+                "submitted":   submitted,
+                "pending":     pending,
                 "pct":         round(
                     (submitted / total_members * 100) if total_members > 0 else 0, 1
                 ),
-                "status": (
-                    "complete" if pending == 0 and total_members > 0 else "pending"
-                ),
+                "status":      status,
             })
 
         return jsonify(overview)
