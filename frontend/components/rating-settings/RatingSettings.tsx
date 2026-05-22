@@ -20,7 +20,7 @@ interface RatingPeriodState {
 interface OverviewMember {
   id: string; name: string; role: string; designation: string;
   total: number; submitted: number; pending: number;
-  pct: number; status: 'complete' | 'pending';
+  pct: number; status: 'complete' | 'pending' | 'n/a';
 }
 interface TeamMember {
   id: string; full_name: string; designation: string; template_name: string | null;
@@ -704,6 +704,37 @@ export default function RatingSettings() {
     </div>
   );
 
+  // ── Overview status cell renderer ──────────────────────────────
+  const renderOverviewStatus = (member: OverviewMember) => {
+    // Member has no subordinates at all — not applicable
+    if (member.total === 0) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700,
+          background: '#F3F4F6', color: '#6B7280',
+          border: '1px solid #E5E7EB',
+        }}>
+          N/A
+        </span>
+      );
+    }
+    // Rating window closed — don't show status
+    if (!ratingIsOpen) {
+      return <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>;
+    }
+    return <StatusPill complete={member.status === 'complete'} />;
+  };
+
+  // ── Overview actions cell renderer ─────────────────────────────
+  const renderOverviewActions = (member: OverviewMember) => {
+    // Only show Remind if: window open + has subordinates + still pending
+    if (ratingIsOpen && member.total > 0 && member.pending > 0) {
+      return <RemindBtn onClick={() => setReminderTarget(member)} />;
+    }
+    return <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>;
+  };
+
   return (
     <main style={{
       minHeight: '100vh', background: '#F9FAFB',
@@ -963,43 +994,51 @@ export default function RatingSettings() {
                         </div>
                       </td>
 
+                      {/* Members to rate count — show "—" when N/A */}
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2563EB' }}>
-                          {member.submitted}
-                        </span>
-                        <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 400 }}> / </span>
-                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#374151' }}>
-                          {member.total}
-                        </span>
+                        {member.total === 0 ? (
+                          <span style={{ fontSize: 13, color: '#9CA3AF' }}>—</span>
+                        ) : (
+                          <>
+                            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2563EB' }}>
+                              {member.submitted}
+                            </span>
+                            <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 400 }}> / </span>
+                            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#374151' }}>
+                              {member.total}
+                            </span>
+                          </>
+                        )}
                       </td>
 
+                      {/* Progress bar — hide when N/A */}
                       <td style={{ padding: '6px 20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ flex: 1, height: 6, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
-                            <div style={{
-                              width: `${member.pct}%`, height: '100%', borderRadius: 99,
-                              background: member.pct === 100 ? '#16A34A' : '#2563EB',
-                              transition: 'width 0.4s',
-                            }} />
+                        {member.total === 0 ? (
+                          <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ flex: 1, height: 6, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
+                              <div style={{
+                                width: `${member.pct}%`, height: '100%', borderRadius: 99,
+                                background: member.pct === 100 ? '#16A34A' : '#2563EB',
+                                transition: 'width 0.4s',
+                              }} />
+                            </div>
+                            <span style={{ fontSize: 11.5, color: '#6B7280', minWidth: 36, fontWeight: 600 }}>
+                              {member.pct}%
+                            </span>
                           </div>
-                          <span style={{ fontSize: 11.5, color: '#6B7280', minWidth: 36, fontWeight: 600 }}>
-                            {member.pct}%
-                          </span>
-                        </div>
+                        )}
                       </td>
 
+                      {/* Status — N/A pill / Pending / Complete / closed dash */}
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        {ratingIsOpen
-                          ? <StatusPill complete={member.status === 'complete'} />
-                          : <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
-                        }
+                        {renderOverviewStatus(member)}
                       </td>
 
+                      {/* Actions — Remind only when meaningful */}
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        {ratingIsOpen && member.pending > 0
-                          ? <RemindBtn onClick={() => setReminderTarget(member)} />
-                          : <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
-                        }
+                        {renderOverviewActions(member)}
                       </td>
                     </tr>
                   ))}
