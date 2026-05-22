@@ -284,3 +284,34 @@ def get_current_pms_cycle():
 def list_routes():
     """Return all registered URL rules (useful during development)."""
     return jsonify([str(rule) for rule in current_app.url_map.iter_rules()])
+
+
+# ---------------------------------------------------------------------------
+# Resolve user by email
+# ---------------------------------------------------------------------------
+
+@org_bp.route("/api/users/by-email", methods=["GET"])
+def get_user_by_email():
+    """Return a user's UUID and profile from their email address."""
+    email = request.args.get("email", "").strip()
+
+    if not email:
+        return jsonify({"error": "email required"}), 400
+
+    try:
+        result = (
+            supabase.table("users")
+            .select("id, email, full_name, role")
+            .eq("email", email)
+            .limit(1)
+            .execute()
+        )
+
+        if not result.data:
+            return jsonify({"error": "User not found"}), 404
+
+        return jsonify(result.data[0])
+
+    except Exception as exc:
+        print(f"[ERROR] get_user_by_email: {exc}")
+        return jsonify({"error": str(exc)}), 500
