@@ -3,11 +3,13 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { Clock, CheckCircle, Send, Calendar, Settings, Filter, ChevronDown, Lock } from 'lucide-react';
+import { Clock, CheckCircle, Send, Calendar, Settings, Lock } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 
-// ── Types ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// TYPES
+// ══════════════════════════════════════════════════════════════════
 interface RatingPeriod {
   id: number; pms_year: number; period: string;
   rating_start: string; rating_end: string; is_active: boolean;
@@ -25,68 +27,48 @@ interface OverviewMember {
 interface TeamMember {
   id: string; full_name: string; designation: string; template_name: string | null;
 }
-interface MemberRatingStatus {
-  submitted: boolean;
-  pending:   number;
-  total:     number;
-}
-interface ManualRatingStatus {
-  [userId: string]: MemberRatingStatus;
-}
+interface MemberRatingStatus { submitted: boolean; pending: number; total: number; }
+interface ManualRatingStatus { [userId: string]: MemberRatingStatus; }
 
-// ── Helpers ────────────────────────────────────────────────────────
-
-function dedupe(items: OrgItem[]): OrgItem[] {
-  const seen = new Set<string>();
-  return items.filter(item => {
-    const key = (item.name ?? '').trim().toLowerCase();
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+// Org hierarchy types
+interface OrgItem     { id: string; name: string; }
+interface BranchItem  { id: string; name: string; country_id: string; }
+interface DeptItem    { id: string; name: string; branch_id: string; }
+interface SubDeptItem { id: string; name: string; department_id: string; }
+interface OrgHierarchy {
+  countries:       OrgItem[];
+  branches:        BranchItem[];
+  departments:     DeptItem[];
+  sub_departments: SubDeptItem[];
 }
 
+// ══════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════
 function formatDate(d: string) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-/**
- * When no rating window is currently open, pick the most recently
- * COMPLETED period (rating_end is in the past and as recent as possible).
- * Falls back to the soonest upcoming period if nothing has ended yet.
- */
 function getMostRecentPastPeriod(periods: RatingPeriod[]): RatingPeriod | null {
-  if (!periods || periods.length === 0) return null;
-  const now = new Date();
-
+  if (!periods?.length) return null;
+  const now  = new Date();
   const past = periods.filter(p => new Date(p.rating_end) < now);
-  if (past.length > 0) {
-    return past.reduce((best, cur) =>
-      new Date(cur.rating_end) > new Date(best.rating_end) ? cur : best
-    );
-  }
-
-  // Nothing completed yet — show the soonest upcoming period
+  if (past.length > 0)
+    return past.reduce((a, b) => new Date(b.rating_end) > new Date(a.rating_end) ? b : a);
   const upcoming = periods.filter(p => new Date(p.rating_start) > now);
-  if (upcoming.length > 0) {
-    return upcoming.reduce((best, cur) =>
-      new Date(cur.rating_start) < new Date(best.rating_start) ? cur : best
-    );
-  }
-
+  if (upcoming.length > 0)
+    return upcoming.reduce((a, b) => new Date(b.rating_start) < new Date(a.rating_start) ? b : a);
   return periods[0];
 }
 
-// ── Sub-components ─────────────────────────────────────────────────
-
-function TH({ children, center, width }: {
-  children: React.ReactNode; center?: boolean; width?: string;
-}) {
+// ══════════════════════════════════════════════════════════════════
+// SMALL UI COMPONENTS
+// ══════════════════════════════════════════════════════════════════
+function TH({ children, center, width }: { children: React.ReactNode; center?: boolean; width?: string }) {
   return (
     <th style={{
-      padding: '10px 16px',
-      textAlign: center ? 'center' : 'left',
+      padding: '10px 16px', textAlign: center ? 'center' : 'left',
       fontSize: 11, fontWeight: 700, color: '#475569',
       textTransform: 'uppercase', letterSpacing: '0.06em',
       background: '#F9FAFB', borderBottom: '2px solid #E5E7EB',
@@ -99,15 +81,8 @@ function TH({ children, center, width }: {
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div style={{
-      padding: '18px 24px',
-      borderBottom: '1px solid #E5E7EB',
-      borderLeft: '28px solid #2563EB',
-      background: '#FFFFFF',
-    }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: '#101828', lineHeight: 1.3 }}>
-        {title}
-      </h3>
+    <div style={{ padding: '18px 24px', borderBottom: '1px solid #E5E7EB', borderLeft: '28px solid #2563EB', background: '#FFFFFF' }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: '#101828', lineHeight: 1.3 }}>{title}</h3>
       <p style={{ margin: 0, fontSize: 12.5, color: '#6B7280' }}>{subtitle}</p>
     </div>
   );
@@ -132,25 +107,17 @@ function RemindBtn({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick} style={{
       display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '5px 12px', borderRadius: 8,
-      border: '1px solid #BFDBFE',
+      padding: '5px 12px', borderRadius: 8, border: '1px solid #BFDBFE',
       background: '#EFF6FF', color: '#2563EB',
-      fontSize: 12, fontWeight: 600, cursor: 'pointer',
-      fontFamily: 'inherit',
+      fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     }}>
       <Send size={10} /> Remind
     </button>
   );
 }
 
-function EnterRatingsBtn({
-  onClick,
-  reenter,
-  ratingIsOpen,
-}: {
-  onClick: () => void;
-  reenter?: boolean;
-  ratingIsOpen: boolean;
+function EnterRatingsBtn({ onClick, reenter, ratingIsOpen }: {
+  onClick: () => void; reenter?: boolean; ratingIsOpen: boolean;
 }) {
   if (!ratingIsOpen) {
     return (
@@ -158,41 +125,32 @@ function EnterRatingsBtn({
         display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: '6px 14px', borderRadius: 8,
         background: '#F3F4F6', color: '#9CA3AF',
-        fontSize: 12.5, fontWeight: 600,
-        border: '1px solid #E5E7EB',
-        cursor: 'not-allowed',
+        fontSize: 12.5, fontWeight: 600, border: '1px solid #E5E7EB', cursor: 'not-allowed',
       }}>
         <Lock size={11} /> Period Closed
       </span>
     );
   }
-
   return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '6px 16px', borderRadius: 8, border: 'none',
-        background: reenter ? '#6B7280' : '#2563EB',
-        color: '#fff',
-        fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-        fontFamily: 'inherit',
-      }}
-    >
+    <button onClick={onClick} style={{
+      padding: '6px 16px', borderRadius: 8, border: 'none',
+      background: reenter ? '#6B7280' : '#2563EB', color: '#fff',
+      fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    }}>
       {reenter ? 'Re-enter Ratings' : 'Enter Ratings'}
     </button>
   );
 }
 
-// ── Reminder Modal ─────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// REMINDER MODAL
+// ══════════════════════════════════════════════════════════════════
 function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
-  member: OverviewMember | TeamMember;
-  period: string; pmsYear: number; senderId: string;
+  member: OverviewMember | TeamMember; period: string; pmsYear: number; senderId: string;
   onClose: () => void; onSent: () => void;
 }) {
   const name = 'full_name' in member ? member.full_name : member.name;
-  const [msg,     setMsg]     = useState(
-    `Hi ${name}, please complete your pending manual ratings for ${period} ${pmsYear} as soon as possible. The rating window is closing soon.`
-  );
+  const [msg,     setMsg]     = useState(`Hi ${name}, please complete your pending manual ratings for ${period} ${pmsYear} as soon as possible. The rating window is closing soon.`);
   const [sending, setSending] = useState(false);
   const [sent,    setSent]    = useState(false);
 
@@ -200,21 +158,12 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
     setSending(true);
     try {
       await fetch(`${API}/api/manual-rating-notifications/send-reminder`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sender_id:    senderId,
-          recipient_id: member.id,
-          period,
-          pms_year:     pmsYear,
-          message:      msg,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender_id: senderId, recipient_id: member.id, period, pms_year: pmsYear, message: msg }),
       });
       setSent(true);
       setTimeout(() => { onSent(); onClose(); }, 1200);
-    } catch {
-      setSending(false);
-    }
+    } catch { setSending(false); }
   };
 
   return (
@@ -223,40 +172,20 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
         <h3 style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 700, color: '#101828' }}>Send Reminder</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#6B7280' }}>To: {name}</p>
         <div style={{ height: 1, background: '#E5E7EB', marginBottom: 16 }} />
-        <textarea
-          value={msg}
-          onChange={e => setMsg(e.target.value)}
-          rows={5}
-          style={{
-            width: '100%', padding: '10px 12px', boxSizing: 'border-box',
-            border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13,
-            color: '#374151', resize: 'vertical', outline: 'none',
-            fontFamily: 'inherit', background: '#F9FAFB', lineHeight: 1.6,
-          }}
-        />
-        {sent && (
-          <p style={{ margin: '10px 0 0', fontSize: 13, color: '#16A34A' }}>
-            ✓ Reminder sent successfully!
-          </p>
-        )}
+        <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={5} style={{
+          width: '100%', padding: '10px 12px', boxSizing: 'border-box',
+          border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13,
+          color: '#374151', resize: 'vertical', outline: 'none',
+          fontFamily: 'inherit', background: '#F9FAFB', lineHeight: 1.6,
+        }} />
+        {sent && <p style={{ margin: '10px 0 0', fontSize: 13, color: '#16A34A' }}>✓ Reminder sent successfully!</p>}
         <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button
-            onClick={onClose}
-            style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#FFFFFF', fontSize: 13, cursor: 'pointer', color: '#374151', fontWeight: 600 }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSend}
-            disabled={sending || sent}
-            style={{
-              padding: '7px 18px', borderRadius: 8, border: 'none',
-              background: sent ? '#16A34A' : '#2563EB', color: '#fff',
-              fontSize: 13, fontWeight: 600,
-              cursor: (sending || sent) ? 'not-allowed' : 'pointer',
-              opacity: sending ? 0.8 : 1,
-            }}
-          >
+          <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#FFFFFF', fontSize: 13, cursor: 'pointer', color: '#374151', fontWeight: 600 }}>Cancel</button>
+          <button onClick={handleSend} disabled={sending || sent} style={{
+            padding: '7px 18px', borderRadius: 8, border: 'none',
+            background: sent ? '#16A34A' : '#2563EB', color: '#fff',
+            fontSize: 13, fontWeight: 600, cursor: (sending || sent) ? 'not-allowed' : 'pointer', opacity: sending ? 0.8 : 1,
+          }}>
             {sending ? 'Sending…' : sent ? 'Sent!' : 'Send Reminder'}
           </button>
         </div>
@@ -265,245 +194,369 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
   );
 }
 
-// ── MultiSelect ────────────────────────────────────────────────────
-interface OrgItem { id: string; name: string; all_ids?: string[]; }
-
-function MultiSelect({
-  label, items, selected, onChange,
+// ══════════════════════════════════════════════════════════════════
+// CASCADE SCOPE PICKER
+// ══════════════════════════════════════════════════════════════════
+function CascadeScopePicker({
+  hierarchy, isHQ,
+  selCountries, setSelCountries,
+  selBranches,  setSelBranches,
+  selDepts,     setSelDepts,
+  selSubDepts,  setSelSubDepts,
+  includeSelf,  setIncludeSelf,
 }: {
-  label: string;
-  items: OrgItem[];
-  selected: string[];
-  onChange: (next: string[]) => void;
+  hierarchy: OrgHierarchy; isHQ: boolean;
+  selCountries: string[]; setSelCountries: (v: string[]) => void;
+  selBranches:  string[]; setSelBranches:  (v: string[]) => void;
+  selDepts:     string[]; setSelDepts:     (v: string[]) => void;
+  selSubDepts:  string[]; setSelSubDepts:  (v: string[]) => void;
+  includeSelf: boolean; setIncludeSelf: (v: boolean) => void;
 }) {
-  const [open, setOpen]  = useState(false);
-  const allSelected      = selected.includes('all');
-  const displayLabel     = allSelected ? `All ${label}` : `${selected.length} selected`;
+  // ── Lookup maps for parent names ───────────────────────────────
+  const branchById  = Object.fromEntries(hierarchy.branches.map(b => [b.id, b.name]));
+  const deptById    = Object.fromEntries(hierarchy.departments.map(d => [d.id, d.name]));
 
-  const handleToggleAll = () => onChange(allSelected ? [] : ['all']);
+  // ── Filtered lists — cascade downward ─────────────────────────
+  const filteredBranches = hierarchy.branches.filter(b =>
+    selCountries.length === 0 || selCountries.includes(b.country_id));
+  const filteredDepts = hierarchy.departments.filter(d =>
+    selBranches.length === 0 || selBranches.includes(d.branch_id));
+  const filteredSubDepts = hierarchy.sub_departments.filter(s =>
+    selDepts.length === 0 || selDepts.includes(s.department_id));
 
-  const handleToggleItem = (id: string) => {
-    if (allSelected) {
-      const next = items.map(i => i.id).filter(i => i !== id);
-      onChange(next.length === 0 ? [] : next);
-    } else if (selected.includes(id)) {
-      const next = selected.filter(i => i !== id);
-      onChange(next.length === 0 ? [] : next);
-    } else {
-      const next = [...selected, id];
-      onChange(next.length === items.length ? ['all'] : next);
-    }
+  // ── Prune children when parent selection changes ───────────────
+  const handleCountryChange = (ids: string[]) => {
+    setSelCountries(ids);
+    const vb = hierarchy.branches.filter(b => ids.length === 0 || ids.includes(b.country_id)).map(b => b.id);
+    const pb = selBranches.filter(id => vb.includes(id));
+    setSelBranches(pb);
+    const vd = hierarchy.departments.filter(d => pb.length === 0 || pb.includes(d.branch_id)).map(d => d.id);
+    const pd = selDepts.filter(id => vd.includes(id));
+    setSelDepts(pd);
+    const vs = hierarchy.sub_departments.filter(s => pd.length === 0 || pd.includes(s.department_id)).map(s => s.id);
+    setSelSubDepts(selSubDepts.filter(id => vs.includes(id)));
   };
 
-  const isChecked = (id: string) => allSelected || selected.includes(id);
+  const handleBranchChange = (ids: string[]) => {
+    setSelBranches(ids);
+    const vd = hierarchy.departments.filter(d => ids.length === 0 || ids.includes(d.branch_id)).map(d => d.id);
+    const pd = selDepts.filter(id => vd.includes(id));
+    setSelDepts(pd);
+    const vs = hierarchy.sub_departments.filter(s => pd.length === 0 || pd.includes(s.department_id)).map(s => s.id);
+    setSelSubDepts(selSubDepts.filter(id => vs.includes(id)));
+  };
+
+  const handleDeptChange = (ids: string[]) => {
+    setSelDepts(ids);
+    const vs = hierarchy.sub_departments.filter(s => ids.length === 0 || ids.includes(s.department_id)).map(s => s.id);
+    setSelSubDepts(selSubDepts.filter(id => vs.includes(id)));
+  };
+
+  const toggleOne = (id: string, list: string[], setter: (v: string[]) => void) =>
+    setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id]);
+
+  const toggleAll = (items: { id: string }[], list: string[], setter: (v: string[]) => void) =>
+    setter(list.length === items.length ? [] : items.map(i => i.id));
+
+  // ── Shared styles ──────────────────────────────────────────────
+  const sectionBox: React.CSSProperties = {
+    border: '1px solid #E5E7EB', borderRadius: 10,
+    overflow: 'hidden', marginBottom: 12,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+  };
+  const sectionHead: React.CSSProperties = {
+    padding: '9px 14px', background: '#F8FAFC',
+    borderBottom: '1px solid #E5E7EB',
+    fontSize: 11, fontWeight: 700, color: '#64748B',
+    textTransform: 'uppercase', letterSpacing: '0.06em',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  };
+  const scrollList: React.CSSProperties = {
+    maxHeight: 180, overflowY: 'auto',
+    background: '#FFFFFF',
+  };
+  const chk: React.CSSProperties = { accentColor: '#2563EB', width: 14, height: 14, flexShrink: 0, marginTop: 1 };
+
+  // ── Sub-components ─────────────────────────────────────────────
+  const CountBadge = ({ count, total }: { count: number; total: number }) =>
+    count === 0 ? null : (
+      <span style={{
+        background: '#2563EB', color: '#fff',
+        borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+      }}>
+        {count === total ? 'All' : `${count} selected`}
+      </span>
+    );
+
+  const ClearBtn = ({ onClear }: { onClear: () => void }) => (
+    <button onClick={e => { e.preventDefault(); onClear(); }}
+      style={{ fontSize: 11, color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}>
+      Clear
+    </button>
+  );
+
+  // Select-all row
+  const SelectAllRow = ({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) => (
+    <label style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '9px 14px', cursor: 'pointer',
+      borderBottom: '1px solid #F1F5F9',
+      background: checked ? '#EFF6FF' : '#FAFAFA',
+      fontSize: 12.5, fontWeight: 700, color: '#2563EB',
+    }}>
+      <input type="checkbox" checked={checked} onChange={onChange} style={chk} />
+      {label}
+    </label>
+  );
+
+  // Regular item row — shows name + optional parent subtitle
+  const ItemRow = ({ id, name, subtitle, checked, onChange }: {
+    id: string; name: string; subtitle?: string; checked: boolean; onChange: () => void;
+  }) => (
+    <label style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '8px 14px', cursor: 'pointer',
+      borderBottom: '1px solid #F8FAFC',
+      background: checked ? '#EFF6FF' : '#FFFFFF',
+      transition: 'background 0.1s',
+    }}>
+      <input type="checkbox" checked={checked} onChange={onChange} style={chk} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? '#1D4ED8' : '#374151', lineHeight: 1.3 }}>
+          {name}
+        </span>
+        {subtitle && (
+          <span style={{ display: 'block', fontSize: 11, color: '#94A3B8', marginTop: 1, lineHeight: 1.2 }}>
+            {subtitle}
+          </span>
+        )}
+      </span>
+      {checked && (
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB', flexShrink: 0 }} />
+      )}
+    </label>
+  );
 
   return (
-    <div style={{ position: 'relative' }}>
-      <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 5 }}>
-        {label}
-      </label>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', padding: '8px 12px', borderRadius: 8,
-          border: `1px solid ${open ? '#2563EB' : '#E5E7EB'}`,
-          background: '#F9FAFB', fontSize: 13, color: '#374151',
-          cursor: 'pointer', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', fontFamily: 'inherit', outline: 'none',
-        }}
-      >
-        <span style={{ color: allSelected || selected.length > 0 ? '#374151' : '#9CA3AF' }}>
-          {displayLabel}
-        </span>
-        <ChevronDown
-          size={13}
-          color="#6B7280"
-          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }}
-        />
-      </button>
+    <div>
+      {/* Include myself (Global) — HQ only */}
+      {isHQ && (
+        <label style={{
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          padding: '11px 14px', borderRadius: 10, marginBottom: 12,
+          background: includeSelf ? '#EFF6FF' : '#F8FAFC',
+          border: `1.5px solid ${includeSelf ? '#93C5FD' : '#E2E8F0'}`,
+          cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        }}>
+          <input type="checkbox" checked={includeSelf} onChange={e => setIncludeSelf(e.target.checked)}
+            style={{ ...chk, width: 15, height: 15 }} />
+          <span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: includeSelf ? '#1D4ED8' : '#374151', display: 'block' }}>
+              Include myself (Global)
+            </span>
+            <span style={{ fontSize: 11.5, color: '#94A3B8', display: 'block', marginTop: 3, lineHeight: 1.4 }}>
+              Updates the global fallback row — affects all users with no specific override.
+            </span>
+          </span>
+        </label>
+      )}
 
-      {open && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setOpen(false)} />
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
-            background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 220, overflowY: 'auto',
-          }}>
-            <label style={{
-              display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px',
-              cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #E5E7EB',
-              fontWeight: 600, color: '#2563EB',
-              background: allSelected ? '#EFF6FF' : '#FFFFFF',
-            }}>
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={handleToggleAll}
-                style={{ accentColor: '#2563EB', width: 14, height: 14 }}
+      {/* Countries — HQ only */}
+      {isHQ && hierarchy.countries.length > 0 && (
+        <div style={sectionBox}>
+          <div style={sectionHead}>
+            <span>Countries</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CountBadge count={selCountries.length} total={hierarchy.countries.length} />
+              <ClearBtn onClear={() => handleCountryChange([])} />
+            </div>
+          </div>
+          <div style={scrollList}>
+            <SelectAllRow
+              checked={selCountries.length === hierarchy.countries.length && hierarchy.countries.length > 0}
+              onChange={() => toggleAll(hierarchy.countries, selCountries, handleCountryChange)}
+              label="Select all countries"
+            />
+            {hierarchy.countries.map(c => (
+              <ItemRow key={c.id} id={c.id} name={c.name}
+                checked={selCountries.includes(c.id)}
+                onChange={() => handleCountryChange(
+                  selCountries.includes(c.id) ? selCountries.filter(x => x !== c.id) : [...selCountries, c.id]
+                )}
               />
-              Select All
-            </label>
-            {items.map(item => (
-              <label key={item.id} style={{
-                display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px',
-                cursor: 'pointer', fontSize: 13, color: '#374151',
-                borderBottom: '1px solid #E5E7EB',
-                background: isChecked(item.id) ? '#F0F9FF' : '#FFFFFF',
-              }}>
-                <input
-                  type="checkbox"
-                  checked={isChecked(item.id)}
-                  onChange={() => handleToggleItem(item.id)}
-                  style={{ accentColor: '#2563EB', width: 14, height: 14 }}
-                />
-                {item.name}
-              </label>
             ))}
           </div>
-        </>
+        </div>
+      )}
+
+      {/* Branches */}
+      {filteredBranches.length > 0 && (
+        <div style={sectionBox}>
+          <div style={sectionHead}>
+            <span>Branches{selCountries.length > 0 ? ` — ${filteredBranches.length} shown` : ''}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CountBadge count={selBranches.length} total={filteredBranches.length} />
+              <ClearBtn onClear={() => handleBranchChange([])} />
+            </div>
+          </div>
+          <div style={scrollList}>
+            <SelectAllRow
+              checked={selBranches.length === filteredBranches.length && filteredBranches.length > 0}
+              onChange={() => toggleAll(filteredBranches, selBranches, handleBranchChange)}
+              label="Select all branches"
+            />
+            {filteredBranches.map(b => (
+              <ItemRow key={b.id} id={b.id} name={b.name}
+                checked={selBranches.includes(b.id)}
+                onChange={() => handleBranchChange(
+                  selBranches.includes(b.id) ? selBranches.filter(x => x !== b.id) : [...selBranches, b.id]
+                )}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Departments — shows branch name as subtitle to resolve duplicates */}
+      {filteredDepts.length > 0 && (
+        <div style={sectionBox}>
+          <div style={sectionHead}>
+            <span>Departments{selBranches.length > 0 ? ` — ${filteredDepts.length} shown` : ''}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CountBadge count={selDepts.length} total={filteredDepts.length} />
+              <ClearBtn onClear={() => handleDeptChange([])} />
+            </div>
+          </div>
+          <div style={scrollList}>
+            <SelectAllRow
+              checked={selDepts.length === filteredDepts.length && filteredDepts.length > 0}
+              onChange={() => toggleAll(filteredDepts, selDepts, handleDeptChange)}
+              label="Select all departments"
+            />
+            {filteredDepts.map(d => (
+              <ItemRow key={d.id} id={d.id} name={d.name}
+                subtitle={branchById[d.branch_id] ? `Branch: ${branchById[d.branch_id]}` : undefined}
+                checked={selDepts.includes(d.id)}
+                onChange={() => handleDeptChange(
+                  selDepts.includes(d.id) ? selDepts.filter(x => x !== d.id) : [...selDepts, d.id]
+                )}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sub-Departments — shows department name as subtitle to resolve duplicates */}
+      {filteredSubDepts.length > 0 && (
+        <div style={sectionBox}>
+          <div style={sectionHead}>
+            <span>Sub-Departments{selDepts.length > 0 ? ` — ${filteredSubDepts.length} shown` : ''}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CountBadge count={selSubDepts.length} total={filteredSubDepts.length} />
+              <ClearBtn onClear={() => setSelSubDepts([])} />
+            </div>
+          </div>
+          <div style={scrollList}>
+            <SelectAllRow
+              checked={selSubDepts.length === filteredSubDepts.length && filteredSubDepts.length > 0}
+              onChange={() => toggleAll(filteredSubDepts, selSubDepts, setSelSubDepts)}
+              label="Select all sub-departments"
+            />
+            {filteredSubDepts.map(s => (
+              <ItemRow key={s.id} id={s.id} name={s.name}
+                subtitle={deptById[s.department_id] ? `Dept: ${deptById[s.department_id]}` : undefined}
+                checked={selSubDepts.includes(s.id)}
+                onChange={() => toggleOne(s.id, selSubDepts, setSelSubDepts)}
+              />
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-// ── Edit Period Modal ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// EDIT PERIOD MODAL
+// ══════════════════════════════════════════════════════════════════
 function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorId, onClose, onSaved }: {
   period: string; pmsYear: number; currentStart: string; currentEnd: string;
-  evaluatorId: string;
-  onClose: () => void; onSaved: () => void;
+  evaluatorId: string; onClose: () => void; onSaved: () => void;
 }) {
   const { user } = useAuth();
   const isHQ           = user?.role === 'hq_admin';
   const isCountryAdmin = user?.role === 'country_admin';
 
-  // Show Scope section for both HQ and Country admins
-  const showScope = isHQ || isCountryAdmin;
+  const [start,  setStart]  = useState(currentStart?.slice(0, 10) ?? '');
+  const [end,    setEnd]    = useState(currentEnd?.slice(0, 10) ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState('');
 
-  const [start,       setStart]       = useState(currentStart?.slice(0, 10) ?? '');
-  const [end,         setEnd]         = useState(currentEnd?.slice(0, 10) ?? '');
-  const [includeSelf, setIncludeSelf] = useState(false);
-  const [saving,      setSaving]      = useState(false);
-  const [saved,       setSaved]       = useState(false);
-  const [error,       setError]       = useState('');
+  const [includeSelf,  setIncludeSelf]  = useState(false);
+  const [hierarchy,    setHierarchy]    = useState<OrgHierarchy>({ countries: [], branches: [], departments: [], sub_departments: [] });
+  const [loadingHier,  setLoadingHier]  = useState(true);
 
-  const [countries,   setCountries]   = useState<OrgItem[]>([]);
-  const [branches,    setBranches]    = useState<OrgItem[]>([]);
-  const [departments, setDepartments] = useState<OrgItem[]>([]);
-  const [subDepts,    setSubDepts]    = useState<OrgItem[]>([]);
-
-  const [selCountries,   setSelCountries]   = useState<string[]>(['all']);
-  const [selBranches,    setSelBranches]    = useState<string[]>(['all']);
-  const [selDepartments, setSelDepartments] = useState<string[]>(['all']);
-  const [selSubDepts,    setSelSubDepts]    = useState<string[]>(['all']);
+  const [selCountries, setSelCountries] = useState<string[]>([]);
+  const [selBranches,  setSelBranches]  = useState<string[]>([]);
+  const [selDepts,     setSelDepts]     = useState<string[]>([]);
+  const [selSubDepts,  setSelSubDepts]  = useState<string[]>([]);
 
   useEffect(() => {
-    const uid = user?.id ?? '';
-
-    // Countries only for HQ
-    if (isHQ) {
-      fetch(`${API}/api/org/countries`)
-        .then(r => r.json())
-        .then((d: OrgItem[]) => setCountries(dedupe(d || [])))
-        .catch(() => {});
-    }
-
-    // Branches, Departments, Sub-Departments for both HQ and Country admins
-    fetch(`${API}/api/org/branches?evaluator_id=${uid}`)
+    if (!evaluatorId || !user?.role) return;
+    setLoadingHier(true);
+    fetch(`${API}/api/rating-periods/org-hierarchy?evaluator_id=${evaluatorId}&role=${user.role}`)
       .then(r => r.json())
-      .then((d: OrgItem[]) => setBranches(dedupe(d || [])))
-      .catch(() => {});
+      .then((d: OrgHierarchy) => setHierarchy(d))
+      .catch(() => {})
+      .finally(() => setLoadingHier(false));
+  }, [evaluatorId, user?.role]);
 
-    fetch(`${API}/api/org/departments?evaluator_id=${uid}`)
-      .then(r => r.json())
-      .then((d: OrgItem[]) => setDepartments(dedupe(d || [])))
-      .catch(() => {});
+  const totalSelected =
+    (includeSelf ? 1 : 0) +
+    selCountries.length + selBranches.length + selDepts.length + selSubDepts.length;
 
-    fetch(`${API}/api/org/sub-departments?evaluator_id=${uid}`)
-      .then(r => r.json())
-      .then((d: OrgItem[]) => setSubDepts(dedupe(d || [])))
-      .catch(() => {});
-  }, [user?.id, isHQ]);
-
-  const resolve = (sel: string[], list: OrgItem[]) => {
-    const chosen = sel.includes('all') ? list : list.filter(i => sel.includes(i.id));
-    return chosen.flatMap(i => i.all_ids ?? [i.id]);
-  };
-
-  // ── Derive whether org units are actually selected ─────────────
-  const listsWithItems = [
-    { sel: selCountries,   list: countries,   show: isHQ },
-    { sel: selBranches,    list: branches,    show: true },
-    { sel: selDepartments, list: departments, show: true },
-    { sel: selSubDepts,    list: subDepts,    show: true },
-  ].filter(l => l.show && l.list.length > 0);
-
-  const hasOrgSelection = listsWithItems.some(
-    ({ sel }) => sel.includes('all') || sel.length > 0
-  );
-
-  const allUnitsSelected = listsWithItems.length > 0 &&
-    listsWithItems.every(({ sel }) => sel.includes('all'));
-
-  // ── Live summary label ─────────────────────────────────────────
-  const summaryLabel = (() => {
-    if (!includeSelf && !hasOrgSelection) return { text: 'Nothing selected', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' };
-    if (includeSelf && allUnitsSelected)  return { text: 'Will update: Myself + All units',      color: '#166534', bg: '#DCFCE7', border: '#BBF7D0' };
-    if (includeSelf && hasOrgSelection)   return { text: 'Will update: Myself + Selected units', color: '#166534', bg: '#DCFCE7', border: '#BBF7D0' };
-    if (includeSelf && !hasOrgSelection)  return { text: 'Will update: Myself only',             color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE' };
-    if (!includeSelf && allUnitsSelected) return { text: 'Will update: All units (excluding myself)',      color: '#854D0E', bg: '#FEF9C3', border: '#FDE047' };
-    return                                       { text: 'Will update: Selected units (excluding myself)', color: '#854D0E', bg: '#FEF9C3', border: '#FDE047' };
-  })();
+  const summaryParts: string[] = [];
+  if (includeSelf)         summaryParts.push('Global row');
+  if (selCountries.length) summaryParts.push(`${selCountries.length} country row(s)`);
+  if (selBranches.length)  summaryParts.push(`${selBranches.length} branch row(s)`);
+  if (selDepts.length)     summaryParts.push(`${selDepts.length} department row(s)`);
+  if (selSubDepts.length)  summaryParts.push(`${selSubDepts.length} sub-dept row(s)`);
 
   const handleSave = async () => {
     if (!start || !end)                   { setError('Both dates are required.'); return; }
     if (new Date(end) <= new Date(start)) { setError('End date must be after start date.'); return; }
-
-    // Only enforce scope selection when the Scope section is visible
-    if (showScope && !includeSelf && !hasOrgSelection) {
-      setError('Please select at least one scope — include myself and/or one or more org units.');
-      return;
-    }
+    if (totalSelected === 0)              { setError('Please select at least one scope.'); return; }
 
     setSaving(true);
     setError('');
-
     try {
       const res = await fetch(`${API}/api/rating-periods/update`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          period,
-          pms_year:             pmsYear,
-          rating_start:         start,
-          rating_end:           end,
-          include_self:         showScope ? includeSelf : true,
-          evaluator_id:         evaluatorId,
-          // Pass org-unit arrays for logging/future use; backend ignores
-          // column-level filtering since rating_periods has no FK columns.
-          affected_countries:   isHQ ? resolve(selCountries, countries)  : undefined,
-          affected_branches:    showScope ? resolve(selBranches, branches)       : undefined,
-          affected_departments: showScope ? resolve(selDepartments, departments) : undefined,
-          affected_sub_depts:   showScope ? resolve(selSubDepts, subDepts)       : undefined,
+          period, pms_year: pmsYear,
+          rating_start: start, rating_end: end,
+          evaluator_id: evaluatorId,
+          include_self:         isHQ ? includeSelf : false,
+          selected_countries:   isHQ ? selCountries : [],
+          selected_branches:    selBranches,
+          selected_departments: selDepts,
+          selected_sub_depts:   selSubDepts,
         }),
       });
-
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error((body as { error?: string }).error ?? 'Save failed');
       }
-
       setSaved(true);
       setTimeout(() => { onSaved(); onClose(); }, 1000);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save. Please try again.');
     }
-
     setSaving(false);
   };
 
-  const inputStyle: React.CSSProperties = {
+  const inp: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
     border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13,
     outline: 'none', fontFamily: 'inherit', color: '#374151', background: '#F9FAFB',
@@ -512,7 +565,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
       <div style={{
-        background: '#FFFFFF', borderRadius: 12, padding: 28, width: '90%', maxWidth: 500,
+        background: '#FFFFFF', borderRadius: 12, padding: 28, width: '90%', maxWidth: 520,
         boxShadow: '0 20px 60px rgba(0,0,0,0.15)', fontFamily: 'inherit',
         maxHeight: '90vh', overflowY: 'auto',
       }}>
@@ -520,111 +573,60 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#6B7280' }}>{period} {pmsYear}</p>
         <div style={{ height: 1, background: '#E5E7EB', marginBottom: 18 }} />
 
-        {/* Date inputs */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 6 }}>
-              Rating Start
-            </label>
-            <input type="date" value={start} onChange={e => setStart(e.target.value)} style={inputStyle} />
+        {/* Dates side by side */}
+        <div style={{ display: 'flex', gap: 14, marginBottom: 22 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 6 }}>Rating Start</label>
+            <input type="date" value={start} onChange={e => setStart(e.target.value)} style={inp} />
           </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 6 }}>
-              Rating End
-            </label>
-            <input type="date" value={end} onChange={e => setEnd(e.target.value)} style={inputStyle} />
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4A5565', display: 'block', marginBottom: 6 }}>Rating End</label>
+            <input type="date" value={end} onChange={e => setEnd(e.target.value)} style={inp} />
           </div>
         </div>
 
-        {/* ── Scope section — visible to both HQ and Country admins ── */}
-        {showScope && (
-          <div style={{ marginTop: 22 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
-              <Filter size={13} color="#2563EB" />
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#101828' }}>Scope</span>
-              <span style={{ fontSize: 11.5, color: '#6B7280' }}>— choose who this update applies to</span>
-            </div>
+        {/* Scope header */}
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#101828', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Settings size={13} color="#2563EB" />
+          Scope — choose who this update applies to
+          {isCountryAdmin && <span style={{ fontSize: 11, fontWeight: 400, color: '#6B7280' }}>(your country only)</span>}
+        </div>
 
-            {/* Include myself — independent checkbox */}
-            <label style={{
-              display: 'flex', alignItems: 'flex-start', gap: 10,
-              padding: '12px 14px', borderRadius: 8, marginBottom: 14,
-              background: includeSelf ? '#EFF6FF' : '#F9FAFB',
-              border: `1px solid ${includeSelf ? '#BFDBFE' : '#E5E7EB'}`,
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}>
-              <input
-                type="checkbox"
-                checked={includeSelf}
-                onChange={e => setIncludeSelf(e.target.checked)}
-                style={{ accentColor: '#2563EB', width: 15, height: 15, marginTop: 1, flexShrink: 0 }}
-              />
-              <span>
-                <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: includeSelf ? '#2563EB' : '#374151' }}>
-                  Include myself
-                </span>
-                <span style={{ display: 'block', fontSize: 11.5, color: '#6B7280', marginTop: 2 }}>
-                  Also updates your own rating period row — independent of the org unit filters below.
-                </span>
-              </span>
-            </label>
+        {loadingHier ? (
+          <div style={{ fontSize: 13, color: '#9CA3AF', padding: '12px 0' }}>Loading org structure…</div>
+        ) : (
+          <CascadeScopePicker
+            hierarchy={hierarchy} isHQ={isHQ}
+            selCountries={selCountries} setSelCountries={setSelCountries}
+            selBranches={selBranches}   setSelBranches={setSelBranches}
+            selDepts={selDepts}         setSelDepts={setSelDepts}
+            selSubDepts={selSubDepts}   setSelSubDepts={setSelSubDepts}
+            includeSelf={includeSelf}   setIncludeSelf={setIncludeSelf}
+          />
+        )}
 
-            {/* Org-unit filters */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Countries — HQ only */}
-              {isHQ && countries.length > 0 && (
-                <MultiSelect label="Countries" items={countries} selected={selCountries} onChange={setSelCountries} />
-              )}
-              {/* Branches, Departments, Sub-Departments — HQ and Country admin */}
-              {branches.length > 0 && (
-                <MultiSelect label="Branches" items={branches} selected={selBranches} onChange={setSelBranches} />
-              )}
-              {departments.length > 0 && (
-                <MultiSelect label="Departments" items={departments} selected={selDepartments} onChange={setSelDepartments} />
-              )}
-              {subDepts.length > 0 && (
-                <MultiSelect label="Sub-Departments" items={subDepts} selected={selSubDepts} onChange={setSelSubDepts} />
-              )}
-            </div>
-
-            {/* Live summary pill */}
-            <div style={{
-              marginTop: 16,
-              padding: '8px 14px', borderRadius: 8,
-              background: summaryLabel.bg,
-              border: `1px solid ${summaryLabel.border}`,
-              fontSize: 12, fontWeight: 600,
-              color: summaryLabel.color,
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <Filter size={11} />
-              {summaryLabel.text}
-            </div>
+        {/* Live summary */}
+        {totalSelected > 0 && (
+          <div style={{
+            padding: '8px 12px', borderRadius: 8, margin: '12px 0',
+            background: '#DCFCE7', border: '1px solid #BBF7D0',
+            fontSize: 12, color: '#166534', fontWeight: 600,
+          }}>
+            Will update: {summaryParts.join(' + ')}
           </div>
         )}
 
-        {error && <p style={{ color: '#DC2626', fontSize: 12, margin: '12px 0 0' }}>{error}</p>}
-        {saved && <p style={{ color: '#16A34A', fontSize: 12, margin: '12px 0 0' }}>Period updated successfully!</p>}
+        {error && <p style={{ color: '#DC2626', fontSize: 12, margin: '8px 0' }}>{error}</p>}
+        {saved  && <p style={{ color: '#16A34A', fontSize: 12, margin: '8px 0' }}>Period updated successfully!</p>}
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
-          <button
-            onClick={onClose}
-            style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#FFFFFF', fontSize: 13, cursor: 'pointer', color: '#374151', fontWeight: 600 }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || saved}
-            style={{
-              padding: '7px 18px', borderRadius: 8, border: 'none',
-              background: saved ? '#16A34A' : '#2563EB', color: '#fff',
-              fontSize: 13, fontWeight: 600,
-              cursor: (saving || saved) ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.8 : 1,
-            }}
-          >
+        <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#FFFFFF', fontSize: 13, cursor: 'pointer', color: '#374151', fontWeight: 600 }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving || saved} style={{
+            padding: '7px 18px', borderRadius: 8, border: 'none',
+            background: saved ? '#16A34A' : '#2563EB', color: '#fff',
+            fontSize: 13, fontWeight: 600,
+            cursor: (saving || saved) ? 'not-allowed' : 'pointer', opacity: saving ? 0.8 : 1,
+          }}>
             {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
           </button>
         </div>
@@ -640,49 +642,35 @@ export default function RatingSettings() {
   const { user } = useAuth();
   const router   = useRouter();
 
-  const roleSlug = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
+  const roleSlug      = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
+  const canEditPeriod = user?.role === 'country_admin' || user?.role === 'hq_admin';
+  const evaluatorId   = user?.id ?? '';
 
-  const canEditPeriod = (
-    user?.role === 'country_admin' ||
-    user?.role === 'hq_admin'
-  );
-
-  const evaluatorId = user?.id ?? '';
-
-  const [periodData,     setPeriodData]     = useState<RatingPeriodState | null>(null);
-  const [activePeriod,   setActivePeriod]   = useState<RatingPeriod | null>(null);
-  const [overview,       setOverview]       = useState<OverviewMember[]>([]);
-  const [team,           setTeam]           = useState<TeamMember[]>([]);
-  const [ratingStatus,   setRatingStatus]   = useState<ManualRatingStatus>({});
-  const [statusLoading,  setStatusLoading]  = useState(false);
-  const [loading,        setLoading]        = useState(true);
-  const [reminderTarget, setReminderTarget] = useState<OverviewMember | TeamMember | null>(null);
-  const [editPeriodOpen, setEditPeriodOpen] = useState(false);
+  const [periodData,    setPeriodData]    = useState<RatingPeriodState | null>(null);
+  const [activePeriod,  setActivePeriod]  = useState<RatingPeriod | null>(null);
+  const [overview,      setOverview]      = useState<OverviewMember[]>([]);
+  const [team,          setTeam]          = useState<TeamMember[]>([]);
+  const [ratingStatus,  setRatingStatus]  = useState<ManualRatingStatus>({});
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [loading,       setLoading]       = useState(true);
+  const [reminderTarget,setReminderTarget]= useState<OverviewMember | TeamMember | null>(null);
+  const [editPeriodOpen,setEditPeriodOpen]= useState(false);
 
   const pmsYear        = activePeriod?.pms_year ?? new Date().getFullYear();
   const selectedPeriod = activePeriod?.period   ?? 'H1';
   const ratingIsOpen   = periodData?.rating_open ?? false;
 
-  const fetchRatingStatuses = useCallback(async (
-    teamMembers: TeamMember[],
-    year:        number,
-    period:      string,
-  ) => {
-    if (!teamMembers.length || !year || !period) return;
+  const fetchRatingStatuses = useCallback(async (members: TeamMember[], year: number, period: string) => {
+    if (!members.length || !year || !period) return;
     setStatusLoading(true);
     try {
-      const userIds = teamMembers.map(m => m.id).join(',');
-      const res     = await fetch(
-        `${API}/api/rating-status/batch?user_ids=${userIds}&year=${year}&period=${period}`
-      );
+      const res  = await fetch(`${API}/api/rating-status/batch?user_ids=${members.map(m => m.id).join(',')}&year=${year}&period=${period}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: ManualRatingStatus = await res.json();
-      setRatingStatus(data);
-    } catch (e) {
-      console.error('[RatingSettings] batch status fetch failed:', e);
-      const fallback: ManualRatingStatus = {};
-      teamMembers.forEach(m => { fallback[m.id] = { submitted: false, pending: 0, total: 0 }; });
-      setRatingStatus(fallback);
+      setRatingStatus(await res.json());
+    } catch {
+      const fb: ManualRatingStatus = {};
+      members.forEach(m => { fb[m.id] = { submitted: false, pending: 0, total: 0 }; });
+      setRatingStatus(fb);
     }
     setStatusLoading(false);
   }, []);
@@ -691,39 +679,25 @@ export default function RatingSettings() {
     if (!evaluatorId) return;
     setLoading(true);
     setRatingStatus({});
-
     try {
-      const periodRes  = await fetch(`${API}/api/rating-periods/current`);
+      const periodRes  = await fetch(`${API}/api/rating-periods/current?user_id=${evaluatorId}`);
       const periodJson = periodRes.ok ? await periodRes.json() : null;
-
       const periods: RatingPeriod[] = periodJson?.periods ?? [];
 
-      // ── Period selection logic ─────────────────────────────────────────
-      // If the API already found an open window, use it directly.
-      // Otherwise (rating_open=false), use the most recently COMPLETED
-      // period from the backend response, or compute it client-side.
       let best: RatingPeriod | null = null;
-
       if (periodJson?.rating_open && periodJson?.active_period) {
-        // A window is currently open — use whichever period the backend identified
-        best = periods.find(
-          p => p.is_active && p.period === periodJson.active_period
-        ) ?? null;
+        best = periods.find(p => p.is_active && p.period === periodJson.active_period) ?? null;
       }
-
-      if (!best) {
-        // No open window — use the most recently COMPLETED period
-        best = getMostRecentPastPeriod(periods);
-      }
+      if (!best) best = getMostRecentPastPeriod(periods);
 
       setPeriodData(periodJson);
       setActivePeriod(best);
 
-      const overviewYear   = best?.pms_year ?? new Date().getFullYear();
-      const overviewPeriod = best?.period   ?? 'H1';
+      const yr  = best?.pms_year ?? new Date().getFullYear();
+      const per = best?.period   ?? 'H1';
 
       const [overviewRes, teamRes] = await Promise.all([
-        fetch(`${API}/api/rating-settings/overview/${evaluatorId}?year=${overviewYear}&period=${overviewPeriod}`),
+        fetch(`${API}/api/rating-settings/overview/${evaluatorId}?year=${yr}&period=${per}`),
         fetch(`${API}/api/evaluator/${evaluatorId}/team`),
       ]);
 
@@ -731,67 +705,38 @@ export default function RatingSettings() {
       const teamJson     = teamRes.ok     ? await teamRes.json()     : [];
 
       setOverview(Array.isArray(overviewJson) ? overviewJson : []);
-
       const resolvedTeam: TeamMember[] = Array.isArray(teamJson) ? teamJson : [];
       setTeam(resolvedTeam);
 
-      if (resolvedTeam.length > 0 && best) {
-        fetchRatingStatuses(resolvedTeam, best.pms_year, best.period);
-      }
-    } catch (e) {
-      console.error('[RatingSettings] fetchAll failed:', e);
-    }
-
+      if (resolvedTeam.length > 0 && best) fetchRatingStatuses(resolvedTeam, best.pms_year, best.period);
+    } catch (e) { console.error('[RatingSettings] fetchAll failed:', e); }
     setLoading(false);
   }, [evaluatorId, fetchRatingStatuses]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   if (loading) return (
-    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: '#6B7280', fontSize: 14 }}>
-      Loading…
-    </div>
+    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: '#6B7280', fontSize: 14 }}>Loading…</div>
   );
 
-  // ── Overview status cell renderer ──────────────────────────────
   const renderOverviewStatus = (member: OverviewMember) => {
-    if (member.total === 0) {
-      return (
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700,
-          background: '#F3F4F6', color: '#6B7280',
-          border: '1px solid #E5E7EB',
-        }}>
-          N/A
-        </span>
-      );
-    }
+    if (member.total === 0)
+      return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: '#F3F4F6', color: '#6B7280', border: '1px solid #E5E7EB' }}>N/A</span>;
     return <StatusPill complete={member.status === 'complete'} />;
   };
 
-  // ── Overview actions cell renderer ─────────────────────────────
   const renderOverviewActions = (member: OverviewMember) => {
-    if (ratingIsOpen && member.total > 0 && member.pending > 0) {
+    if (ratingIsOpen && member.total > 0 && member.pending > 0)
       return <RemindBtn onClick={() => setReminderTarget(member)} />;
-    }
     return <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>;
   };
 
   return (
-    <main style={{
-      minHeight: '100vh', background: '#F9FAFB',
-      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-      padding: '32px',
-    }}>
+    <main style={{ minHeight: '100vh', background: '#F9FAFB', fontFamily: 'Inter, system-ui, -apple-system, sans-serif', padding: '32px' }}>
 
       {reminderTarget && (
-        <ReminderModal
-          member={reminderTarget} period={selectedPeriod} pmsYear={pmsYear}
-          senderId={evaluatorId}
-          onClose={() => setReminderTarget(null)}
-          onSent={fetchAll}
-        />
+        <ReminderModal member={reminderTarget} period={selectedPeriod} pmsYear={pmsYear}
+          senderId={evaluatorId} onClose={() => setReminderTarget(null)} onSent={fetchAll} />
       )}
 
       {editPeriodOpen && activePeriod && (
@@ -799,8 +744,7 @@ export default function RatingSettings() {
           period={selectedPeriod} pmsYear={activePeriod.pms_year}
           currentStart={activePeriod.rating_start} currentEnd={activePeriod.rating_end}
           evaluatorId={evaluatorId}
-          onClose={() => setEditPeriodOpen(false)}
-          onSaved={fetchAll}
+          onClose={() => setEditPeriodOpen(false)} onSaved={fetchAll}
         />
       )}
 
@@ -820,24 +764,15 @@ export default function RatingSettings() {
             <p style={{ fontSize: 15, color: '#4A5565', margin: 0 }}>Manage manual ratings and monitor team progress</p>
           </div>
           {activePeriod && (
-            <div style={{
-              alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 14px', borderRadius: 8,
-              background: '#F3F4F6', color: '#4A5565', border: '1px solid #E5E7EB',
-              fontSize: 13, fontWeight: 600,
-            }}>
+            <div style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: '#F3F4F6', color: '#4A5565', border: '1px solid #E5E7EB', fontSize: 13, fontWeight: 600 }}>
               <Calendar size={13} color="#6B7280" />
               {activePeriod.period} {activePeriod.pms_year}
             </div>
           )}
         </div>
 
-        {/* ── Rating Period Banner ──────────────────────────────── */}
-        <div style={{
-          background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 6,
-          padding: '18px 24px', marginBottom: 64, borderLeft: '28px solid #2563EB',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-        }}>
+        {/* Rating Period Banner */}
+        <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 6, padding: '18px 24px', marginBottom: 64, borderLeft: '28px solid #2563EB', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
@@ -859,53 +794,31 @@ export default function RatingSettings() {
                   : (periodData?.reason ?? 'No period configured.')}
               </p>
             </div>
-
             {canEditPeriod && activePeriod && (
-              <button
-                onClick={() => setEditPeriodOpen(true)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '7px 14px', borderRadius: 10,
-                  border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#2563EB',
-                  fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
+              <button onClick={() => setEditPeriodOpen(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10,
+                border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#2563EB',
+                fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
                 <Settings size={13} /> Edit Period
               </button>
             )}
           </div>
         </div>
 
-        {/* ══ TEAM MEMBERS — MANUAL RATING REQUIRED ════════════ */}
-        <div style={{
-          background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 6,
-          overflow: 'hidden', marginBottom: 64,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-        }}>
+        {/* Team Members — Manual Rating Required */}
+        <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 6, overflow: 'hidden', marginBottom: 64, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
           <SectionHeader
             title="Team Members Requiring Manual Ratings"
             subtitle={`Enter manual ratings for each team member · ${selectedPeriod} ${pmsYear}`}
           />
 
           {!ratingIsOpen && (
-            <div style={{
-              margin: '20px 24px',
-              background: '#FEF9C3', border: '1px solid #FDE047',
-              borderRadius: 8, padding: '12px 16px',
-              fontSize: 13, color: '#854D0E',
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
+            <div style={{ margin: '20px 24px', background: '#FEF9C3', border: '1px solid #FDE047', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: '#854D0E', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Lock size={14} />
               The rating window is currently closed. Ratings cannot be entered or modified.
               {canEditPeriod && (
-                <button
-                  onClick={() => setEditPeriodOpen(true)}
-                  style={{
-                    marginLeft: 8, padding: '3px 10px', borderRadius: 6,
-                    border: '1px solid #FDE047', background: 'transparent',
-                    color: '#854D0E', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
+                <button onClick={() => setEditPeriodOpen(true)} style={{ marginLeft: 8, padding: '3px 10px', borderRadius: 6, border: '1px solid #FDE047', background: 'transparent', color: '#854D0E', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   Open Period →
                 </button>
               )}
@@ -913,9 +826,7 @@ export default function RatingSettings() {
           )}
 
           {team.length === 0 ? (
-            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
-              No team members found.
-            </div>
+            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>No team members found.</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
@@ -935,51 +846,23 @@ export default function RatingSettings() {
                   {team.map((member, idx) => {
                     const status = ratingStatus[member.id];
                     const isLast = idx === team.length - 1;
-
                     const renderStatus = () => {
-                      if (statusLoading && !status) {
-                        return <span style={{ fontSize: 12, color: '#9CA3AF' }}>Loading…</span>;
-                      }
-                      if (!status) {
-                        return <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>;
-                      }
-                      if (status.total === 0) {
-                        return <span style={{ fontSize: 12, color: '#9CA3AF' }}>No manual KPIs</span>;
-                      }
-                      return (
-                        <StatusPill
-                          complete={status.submitted}
-                          label={status.submitted ? 'Submitted' : 'Pending'}
-                        />
-                      );
+                      if (statusLoading && !status) return <span style={{ fontSize: 12, color: '#9CA3AF' }}>Loading…</span>;
+                      if (!status)                  return <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>;
+                      if (status.total === 0)        return <span style={{ fontSize: 12, color: '#9CA3AF' }}>No manual KPIs</span>;
+                      return <StatusPill complete={status.submitted} label={status.submitted ? 'Submitted' : 'Pending'} />;
                     };
-
                     return (
-                      <tr
-                        key={member.id}
-                        style={{
-                          borderBottom: isLast ? 'none' : '1px solid #E5E7EB',
-                          background: '#FFFFFF',
-                        }}
+                      <tr key={member.id} style={{ borderBottom: isLast ? 'none' : '1px solid #E5E7EB', background: '#FFFFFF' }}
                         onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '#FFFFFF')}
-                      >
+                        onMouseLeave={e => (e.currentTarget.style.background = '#FFFFFF')}>
                         <td style={{ padding: '6px 20px 6px 28px' }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#101828' }}>
-                            {member.full_name}
-                          </div>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#101828' }}>{member.full_name}</div>
                         </td>
+                        <td style={{ padding: '6px 20px', textAlign: 'center' }}>{renderStatus()}</td>
                         <td style={{ padding: '6px 20px', textAlign: 'center' }}>
-                          {renderStatus()}
-                        </td>
-                        <td style={{ padding: '6px 20px', textAlign: 'center' }}>
-                          <EnterRatingsBtn
-                            ratingIsOpen={ratingIsOpen}
-                            reenter={status?.submitted === true}
-                            onClick={() => router.push(
-                              `/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}`
-                            )}
-                          />
+                          <EnterRatingsBtn ratingIsOpen={ratingIsOpen} reenter={status?.submitted === true}
+                            onClick={() => router.push(`/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}`)} />
                         </td>
                       </tr>
                     );
@@ -990,21 +873,14 @@ export default function RatingSettings() {
           )}
         </div>
 
-        {/* ══ RATING OVERVIEW ══════════════════════════════════ */}
-        <div style={{
-          background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 6,
-          overflow: 'hidden', marginBottom: 64,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-        }}>
+        {/* Rating Overview */}
+        <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 6, overflow: 'hidden', marginBottom: 64, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
           <SectionHeader
             title="Manual Rating Completion Overview"
             subtitle="Track completion progress of manual rating submissions across your team"
           />
-
           {overview.length === 0 ? (
-            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
-              No team members found.
-            </div>
+            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>No team members found.</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1019,67 +895,34 @@ export default function RatingSettings() {
                 </thead>
                 <tbody>
                   {overview.map((member, idx) => (
-                    <tr
-                      key={member.id}
-                      style={{
-                        borderBottom: idx === overview.length - 1 ? 'none' : '1px solid #E5E7EB',
-                        background: '#FFFFFF',
-                      }}
+                    <tr key={member.id}
+                      style={{ borderBottom: idx === overview.length - 1 ? 'none' : '1px solid #E5E7EB', background: '#FFFFFF' }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '#FFFFFF')}
-                    >
+                      onMouseLeave={e => (e.currentTarget.style.background = '#FFFFFF')}>
                       <td style={{ padding: '6px 20px' }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 600, color: '#101828' }}>
-                          {member.name}
-                        </div>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: '#101828' }}>{member.name}</div>
                       </td>
-
-                      {/* Members to rate count */}
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        {member.total === 0 ? (
-                          <span style={{ fontSize: 13, color: '#9CA3AF' }}>—</span>
-                        ) : (
+                        {member.total === 0 ? <span style={{ fontSize: 13, color: '#9CA3AF' }}>—</span> : (
                           <>
-                            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2563EB' }}>
-                              {member.submitted}
-                            </span>
+                            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2563EB' }}>{member.submitted}</span>
                             <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 400 }}> / </span>
-                            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#374151' }}>
-                              {member.total}
-                            </span>
+                            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#374151' }}>{member.total}</span>
                           </>
                         )}
                       </td>
-
-                      {/* Progress bar */}
                       <td style={{ padding: '6px 20px' }}>
-                        {member.total === 0 ? (
-                          <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
-                        ) : (
+                        {member.total === 0 ? <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span> : (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{ flex: 1, height: 6, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
-                              <div style={{
-                                width: `${member.pct}%`, height: '100%', borderRadius: 99,
-                                background: member.pct === 100 ? '#16A34A' : '#2563EB',
-                                transition: 'width 0.4s',
-                              }} />
+                              <div style={{ width: `${member.pct}%`, height: '100%', borderRadius: 99, background: member.pct === 100 ? '#16A34A' : '#2563EB', transition: 'width 0.4s' }} />
                             </div>
-                            <span style={{ fontSize: 11.5, color: '#6B7280', minWidth: 36, fontWeight: 600 }}>
-                              {member.pct}%
-                            </span>
+                            <span style={{ fontSize: 11.5, color: '#6B7280', minWidth: 36, fontWeight: 600 }}>{member.pct}%</span>
                           </div>
                         )}
                       </td>
-
-                      {/* Status */}
-                      <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        {renderOverviewStatus(member)}
-                      </td>
-
-                      {/* Actions */}
-                      <td style={{ padding: '6px 16px', textAlign: 'center' }}>
-                        {renderOverviewActions(member)}
-                      </td>
+                      <td style={{ padding: '6px 16px', textAlign: 'center' }}>{renderOverviewStatus(member)}</td>
+                      <td style={{ padding: '6px 16px', textAlign: 'center' }}>{renderOverviewActions(member)}</td>
                     </tr>
                   ))}
                 </tbody>
