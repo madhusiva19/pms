@@ -51,16 +51,31 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function getClosestPeriod(periods: RatingPeriod[]): RatingPeriod | null {
+/**
+ * When no rating window is currently open, pick the most recently
+ * COMPLETED period (rating_end is in the past and as recent as possible).
+ * Falls back to the soonest upcoming period if nothing has ended yet.
+ */
+function getMostRecentPastPeriod(periods: RatingPeriod[]): RatingPeriod | null {
   if (!periods || periods.length === 0) return null;
-  const now  = Date.now();
-  const open = periods.find(p => p.is_active);
-  if (open) return open;
-  return periods.reduce((best, cur) => {
-    const bestDiff = Math.abs(new Date(best.rating_start).getTime() - now);
-    const curDiff  = Math.abs(new Date(cur.rating_start).getTime() - now);
-    return curDiff < bestDiff ? cur : best;
-  });
+  const now = new Date();
+
+  const past = periods.filter(p => new Date(p.rating_end) < now);
+  if (past.length > 0) {
+    return past.reduce((best, cur) =>
+      new Date(cur.rating_end) > new Date(best.rating_end) ? cur : best
+    );
+  }
+
+  // Nothing completed yet — show the soonest upcoming period
+  const upcoming = periods.filter(p => new Date(p.rating_start) > now);
+  if (upcoming.length > 0) {
+    return upcoming.reduce((best, cur) =>
+      new Date(cur.rating_start) < new Date(best.rating_start) ? cur : best
+    );
+  }
+
+  return periods[0];
 }
 
 // ── Sub-components ─────────────────────────────────────────────────
@@ -360,7 +375,11 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
   onClose: () => void; onSaved: () => void;
 }) {
   const { user } = useAuth();
-  const isHQ = user?.role === 'hq_admin';
+  const isHQ           = user?.role === 'hq_admin';
+  const isCountryAdmin = user?.role === 'country_admin';
+
+  // Show Scope section for both HQ and Country admins
+  const showScope = isHQ || isCountryAdmin;
 
   const [start,       setStart]       = useState(currentStart?.slice(0, 10) ?? '');
   const [end,         setEnd]         = useState(currentEnd?.slice(0, 10) ?? '');
@@ -382,6 +401,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
   useEffect(() => {
     const uid = user?.id ?? '';
 
+    // Countries only for HQ
     if (isHQ) {
       fetch(`${API}/api/org/countries`)
         .then(r => r.json())
@@ -389,6 +409,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
         .catch(() => {});
     }
 
+    // Branches, Departments, Sub-Departments for both HQ and Country admins
     fetch(`${API}/api/org/branches?evaluator_id=${uid}`)
       .then(r => r.json())
       .then((d: OrgItem[]) => setBranches(dedupe(d || [])))
@@ -438,7 +459,12 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
   const handleSave = async () => {
     if (!start || !end)                   { setError('Both dates are required.'); return; }
     if (new Date(end) <= new Date(start)) { setError('End date must be after start date.'); return; }
-    if (!includeSelf && !hasOrgSelection) { setError('Please select at least one scope — include myself and/or one or more org units.'); return; }
+
+    // Only enforce scope selection when the Scope section is visible
+    if (showScope && !includeSelf && !hasOrgSelection) {
+      setError('Please select at least one scope — include myself and/or one or more org units.');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -452,24 +478,26 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
           pms_year:             pmsYear,
           rating_start:         start,
           rating_end:           end,
-          include_self:         includeSelf,
+          include_self:         showScope ? includeSelf : true,
           evaluator_id:         evaluatorId,
+          // Pass org-unit arrays for logging/future use; backend ignores
+          // column-level filtering since rating_periods has no FK columns.
           affected_countries:   isHQ ? resolve(selCountries, countries)  : undefined,
-          affected_branches:    resolve(selBranches, branches),
-          affected_departments: resolve(selDepartments, departments),
-          affected_sub_depts:   resolve(selSubDepts, subDepts),
+          affected_branches:    showScope ? resolve(selBranches, branches)       : undefined,
+          affected_departments: showScope ? resolve(selDepartments, departments) : undefined,
+          affected_sub_depts:   showScope ? resolve(selSubDepts, subDepts)       : undefined,
         }),
       });
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? 'Save failed');
+        throw new Error((body as { error?: string }).error ?? 'Save failed');
       }
 
       setSaved(true);
       setTimeout(() => { onSaved(); onClose(); }, 1000);
-    } catch (e: any) {
-      setError(e.message ?? 'Failed to save. Please try again.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save. Please try again.');
     }
 
     setSaving(false);
@@ -508,8 +536,8 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
           </div>
         </div>
 
-        {/* Apply To section — hq_admin only */}
-        {isHQ && (
+        {/* ── Scope section — visible to both HQ and Country admins ── */}
+        {showScope && (
           <div style={{ marginTop: 22 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
               <Filter size={13} color="#2563EB" />
@@ -542,19 +570,21 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
               </span>
             </label>
 
-            {/* Org-unit filters — always active, fully independent */}
+            {/* Org-unit filters */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {countries.length > 0 && (
-                <MultiSelect label="Countries"       items={countries}   selected={selCountries}   onChange={setSelCountries} />
+              {/* Countries — HQ only */}
+              {isHQ && countries.length > 0 && (
+                <MultiSelect label="Countries" items={countries} selected={selCountries} onChange={setSelCountries} />
               )}
+              {/* Branches, Departments, Sub-Departments — HQ and Country admin */}
               {branches.length > 0 && (
-                <MultiSelect label="Branches"        items={branches}    selected={selBranches}    onChange={setSelBranches} />
+                <MultiSelect label="Branches" items={branches} selected={selBranches} onChange={setSelBranches} />
               )}
               {departments.length > 0 && (
-                <MultiSelect label="Departments"     items={departments} selected={selDepartments} onChange={setSelDepartments} />
+                <MultiSelect label="Departments" items={departments} selected={selDepartments} onChange={setSelDepartments} />
               )}
               {subDepts.length > 0 && (
-                <MultiSelect label="Sub-Departments" items={subDepts}    selected={selSubDepts}    onChange={setSelSubDepts} />
+                <MultiSelect label="Sub-Departments" items={subDepts} selected={selSubDepts} onChange={setSelSubDepts} />
               )}
             </div>
 
@@ -663,20 +693,32 @@ export default function RatingSettings() {
     setRatingStatus({});
 
     try {
-      // Fetch period first so we can pass correct year/period to overview
-      const periodRes = await fetch(`${API}/api/rating-periods/current`);
+      const periodRes  = await fetch(`${API}/api/rating-periods/current`);
       const periodJson = periodRes.ok ? await periodRes.json() : null;
 
       const periods: RatingPeriod[] = periodJson?.periods ?? [];
-      const best: RatingPeriod | null =
-        periods.find(p => p.is_active && p.period === periodJson?.active_period)
-        ?? getClosestPeriod(periods)
-        ?? null;
+
+      // ── Period selection logic ─────────────────────────────────────────
+      // If the API already found an open window, use it directly.
+      // Otherwise (rating_open=false), use the most recently COMPLETED
+      // period from the backend response, or compute it client-side.
+      let best: RatingPeriod | null = null;
+
+      if (periodJson?.rating_open && periodJson?.active_period) {
+        // A window is currently open — use whichever period the backend identified
+        best = periods.find(
+          p => p.is_active && p.period === periodJson.active_period
+        ) ?? null;
+      }
+
+      if (!best) {
+        // No open window — use the most recently COMPLETED period
+        best = getMostRecentPastPeriod(periods);
+      }
 
       setPeriodData(periodJson);
       setActivePeriod(best);
 
-      // Now fetch overview and team with the correct year/period from the period response
       const overviewYear   = best?.pms_year ?? new Date().getFullYear();
       const overviewPeriod = best?.period   ?? 'H1';
 
@@ -713,7 +755,6 @@ export default function RatingSettings() {
 
   // ── Overview status cell renderer ──────────────────────────────
   const renderOverviewStatus = (member: OverviewMember) => {
-    // Member has no subordinates at all — not applicable
     if (member.total === 0) {
       return (
         <span style={{
@@ -726,16 +767,11 @@ export default function RatingSettings() {
         </span>
       );
     }
-    // Rating window closed — don't show status
-    if (!ratingIsOpen) {
-      return <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>;
-    }
     return <StatusPill complete={member.status === 'complete'} />;
   };
 
   // ── Overview actions cell renderer ─────────────────────────────
   const renderOverviewActions = (member: OverviewMember) => {
-    // Only show Remind if: window open + has subordinates + still pending
     if (ratingIsOpen && member.total > 0 && member.pending > 0) {
       return <RemindBtn onClick={() => setReminderTarget(member)} />;
     }
@@ -901,9 +937,6 @@ export default function RatingSettings() {
                     const isLast = idx === team.length - 1;
 
                     const renderStatus = () => {
-                      if (!ratingIsOpen) {
-                        return <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>;
-                      }
                       if (statusLoading && !status) {
                         return <span style={{ fontSize: 12, color: '#9CA3AF' }}>Loading…</span>;
                       }
@@ -1001,7 +1034,7 @@ export default function RatingSettings() {
                         </div>
                       </td>
 
-                      {/* Members to rate count — show "—" when N/A */}
+                      {/* Members to rate count */}
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
                         {member.total === 0 ? (
                           <span style={{ fontSize: 13, color: '#9CA3AF' }}>—</span>
@@ -1018,7 +1051,7 @@ export default function RatingSettings() {
                         )}
                       </td>
 
-                      {/* Progress bar — hide when N/A */}
+                      {/* Progress bar */}
                       <td style={{ padding: '6px 20px' }}>
                         {member.total === 0 ? (
                           <span style={{ fontSize: 12, color: '#9CA3AF' }}>—</span>
@@ -1038,12 +1071,12 @@ export default function RatingSettings() {
                         )}
                       </td>
 
-                      {/* Status — N/A pill / Pending / Complete / closed dash */}
+                      {/* Status */}
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
                         {renderOverviewStatus(member)}
                       </td>
 
-                      {/* Actions — Remind only when meaningful */}
+                      {/* Actions */}
                       <td style={{ padding: '6px 16px', textAlign: 'center' }}>
                         {renderOverviewActions(member)}
                       </td>

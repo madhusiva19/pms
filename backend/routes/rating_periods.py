@@ -27,10 +27,12 @@ rating_periods_bp = Blueprint("rating_periods", __name__)
 @rating_periods_bp.route("/api/rating-periods/current", methods=["GET"])
 def get_current_rating_period():
     """
-    Return the current (or upcoming) rating period state.
+    Return the current (or most recently completed) rating period state.
 
-    Response includes rating_open, active_period, date boundaries,
-    and the full periods list for client-side period selection.
+    - If a period window is open today  → rating_open=True, active_period=that period
+    - If no window is open              → rating_open=False, active_period=None
+      and the frontend should display the MOST RECENTLY COMPLETED period
+      (the one whose rating_end is the latest date still in the past).
     """
     try:
         from datetime import date as dt_date
@@ -47,11 +49,13 @@ def get_current_rating_period():
                 "rating_open":   False,
                 "active_period": None,
                 "reason":        "No active rating periods configured",
+                "periods":       [],
             })
 
         today  = dt_date.today()
         active = None
 
+        # Check if any period window is currently open
         for rp in result.data:
             start = parse_date(rp["rating_start"])
             end   = parse_date(rp["rating_end"])
@@ -59,35 +63,55 @@ def get_current_rating_period():
                 active = rp
                 break
 
-        if not active:
-            upcoming = None
-            for rp in result.data:
-                start = parse_date(rp["rating_start"])
-                if start and today < start:
-                    if upcoming is None or start < parse_date(upcoming["rating_start"]):
-                        upcoming = rp
-
-            reason = (
-                f"Rating window opens on "
-                f"{parse_date(upcoming['rating_start']).strftime('%d %b %Y')}"
-                if upcoming
-                else "Rating window has closed for this cycle"
-            )
-
+        if active:
             return jsonify({
-                "rating_open":   False,
-                "active_period": None,
-                "reason":        reason,
+                "rating_open":   True,
+                "active_period": active["period"],
+                "pms_year":      active["pms_year"],
+                "rating_start":  active["rating_start"],
+                "rating_end":    active["rating_end"],
+                "reason":        None,
                 "periods":       result.data,
             })
 
+        # No window open — find the most recently COMPLETED period
+        # (rating_end is in the past). This is what the UI should display.
+        past_periods = [
+            rp for rp in result.data
+            if parse_date(rp["rating_end"]) and parse_date(rp["rating_end"]) < today
+        ]
+
+        if past_periods:
+            most_recent = max(
+                past_periods,
+                key=lambda rp: parse_date(rp["rating_end"])
+            )
+        else:
+            # No past periods either — fall back to the soonest upcoming one
+            upcoming_periods = [
+                rp for rp in result.data
+                if parse_date(rp["rating_start"]) and parse_date(rp["rating_start"]) > today
+            ]
+            most_recent = (
+                min(upcoming_periods, key=lambda rp: parse_date(rp["rating_start"]))
+                if upcoming_periods
+                else result.data[0]
+            )
+
+        reason = (
+            f"Rating window opens on "
+            f"{parse_date(most_recent['rating_start']).strftime('%d %b %Y')}"
+            if parse_date(most_recent["rating_start"]) > today
+            else "Rating window has closed for this period"
+        )
+
         return jsonify({
-            "rating_open":   True,
-            "active_period": active["period"],
-            "pms_year":      active["pms_year"],
-            "rating_start":  active["rating_start"],
-            "rating_end":    active["rating_end"],
-            "reason":        None,
+            "rating_open":   False,
+            "active_period": most_recent["period"],
+            "pms_year":      most_recent["pms_year"],
+            "rating_start":  most_recent["rating_start"],
+            "rating_end":    most_recent["rating_end"],
+            "reason":        reason,
             "periods":       result.data,
         })
 
@@ -103,24 +127,28 @@ def get_current_rating_period():
 @rating_periods_bp.route("/api/rating-periods/update", methods=["POST"])
 def update_rating_period():
     """
-    Update rating period dates with full 5-combination scope control.
+    Update rating period dates.
 
-    Scope combinations
-    ------------------
-    include_self=True  + units selected (all)       → Myself + All units
-    include_self=True  + units selected (specific)  → Myself + Selected units
-    include_self=True  + no units selected           → Myself only
-    include_self=False + units selected (all)        → All units (excluding myself)
-    include_self=False + units selected (specific)   → Selected units only
+    The rating_periods table has NO org-unit FK columns (country_id,
+    branch_id, department_id, sub_department_id do NOT exist on that table).
+    There is exactly ONE row per (pms_year, period) combination.
+
+    The scope UI (countries / branches / departments / sub-departments) is
+    kept for UX familiarity, but on the backend we simply update the single
+    matching row for (period, pms_year). The "include_self" flag has no
+    separate effect since there is only one row to update.
 
     Fields
     ------
-    include_self         bool  — also update the evaluator's own period row
-    evaluator_id         str   — always required so backend can resolve the self row
-    affected_countries   list  — country ids  (HQ admin only)
-    affected_branches    list  — branch ids
-    affected_departments list  — department ids
-    affected_sub_depts   list  — sub-department ids
+    period       str  — e.g. "H1"
+    pms_year     int  — e.g. 2026
+    rating_start str  — ISO date "YYYY-MM-DD"
+    rating_end   str  — ISO date "YYYY-MM-DD"
+    evaluator_id str  — required for audit logging
+    include_self bool — accepted but no separate action needed (single row)
+    affected_countries / affected_branches / affected_departments /
+    affected_sub_depts — accepted for forward-compatibility, currently no-op
+                         because the table has no such FK columns.
     """
     try:
         body      = request.get_json()
@@ -133,10 +161,20 @@ def update_rating_period():
             return jsonify({"error": "Missing required fields"}), 400
 
         include_self = bool(body.get("include_self", False))
-        evaluator_id = body.get("evaluator_id")
+        evaluator_id = body.get("evaluator_id", "")
 
-        update_payload = {"rating_start": new_start, "rating_end": new_end}
+        # Validate dates
+        from datetime import date as dt_date
+        try:
+            start_dt = dt_date.fromisoformat(new_start)
+            end_dt   = dt_date.fromisoformat(new_end)
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
 
+        if end_dt <= start_dt:
+            return jsonify({"error": "rating_end must be after rating_start"}), 400
+
+        # Scope validation: at least one scope must be selected
         affected_countries   = body.get("affected_countries",   [])
         affected_branches    = body.get("affected_branches",    [])
         affected_departments = body.get("affected_departments", [])
@@ -152,112 +190,35 @@ def update_rating_period():
         if not has_units and not include_self:
             return jsonify({
                 "success": False,
-                "message": (
+                "error": (
                     "No scope selected — please choose at least one unit "
                     "or enable Include Myself."
                 ),
             }), 400
 
-        # ── Step 1: Update org-unit rows ──────────────────────────────────
-        if has_units:
-            # Always update the base (global) row first
-            (
-                supabase.table("rating_periods")
-                .update(update_payload)
-                .eq("period", period)
-                .eq("pms_year", pms_year)
-                .execute()
-            )
+        # Update the single rating_periods row for this (period, pms_year)
+        update_payload = {"rating_start": new_start, "rating_end": new_end}
 
-            for country_id in (affected_countries or []):
-                (
-                    supabase.table("rating_periods")
-                    .update(update_payload)
-                    .eq("period", period)
-                    .eq("pms_year", pms_year)
-                    .eq("country_id", country_id)
-                    .execute()
-                )
+        res = (
+            supabase.table("rating_periods")
+            .update(update_payload)
+            .eq("period", period)
+            .eq("pms_year", int(pms_year))
+            .execute()
+        )
 
-            for branch_id in (affected_branches or []):
-                (
-                    supabase.table("rating_periods")
-                    .update(update_payload)
-                    .eq("period", period)
-                    .eq("pms_year", pms_year)
-                    .eq("branch_id", branch_id)
-                    .execute()
-                )
+        if not res.data:
+            return jsonify({
+                "error": f"No rating period found for {period} {pms_year}"
+            }), 404
 
-            for dept_id in (affected_departments or []):
-                (
-                    supabase.table("rating_periods")
-                    .update(update_payload)
-                    .eq("period", period)
-                    .eq("pms_year", pms_year)
-                    .eq("department_id", dept_id)
-                    .execute()
-                )
-
-            for sub_id in (affected_sub_depts or []):
-                (
-                    supabase.table("rating_periods")
-                    .update(update_payload)
-                    .eq("period", period)
-                    .eq("pms_year", pms_year)
-                    .eq("sub_department_id", sub_id)
-                    .execute()
-                )
-
-            print(
-                f"[INFO] Rating period {period} {pms_year} updated for units — "
-                f"countries: {affected_countries}, branches: {affected_branches}, "
-                f"departments: {affected_departments}, sub_depts: {affected_sub_depts}."
-            )
-
-        # ── Step 2: Optionally update the evaluator's own row ─────────────
-        if include_self:
-            if not evaluator_id:
-                return jsonify({
-                    "error": "evaluator_id is required when include_self is true"
-                }), 400
-
-            user_res = (
-                supabase.table("users")
-                .select("id, role, branch_id, department_id, sub_department_id, country_id")
-                .eq("id", evaluator_id)
-                .single()
-                .execute()
-            )
-
-            if not user_res.data:
-                return jsonify({"error": "Evaluator not found"}), 404
-
-            user  = user_res.data
-            role  = user.get("role", "")
-            query = (
-                supabase.table("rating_periods")
-                .update(update_payload)
-                .eq("period", period)
-                .eq("pms_year", pms_year)
-            )
-
-            if role == "branch_admin" and user.get("branch_id"):
-                query = query.eq("branch_id", user["branch_id"])
-            elif role == "dept_admin" and user.get("department_id"):
-                query = query.eq("department_id", user["department_id"])
-            elif role == "sub_dept_admin" and user.get("sub_department_id"):
-                query = query.eq("sub_department_id", user["sub_department_id"])
-            elif role == "country_admin" and user.get("country_id"):
-                query = query.eq("country_id", user["country_id"])
-            # hq_admin: no additional filter — they own the global row
-
-            query.execute()
-
-            print(
-                f"[INFO] Rating period {period} {pms_year} also updated for "
-                f"evaluator {evaluator_id} (role={role}) — include_self=True."
-            )
+        print(
+            f"[INFO] Rating period {period} {pms_year} updated to "
+            f"{new_start} → {new_end} by evaluator {evaluator_id} "
+            f"(include_self={include_self}, "
+            f"countries={affected_countries}, branches={affected_branches}, "
+            f"departments={affected_departments}, sub_depts={affected_sub_depts})"
+        )
 
         return jsonify({"success": True})
 
@@ -352,7 +313,6 @@ def get_batch_rating_status():
             })
 
         # ── 4. Fetch submitted records, filter nulls in Python ─────────────
-        # Avoids Supabase client IS NOT NULL syntax variations across versions
         submitted_res = (
             supabase.table("performance_records")
             .select("user_id, objective_id, manual_rating")
@@ -405,15 +365,6 @@ def get_rating_overview(evaluator_id: str):
     """
     Return a per-team-member overview of manual rating completion for the
     evaluator's direct reports.
-
-    For each team member we count how many of THEIR own direct reports
-    have been rated (submitted) vs still pending.
-
-    Status values
-    -------------
-    "complete"  — total > 0 and all subordinates rated
-    "n/a"       — total == 0 (this member has no subordinates to rate)
-    "pending"   — total > 0 and at least one subordinate still unrated
     """
     try:
         active_year, active_period_str = get_active_period_params()
