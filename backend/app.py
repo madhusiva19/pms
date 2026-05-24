@@ -7,11 +7,14 @@ This file is intentionally thin — it only:
   1. Creates the Flask app
   2. Enables CORS
   3. Registers all route blueprints
+  4. Starts the background scheduler
 
 All business logic lives in services/.
 All database access lives in utils/db.py.
 All route handlers live in routes/.
 """
+
+import logging
 
 from flask import Flask
 from flask_cors import CORS
@@ -23,6 +26,10 @@ from routes.org            import org_bp
 from routes.performance    import performance_bp
 from routes.rating_periods import rating_periods_bp
 from routes.templates      import templates_bp
+
+from scheduler import init_scheduler
+
+logging.basicConfig(level=logging.INFO)
 
 
 def create_app() -> Flask:
@@ -41,6 +48,11 @@ def create_app() -> Flask:
 
 
 app = create_app()
+
+# Start the background scheduler once (not in debug reloader child process)
+import os
+if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    _scheduler = init_scheduler()
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
