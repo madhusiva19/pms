@@ -9,8 +9,7 @@ import { generateSavedReportPDF } from '@/utils/generateSavedReportPDF';
 import { savedReportsApi, countriesApi, dashboardApi, reportsApi } from '@/services/api';
 import type { SavedReport, Country } from '@/types';
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
+//  Types
 type ReportMode = 'year_comparison' | 'trend' | 'multi_country';
 type SaveStep = 'idle' | 'fetching' | 'saving' | 'downloading' | 'done';
 
@@ -27,7 +26,7 @@ interface CreateReportModalProps {
   userEmail?: string;
 }
 
-// ── Constants ──────────────────────────────────────────────────────────────────
+//  Constants 
 
 const AVAILABLE_PERIODS = [
   { value: 'mid_year_2025', label: 'Mid-Year 2025' },
@@ -69,7 +68,7 @@ const MODE_CARDS = [
   },
 ];
 
-// ── Component ──────────────────────────────────────────────────────────────────
+//  Component 
 
 export default function CreateReportModal({
   isOpen, onClose, onSuccess,
@@ -103,8 +102,7 @@ export default function CreateReportModal({
   const [error, setError] = useState<string | null>(null);
   const [saveStep, setSaveStep] = useState<SaveStep>('idle');
 
-  // ── Reset on open ────────────────────────────────────────────────────────────
-
+  //Reset on open 
   useEffect(() => {
     if (isOpen) {
       setMode('year_comparison');
@@ -132,7 +130,7 @@ export default function CreateReportModal({
     }
   }, [mode, countries.length, countriesLoading]);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────────
+  //  Handlers
 
   const togglePastYear = (year: number) => {
     setSelectedPastYears(prev =>
@@ -156,7 +154,7 @@ export default function CreateReportModal({
     );
   };
 
-  // ── Submit ────────────────────────────────────────────────────────────────────
+  // Submit
 
   const handleSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault();
@@ -178,7 +176,7 @@ export default function CreateReportModal({
     setSaveStep('fetching');
 
     try {
-      // ── Step 1: Build trend_metrics based on mode ──────────────────────────
+      // Step 1: Build trend_metrics based on mode
       let trendMetrics: Record<string, any> = { type: mode };
       if (adminComment.trim()) trendMetrics.admin_comment = adminComment.trim();
 
@@ -250,7 +248,7 @@ export default function CreateReportModal({
         trendMetrics.comparison_period = mcPeriod;
       }
 
-      // ── Step 2: Save to DB ─────────────────────────────────────────────────
+      //  Step 2: Save to DB 
       setSaveStep('saving');
       const isTrendMode  = mode === 'trend';
 
@@ -290,7 +288,7 @@ export default function CreateReportModal({
         } as SavedReport;
       }
 
-      // ── Step 3: Generate + Download PDF ───────────────────────────────────
+      //  Step 3: Generate + Download PDF
       setSaveStep('downloading');
       const pdfReport = {
         ...savedReport,
@@ -316,8 +314,7 @@ export default function CreateReportModal({
 
   if (!isOpen) return null;
 
-  // ── Derived UI values ────────────────────────────────────────────────────────
-
+  // Derived UI values 
   const activeCard = MODE_CARDS.find(c => c.id === mode)!;
   const ActiveIcon = activeCard.Icon;
   const periodLabel =
@@ -335,7 +332,7 @@ export default function CreateReportModal({
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  //  Render 
 
   return (
     <>
@@ -438,7 +435,7 @@ export default function CreateReportModal({
                 />
               </div>
 
-              {/* ── Description ── */}
+              {/* Description  */}
               <div className="space-y-1.5">
                 <label className="block text-[13px] font-semibold text-[#374151]">
                   Description{' '}
@@ -454,7 +451,7 @@ export default function CreateReportModal({
                 />
               </div>
 
-              {/* ── HQ Admin Remarks ── */}
+              {/*  HQ Admin Remarks  */}
               <div className="space-y-1.5">
                 <label className="flex items-center gap-1.5 text-[13px] font-semibold text-[#374151]">
                   <Brain className="w-3.5 h-3.5 text-[#8B5CF6]" />
@@ -473,7 +470,7 @@ export default function CreateReportModal({
 
 
 
-              {/* ── YEAR COMPARISON: Past year chips ── */}
+              {/* YEAR COMPARISON: Past year chips */}
               {mode === 'year_comparison' && (
                 <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
                   <div className="px-5 py-3.5 bg-[#F9FAFB] border-b border-[#E2E8F0] flex items-center justify-between">
@@ -516,7 +513,7 @@ export default function CreateReportModal({
                 </div>
               )}
 
-              {/* ── TREND ANALYSIS: Period selector ── */}
+              {/*  TREND ANALYSIS: Period selector  */}
               {mode === 'trend' && (
                 <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
                   <div className="px-5 py-3.5 bg-[#F9FAFB] border-b border-[#E2E8F0] flex items-center justify-between">
@@ -559,7 +556,7 @@ export default function CreateReportModal({
                 </div>
               )}
 
-              {/* ── MULTI-COUNTRY: Period + country selector ── */}
+              {/*  MULTI-COUNTRY: Period + country selector  */}
               {mode === 'multi_country' && (
                 <>
                   {/* Period toggle */}
@@ -648,7 +645,7 @@ export default function CreateReportModal({
 
             </div>
 
-            {/* ── Footer (sticky inside form) ── */}
+            {/* Footer (sticky inside form)  */}
             <div className="px-8 py-5 border-t border-[#E2E8F0] bg-white flex items-center gap-3 shrink-0">
               <button
                 type="button"

@@ -36,7 +36,7 @@ async function loadLogoAsDataUrl(src: string): Promise<string | null> {
   });
 }
 
-// ─── Colour palette ──────────────────────────────────────────────────────────
+//  Colour palette 
 const C = {
   navy:    [30, 58, 138]   as [number, number, number],
   blue:    [37, 99, 235]   as [number, number, number],
@@ -57,7 +57,7 @@ const BAR_COLORS: [number, number, number][] = [
   [132, 204, 22], [34, 197, 94],  [16, 185, 129], [5, 150, 105],
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+//  Helpers
 
 function periodLabel(p: string): string {
   if (p === 'both')     return 'Mid-Year & Year-End';
@@ -93,7 +93,7 @@ function gridLine(pdf: jsPDF, x1: number, y: number, x2: number) {
   pdf.line(x1, y, x2, y);
 }
 
-// ─── Line graph (used for trend and year-comparison) ─────────────────────────
+//  Line graph (used for trend and year-comparison) 
 function drawLineGraph(
   pdf: jsPDF,
   x: number, y: number, w: number, h: number,
@@ -139,7 +139,7 @@ function drawLineGraph(
   });
 }
 
-// ─── Bell curve bars ─────────────────────────────────────────────────────────
+//  Bell curve bars
 function drawBellCurve(
   pdf: jsPDF,
   x: number, y: number, w: number, h: number,
@@ -176,7 +176,7 @@ function drawBellCurve(
   });
 }
 
-// ─── Multi-country horizontal bar chart ──────────────────────────────────────
+//  Multi-country horizontal bar chart 
 function drawMultiCountrySection(
   pdf: jsPDF, y: number, pageW: number,
   countryData: Array<{ country_name: string; avg_score: number; top_performers: number; total_evaluated: number }>,
@@ -245,7 +245,7 @@ function drawMultiCountrySection(
   return y + 8;
 }
 
-// ─── Year-over-year section ───────────────────────────────────────────────────
+//  Year-over-year section
 function drawYearComparisonSection(
   pdf: jsPDF, y: number, pageW: number,
   yearData: Array<{ year: number; avg_score: number; top_performers: number; total_evaluated: number }>,
@@ -298,7 +298,7 @@ function drawYearComparisonSection(
   return y + 8;
 }
 
-// ─── Main export ─────────────────────────────────────────────────────────────
+// Main export 
 export async function generateSavedReportPDF(
   report: SavedReport & Record<string, any>,
   fileName?: string,
@@ -307,7 +307,7 @@ export async function generateSavedReportPDF(
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
 
-  // ── Resolve mode from trend_metrics ─────────────────────────────────────────
+  //  Resolve mode from trend_metrics 
   const tm             = report.trend_metrics ?? {};
   const tmType         = tm.type as string | undefined;
   const isTrend        = !!report.is_trend_report || tmType === 'trend';
@@ -331,7 +331,7 @@ export async function generateSavedReportPDF(
     isYearComp     ? 'Year Comparison Report' :
     isTrend        ? 'Trend Analysis Report' : 'Performance Report';
 
-  // ── HEADER: Navy branding bar (matching downloadReportAsPDF) ────────────────
+  // ── HEADER: Navy branding bar (matching downloadReportAsPDF) 
   const logoDataUrl = await loadLogoAsDataUrl('/Dart_Logo_new.png');
 
   // Branding bar 0–17 mm
@@ -403,7 +403,7 @@ export async function generateSavedReportPDF(
 
   let y = contextTop + 13 + 8; // content starts at ~43 mm
 
-  // ── METADATA BLOCK ───────────────────────────────────────────────────────────
+  //  METADATA BLOCK
   const meta: [string, string][] = [
     ['Report Type', isMultiCountry ? 'Multi-Country Comparison' : isYearComp ? 'Year Comparison' : isTrend ? 'Trend Analysis' : (report.report_type === 'country' ? 'Country Snapshot' : 'Branch Snapshot')],
     ['Period / Scope', modeLine],
@@ -427,7 +427,7 @@ export async function generateSavedReportPDF(
   });
   y += meta.length * 9 + 16;
 
-  // ── HQ ADMIN REMARKS ─────────────────────────────────────────────────────────
+  // HQ ADMIN REMARKS
   if (adminComment) {
     y = sectionHeader(pdf, 'HQ Admin Remarks', y, pageW);
     pdf.setFont('helvetica', 'italic');
@@ -438,7 +438,7 @@ export async function generateSavedReportPDF(
     y += lines.length * 5 + 12;
   }
 
-  // ── MULTI-COUNTRY ────────────────────────────────────────────────────────────
+  //  MULTI-COUNTRY 
   if (isMultiCountry && Array.isArray(tm.country_data) && tm.country_data.length > 0) {
     y = drawMultiCountrySection(
       pdf, y, pageW,
@@ -448,12 +448,12 @@ export async function generateSavedReportPDF(
     );
   }
 
-  // ── YEAR COMPARISON ──────────────────────────────────────────────────────────
+  //  YEAR COMPARISON
   if (isYearComp && Array.isArray(tm.year_data) && tm.year_data.length > 0) {
     y = drawYearComparisonSection(pdf, y, pageW, tm.year_data);
   }
 
-  // ── TREND ANALYSIS ───────────────────────────────────────────────────────────
+  //  TREND ANALYSIS 
   if (isTrend && Array.isArray(report.selected_periods) && report.selected_periods.length >= 2) {
     y = sectionHeader(pdf, 'Performance Trend', y, pageW);
     y += 8;
@@ -475,7 +475,7 @@ export async function generateSavedReportPDF(
     y += 15;
   }
 
-  // ── SNAPSHOT: Included analytics note ───────────────────────────────────────
+  //  SNAPSHOT: Included analytics note
   if (!isMultiCountry && !isYearComp) {
     y = sectionHeader(pdf, 'Included Analytics', y, pageW);
     const opts: [string, string][] = [
@@ -499,7 +499,7 @@ export async function generateSavedReportPDF(
     y += 4;
   }
 
-  // ── FOOTER on every page (matching downloadReportAsPDF) ─────────────────────
+  //  FOOTER on every page (matching downloadReportAsPDF)
   const totalPages = pdf.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     pdf.setPage(i);

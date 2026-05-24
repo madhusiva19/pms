@@ -115,6 +115,9 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
       {/* Tab switcher */}
       <div className="flex gap-1 p-1 bg-[#F3F4F6] rounded-lg w-fit">
         {pillars.map((pillar) => (
+          // BUTTON — Pillar tab (Ability / Aspiration / Leadership) — read-only view switcher
+          // the completed assessment stores 9 items across 3 pillars; tabbing keeps the
+          // table compact instead of showing all 9 rows at once; no edit is possible here
           <button key={pillar.key} onClick={() => setActiveTab(pillar.key)}
             className={`px-4 py-2 rounded-md text-[13px] font-medium transition-all ${activeTab === pillar.key ? 'bg-[#1D4ED8] text-white shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
             {pillar.label}
@@ -122,7 +125,10 @@ export default function CompletedSummary({ assessmentData, viewerRole = 'supervi
         ))}
       </div>
 
-      {/* Full detail table */}
+      {/* TABLE — completed assessment detail:
+           read-only reference so both appraisee and supervisor can see every rating
+          side-by-side after completion; supervisor columns hidden for appraisee view
+          (controlled by isAppraiseeView) to keep the result unbiased */}
       <div className="rounded-xl border border-[#E2E8F0] overflow-hidden overflow-x-auto shadow-sm">
         <table className="w-full border-collapse min-w-[860px]">
           <thead>

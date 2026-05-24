@@ -8,7 +8,7 @@ _AC_PILLARS = ['ability', 'aspiration', 'leadership']
 _AC_ROLES   = ['country_admin', 'branch_admin', 'dept_admin', 'sub_dept_admin', 'employee']
 
 
-# ── Notifications ─────────────────────────────────────────────────────────────
+# ── Notifications 
 
 @potential_assessment_bp.route('/api/potential-assessment-notifications/<user_id>', methods=['GET'])
 def get_pa_notifications(user_id: str):
@@ -29,8 +29,7 @@ def mark_pa_notification_read(notification_id: str):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ── Appraisal Cycle ───────────────────────────────────────────────────────────
-
+# ── Appraisal Cycle
 @potential_assessment_bp.route('/api/appraisal-cycles/active', methods=['GET'])
 def get_active_appraisal_cycle():
     try:
@@ -42,7 +41,7 @@ def get_active_appraisal_cycle():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ── Assessment ────────────────────────────────────────────────────────────────
+# ── Assessment 
 
 @potential_assessment_bp.route('/api/potential-assessment/<employee_id>/<cycle>', methods=['GET'])
 def get_potential_assessment(employee_id: str, cycle: str):
@@ -111,7 +110,7 @@ def supervisor_submit_potential_assessment():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ── Assessment Components ─────────────────────────────────────────────────────
+# ── Assessment Components 
 
 @potential_assessment_bp.route('/api/assessment-components', methods=['GET', 'POST'])
 def assessment_components_list():
