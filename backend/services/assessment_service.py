@@ -3,7 +3,10 @@ from utils.calculations import calculate_pillar_rating, calculate_overall_potent
 from datetime import datetime, timezone
 
 
+# -- Notification helpers 
+
 def send_pa_notification(recipient_id: str, notif_type: str, title: str, message: str):
+    # try/except: a notification failure must never block the main assessment workflow
     try:
         supabase.table('potential_assessment_notifications').insert({
             'recipient_id': recipient_id,
@@ -17,6 +20,7 @@ def send_pa_notification(recipient_id: str, notif_type: str, title: str, message
 
 
 def log_assessment_action(assessment_id: str, actor_id: str, actor_role: str, action: str, cycle: str):
+    # try/except: audit log failure is non-fatal — assessment data is already committed by this point
     try:
         supabase.table('potential_assessment_audit_log').insert({
             'assessment_id': assessment_id,
@@ -29,13 +33,17 @@ def log_assessment_action(assessment_id: str, actor_id: str, actor_role: str, ac
         print(f'[AUDIT LOG WARNING] Failed to write audit log: {e}')
 
 
+# -- Data access helpers 
+
 def strip_supervisor_columns(items: list, status: str) -> list:
+    # Hides supervisor ratings until 'completed' so the appraisee cannot see them mid-review
     if status == 'completed':
         return items
     return [{k: v for k, v in item.items() if k not in ('supervisor_rating', 'supervisor_justification')} for item in items]
 
 
 def get_notifications(user_id: str) -> list:
+    # desc=True: latest notification appears first so the UI needs no client-side sort
     resp = supabase.table('potential_assessment_notifications').select('*').eq('recipient_id', user_id).order('created_at', desc=True).execute()
     return resp.data or []
 
@@ -46,12 +54,14 @@ def mark_notification_read(notification_id: str) -> dict | None:
 
 
 def get_active_cycle() -> dict | None:
+    # limit(1): only one cycle should be active; prevents returning multiple rows on data-integrity issues
     resp = supabase.table('appraisal_cycles').select('*').eq('is_active', True).limit(1).execute()
     return resp.data[0] if resp.data else None
 
 
 def get_assessment(employee_id: str, cycle: str, requester_id: str = '') -> dict:
     assessment_resp = supabase.table('potential_assessments').select('*').eq('employee_id', employee_id).eq('appraisal_cycle', cycle).limit(1).execute()
+    # Return a consistent dict shape even when no DB record exists yet (form not started)
     if not assessment_resp.data:
         return {'status': 'not_started'}
     assessment = assessment_resp.data[0]
@@ -60,7 +70,10 @@ def get_assessment(employee_id: str, cycle: str, requester_id: str = '') -> dict
     return {**assessment, 'items': items}
 
 
+# -- Business logic 
+
 def get_subordinates(supervisor_id: str, supervisor_role: str, cycle: str) -> list:
+    # Each branch follows the org hierarchy: hq_admin→country_admin→branch_admin→dept_admin→sub_dept_admin→employee
     subordinates = []
 
     if supervisor_role == 'hq_admin':
@@ -98,6 +111,7 @@ def get_subordinates(supervisor_id: str, supervisor_role: str, cycle: str) -> li
         return []
 
     sub_ids = [s['id'] for s in subordinates]
+    # Single IN query for all subordinates avoids N+1 DB calls when a supervisor has many reports
     assessments_resp = supabase.table('potential_assessments').select('employee_id, status, talent_block, overall_ability, overall_aspiration, overall_leadership').in_('employee_id', sub_ids).eq('appraisal_cycle', cycle).execute()
     assessment_map = {a['employee_id']: a for a in (assessments_resp.data or [])}
 
@@ -109,6 +123,7 @@ def get_subordinates(supervisor_id: str, supervisor_role: str, cycle: str) -> li
 
 
 def self_submit(data: dict) -> dict:
+    # Advances status: pending_self → pending_supervisor; notifies supervisor on success
     employee_id, cycle = data['employee_id'], data['cycle']
 
     existing = supabase.table('potential_assessments').select('id, status').eq('employee_id', employee_id).eq('appraisal_cycle', cycle).limit(1).execute()
@@ -128,6 +143,7 @@ def self_submit(data: dict) -> dict:
 
     now_iso = datetime.now(timezone.utc).isoformat()
     for item in data['items']:
+        # upsert: idempotent write so a browser-close mid-form doesn't create duplicate rows
         supabase.table('potential_assessment_items').upsert({
             'assessment_id': assessment_id,
             'pillar': item['pillar'],
@@ -155,6 +171,7 @@ def self_submit(data: dict) -> dict:
 
 
 def supervisor_submit(data: dict) -> dict:
+    # Validates ownership, writes ratings, calculates pillar + talent_block, sets status to 'completed'
     assessment_id = data['assessment_id']
     assessment_resp = supabase.table('potential_assessments').select('*').eq('id', assessment_id).single().execute()
     if not assessment_resp.data:
@@ -172,15 +189,18 @@ def supervisor_submit(data: dict) -> dict:
             'supervisor_justification': item.get('supervisor_justification'),
         }).eq('id', item['id']).execute()
 
+    # Re-fetch all items from DB to ensure the pillar calculation uses the just-written values
     all_items = supabase.table('potential_assessment_items').select('pillar, supervisor_rating').eq('assessment_id', assessment_id).execute().data or []
     pillar_ratings: dict = {'ability': [], 'aspiration': [], 'leadership': []}
     for itm in all_items:
         if itm.get('pillar') in pillar_ratings and itm.get('supervisor_rating'):
             pillar_ratings[itm['pillar']].append(itm['supervisor_rating'])
 
+    # calculate_pillar_rating → majority rule per pillar (see calculations.py)
     overall_ability    = calculate_pillar_rating(pillar_ratings['ability'])
     overall_aspiration = calculate_pillar_rating(pillar_ratings['aspiration'])
     overall_leadership = calculate_pillar_rating(pillar_ratings['leadership'])
+    # calculate_overall_potentiality → spec matrix rule (l==0 and h==0 veto conditions)
     talent_block       = calculate_overall_potentiality(overall_ability, overall_aspiration, overall_leadership)
 
     now_iso = datetime.now(timezone.utc).isoformat()

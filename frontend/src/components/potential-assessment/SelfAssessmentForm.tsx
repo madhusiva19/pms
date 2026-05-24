@@ -300,9 +300,7 @@ export default function SelfAssessmentForm({
           </div>
 
           {/* BUTTON — "Submit Self-Assessment" (opens confirmation modal)
-              Why: disabled until all 9 ratings are selected so the backend never receives
-              an incomplete payload; once confirmed, status locks to 'pending_supervisor'
-              and the form becomes permanently read-only for the appraisee */}
+               disabled until all 9 ratings are selected  */}
           <button
             type="button"
             disabled={!allFilled}
@@ -324,11 +322,11 @@ export default function SelfAssessmentForm({
         </p>
       )}
 
-      {/* ============================================================
+      {/* 
           CONFIRMATION MODAL
           Overlay
           Modal card
-          ============================================================ */}
+          */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 flex flex-col gap-5">

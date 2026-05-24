@@ -4,6 +4,7 @@ from datetime import datetime
 
 
 def _generate_ai_insight(report_data: dict, report_type: str) -> str:
+    # Template-based insight so the report always ships with text even before an ML model is integrated
     if report_type == 'mid_year':
         return (
             f"Distribution follows a normal curve with slight right skew. "
@@ -26,6 +27,7 @@ def get_country_reports(country_id: str, report_type: str | None = None, year: i
 
 
 def create_performance_report(data: dict) -> dict:
+    # AI insight is written immediately so the report is never displayed without insight text
     response = supabase.table('performance_reports').insert(data).execute()
     report_id = response.data[0]['id']
     supabase.table('ai_insights').insert({
@@ -37,6 +39,7 @@ def create_performance_report(data: dict) -> dict:
 
 
 def update_performance_report(report_id: str, data: dict) -> dict | None:
+    # updated_at set here because the DB column lacks an auto-update trigger
     data['updated_at'] = datetime.utcnow().isoformat()
     response = supabase.table('performance_reports').update(data).eq('id', report_id).execute()
     return response.data[0] if response.data else None
@@ -77,6 +80,7 @@ def get_branch_ai_insights(report_id: str) -> list:
 
 
 def get_report_metrics(period_type: str, year: int, scope: str, scope_id: str, employee_id: str | None = None) -> dict:
+    # period_map: frontend uses mid_year/year_end; DB stores H1/H2
     period_map = {'mid_year': 'H1', 'year_end': 'H2'}
     db_period = period_map.get(period_type, period_type)
 
@@ -87,6 +91,7 @@ def get_report_metrics(period_type: str, year: int, scope: str, scope_id: str, e
     summaries = supabase.table('performance_summaries').select('user_id, total_score').eq('year', year).eq('period', db_period).in_('user_id', emp_ids).execute()
     scores = [float(r['total_score']) for r in summaries.data if r.get('total_score') is not None]
 
+    # 8 equal-width buckets across the 1.0–5.0 range; midpoint used for weighted average
     bell_curve_buckets = [
         (1.0, 1.5, 1.25), (1.5, 2.0, 1.75), (2.0, 2.5, 2.25), (2.5, 3.0, 2.75),
         (3.0, 3.5, 3.25), (3.5, 4.0, 3.75), (4.0, 4.5, 4.25), (4.5, 5.0, 4.75),
@@ -97,6 +102,7 @@ def get_report_metrics(period_type: str, year: int, scope: str, scope_id: str, e
         count = len(bucket)
         weighted_sum += midpoint * count
         total_count += count
+        # top_performers: only the 4.5–5.0 bucket qualifies as top performers
         if low == 4.5:
             top_performers = count
 

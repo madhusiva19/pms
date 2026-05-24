@@ -25,7 +25,7 @@ interface LiveComparisonItem {
   year_end_count: number;
 }
 
-// ── Format B: from saved-reports page ──
+//  Format B: from saved-reports page
 // { current: number[], previous: number[], labels: string[] }
 
 interface FormatB {

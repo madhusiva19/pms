@@ -10,7 +10,7 @@ import styles from "./notifications.module.css";
 const _rawApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5000";
 const API = _rawApiUrl.endsWith("/api") ? _rawApiUrl.slice(0, -4) : _rawApiUrl;
 
-// ── Types ──────────────────────────────────────────────
+//  Types 
 type AchievementNotification = {
   id: string;
   fromName: string;
@@ -50,7 +50,7 @@ type ManualRatingNotification = {
   createdAt: string;
 };
 
-// ── Self-Assessment (Potential Assessment) Notification ─
+// Self-Assessment (Potential Assessment) Notification 
 type PaNotificationType = "self_submitted" | "supervisor_completed";
 
 type PaNotification = {
@@ -63,7 +63,7 @@ type PaNotification = {
   actionUrl: string;
 };
 
-// ── Cutoff status badge config ─────────────────────────
+//  Cutoff status badge config
 const STATUS_STYLES: Record<
   CutoffStatus,
   { bg: string; border: string; badge: string; badgeColor: string; badgeText: string }
@@ -74,7 +74,7 @@ const STATUS_STYLES: Record<
   frozen: { bg: "#F3F4F6", border: "#D1D5DB", badge: "#E5E7EB", badgeColor: "#374151", badgeText: "🔒 Frozen" },
 };
 
-// ── Manual rating reminder badge config ────────────────
+//  Manual rating reminder badge config 
 const REMINDER_STYLES: Record<
   ReminderType,
   { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }
@@ -85,7 +85,7 @@ const REMINDER_STYLES: Record<
   manual_reminder: { badge: "#F3E8FF", badgeColor: "#6B21A8", badgeText: "📢 Reminder", borderColor: "#D8B4FE", bg: "#FAF5FF" },
 };
 
-// ── PA Notification badge config ───────────────────────
+//  PA Notification badge config 
 const PA_STYLES: Record<
   PaNotificationType,
   { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }
@@ -103,7 +103,7 @@ function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
   return "normal";
 }
 
-// ── Main Component ─────────────────────────────────────
+//  Main Component 
 export default function Notifications() {
   const { user } = useAuth();
   const router = useRouter();
@@ -119,7 +119,7 @@ export default function Notifications() {
   const [paList, setPaList] = useState<PaNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ── Fetch notifications ──────────────────────────────
+  //  Fetch notifications 
   useEffect(() => {
     if (!userId) return;
 
@@ -240,7 +240,7 @@ export default function Notifications() {
     load();
   }, [userId, roleSlug]);
 
-  // ── Mark read helpers ─────────────────────────────────
+  // Mark read helpers 
   const callMarkRead = async (id: string) => {
     try {
       await fetch(`${API}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" });
@@ -276,7 +276,7 @@ export default function Notifications() {
     await callMarkPaRead(id);
   };
 
-  // ── Mark all read (active tab) ────────────────────────
+  //  Mark all read (active tab) 
   const markAllRead = async () => {
     if (activeTab === "achievements") {
       const unread = achievementList.filter(n => !n.isRead);
@@ -374,7 +374,7 @@ export default function Notifications() {
         )}
       </div>
 
-      {/* ── Achievement Approvals Tab ── */}
+      {/* Achievement Approvals Tab  */}
       {activeTab === "achievements" && (
         <div className={styles.notifList}>
           {achievementList.length === 0 ? (
@@ -416,7 +416,7 @@ export default function Notifications() {
         </div>
       )}
 
-      {/* ── Potential Assessment Notifications Tab ── */}
+      {/* Potential Assessment Notifications Tab  */}
       {activeTab === "pa" && (
         <div className={styles.notifList}>
           {paList.length === 0 ? (
@@ -470,7 +470,7 @@ export default function Notifications() {
         </div>
       )}
 
-      {/* ── Manual Rating Reminders Tab ── */}
+      {/*  Manual Rating Reminders Tab  */}
       {activeTab === "manual" && (
         <div className={styles.notifList}>
           {manualReminderList.length === 0 ? (
@@ -524,7 +524,7 @@ export default function Notifications() {
         </div>
       )}
 
-      {/* ── Objectives Cut-off Tab ── */}
+      {/* Objectives Cut-off Tab */}
       {activeTab === "cutoff" && (
         <div className={styles.notifList}>
           {cutoffList.length === 0 ? (

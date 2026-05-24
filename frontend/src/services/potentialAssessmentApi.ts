@@ -32,8 +32,7 @@ paClient.interceptors.response.use(
   }
 );
 
-// ── Active Cycle ──────────────────────────────────────────────────────────────
-
+// Active Cycle 
 let _activeCycleCache: AppraisalCycle | null = null;
 
 export const appraisalCyclesApi = {
@@ -46,7 +45,7 @@ export const appraisalCyclesApi = {
   clearCache: () => { _activeCycleCache = null; },
 };
 
-// ── Self Assessment ───────────────────────────────────────────────────────────
+//  Self Assessment
 
 export const potentialAssessmentApi = {
   /**
@@ -105,7 +104,7 @@ export const potentialAssessmentApi = {
   },
 };
 
-// ── Assessment Components (HQ Admin CRUD + per-role fetch) ────────────────────
+// Assessment Components (HQ Admin CRUD + per-role fetch) 
 
 export const assessmentComponentsApi = {
   /** HQ Admin: all components (global + role-specific). */
