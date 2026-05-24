@@ -213,6 +213,7 @@ function CascadeScopePicker({
   includeSelf: boolean; setIncludeSelf: (v: boolean) => void;
 }) {
   // ── Lookup maps for parent names ───────────────────────────────
+  const countryById = Object.fromEntries(hierarchy.countries.map(c => [c.id, c.name]));
   const branchById  = Object.fromEntries(hierarchy.branches.map(b => [b.id, b.name]));
   const deptById    = Object.fromEntries(hierarchy.departments.map(d => [d.id, d.name]));
 
@@ -263,6 +264,7 @@ function CascadeScopePicker({
     border: '1px solid #E5E7EB', borderRadius: 10,
     overflow: 'hidden', marginBottom: 12,
     boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+    contain: 'paint',
   };
   const sectionHead: React.CSSProperties = {
     padding: '9px 14px', background: '#F8FAFC',
@@ -274,6 +276,8 @@ function CascadeScopePicker({
   const scrollList: React.CSSProperties = {
     maxHeight: 180, overflowY: 'auto',
     background: '#FFFFFF',
+    borderBottomLeftRadius: 9, borderBottomRightRadius: 9,
+    overflowX: 'hidden',
   };
   const chk: React.CSSProperties = { accentColor: '#2563EB', width: 14, height: 14, flexShrink: 0, marginTop: 1 };
 
@@ -339,7 +343,7 @@ function CascadeScopePicker({
 
   return (
     <div>
-      {/* Include myself (Global) — HQ only */}
+      {/* Include myself — HQ only */}
       {isHQ && (
         <label style={{
           display: 'flex', alignItems: 'flex-start', gap: 10,
@@ -350,12 +354,12 @@ function CascadeScopePicker({
         }}>
           <input type="checkbox" checked={includeSelf} onChange={e => setIncludeSelf(e.target.checked)}
             style={{ ...chk, width: 15, height: 15 }} />
-          <span>
+          <span style={{ flex: 1 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: includeSelf ? '#1D4ED8' : '#374151', display: 'block' }}>
-              Include myself (Global)
+              Include myself
             </span>
-            <span style={{ fontSize: 11.5, color: '#94A3B8', display: 'block', marginTop: 3, lineHeight: 1.4 }}>
-              Updates the global fallback row — affects all users with no specific override.
+            <span style={{ fontSize: 11.5, color: '#94A3B8', display: 'block', marginTop: 2 }}>
+              Only updates the rating window for the HQ Admin account — does not affect any other users
             </span>
           </span>
         </label>
@@ -407,6 +411,7 @@ function CascadeScopePicker({
             />
             {filteredBranches.map(b => (
               <ItemRow key={b.id} id={b.id} name={b.name}
+                subtitle={isHQ && b.country_id ? countryById[b.country_id] : undefined}
                 checked={selBranches.includes(b.id)}
                 onChange={() => handleBranchChange(
                   selBranches.includes(b.id) ? selBranches.filter(x => x !== b.id) : [...selBranches, b.id]
@@ -421,7 +426,7 @@ function CascadeScopePicker({
       {filteredDepts.length > 0 && (
         <div style={sectionBox}>
           <div style={sectionHead}>
-            <span>Departments{selBranches.length > 0 ? ` — ${filteredDepts.length} shown` : ''}</span>
+            <span>Departments{selBranches.length > 0 ? ` — ${filteredDepts.length} shown` : ` — all ${filteredDepts.length}`}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <CountBadge count={selDepts.length} total={filteredDepts.length} />
               <ClearBtn onClear={() => handleDeptChange([])} />
@@ -435,7 +440,14 @@ function CascadeScopePicker({
             />
             {filteredDepts.map(d => (
               <ItemRow key={d.id} id={d.id} name={d.name}
-                subtitle={branchById[d.branch_id] ? `Branch: ${branchById[d.branch_id]}` : undefined}
+                subtitle={(() => {
+                  const branch = hierarchy.branches.find(b => b.id === d.branch_id);
+                  const branchName = branchById[d.branch_id];
+                  const countryName = isHQ && branch ? countryById[branch.country_id] : undefined;
+                  if (countryName && branchName) return `${countryName} · ${branchName}`;
+                  if (branchName) return branchName;
+                  return undefined;
+                })()}
                 checked={selDepts.includes(d.id)}
                 onChange={() => handleDeptChange(
                   selDepts.includes(d.id) ? selDepts.filter(x => x !== d.id) : [...selDepts, d.id]
@@ -450,7 +462,7 @@ function CascadeScopePicker({
       {filteredSubDepts.length > 0 && (
         <div style={sectionBox}>
           <div style={sectionHead}>
-            <span>Sub-Departments{selDepts.length > 0 ? ` — ${filteredSubDepts.length} shown` : ''}</span>
+            <span>Sub-Departments{selDepts.length > 0 ? ` — ${filteredSubDepts.length} shown` : ` — all ${filteredSubDepts.length}`}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <CountBadge count={selSubDepts.length} total={filteredSubDepts.length} />
               <ClearBtn onClear={() => setSelSubDepts([])} />
@@ -464,7 +476,15 @@ function CascadeScopePicker({
             />
             {filteredSubDepts.map(s => (
               <ItemRow key={s.id} id={s.id} name={s.name}
-                subtitle={deptById[s.department_id] ? `Dept: ${deptById[s.department_id]}` : undefined}
+                subtitle={(() => {
+                  const deptName   = deptById[s.department_id];
+                  const dept       = hierarchy.departments.find(d => d.id === s.department_id);
+                  const branchName = dept ? branchById[dept.branch_id] : undefined;
+                  const branch     = dept ? hierarchy.branches.find(b => b.id === dept.branch_id) : undefined;
+                  const countryName = isHQ && branch ? countryById[branch.country_id] : undefined;
+                  const parts = [countryName, branchName, deptName].filter(Boolean);
+                  return parts.length > 0 ? parts.join(' · ') : undefined;
+                })()}
                 checked={selSubDepts.includes(s.id)}
                 onChange={() => toggleOne(s.id, selSubDepts, setSelSubDepts)}
               />
@@ -517,11 +537,11 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
     selCountries.length + selBranches.length + selDepts.length + selSubDepts.length;
 
   const summaryParts: string[] = [];
-  if (includeSelf)         summaryParts.push('Global row');
-  if (selCountries.length) summaryParts.push(`${selCountries.length} country row(s)`);
-  if (selBranches.length)  summaryParts.push(`${selBranches.length} branch row(s)`);
-  if (selDepts.length)     summaryParts.push(`${selDepts.length} department row(s)`);
-  if (selSubDepts.length)  summaryParts.push(`${selSubDepts.length} sub-dept row(s)`);
+  if (includeSelf)         summaryParts.push('My rating period (HQ Admin)');
+  if (selCountries.length) summaryParts.push(`${selCountries.length} ${selCountries.length === 1 ? 'country' : 'countries'}`);
+  if (selBranches.length)  summaryParts.push(`${selBranches.length} ${selBranches.length === 1 ? 'branch' : 'branches'}`);
+  if (selDepts.length)     summaryParts.push(`${selDepts.length} ${selDepts.length === 1 ? 'department' : 'departments'}`);
+  if (selSubDepts.length)  summaryParts.push(`${selSubDepts.length} sub-${selSubDepts.length === 1 ? 'department' : 'departments'}`);
 
   const handleSave = async () => {
     if (!start || !end)                   { setError('Both dates are required.'); return; }
@@ -565,7 +585,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
       <div style={{
-        background: '#FFFFFF', borderRadius: 12, padding: 28, width: '90%', maxWidth: 520,
+        background: '#FFFFFF', borderRadius: 12, padding: 32, width: '94%', maxWidth: 640,
         boxShadow: '0 20px 60px rgba(0,0,0,0.15)', fontFamily: 'inherit',
         maxHeight: '90vh', overflowY: 'auto',
       }}>
@@ -589,7 +609,6 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
         <div style={{ fontSize: 12, fontWeight: 700, color: '#101828', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 6 }}>
           <Settings size={13} color="#2563EB" />
           Scope — choose who this update applies to
-          {isCountryAdmin && <span style={{ fontSize: 11, fontWeight: 400, color: '#6B7280' }}>(your country only)</span>}
         </div>
 
         {loadingHier ? (
@@ -612,7 +631,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
             background: '#DCFCE7', border: '1px solid #BBF7D0',
             fontSize: 12, color: '#166534', fontWeight: 600,
           }}>
-            Will update: {summaryParts.join(' + ')}
+            Rating window will be updated for: {summaryParts.join(', ')}
           </div>
         )}
 
@@ -758,7 +777,7 @@ export default function RatingSettings() {
         </div>
 
         {/* Page header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 600, color: '#101828', margin: '0 0 6px' }}>Rating Settings</h1>
             <p style={{ fontSize: 15, color: '#4A5565', margin: 0 }}>Manage manual ratings and monitor team progress</p>
