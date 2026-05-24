@@ -37,8 +37,7 @@ apiClient.interceptors.response.use(
   }
 );
 
-// ── Countries ─────────────────────────────────────────────────────────────────
-
+//  Countries 
 export const countriesApi = {
   getAll: async (): Promise<Country[]> => {
     const res: AxiosResponse = await apiClient.get('/countries');
@@ -54,7 +53,7 @@ export const countriesApi = {
   },
 };
 
-// ── Performance Reports ───────────────────────────────────────────────────────
+//  Performance Reports 
 
 export const reportsApi = {
   getByCountry: async (
@@ -74,8 +73,7 @@ export const reportsApi = {
   },
 };
 
-// ── Bell Curve (live from performance_summaries) ─────────────────────────────
-
+//  Bell Curve (live from performance_summaries) 
 export const bellCurveApi = {
   /** Fetches live bell curve distribution computed from performance_summaries.total_score */
   getLive: async (params: {
@@ -89,8 +87,7 @@ export const bellCurveApi = {
   },
 };
 
-// ── Report Metrics (live) ────────────────────────────────────────────────────
-
+//  Report Metrics (live)
 export const metricsApi = {
   get: async (params: {
     period_type: 'mid_year' | 'year_end';
@@ -109,7 +106,7 @@ export const metricsApi = {
   },
 };
 
-// ── Comparison Live (dynamic, from performance_summaries) ────────────────────
+//  Comparison Live (dynamic, from performance_summaries) 
 
 export const comparisonLiveApi = {
   get: async (params: {
@@ -124,8 +121,7 @@ export const comparisonLiveApi = {
 
 
 
-// ── AI Insights ───────────────────────────────────────────────────────────────
-
+//  AI Insights
 export const insightsApi = {
   getByReport: async (reportId: string): Promise<AIInsight[]> => {
     const res: AxiosResponse = await apiClient.get(`/insights/${reportId}`);
@@ -133,7 +129,7 @@ export const insightsApi = {
   },
 };
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
+//  Dashboard 
 
 export const dashboardApi = {
   getSummary: async (countryId: string): Promise<DashboardSummary> => {
@@ -142,7 +138,7 @@ export const dashboardApi = {
   },
 };
 
-// ── Branches ──────────────────────────────────────────────────────────────────
+// Branches 
 
 export const branchesApi = {
   getByCountry: async (countryId: string, searchTerm?: string): Promise<Branch[]> => {
@@ -168,7 +164,7 @@ export const branchByCodeApi = {
   },
 };
 
-// ── Branch Performance Reports ────────────────────────────────────────────────
+//  Branch Performance Reports 
 
 export const branchReportsApi = {
   getByBranch: async (
@@ -192,7 +188,7 @@ export const branchReportsApi = {
 
 
 
-// ── Branch AI Insights ────────────────────────────────────────────────────────
+//  Branch AI Insights
 
 export const branchInsightsApi = {
   getByReport: async (reportId: string): Promise<BranchAIInsight[]> => {
@@ -201,7 +197,7 @@ export const branchInsightsApi = {
   },
 };
 
-// ── Branch Dashboard ──────────────────────────────────────────────────────────
+//  Branch Dashboard
 
 export const branchDashboardApi = {
   getSummary: async (branchId: string): Promise<BranchDashboardSummary> => {
@@ -210,8 +206,7 @@ export const branchDashboardApi = {
   },
 };
 
-// ── Saved Reports ─────────────────────────────────────────────────────────────
-
+//  Saved Reports 
 export const savedReportsApi = {
   list: async (
     userId: string,
@@ -266,7 +261,7 @@ export const savedReportsApi = {
   },
 };
 
-// ── Departments ───────────────────────────────────────────────────────────────
+// Departments 
 
 export const departmentsApi = {
   getByBranch: async (branchId: string): Promise<Department[]> => {
@@ -279,7 +274,7 @@ export const departmentsApi = {
   },
 };
 
-// ── Sub-Departments ───────────────────────────────────────────────────────────
+//  Sub-Departments 
 
 export const subDepartmentsApi = {
   getByDepartment: async (deptId: string): Promise<SubDepartment[]> => {
@@ -292,7 +287,7 @@ export const subDepartmentsApi = {
   },
 };
 
-// ── Employees ─────────────────────────────────────────────────────────────────
+//  Employees 
 
 export const employeesApi = {
   getBySubDepartment: async (subDeptId: string): Promise<Employee[]> => {
@@ -305,7 +300,7 @@ export const employeesApi = {
   },
 };
 
-// ── Performance Summaries ─────────────────────────────────────────────────────
+//  Performance Summaries 
 
 export const performanceSummariesApi = {
   getByUser: async (userId: string, year?: number): Promise<any[]> => {
@@ -316,7 +311,7 @@ export const performanceSummariesApi = {
   },
 };
 
-// ── Health Check ──────────────────────────────────────────────────────────────
+// Health Check 
 
 export const healthCheck = async (): Promise<{ status: string; timestamp: string }> => {
   const res: AxiosResponse = await apiClient.get('/health');

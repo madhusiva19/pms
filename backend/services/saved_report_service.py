@@ -5,6 +5,7 @@ from datetime import datetime
 def list_saved_reports(user_id: str, report_type: str | None = None,
                        country_id: str | None = None, branch_id: str | None = None,
                        limit: int = 50, offset: int = 0) -> list:
+    # desc=True + limit/offset: most recent first with server-side pagination to avoid loading all rows
     query = supabase.table('saved_reports').select('*').eq('user_id', user_id)
     if report_type:
         query = query.eq('report_type', report_type)
@@ -16,7 +17,9 @@ def list_saved_reports(user_id: str, report_type: str | None = None,
 
 
 def create_saved_report(data: dict) -> dict:
+    # None values stripped so DB defaults are used instead of writing explicit nulls
     data = {k: v for k, v in data.items() if v is not None}
+    # setdefault: sensible defaults for optional fields so callers only need to supply what differs
     data.setdefault('metrics_included', ['evaluated', 'avg_score', 'top_performers'])
     data.setdefault('charts_included', ['bell_curve'])
     data.setdefault('include_ai_insights', True)
@@ -31,6 +34,7 @@ def get_saved_report_by_id(saved_report_id: str) -> dict | None:
 
 
 def update_saved_report(saved_report_id: str, data: dict) -> dict | None:
+    # updated_at set here because the DB column lacks an auto-update trigger
     data['updated_at'] = datetime.utcnow().isoformat()
     response = supabase.table('saved_reports').update(data).eq('id', saved_report_id).execute()
     return response.data[0] if response.data else None
@@ -41,6 +45,7 @@ def delete_saved_report(saved_report_id: str) -> None:
 
 
 def log_download(saved_report_id: str, user_id: str, file_format: str = 'pdf', user_email: str | None = None) -> dict:
+    # Audit trail: records who downloaded which report and in what format for compliance tracking
     log_entry = {'saved_report_id': saved_report_id, 'user_id': user_id, 'file_format': file_format, 'user_email': user_email}
     return supabase.table('saved_report_downloads').insert(log_entry).execute().data[0]
 
@@ -66,6 +71,7 @@ def get_trend_analysis(saved_report_id: str) -> dict:
     if not selected_periods:
         raise ValueError('No periods selected for trend analysis')
 
+    # trend_metrics cached on the row after first calculation to avoid recomputing on every request
     if report.get('trend_metrics'):
         return report['trend_metrics']
 
@@ -99,6 +105,7 @@ def get_trend_analysis(saved_report_id: str) -> dict:
     for metric in ['total_evaluated', 'avg_score', 'top_performers', 'completion_percentage']:
         if len(periods_data) > 1:
             first, last = periods_data[0]['metrics'][metric], periods_data[-1]['metrics'][metric]
+            # Guard: avoid division by zero when first value is 0
             if first == 0 and last == 0:
                 change_value, change_pct = 0, 0
             elif first == 0:

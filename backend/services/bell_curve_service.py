@@ -3,8 +3,10 @@ from utils.helpers import resolve_emp_ids_by_scope, calculate_bell_curve_from_sc
 
 
 def get_bell_curve_live(period_type: str, year: int, scope: str, scope_id: str) -> dict:
+    # period_map: frontend uses mid_year/year_end; DB stores H1/H2
     period_map = {'mid_year': 'H1', 'year_end': 'H2'}
     db_period = period_map.get(period_type, period_type)
+    # date_range included in response so the chart can display the correct period label
     start_date, end_date = get_period_dates(period_type, year)
 
     emp_ids = resolve_emp_ids_by_scope(scope, scope_id)
@@ -25,6 +27,7 @@ def get_bell_curve_live(period_type: str, year: int, scope: str, scope_id: str) 
     )
 
     return {
+        # calculate_bell_curve_from_scores groups raw scores into histogram buckets
         'data': calculate_bell_curve_from_scores(records.data),
         'total_employees': len(records.data),
         'period_type': period_type,
