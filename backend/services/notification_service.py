@@ -110,6 +110,7 @@ def broadcast_notifications(
     -------
     int : Number of notification rows inserted.
     """
+    # hq_admin is excluded — they manage templates, not ratings
     evaluator_roles = ["branch_admin", "dept_admin", "sub_dept_admin", "country_admin"]
 
     evaluators = (
@@ -121,6 +122,7 @@ def broadcast_notifications(
         or []
     )
 
+    # Pre-validate manager IDs to avoid inserting orphaned recipient rows
     valid_manager_ids = _get_valid_manager_ids(evaluators)
     notifications_to_insert: list[dict] = []
 
@@ -136,11 +138,12 @@ def broadcast_notifications(
         if not assign_res.data:
             continue
 
-        template_id   = assign_res.data[0]["template_id"]
-        total_manual  = _count_manual_objectives(template_id)
-        submitted     = _count_submitted(evaluator["id"], period, pms_year)
-        pending       = max(0, total_manual - submitted)
-        manager_id    = evaluator.get("manager_id")
+        template_id  = assign_res.data[0]["template_id"]
+        total_manual = _count_manual_objectives(template_id)
+        submitted    = _count_submitted(evaluator["id"], period, pms_year)
+        pending      = max(0, total_manual - submitted)
+        manager_id   = evaluator.get("manager_id")
+        # Use None if the manager UUID doesn't exist in the users table
         valid_manager = manager_id if manager_id in valid_manager_ids else None
 
         # ── period_opened ──────────────────────────────────────────────────

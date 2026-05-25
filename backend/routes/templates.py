@@ -411,6 +411,7 @@ def get_kpi_scales():
     and technical parameters (scale_type, input_type, ll, ul, inverse).
     """
     try:
+        # Human-readable label and display group for each scale key
         SCALE_META: dict[str, tuple[str, str]] = {
             "financial_achievement": ("Financial Achievement",        "Interpolated"),
             "to_gp_contribution":    ("T/O & GP Contribution",        "Interpolated"),
@@ -426,8 +427,11 @@ def get_kpi_scales():
             "individual_sales_gp":   ("Individual Sales GP",          "Bracket"),
             "manual":                ("Manual Rating (1-5)",           "Manual"),
         }
+        # Preserves the canonical display order for the frontend picker
         SORT_ORDER = list(SCALE_META.keys())
 
+        # Fetch all objectives that have a kpi_scale assigned so we can
+        # look up their actual mapping parameters (ll, ul, scale_type, etc.)
         obj_rows = (
             supabase.table("objectives")
             .select("id, kpi_scale")
@@ -437,6 +441,7 @@ def get_kpi_scales():
             or []
         )
 
+        # Group objective IDs by scale key for batch mapping lookup
         scale_to_obj_ids: dict[str, list] = {}
         for obj in obj_rows:
             sk = obj.get("kpi_scale")
@@ -456,6 +461,7 @@ def get_kpi_scales():
                 or []
             )
 
+        # Index mapping rows by objective_id for O(1) lookup
         mapping_by_obj: dict = {m["objective_id"]: m for m in mapping_rows}
         seen: set[str]       = set()
         catalogue: list[dict] = []
@@ -465,6 +471,7 @@ def get_kpi_scales():
                 continue
             seen.add(scale_key)
 
+            # Take the first matching mapping row as representative parameters for this scale
             mapping = next(
                 (mapping_by_obj[oid] for oid in obj_ids if oid in mapping_by_obj),
                 {},
