@@ -5,17 +5,19 @@ import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
+// One manual KPI objective belonging to the selected team member's template
 interface ManualObjective {
   objective_id:   number;
   objective_name: string;
   category_id:    number;
   category_name:  string;
   weight:         number;
-  kpi_scale:      string;
-  manual_rating:  number | null;
+  kpi_scale:      string;  // Always "manual" for objectives shown here
+  manual_rating:  number | null;   // Pre-populated when already submitted
   rating_comment: string | null;
 }
 
+// Minimal team member record used for the page header
 interface TeamMember {
   id:            string;
   full_name:     string;
@@ -23,6 +25,7 @@ interface TeamMember {
   template_name: string | null;
 }
 
+// Response shape from GET /api/rating-periods/current
 interface RatingPeriod {
   rating_open:   boolean;
   active_period: string | null;
@@ -32,6 +35,7 @@ interface RatingPeriod {
   reason:        string | null;
 }
 
+// The org unit this evaluator administers (e.g. { label: "Branch", value: "Colombo" })
 interface OrgContext {
   label: string;
   value: string;
@@ -45,24 +49,33 @@ export default function ManualRatingsPage() {
   const router       = useRouter();
   const { user }     = useAuth();
 
+  // All three values come from the query string set by RatingSettings on navigation
   const userId = searchParams.get('userId') ?? '';
   const year   = parseInt(searchParams.get('year') ?? '2026', 10);
   const period = searchParams.get('period') ?? 'H1';
 
+  // Used to build back-navigation URLs (e.g. "/branch-admin/rating-settings")
   const roleSlug = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
 
   const [orgContext,    setOrgContext]    = useState<OrgContext | null>(null);
   const [member,        setMember]        = useState<TeamMember | null>(null);
   const [objectives,    setObjectives]    = useState<ManualObjective[]>([]);
+  // Keyed by objective_id — current value of each rating input field
   const [ratings,       setRatings]       = useState<Record<number, string>>({});
+  // Keyed by objective_id — current value of each comment textarea
   const [comments,      setComments]      = useState<Record<number, string>>({});
+  // Per-objective rating validation errors (e.g. "Must be 1–5")
   const [errors,        setErrors]        = useState<Record<number, string>>({});
+  // Per-objective comment errors — shown when rating < 3 and comment is blank
   const [commentErrors, setCommentErrors] = useState<Record<number, string>>({});
   const [globalError,   setGlobalError]   = useState('');
+  // "success" | "error" | an API error string | "" (idle)
   const [submitMsg,     setSubmitMsg]     = useState('');
   const [loading,       setLoading]       = useState(true);
   const [saving,        setSaving]        = useState(false);
+  // True when at least one objective already has a saved rating from a prior session
   const [submitted,     setSubmitted]     = useState(false);
+  // Tracks unsaved changes so the browser can warn before navigating away
   const [isDirty,       setIsDirty]       = useState(false);
   const [ratingPeriod,  setRatingPeriod]  = useState<RatingPeriod | null>(null);
 
@@ -71,6 +84,7 @@ export default function ManualRatingsPage() {
     setLoading(true);
     try {
       const evaluatorId = user?.id ?? EVALUATOR_ID;
+      // Fetch team list, objectives, rating window, and member profile in parallel
       const [teamRes, objRes, periodRes, profileRes] = await Promise.all([
         fetch(`${API}/api/evaluator/${evaluatorId}/team`),
         fetch(`${API}/api/manual-objectives/${userId}?year=${year}&period=${period}`),
@@ -83,7 +97,7 @@ export default function ManualRatingsPage() {
       const periodData  = await periodRes.json();
       const profileData = profileRes.ok ? await profileRes.json() : null;
 
-      // Set org context from profile endpoint
+      // Use the org_context from the member's profile to populate the page subtitle
       if (profileData?.org_context) {
         setOrgContext(profileData.org_context);
       }
@@ -93,7 +107,7 @@ export default function ManualRatingsPage() {
         if (found) {
           setMember(found);
         } else {
-          // fallback: get name from performance endpoint
+          // Fallback: resolve the member name from their performance record
           try {
             const perfRes  = await fetch(`${API}/api/performance/${userId}/${year}/${period}`);
             if (perfRes.ok) {
@@ -115,11 +129,12 @@ export default function ManualRatingsPage() {
         setObjectives(objData);
         const preRatings:  Record<number, string> = {};
         const preComments: Record<number, string> = {};
-        let hasAny = false;
+        // Track whether any rating was already saved so the badge shows "Submitted"
+        let hasAnySavedRating = false;
         objData.forEach((obj: ManualObjective) => {
           if (obj.manual_rating !== null && obj.manual_rating !== undefined) {
             preRatings[obj.objective_id]  = String(obj.manual_rating);
-            hasAny = true;
+            hasAnySavedRating = true;
           }
           if (obj.rating_comment) {
             preComments[obj.objective_id] = obj.rating_comment;
@@ -127,7 +142,7 @@ export default function ManualRatingsPage() {
         });
         setRatings(preRatings);
         setComments(preComments);
-        setSubmitted(hasAny);
+        setSubmitted(hasAnySavedRating);
       }
 
       setRatingPeriod(periodData);
@@ -213,6 +228,7 @@ export default function ManualRatingsPage() {
     return valid;
   };
 
+  // Number of objectives that still lack a valid rating (shown in the submit bar)
   const pendingCount = objectives.filter(o => {
     const val = ratings[o.objective_id];
     if (!val || val.trim() === '') return true;
@@ -266,6 +282,7 @@ export default function ManualRatingsPage() {
     router.push(`/${roleSlug}/rating-settings`);
   };
 
+  // Group objectives by category so the table can render them in sections
   const grouped = objectives.reduce<Record<string, ManualObjective[]>>((acc, obj) => {
     acc[obj.category_name] = acc[obj.category_name] ?? [];
     acc[obj.category_name].push(obj);
@@ -296,6 +313,7 @@ export default function ManualRatingsPage() {
     </div>
   );
 
+  // Reusable table cell style helpers to keep the JSX DRY
   const P = '10px 14px';
 
   const thStyle = (align: 'left' | 'center' = 'left'): React.CSSProperties => ({
@@ -309,6 +327,7 @@ export default function ManualRatingsPage() {
   });
 
   const hasNoObjectives  = objectives.length === 0;
+  // Disable the submit button when there are no objectives or a save is in progress
   const isSubmitDisabled = saving || hasNoObjectives;
 
   const renderStatusLabel = () => {
@@ -367,7 +386,7 @@ export default function ManualRatingsPage() {
           alignItems: 'flex-start', marginBottom: 20, gap: 12, flexWrap: 'wrap',
         }}>
           <div>
-            {/* ── CHANGE 1: show actual member name, fallback to '—' ── */}
+            {/* Shows the member's name — falls back to "—" while loading */}
             <h1 style={{
               fontSize: 'clamp(20px, 4vw, 28px)', fontWeight: 600,
               color: '#101828', margin: '0 0 4px',
@@ -493,7 +512,9 @@ export default function ManualRatingsPage() {
                         const hasRatingError  = !!errors[obj.objective_id];
                         const hasCommentError = !!commentErrors[obj.objective_id];
                         const ratingNum       = parseFloat(ratings[obj.objective_id] ?? '');
+                        // Ratings below 3.0 require a mandatory comment
                         const isBelowThree    = !isNaN(ratingNum) && ratingNum < 3.0;
+                        // First row of each category gets a light blue tint
                         const rowBg           = oi === 0 ? '#F8FAFF' : '#fff';
 
                         return (

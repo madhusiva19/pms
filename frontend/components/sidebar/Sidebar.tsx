@@ -10,13 +10,16 @@ import {
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 
+// Shape of a single navigation link shown in the sidebar
 interface NavItem {
   name: string;
   href: string;
   icon: React.ElementType;
 }
 
-// ── HQ Admin — Level 1
+// ── Nav item lists per role ────────────────────────────────────────────────
+// Each role sees only the pages relevant to their org level.
+// HQ Admin (Level 1) — top of the hierarchy, no My Performance or Training
 const hqAdminNavItems: NavItem[] = [
   { name: 'Dashboard',            href: '/hq-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management',  href: '/hq-admin/template-management',  icon: FileText           },
@@ -28,7 +31,7 @@ const hqAdminNavItems: NavItem[] = [
   { name: 'My Profile',           href: '/hq-admin/profile',              icon: User               },
 ];
 
-// ── Country Admin — Level 2
+// Country Admin (Level 2) — gains My Performance and Training compared to HQ
 const countryAdminNavItems: NavItem[] = [
   { name: 'Dashboard',            href: '/country-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management',  href: '/country-admin/template-management',  icon: FileText           },
@@ -42,7 +45,7 @@ const countryAdminNavItems: NavItem[] = [
   { name: 'My Profile',           href: '/country-admin/profile',              icon: User               },
 ];
 
-// ── Branch Admin — Level 3
+// Branch Admin (Level 3)
 const branchAdminNavItems: NavItem[] = [
   { name: 'Dashboard',            href: '/branch-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management',  href: '/branch-admin/template-management',  icon: FileText           },
@@ -56,7 +59,7 @@ const branchAdminNavItems: NavItem[] = [
   { name: 'My Profile',           href: '/branch-admin/profile',              icon: User               },
 ];
 
-// ── Dept Admin — Level 4
+// Department Admin (Level 4)
 const deptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',            href: '/dept-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management',  href: '/dept-admin/template-management',  icon: FileText           },
@@ -70,7 +73,7 @@ const deptAdminNavItems: NavItem[] = [
   { name: 'My Profile',           href: '/dept-admin/profile',              icon: User               },
 ];
 
-// ── Sub Dept Admin — Level 5
+// Sub-Department Admin (Level 5)
 const subDeptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',            href: '/sub-dept-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management',  href: '/sub-dept-admin/template-management',  icon: FileText           },
@@ -84,7 +87,7 @@ const subDeptAdminNavItems: NavItem[] = [
   { name: 'My Profile',           href: '/sub-dept-admin/profile',              icon: User               },
 ];
 
-// ── Employee — Level 6
+// Employee (Level 6) — no Template Management, Rating Settings, or Reports
 const employeeNavItems: NavItem[] = [
   { name: 'Dashboard',            href: '/employee/dashboard',            icon: LayoutDashboard    },
   { name: 'My Performance',       href: '/employee/my-performance',       icon: TrendingUp         },
@@ -94,6 +97,7 @@ const employeeNavItems: NavItem[] = [
   { name: 'My Profile',           href: '/employee/profile',              icon: User               },
 ];
 
+// Returns the correct nav item list for the logged-in user's role
 function getNavItems(role: string | undefined): NavItem[] {
   switch (role) {
     case 'hq_admin':       return hqAdminNavItems;
@@ -106,6 +110,7 @@ function getNavItems(role: string | undefined): NavItem[] {
   }
 }
 
+// Human-readable label shown below the user's name in the sidebar footer
 const ROLE_LABELS: Record<string, string> = {
   hq_admin:       'HQ Admin',
   country_admin:  'Country Admin',
@@ -122,6 +127,7 @@ export default function Sidebar() {
 
   const navItems = getNavItems(user?.role);
 
+  // Build initials from the first letter of each word in the user's full name
   const userInitials = user?.full_name
     ?.split(' ')
     .map((n) => n[0])
@@ -132,6 +138,7 @@ export default function Sidebar() {
   const userName = user?.full_name || 'User';
   const userRole = user?.role      || '';
 
+  // Clear demo session keys and redirect to the login page
   const handleLogout = () => {
     // Clear both localStorage and sessionStorage demo keys
     localStorage.removeItem('demo-role');
@@ -164,14 +171,15 @@ export default function Sidebar() {
       <nav className="flex-1 px-4 py-4 overflow-y-auto">
         <ul className="flex flex-col gap-1.2">
           {navItems.map((item) => {
-            const Icon     = item.icon;
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+            const Icon = item.icon;
+            // Highlight this link if it matches the current page or a nested sub-page
+            const isActiveLink = pathname === item.href || pathname?.startsWith(item.href + '/');
             return (
               <li key={item.name}>
                 <Link
                   href={item.href}
                   className={`flex items-center gap-3 px-4 rounded-lg transition-colors h-[46px] ${
-                    isActive
+                    isActiveLink
                       ? 'bg-[#3B82F6] text-white'
                       : 'text-[#DBEAFE] hover:bg-[#1E40AF]'
                   }`}
