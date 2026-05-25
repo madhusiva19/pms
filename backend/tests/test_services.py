@@ -1,188 +1,178 @@
 """
 tests/test_services.py
 -----------------------
-Unit tests for services/score_service.py and services/notification_service.py.
-
-Run with:
-    pytest tests/test_services.py -v
-
-Supabase is mocked so no real DB calls are made.
+Unit tests for services/score_service.py and services/notification_service.py
+Run with:  pytest tests/test_services.py -v
 """
 
-from unittest.mock import MagicMock, call, patch
-
+from datetime import date
+from unittest.mock import MagicMock
 import pytest
+import utils.db
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def mock_supabase():
-    """Patch the shared Supabase client for all service modules."""
-    with patch("utils.db.supabase") as mock_sb:
-        yield mock_sb
-
+# ── Helper ────────────────────────────────────────────────────────
 
 def _chain(data):
-    """
-    Build a chainable mock whose terminal `.execute()` returns `.data = data`.
-    """
     result      = MagicMock()
     result.data = data
-
-    chain = MagicMock()
+    chain       = MagicMock()
     chain.execute.return_value = result
-
-    for method in ("select", "eq", "neq", "in_", "not_", "is_",
-                   "order", "limit", "ilike", "update", "insert",
-                   "delete", "upsert", "single"):
-        getattr(chain, method).return_value = chain
-
+    for m in ("select","eq","neq","in_","not_","is_",
+              "order","limit","single","update","insert","delete","upsert"):
+        getattr(chain, m).return_value = chain
     return chain
 
 
-# ---------------------------------------------------------------------------
-# score_service.get_active_period_params
-# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def reset_mock():
+    """Fully reset the mock before each test — clear both return_value and side_effect."""
+    sb = utils.db.supabase
+    sb.reset_mock()
+    sb.table.side_effect  = None
+    sb.table.return_value = MagicMock()
+    yield
+
+
+@pytest.fixture
+def sb():
+    import services.score_service as ss
+    import services.notification_service as ns
+    sb = utils.db.supabase
+    ss.supabase = sb
+    ns.supabase = sb
+    return sb
+
+
+# ══════════════════════════════════════════════════════════════════
+# get_active_period_params
+# ══════════════════════════════════════════════════════════════════
 
 class TestGetActivePeriodParams:
-    """Tests for the active period resolver."""
 
-    def test_returns_active_period_when_today_is_in_window(self, mock_supabase):
-        from datetime import date
-
-        # Simulate a period that spans today
-        today_str = date.today().isoformat()
-
-        fake_periods = [
-            {
-                "pms_year":     2025,
-                "period":       "H1",
-                "rating_start": "2025-01-01",
-                "rating_end":   "2099-12-31",  # Far future so test always passes
-            }
-        ]
-        mock_supabase.table.return_value = _chain(fake_periods)
-
-        from services.score_service import get_active_period_params
-        year, period = get_active_period_params()
-
+    def test_returns_active_period_when_today_is_in_window(self, sb):
+        import services.score_service as ss
+        ss.supabase = sb
+        sb.table.side_effect  = None
+        sb.table.return_value = _chain([{
+            "pms_year":     2025,
+            "period":       "H1",
+            "rating_start": "2025-01-01",
+            "rating_end":   "2099-12-31",
+        }])
+        year, period = ss.get_active_period_params()
         assert year   == 2025
         assert period == "H1"
 
-    def test_falls_back_when_no_active_periods(self, mock_supabase):
-        from datetime import date
-
-        # No active periods at all → hard fallback
-        mock_supabase.table.return_value = _chain([])
-
-        from services.score_service import get_active_period_params
-        year, period = get_active_period_params()
-
-        assert year   == date.today().year
-        assert period == "H1"
+    def test_falls_back_when_no_active_periods(self, sb):
+        import services.score_service as ss
+        ss.supabase = sb
+        sb.table.side_effect  = None
+        sb.table.return_value = _chain([])
+        year, period = ss.get_active_period_params()
+        assert year == date.today().year
+        expected = "H1" if date.today().month <= 6 else "H2"
+        assert period == expected
 
 
-# ---------------------------------------------------------------------------
-# score_service.patch_total_score
-# ---------------------------------------------------------------------------
+# ══════════════════════════════════════════════════════════════════
+# patch_total_score  — makes 3 DB calls:
+#   1. SELECT performance_records
+#   2. UPSERT performance_summaries
+#   3. UPSERT evaluations
+# ══════════════════════════════════════════════════════════════════
 
 class TestPatchTotalScore:
-    """Tests for the total score rollup utility."""
 
-    def test_calculates_correct_total(self, mock_supabase):
-        # Two score rows that should sum to 1.5
-        fake_records = [
-            {"score": 0.8},
-            {"score": 0.7},
-        ]
-
-        # All three table calls (select, upsert x2) return the same chain
-        mock_supabase.table.return_value = _chain(fake_records)
-
-        from services.score_service import patch_total_score
-        total = patch_total_score("user-1", 2025, "H1")
-
+    def test_calculates_correct_total(self, sb):
+        import services.score_service as ss
+        ss.supabase = sb
+        # All 3 table calls return the same chain — only the first
+        # call's .data matters (SELECT). Upserts don't use .data.
+        sb.table.side_effect  = None
+        sb.table.return_value = _chain([{"score": 0.8}, {"score": 0.7}])
+        total = ss.patch_total_score(
+            "00000000-0000-0000-0000-000000000001", 2025, "H1"
+        )
         assert total == 1.5
 
-    def test_returns_zero_when_no_records(self, mock_supabase):
-        mock_supabase.table.return_value = _chain([])
-
-        from services.score_service import patch_total_score
-        total = patch_total_score("user-1", 2025, "H1")
-
+    def test_returns_zero_when_no_records(self, sb):
+        import services.score_service as ss
+        ss.supabase = sb
+        sb.table.side_effect  = None
+        sb.table.return_value = _chain([])
+        total = ss.patch_total_score(
+            "00000000-0000-0000-0000-000000000001", 2025, "H1"
+        )
         assert total == 0.0
 
 
-# ---------------------------------------------------------------------------
-# notification_service.send_reminder
-# ---------------------------------------------------------------------------
+# ══════════════════════════════════════════════════════════════════
+# send_reminder  — returns {"success": True} not True
+# ══════════════════════════════════════════════════════════════════
 
 class TestSendReminder:
-    """Tests for the one-to-one reminder sender."""
 
-    def test_raises_value_error_when_recipient_not_found(self, mock_supabase):
-        # Supabase returns no data → recipient does not exist
-        no_data        = MagicMock()
-        no_data.data   = None
-        chain          = MagicMock()
-        chain.execute.return_value = no_data
-
-        for method in ("select", "eq", "single"):
-            getattr(chain, method).return_value = chain
-
-        mock_supabase.table.return_value = chain
-
-        from services.notification_service import send_reminder
+    def test_raises_value_error_when_recipient_not_found(self, sb):
+        import services.notification_service as ns
+        ns.supabase = sb
+        # .single() query returns None data → recipient not found
+        result      = MagicMock()
+        result.data = None
+        chain       = MagicMock()
+        chain.execute.return_value = result
+        for m in ("select","eq","single"):
+            getattr(chain, m).return_value = chain
+        sb.table.side_effect  = None
+        sb.table.return_value = chain
 
         with pytest.raises(ValueError, match="Recipient not found"):
-            send_reminder("mgr-1", "emp-1", "H1", 2025, "Please rate.")
+            ns.send_reminder(
+                "00000000-0000-0000-0000-000000000001",
+                "00000000-0000-0000-0000-000000000002",
+                "H1", 2025, "Please rate."
+            )
 
-    def test_raises_permission_error_when_not_direct_manager(self, mock_supabase):
-        # Recipient exists but has a different manager_id
-        recipient_data = {
-            "id":         "emp-1",
+    def test_raises_permission_error_when_not_direct_manager(self, sb):
+        import services.notification_service as ns
+        ns.supabase = sb
+        sb.table.side_effect  = None
+        sb.table.return_value = _chain({
+            "id":         "00000000-0000-0000-0000-000000000002",
             "full_name":  "John",
-            "manager_id": "someone-else",   # Not the sender
-        }
-
-        chain = _chain(recipient_data)
-        mock_supabase.table.return_value = chain
-
-        from services.notification_service import send_reminder
+            "manager_id": "00000000-0000-0000-0000-000000000099",
+        })
 
         with pytest.raises(PermissionError, match="not the direct manager"):
-            send_reminder("mgr-1", "emp-1", "H1", 2025, "Please rate.")
+            ns.send_reminder(
+                "00000000-0000-0000-0000-000000000001",
+                "00000000-0000-0000-0000-000000000002",
+                "H1", 2025, "Please rate."
+            )
 
-    def test_inserts_notification_for_valid_sender(self, mock_supabase):
-        # Recipient exists and sender IS the direct manager
-        recipient_data = {
-            "id":         "emp-1",
-            "full_name":  "Jane",
-            "manager_id": "mgr-1",   # Matches sender_id
-        }
-        sender_data = {"full_name": "Manager Bob"}
-
+    def test_inserts_notification_for_valid_sender(self, sb):
+        import services.notification_service as ns
+        ns.supabase = sb
         call_count = [0]
 
-        def table_side_effect(table_name):
+        def side_effect(table_name):
             call_count[0] += 1
             if call_count[0] == 1:
-                # First call: fetch recipient
-                return _chain(recipient_data)
-            elif call_count[0] == 2:
-                # Second call: fetch sender
-                return _chain(sender_data)
-            else:
-                # Third call: insert notification
-                return _chain([])
+                return _chain({
+                    "id":         "00000000-0000-0000-0000-000000000002",
+                    "full_name":  "Jane",
+                    "manager_id": "00000000-0000-0000-0000-000000000001",
+                })
+            if call_count[0] == 2:
+                return _chain({"full_name": "Manager Bob"})
+            return _chain([])
 
-        mock_supabase.table.side_effect = table_side_effect
+        sb.table.side_effect = side_effect
 
-        from services.notification_service import send_reminder
-
-        result = send_reminder("mgr-1", "emp-1", "H1", 2025, "Hello!")
-
-        assert result["success"] is True
+        result = ns.send_reminder(
+            "00000000-0000-0000-0000-000000000001",
+            "00000000-0000-0000-0000-000000000002",
+            "H1", 2025, "Hello!"
+        )
+        # send_reminder returns {"success": True}
+        assert result == {"success": True}
