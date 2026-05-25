@@ -10,6 +10,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
 // ── Types ──────────────────────────────────────────────────────────
+// One row from the performance_records table, enriched with KPI metadata
 interface Objective {
   objective_id: number; objective_name: string; category_name: string;
   weight: number; control_type: string; target: number | null; actual: number | null;
@@ -17,10 +18,12 @@ interface Objective {
   score: number; scale_type: string; input_type: string | null;
   ll: number | null; ul: number | null; log_column: string; status: string;
 }
+// A group of objectives belonging to the same KPI category
 interface Category {
   category_name: string; category_weight: number; category_score: number;
   max_possible: number; objectives: Objective[];
 }
+// Full response shape from GET /api/performance/<user>/<year>/<period>
 interface PerformanceData {
   employee: { id: string; name: string; designation: string; department: string };
   period: string; year: number;
@@ -30,6 +33,7 @@ interface PerformanceData {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
+// Only interpolated percentage-based objectives can be shown on the achievement chart
 const isChartable = (obj: Objective) =>
   obj.scale_type === 'interpolated' &&
   (obj.input_type === 'achievement_pct' || obj.input_type === 'raw_actual_x100') &&
@@ -37,27 +41,32 @@ const isChartable = (obj: Objective) =>
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 
+// Shared colour tokens used throughout this component
 const C = {
   blue: '#155DFC', blueBg: '#EFF6FF', pageBg: '#F8F9FC', border: '#E2E8F0',
   textMain: '#101828', textSub: '#4A5565', textMuted: '#64748B', textDark: '#1E293B', green: '#00A63E',
 };
 
+// Validates that a string looks like a real Supabase UUID (not a demo placeholder)
 function isRealUuid(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
+// Formats a numeric KPI value for display — converts raw_actual_x100 to a percentage string
 function formatVal(val: number | null, inputType?: string | null): string {
   if (val === null) return '—';
   if (inputType === 'raw_actual_x100') return (val * 100).toFixed(1) + '%';
   return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+// Reads final_score from the performance response (falls back to total_score for compatibility)
 function getFinalScore(d: PerformanceData | null): number | undefined {
   if (!d) return undefined;
   return (d as unknown as Record<string, number>)['final_score']
     ?? (d as unknown as Record<string, number>)['total_score'];
 }
 
+// Type guard — ensures the API response has at least one category with objectives
 function isValidData(d: unknown): d is PerformanceData {
   if (!d || typeof d !== 'object') return false;
   const p = d as PerformanceData;
@@ -65,6 +74,7 @@ function isValidData(d: unknown): d is PerformanceData {
     p.categories.some(c => Array.isArray(c.objectives) && c.objectives.length > 0);
 }
 
+// Placeholder bars shown while performance data is loading
 function ChartSkeleton() {
   return (
     <div style={{ height: 420, display: 'flex', alignItems: 'flex-end', gap: 12, padding: '20px 24px 0', paddingBottom: 8 }}>
@@ -75,6 +85,7 @@ function ChartSkeleton() {
   );
 }
 
+// Wraps long objective names onto two lines so they fit below chart bars
 function CustomXAxisTick(props: { x?: number; y?: number; payload?: { value: string } }) {
   const { x = 0, y = 0, payload } = props;
   if (!payload?.value) return null;
@@ -98,11 +109,13 @@ function CustomXAxisTick(props: { x?: number; y?: number; payload?: { value: str
 }
 
 // ── Custom Bar Label ───────────────────────────────────────────────
+// Shape of one data point passed to the Recharts BarChart
 type ChartEntry = {
   name: string; fullName: string;
   Achievement: number; BlueVal: number; GreenVal: number; rating: number;
 };
 
+// Renders the achievement percentage above each bar (e.g. "115%")
 function BarLabel(props: Record<string, unknown>) {
   const { x, y, width, payload } = props as {
     x: number; y: number; width: number; payload?: ChartEntry;
@@ -126,12 +139,15 @@ export default function MyPerformance() {
   const searchParams               = useSearchParams();
   const { user, loading: authLoading } = useAuth();
 
+  // The resolved Supabase UUID for the employee being viewed
   const [employeeId, setEmployeeId] = useState<string | null>(null);
+  // True while we're still figuring out which employee to show
   const [resolving,  setResolving]  = useState(true);
 
   useEffect(() => {
     if (authLoading) return;
 
+    // Priority 1: explicit ?employee= UUID in the URL (manager viewing a team member)
     const idFromUrl = searchParams.get('employee');
     if (idFromUrl && isRealUuid(idFromUrl)) {
       setEmployeeId(idFromUrl);
@@ -139,12 +155,14 @@ export default function MyPerformance() {
       return;
     }
 
+    // Priority 2: the logged-in user's own UUID from the auth context
     if (user?.id && isRealUuid(user.id)) {
       setEmployeeId(user.id);
       setResolving(false);
       return;
     }
 
+    // Priority 3: demo mode — look up UUID from email stored in query or localStorage
     const demoEmail =
       searchParams.get('demo-email') ??
       (typeof window !== 'undefined' ? localStorage.getItem('demo-email') : null);
@@ -169,23 +187,27 @@ export default function MyPerformance() {
   }, [authLoading, user, searchParams]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<'H1' | 'H2'>('H1');
+  // Controls whether the detailed objective breakdown table is expanded
   const [showDetail,     setShowDetail]     = useState(false);
+  // Tracks which category accordion rows are open in the breakdown table
   const [openCats,       setOpenCats]       = useState<Record<string, boolean>>({});
   const [dataH1,         setDataH1]         = useState<PerformanceData | null>(null);
   const [dataH2,         setDataH2]         = useState<PerformanceData | null>(null);
   const [loading,        setLoading]        = useState(false);
 
+  // Fetches one period's performance data; returns null on error or empty response
   const fetchPeriod = async (empId: string, period: 'H1' | 'H2'): Promise<PerformanceData | null> => {
     try {
       const res = await fetch(`${API_BASE}/api/performance/${empId}/2025/${period}`);
       if (!res.ok) return null;
-      const d = await res.json();
-      return isValidData(d) ? d : null;
+      const performanceJson = await res.json();
+      return isValidData(performanceJson) ? performanceJson : null;
     } catch {
       return null;
     }
   };
 
+  // Fetch both H1 and H2 in parallel whenever the resolved employee changes
   useEffect(() => {
     if (!employeeId) return;
     setDataH1(null); setDataH2(null); setShowDetail(false); setOpenCats({});
@@ -199,33 +221,42 @@ export default function MyPerformance() {
 
   const data       = selectedPeriod === 'H1' ? dataH1 : dataH2;
   const categories = data?.categories ?? [];
+  // Toggle a single category accordion open/closed
   const toggle     = (n: string) => setOpenCats(p => ({ ...p, [n]: !p[n] }));
 
+  // Build the bar chart dataset — only interpolated %-based KPIs are chartable
   const chartData = useMemo(() => {
     if (!data) return [];
     return data.categories.flatMap(cat =>
       cat.objectives.filter(isChartable).map(obj => {
-        let pct: number;
+        let achievementPct: number;
         if (obj.input_type === 'raw_actual_x100') {
-          pct = obj.actual != null ? parseFloat((obj.actual * 100).toFixed(1))
+          // Value is stored as a decimal (e.g. 0.15 = 15%)
+          achievementPct = obj.actual != null ? parseFloat((obj.actual * 100).toFixed(1))
               : obj.achievement_pct != null ? parseFloat(Number(obj.achievement_pct).toFixed(1)) : 0;
         } else {
-          pct = obj.actual != null && obj.target != null && obj.target !== 0
+          // Standard achievement %: (actual / target) × 100
+          achievementPct = obj.actual != null && obj.target != null && obj.target !== 0
               ? parseFloat(((obj.actual / obj.target) * 100).toFixed(1))
               : obj.achievement_pct != null ? parseFloat(Number(obj.achievement_pct).toFixed(1)) : 0;
         }
         return {
           name: obj.objective_name, fullName: obj.objective_name,
-          Achievement: pct, BlueVal: Math.min(pct, 100),
-          GreenVal: pct > 100 ? parseFloat((pct - 100).toFixed(1)) : 0,
+          Achievement: achievementPct,
+          // BlueVal covers 0–100%; GreenVal is the portion above 100%
+          BlueVal: Math.min(achievementPct, 100),
+          GreenVal: achievementPct > 100 ? parseFloat((achievementPct - 100).toFixed(1)) : 0,
           rating: obj.rating,
         };
       })
     );
   }, [data]);
 
+  // Combined loading flag — spinner shown until auth, employee resolution, and data are all done
   const isStillLoading = resolving || authLoading || loading;
+  // No data returned for either period after a successful employee lookup
   const noData         = !resolving && !authLoading && !loading && employeeId !== null && dataH1 === null && dataH2 === null;
+  // Could not resolve a valid employee UUID from the URL or auth context
   const noEmployee     = !resolving && !authLoading && employeeId === null;
 
   const [supervisorFeedback, setSupervisorFeedback] = useState<{

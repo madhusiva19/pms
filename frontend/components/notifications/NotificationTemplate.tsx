@@ -8,6 +8,7 @@ import styles from "./notifications.module.css";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5000";
 
 // ── Types ──────────────────────────────────────────────
+// Notification shown in the Achievement Approvals tab
 type AchievementNotification = {
   id: string;
   fromName: string;
@@ -18,8 +19,10 @@ type AchievementNotification = {
   actionUrl: string;
 };
 
+// Visual severity of an objective cut-off deadline
 type CutoffStatus = "normal" | "urgent" | "critical" | "frozen";
 
+// Notification shown in the Objectives Cut-off tab
 type CutoffNotification = {
   id: string;
   title: string;
@@ -30,6 +33,7 @@ type CutoffNotification = {
   actionUrl: string;
 };
 
+// Notification shown in the Potential Assessment tab
 type PotentialNotification = {
   id: string;
   title: string;
@@ -39,12 +43,14 @@ type PotentialNotification = {
   actionUrl: string;
 };
 
+// Notification types that come from the manual-rating DB table
 type ReminderType =
   | "period_opened"
   | "deadline_warning"
   | "supervisor_alert"
   | "manual_reminder";
 
+// Notification shown in the Manual Rating Reminders tab
 type ManualRatingNotification = {
   id: string;
   type: ReminderType;
@@ -57,6 +63,7 @@ type ManualRatingNotification = {
 };
 
 // ── Cutoff status badge config ─────────────────────────
+// Maps each deadline severity to its card background and badge colours
 const STATUS_STYLES: Record<
   CutoffStatus,
   { bg: string; border: string; badge: string; badgeColor: string; badgeText: string }
@@ -68,6 +75,7 @@ const STATUS_STYLES: Record<
 };
 
 // ── Manual rating reminder badge config ────────────────
+// Maps each reminder type to its card background and badge colours
 const REMINDER_STYLES: Record<
   ReminderType,
   { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }
@@ -78,6 +86,7 @@ const REMINDER_STYLES: Record<
   manual_reminder:  { badge: "#F3E8FF", badgeColor: "#6B21A8", badgeText: "📢 Reminder",        borderColor: "#D8B4FE", bg: "#FAF5FF" },
 };
 
+// Returns the urgency level of a cut-off based on how many days remain
 function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
   const today    = new Date();
   const cutoff   = new Date(cutoffDate);
@@ -87,6 +96,7 @@ function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
   return "normal";
 }
 
+// Formats an ISO date string to "DD Mon YYYY" for display (e.g. "15 Jan 2025")
 function formatDate(d: string) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -98,9 +108,12 @@ export default function Notifications() {
   const router   = useRouter();
 
   const userId     = user?.id ?? "";
+  // Convert role like "branch_admin" → "branch-admin" for use in URL paths
   const roleSlug   = user?.role?.replace(/_/g, "-") ?? "employee";
+  // Employees don't manage templates, so the Objectives Cut-off tab is hidden for them
   const isEmployee = user?.role === "employee";
 
+  // Active tab controls which notification list is rendered
   const [activeTab,          setActiveTab]          = useState<"achievements" | "manual" | "cutoff" | "potential">("achievements");
   const [achievementList,    setAchievementList]    = useState<AchievementNotification[]>([]);
   const [cutoffList,         setCutoffList]         = useState<CutoffNotification[]>([]);
@@ -229,7 +242,7 @@ export default function Notifications() {
     setPotentialList(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   };
 
-  // ── Mark all read (active tab) ────────────────────────
+  // Marks every unread notification in the currently visible tab as read
   const markAllRead = async () => {
     if (activeTab === "achievements") {
       const unread = achievementList.filter(n => !n.isRead);
@@ -246,6 +259,7 @@ export default function Notifications() {
     }
   };
 
+  // Unread counts shown as badge numbers on each tab button
   const unreadAchievements = achievementList.filter(n => !n.isRead).length;
   const unreadReminders    = manualReminderList.filter(n => !n.isRead).length;
   const unreadCutoffs      = cutoffList.filter(n => !n.isRead).length;
@@ -355,7 +369,7 @@ export default function Notifications() {
                   >
                     Review Achievement →
                   </button>
-                  {/* ✅ Always show Mark as read button */}
+                  {/* Mark as read button — visible on all notifications regardless of read state */}
                   <button type="button" className={styles.readBtn} onClick={() => markAchievementRead(n.id)}>
                     Mark as read
                   </button>
@@ -410,7 +424,7 @@ export default function Notifications() {
                     >
                       Go to Manual Ratings →
                     </button>
-                    {/* ✅ Always show Mark as read button */}
+                    {/* Mark as read button — visible on all notifications regardless of read state */}
                     <button type="button" className={styles.readBtn} onClick={() => markManualReminderRead(n.id)}>
                       Mark as read
                     </button>
@@ -460,7 +474,7 @@ export default function Notifications() {
                     >
                       Go to Template →
                     </button>
-                    {/* ✅ Always show Mark as read button */}
+                    {/* Mark as read button — visible on all notifications regardless of read state */}
                     <button type="button" className={styles.readBtn} onClick={() => markCutoffRead(n.id)}>
                       Mark as read
                     </button>
@@ -498,7 +512,7 @@ export default function Notifications() {
                   >
                     View Assessment →
                   </button>
-                  {/* ✅ Always show Mark as read button */}
+                  {/* Mark as read button — visible on all notifications regardless of read state */}
                   <button type="button" className={styles.readBtn} onClick={() => markPotentialRead(n.id)}>
                     Mark as read
                   </button>

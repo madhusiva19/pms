@@ -8,7 +8,9 @@ import {
   ChevronDown, ChevronUp, AlertTriangle,
 } from 'lucide-react';
 
-// ─── KPI Scale options ────────────────────────────────────────────
+// Full catalogue of supported KPI scales with their rating parameters.
+// ll = lower limit (rating 1), ul = upper limit (rating 5).
+// inverse = true means a lower actual value is better (e.g. WIP days).
 export const KPI_SCALE_OPTIONS = [
   { value: 'financial_achievement', label: 'Financial Achievement',       group: 'Interpolated', scale_type: 'interpolated', input_type: 'achievement_pct',  ll: 90,   ul: 110,  inverse: false },
   { value: 'to_gp_contribution',    label: 'T/O & GP Contribution',       group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 4,    ul: 15,   inverse: false },
@@ -25,21 +27,27 @@ export const KPI_SCALE_OPTIONS = [
   { value: 'manual',                label: 'Manual Rating (1–5)',           group: 'Manual',       scale_type: 'manual',       input_type: null,               ll: null, ul: null, inverse: false },
 ] as const;
 
+// Union type of all valid KPI scale key strings
 type ScaleValue = typeof KPI_SCALE_OPTIONS[number]['value'];
 
 // ─── Types ────────────────────────────────────────────────────────
+// One row from the objectives table; isNew marks rows added in the current edit session
 interface Objective {
   id: number; name: string; weight: number; max_score: number;
   control_type: string; category_id: number;
   kpi_scale?: ScaleValue | null; isNew?: boolean;
 }
+// One row from the categories table, with its nested objectives
 interface Category { id: number; name: string; weight: number; type: string; objectives: Objective[]; }
+// Full template with categories and objectives nested
 interface Template  { id: number; name: string; description: string; status: string; created_by: string; categories: Category[]; }
+// Employee returned by the search or assignment endpoints
 interface Employee {
   id: string; name: string; designation: string;
-  current_template_id:   number | null;
+  current_template_id:   number | null;   // null if not yet assigned to any template
   current_template_name: string | null;
 }
+// One row from the pms_cycles table
 interface PmsCycle {
   id: number;
   pms_year: number;
@@ -49,17 +57,20 @@ interface PmsCycle {
   grace_period_end: string | null;
   is_active: boolean;
 }
+// Response from GET /api/pms-cycle/current — includes whether editing is currently allowed
 interface CycleState {
   cycle: PmsCycle | null;
   editing_open: boolean;
-  reason: string | null;
+  reason: string | null;          // Human-readable explanation when editing_open is false
   objective_setting_end?: string | null;
   grace_period_end?: string | null;
 }
 
+// The UUID of the top-level admin whose assignment must never be removed by subordinate managers
 const LOCKED_ADMIN_UUID = process.env.NEXT_PUBLIC_LOCKED_ADMIN_UUID ?? '';
 
-// ─── Normaliser ───────────────────────────────────────────────────
+// Safely converts a raw API response into a typed Template object.
+// Guards against missing/null fields so the UI never crashes on partial data.
 function normalizeTemplate(raw: unknown): Template | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
@@ -89,6 +100,7 @@ function normalizeTemplate(raw: unknown): Template | null {
 }
 
 // ─── ScaleBadge ───────────────────────────────────────────────────
+// Read-only display of a KPI scale name (shown in view mode)
 function ScaleBadge({ value }: { value?: ScaleValue | null }) {
   if (!value) return <span style={{ color: '#CBD5E1', fontSize: 12 }}>—</span>;
   const opt = KPI_SCALE_OPTIONS.find(o => o.value === value);
@@ -97,6 +109,8 @@ function ScaleBadge({ value }: { value?: ScaleValue | null }) {
 }
 
 // ─── ScalePicker ──────────────────────────────────────────────────
+// Dropdown used when adding a new objective in edit mode.
+// Groups scales into Interpolated / Bracket / Manual sections.
 function ScalePicker({ value, onChange, hasError }: {
   value: ScaleValue | undefined;
   onChange: (v: ScaleValue) => void;
@@ -111,11 +125,11 @@ function ScalePicker({ value, onChange, hasError }: {
   };
 
   useEffect(() => {
-    const h = (e: MouseEvent) => {
+    const handleOutsideClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
   return (
@@ -195,6 +209,7 @@ function ScalePicker({ value, onChange, hasError }: {
 }
 
 // ─── ControlBadge ─────────────────────────────────────────────────
+// Shows whether an objective is Locked (weight fixed) or Editable (weight adjustable)
 function ControlBadge({ type }: { type: string }) {
   const locked = type === 'Locked';
   return (
@@ -215,6 +230,7 @@ function ControlBadge({ type }: { type: string }) {
 // ═══════════════════════════════════════════════════════════════════
 export default function ViewTemplatePage() {
   const { user }  = useAuth();
+  // Convert role string for URL paths (e.g. "branch_admin" → "branch-admin")
   const roleSlug  = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
   const managerId = user?.id ?? '';
 
@@ -224,42 +240,56 @@ export default function ViewTemplatePage() {
   const [template,       setTemplate]       = useState<Template | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState('');
+  // When true, the table switches to edit mode with weight inputs and objective controls
   const [editMode,       setEditMode]       = useState(false);
+  // Deep-cloned copy of template.categories modified during editing (original is untouched)
   const [editedData,     setEditedData]     = useState<Category[]>([]);
   const [saving,         setSaving]         = useState(false);
+  // "success" | "error" | "" (idle)
   const [saveMsg,        setSaveMsg]        = useState('');
+  // Shown when the total objective weight does not equal 100%
   const [weightError,    setWeightError]    = useState('');
+  // Shown when a new objective is missing a required field
   const [objectiveError, setObjectiveError] = useState('');
 
+  // PMS cycle state — determines whether the Edit Template button is enabled
   const [cycleState,   setCycleState]   = useState<CycleState | null>(null);
   const [cycleLoading, setCycleLoading] = useState(true);
 
   // ── Employee assignment state ──────────────────────────────────
+  // List of employees currently assigned to this template (scoped to this manager's team)
   const [assignedEmployees, setAssignedEmployees] = useState<Employee[]>([]);
+  // The employee selected from the search dropdown, ready to be assigned
   const [selectedEmployee,  setSelectedEmployee]  = useState<Employee | null>(null);
   const [empSearch,         setEmpSearch]         = useState('');
+  // Results returned by the employee search endpoint
   const [empResults,        setEmpResults]        = useState<Employee[]>([]);
   const [empSearching,      setEmpSearching]      = useState(false);
   const [showDropdown,      setShowDropdown]      = useState(false);
   const [assigning,         setAssigning]         = useState(false);
+  // "success" | an error string | "" (idle)
   const [assignMsg,         setAssignMsg]         = useState('');
+  // Controls whether the assigned employees accordion is expanded
   const [showAllocated,     setShowAllocated]     = useState(false);
 
+  // When an employee is already on another template, these hold the conflict details
   const [conflictEmployee, setConflictEmployee] = useState<Employee | null>(null);
   const [showConflictBox,  setShowConflictBox]  = useState(false);
 
+  // Ref used to close the employee search dropdown on outside click
   const searchRef = useRef<HTMLDivElement>(null);
   const API = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 
   // ── Fetch template data ────────────────────────────────────────
+  // Re-used after a successful save to refresh the view without a full page reload
   const fetchTemplate = () => {
     setLoading(true);
     fetch(`${API}/api/templates/${templateId}`)
       .then(r => r.json())
       .then(raw => {
         if (raw?.error) { setError(`Backend error: ${raw.error}`); setLoading(false); return; }
-        const t = normalizeTemplate(raw);
-        if (t) setTemplate(t);
+        const parsedTemplate = normalizeTemplate(raw);
+        if (parsedTemplate) setTemplate(parsedTemplate);
         else setError('Invalid template data returned from server.');
         setLoading(false);
       })
@@ -274,12 +304,13 @@ export default function ViewTemplatePage() {
 
     fetchTemplate();
 
-    // FIX: pass manager_id so only this manager's team members are shown
+    // Scope the assignment list to only this manager's direct reports
     fetch(`${API}/api/templates/${templateId}/assignments?manager_id=${managerId}`)
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setAssignedEmployees(d); })
       .catch(() => {});
 
+    // Load the PMS cycle to determine whether editing is currently allowed
     fetch(`${API}/api/pms-cycle/current`)
       .then(r => r.json())
       .then(d => { setCycleState(d); setCycleLoading(false); })
@@ -292,16 +323,16 @@ export default function ViewTemplatePage() {
 
   // ── Close search dropdown on outside click ─────────────────────
   useEffect(() => {
-    const h = (e: MouseEvent) => {
+    const handleOutsideClick = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
       }
     };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // ── Employee search — scoped to this manager's team ────────────
+  // ── Employee search — scoped to this manager's direct reports ──
   useEffect(() => {
     if (empSearch.trim().length < 1) {
       setEmpResults([]); setShowDropdown(false); setSelectedEmployee(null); return;
@@ -309,14 +340,15 @@ export default function ViewTemplatePage() {
 
     setEmpSearching(true);
 
-    const t = setTimeout(() => {
-      // FIX: pass manager_id so search results only include direct reports
+    // Debounce by 250 ms to avoid firing on every keystroke
+    const debounceTimer = setTimeout(() => {
+      // Scoped to this manager's team and excludes already-assigned employees
       fetch(
         `${API}/api/employees?search=${encodeURIComponent(empSearch)}&manager_id=${managerId}`
       )
         .then(r => r.json())
         .then((data: Employee[]) => {
-          // Also filter out anyone already assigned in the local list
+          // Filter out anyone already in the local assigned list
           setEmpResults(data.filter(e => !assignedEmployees.find(a => a.id === e.id)));
           setShowDropdown(true);
         })
@@ -324,10 +356,11 @@ export default function ViewTemplatePage() {
         .finally(() => setEmpSearching(false));
     }, 250);
 
-    return () => clearTimeout(t);
+    return () => clearTimeout(debounceTimer);
   }, [empSearch, assignedEmployees, managerId]);
 
   // ── Assignment handlers ────────────────────────────────────────
+  // Populates the search box with the selected employee and closes the dropdown
   const handleSelectEmployee = (emp: Employee) => {
     setSelectedEmployee(emp);
     setEmpSearch(emp.name);
@@ -337,10 +370,12 @@ export default function ViewTemplatePage() {
     setConflictEmployee(null);
   };
 
+  // Checks for template conflicts before committing the assignment
   const handleAssign = () => {
     if (!selectedEmployee) return;
     setAssignMsg('');
 
+    // If the employee is already on a different template, show a confirmation warning
     const isConflict =
       selectedEmployee.current_template_id !== null &&
       selectedEmployee.current_template_id !== templateId;
@@ -354,24 +389,25 @@ export default function ViewTemplatePage() {
     commitAssign(selectedEmployee);
   };
 
+  // Sends the updated assignment list to the backend (replaces the full list each time)
   const commitAssign = async (emp: Employee) => {
     setShowConflictBox(false);
     setConflictEmployee(null);
     setAssigning(true);
     setAssignMsg('');
 
-    const newList = [...assignedEmployees, emp];
+    const updatedAssignees = [...assignedEmployees, emp];
 
     try {
       const res = await fetch(`${API}/api/templates/${templateId}/assign`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employee_ids: newList.map(e => e.id) }),
+        body: JSON.stringify({ employee_ids: updatedAssignees.map(e => e.id) }),
       });
       const data = await res.json();
       if (!res.ok) { setAssignMsg(data.error ?? 'error'); setAssigning(false); return; }
 
-      setAssignedEmployees(newList);
+      setAssignedEmployees(updatedAssignees);
       setSelectedEmployee(null);
       setEmpSearch('');
       setAssignMsg('success');
@@ -384,19 +420,21 @@ export default function ViewTemplatePage() {
     setTimeout(() => setAssignMsg(''), 3500);
   };
 
+  // Removes one employee from the list and persists the change to the backend
   const handleRemoveEmployee = async (id: string) => {
-    const newList = assignedEmployees.filter(e => e.id !== id);
+    const updatedAssignees = assignedEmployees.filter(e => e.id !== id);
     try {
       await fetch(`${API}/api/templates/${templateId}/assign`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employee_ids: newList.map(e => e.id) }),
+        body: JSON.stringify({ employee_ids: updatedAssignees.map(e => e.id) }),
       });
-      setAssignedEmployees(newList);
+      setAssignedEmployees(updatedAssignees);
     } catch {}
   };
 
   // ── Template edit handlers ─────────────────────────────────────
+  // Deep-clones categories into editedData so the original template is not mutated while editing
   const handleEdit = () => {
     if (template) {
       setEditedData(JSON.parse(JSON.stringify(template.categories)));
@@ -407,6 +445,7 @@ export default function ViewTemplatePage() {
     }
   };
 
+  // Discards all pending edits and returns to view mode
   const handleCancel = () => {
     setEditMode(false);
     setEditedData([]);
@@ -415,27 +454,30 @@ export default function ViewTemplatePage() {
     setObjectiveError('');
   };
 
+  // Applies a partial update to one objective inside editedData
   const updateObj = (ci: number, oi: number, patch: Partial<Objective>) => {
-    const u = [...editedData];
-    u[ci].objectives[oi] = { ...u[ci].objectives[oi], ...patch };
-    setEditedData(u);
+    const updated = [...editedData];
+    updated[ci].objectives[oi] = { ...updated[ci].objectives[oi], ...patch };
+    setEditedData(updated);
     setWeightError('');
     setObjectiveError('');
   };
 
+  // Appends a blank new objective row to the given category (marked isNew so it can be inserted)
   const handleAddObjective = (ci: number) => {
-    const u = [...editedData];
-    u[ci].objectives.push({
+    const updated = [...editedData];
+    updated[ci].objectives.push({
       id: Date.now(), name: '', weight: 0, max_score: 5,
-      control_type: '', category_id: u[ci].id, kpi_scale: null, isNew: true,
+      control_type: '', category_id: updated[ci].id, kpi_scale: null, isNew: true,
     });
-    setEditedData(u);
+    setEditedData(updated);
   };
 
+  // Deletes an objective — persists the delete to the backend for existing (non-new) objectives
   const handleDeleteObjective = async (ci: number, oi: number) => {
-    const u   = [...editedData];
-    const obj = u[ci].objectives[oi];
-    if (obj.control_type === 'Locked') return;
+    const updated = [...editedData];
+    const obj     = updated[ci].objectives[oi];
+    if (obj.control_type === 'Locked') return;  // Locked objectives cannot be deleted
     if (!obj.isNew) {
       try {
         await fetch(
@@ -444,16 +486,19 @@ export default function ViewTemplatePage() {
         );
       } catch {}
     }
-    u[ci].objectives.splice(oi, 1);
-    setEditedData(u);
+    updated[ci].objectives.splice(oi, 1);
+    setEditedData(updated);
   };
 
+  // Sums all objective weights across all categories
   const getTotalWeight = (data: Category[]) =>
     data.reduce((s, c) => s + c.objectives.reduce((ss, o) => ss + (o.weight || 0), 0), 0);
 
+  // Returns the sum of weights for a single category (shown as the GAP % in the category row)
   const getCatWeight = (cat: Category) =>
     Math.round(cat.objectives.reduce((s, o) => s + (o.weight || 0), 0) * 100) / 100;
 
+  // Validates all new objectives and the total weight before sending to the backend
   const handleSubmit = async () => {
     for (const cat of editedData) {
       for (const obj of cat.objectives) {
@@ -480,7 +525,7 @@ export default function ViewTemplatePage() {
       if (!res.ok) throw new Error();
       setSaveMsg('success');
       setEditMode(false);
-      fetchTemplate();
+      fetchTemplate();  // Refresh so the view shows the saved data
     } catch {
       setSaveMsg('error');
     }
@@ -489,6 +534,7 @@ export default function ViewTemplatePage() {
   };
 
   // ── Style helpers ──────────────────────────────────────────────
+  // Shared padding token keeps table cell spacing consistent
   const P = '11px 16px';
 
   const thStyle = (align: 'left' | 'center' = 'left') => ({
@@ -502,12 +548,16 @@ export default function ViewTemplatePage() {
     verticalAlign: 'middle' as const, ...extra,
   });
 
+  // Generates "AB" initials for the employee avatar circle
   const initials = (n: string) =>
     n.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
+  // Template is frozen when its status is anything other than "active"
   const isFrozen      = template?.status !== 'active';
+  // The Edit button is only enabled when the PMS cycle allows editing AND the template is active
   const editingOpen   = cycleState?.editing_open ?? false;
   const canEdit       = !isFrozen && editingOpen;
+  // Tooltip text shown on the disabled Edit button explaining why editing is blocked
   const editBlockedReason = isFrozen
     ? 'This template has been frozen by the Group Admin'
     : cycleState?.reason ?? 'Editing window is not open';
@@ -546,8 +596,10 @@ export default function ViewTemplatePage() {
 
   if (!template) return null;
 
+  // In edit mode use the locally edited copy; in view mode use the fetched template
   const displayCategories = editMode ? editedData : template.categories;
   const totalObjectives   = template.categories.reduce((s, c) => s + c.objectives.length, 0);
+  // Live weight total shown in the submit bar — updates as the user edits weights
   const currentTotal      = editMode ? Math.round(getTotalWeight(editedData) * 100) / 100 : 100;
 
   return (
@@ -688,7 +740,9 @@ export default function ViewTemplatePage() {
               </thead>
               <tbody>
                 {displayCategories.map((cat, ci) => {
+                  // catSum is the live sum of objective weights for this category (shown as GAP %)
                   const catSum = editMode ? getCatWeight(cat) : cat.weight;
+                  // Flag used to colour the GAP % yellow when it doesn't match the stored category weight
                   const gapOk  = editMode ? catSum === cat.weight : true;
                   return (
                     <React.Fragment key={cat.id}>
@@ -714,7 +768,9 @@ export default function ViewTemplatePage() {
                       {/* Objective rows */}
                       {cat.objectives.map((obj, oi) => {
                         const isLocked = obj.control_type === 'Locked';
+                        // isNew rows were added in this edit session and need full validation before save
                         const isNew    = obj.isNew === true;
+                        // Highlight the row when required fields are still empty
                         const missing  = isNew && (!obj.name.trim() || !obj.weight || !obj.control_type || !obj.kpi_scale);
                         return (
                           <tr

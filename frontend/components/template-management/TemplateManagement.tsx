@@ -3,11 +3,12 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 
+// Minimal template shape returned by GET /api/templates
 interface Template {
   id: number;
   name: string;
   description: string;
-  status: string;
+  status: string;   // "active" | "frozen"
   created_by: string;
 }
 
@@ -15,16 +16,19 @@ const API = 'http://127.0.0.1:5000';
 
 export default function TemplatesListPage() {
   const { user, loading: authLoading } = useAuth();
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState('');
-  const [inputVal, setInputVal]   = useState('');
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [templates, setTemplates]           = useState<Template[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState('');
+  // Tracks what the user has typed in the search box
+  const [searchInput, setSearchInput]       = useState('');
+  const [showDropdown, setShowDropdown]     = useState(false);
+  // Ref used to close the autocomplete dropdown when clicking outside
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (authLoading) return;
 
+    // Load all available templates for the list/grid view
     fetch(`${API}/api/templates`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -41,30 +45,35 @@ export default function TemplatesListPage() {
   }, [authLoading]);
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    // Close the autocomplete dropdown when the user clicks outside the search box
+    const handleOutsideClick = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  const suggestions = inputVal.trim().length > 0
-    ? templates.filter(t => t.name.toLowerCase().includes(inputVal.toLowerCase()))
+  // Autocomplete suggestions — only shown while the user is typing
+  const autocompleteSuggestions = searchInput.trim().length > 0
+    ? templates.filter(t => t.name.toLowerCase().includes(searchInput.toLowerCase()))
     : [];
 
-  const displayed = inputVal.trim()
-    ? templates.filter(t => t.name.toLowerCase().includes(inputVal.toLowerCase()))
+  // The main grid shows all templates, or only those matching the search
+  const displayedTemplates = searchInput.trim()
+    ? templates.filter(t => t.name.toLowerCase().includes(searchInput.toLowerCase()))
     : templates;
 
-  const handleSelect = (t: Template) => {
-    setInputVal(t.name);
+  // Fill the search box with the selected suggestion and close the dropdown
+  const handleSuggestionSelect = (t: Template) => {
+    setSearchInput(t.name);
     setShowDropdown(false);
   };
 
-  const handleClear = () => {
-    setInputVal('');
+  // Reset search to show all templates again
+  const handleClearSearch = () => {
+    setSearchInput('');
     setShowDropdown(false);
   };
 
@@ -176,15 +185,15 @@ export default function TemplatesListPage() {
 
               <input
                 className="search-field"
-                value={inputVal}
-                onChange={e => { setInputVal(e.target.value); setShowDropdown(true); }}
+                value={searchInput}
+                onChange={e => { setSearchInput(e.target.value); setShowDropdown(true); }}
                 onFocus={() => setShowDropdown(true)}
                 onKeyDown={e => { if (e.key === 'Escape') setShowDropdown(false); }}
                 placeholder="Search templates…"
               />
 
-              {inputVal && (
-                <button onClick={handleClear} style={{
+              {searchInput && (
+                <button onClick={handleClearSearch} style={{
                   position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
                   background: '#F1F5F9', border: 'none', borderRadius: '50%',
                   width: 22, height: 22, cursor: 'pointer', padding: 0,
@@ -196,15 +205,15 @@ export default function TemplatesListPage() {
                 </button>
               )}
 
-              {showDropdown && suggestions.length > 0 && (
+              {showDropdown && autocompleteSuggestions.length > 0 && (
                 <div style={{
                   position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
                   background: '#fff', border: '1.5px solid #E2E8F0',
                   borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.09)',
                   zIndex: 200, padding: 6, animation: 'dropIn 0.14s ease',
                 }}>
-                  {suggestions.map(t => (
-                    <div key={t.id} className="sugg-item" onMouseDown={() => handleSelect(t)}>
+                  {autocompleteSuggestions.map(t => (
+                    <div key={t.id} className="sugg-item" onMouseDown={() => handleSuggestionSelect(t)}>
                       <div style={{
                         width: 28, height: 28, borderRadius: 6, background: '#EFF6FF',
                         flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -217,14 +226,14 @@ export default function TemplatesListPage() {
                 </div>
               )}
 
-              {showDropdown && inputVal.trim().length > 0 && suggestions.length === 0 && (
+              {showDropdown && searchInput.trim().length > 0 && autocompleteSuggestions.length === 0 && (
                 <div style={{
                   position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
                   background: '#fff', border: '1.5px solid #E2E8F0',
                   borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.09)',
                   zIndex: 200, padding: '12px 16px', fontSize: 13, color: '#A0ABBB',
                 }}>
-                  No templates match &quot;{inputVal}&quot;
+                  No templates match &quot;{searchInput}&quot;
                 </div>
               )}
             </div>
@@ -261,10 +270,10 @@ export default function TemplatesListPage() {
           </div>
         )}
 
-        {/* Cards grid */}
-        {!loading && !error && displayed.length > 0 && (
+        {/* Template cards grid — rendered once data is loaded */}
+        {!loading && !error && displayedTemplates.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28 }}>
-            {displayed.map((tmpl, idx) => (
+            {displayedTemplates.map((tmpl, idx) => (
               <TemplateCard
                 key={tmpl.id}
                 tmpl={tmpl}
@@ -276,12 +285,12 @@ export default function TemplatesListPage() {
           </div>
         )}
 
-        {/* No search results */}
-        {!loading && !error && inputVal.trim() && displayed.length === 0 && (
+        {/* No search results — prompt user to clear the filter */}
+        {!loading && !error && searchInput.trim() && displayedTemplates.length === 0 && (
           <div style={{ textAlign: 'center', padding: '56px 24px' }}>
             <p style={{ fontSize: 15, fontWeight: 600, color: '#1E293B', margin: '0 0 6px' }}>No templates found</p>
-            <p style={{ fontSize: 13, color: '#94A3B8', margin: '0 0 16px' }}>No match for &quot;<strong>{inputVal}</strong>&quot;</p>
-            <button onClick={handleClear} style={{
+            <p style={{ fontSize: 13, color: '#94A3B8', margin: '0 0 16px' }}>No match for &quot;<strong>{searchInput}</strong>&quot;</p>
+            <button onClick={handleClearSearch} style={{
               padding: '8px 20px', borderRadius: 6, border: '1px solid #BFDBFE',
               background: '#EFF6FF', color: '#2563EB', fontWeight: 500,
               fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
@@ -302,6 +311,8 @@ export default function TemplatesListPage() {
   );
 }
 
+// Generates a 2-letter abbreviation from a template name for the card icon
+// e.g. "Branch Sales Template" → "BS", "Finance" → "FI"
 function getAbbr(name: string): string {
   const words = name.replace(/[^a-zA-Z\s]/g, '').split(/\s+/).filter(Boolean);
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
@@ -315,25 +326,27 @@ function TemplateCard({ tmpl, index, userRole, managerId }: {
   tmpl: Template;
   index: number;
   userRole: string | undefined;
-  managerId: string | undefined;  // ✅ FIX: accept managerId prop
+  managerId: string | undefined;  // Scopes the assignment count to this manager's team
 }) {
   const [hovered, setHovered] = useState(false);
+  // Null while the count is still loading (shows a shimmer placeholder)
   const [assignedCount, setAssignedCount] = useState<number | null>(null);
 
   useEffect(() => {
-    // ✅ FIX: pass manager_id as query param so only this manager's
-    //         team members are counted, not all assigned employees globally
-    const url = managerId
+    // Fetch how many of THIS manager's team members are on this template.
+    // Without manager_id the API would return the global count across all managers.
+    const assignmentUrl = managerId
       ? `${API}/api/templates/${tmpl.id}/assignments?manager_id=${managerId}`
       : `${API}/api/templates/${tmpl.id}/assignments`;
 
-    fetch(url)
+    fetch(assignmentUrl)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setAssignedCount(data.length); })
       .catch(() => setAssignedCount(0));
   }, [tmpl.id, managerId]);
 
   const isFrozen = tmpl.status === 'frozen';
+  // Convert role string for use in URL paths (e.g. "branch_admin" → "branch-admin")
   const roleSlug = userRole?.replace(/_/g, '-') ?? 'branch-admin';
 
   return (

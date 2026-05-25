@@ -10,27 +10,32 @@ const API = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 // ══════════════════════════════════════════════════════════════════
 // TYPES
 // ══════════════════════════════════════════════════════════════════
+// One row from the rating_periods table
 interface RatingPeriod {
   id: number; pms_year: number; period: string;
   rating_start: string; rating_end: string; is_active: boolean;
 }
+// Full response from GET /api/rating-periods/current
 interface RatingPeriodState {
   rating_open: boolean; active_period: string | null;
   pms_year: number; rating_start: string; rating_end: string;
   reason: string | null; periods: RatingPeriod[];
 }
+// One row in the rating overview table (direct report of the evaluator)
 interface OverviewMember {
   id: string; name: string; role: string; designation: string;
   total: number; submitted: number; pending: number;
   pct: number; status: 'complete' | 'pending' | 'n/a';
 }
+// Team member shown in the "My Team" manual ratings table
 interface TeamMember {
   id: string; full_name: string; designation: string; template_name: string | null;
 }
+// Per-user manual rating submission status (submitted/pending/total objective counts)
 interface MemberRatingStatus { submitted: boolean; pending: number; total: number; }
 interface ManualRatingStatus { [userId: string]: MemberRatingStatus; }
 
-// Org hierarchy types
+// Org hierarchy types — used to populate the scope picker in the Edit Period drawer
 interface OrgItem     { id: string; name: string; }
 interface BranchItem  { id: string; name: string; country_id: string; }
 interface DeptItem    { id: string; name: string; branch_id: string; }
@@ -45,11 +50,13 @@ interface OrgHierarchy {
 // ══════════════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════════════
+// Formats an ISO date string to "DD Mon YYYY" (e.g. "01 Jan 2025")
 function formatDate(d: string) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Returns the most recent completed period, or the nearest upcoming one as a fallback
 function getMostRecentPastPeriod(periods: RatingPeriod[]): RatingPeriod | null {
   if (!periods?.length) return null;
   const now  = new Date();
@@ -65,6 +72,7 @@ function getMostRecentPastPeriod(periods: RatingPeriod[]): RatingPeriod | null {
 // ══════════════════════════════════════════════════════════════════
 // SMALL UI COMPONENTS
 // ══════════════════════════════════════════════════════════════════
+// Reusable table header cell with consistent typography
 function TH({ children, center, width }: { children: React.ReactNode; center?: boolean; width?: string }) {
   return (
     <th style={{
@@ -79,6 +87,7 @@ function TH({ children, center, width }: { children: React.ReactNode; center?: b
   );
 }
 
+// Section heading used at the top of each card panel
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div style={{ padding: '18px 24px', borderBottom: '1px solid #E5E7EB', borderLeft: '28px solid #2563EB', background: '#FFFFFF' }}>
@@ -88,6 +97,7 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
   );
 }
 
+// Green "Submitted" / yellow "Pending" pill badge shown per team member row
 function StatusPill({ complete, label }: { complete: boolean; label?: string }) {
   return (
     <span style={{
@@ -103,6 +113,7 @@ function StatusPill({ complete, label }: { complete: boolean; label?: string }) 
   );
 }
 
+// Button that sends a manual reminder notification to a team member
 function RemindBtn({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick} style={{
@@ -145,10 +156,13 @@ function EnterRatingsBtn({ onClick, reenter, ratingIsOpen }: {
 // ══════════════════════════════════════════════════════════════════
 // REMINDER MODAL
 // ══════════════════════════════════════════════════════════════════
+// Modal that lets an evaluator send a manual reminder notification to one team member.
+// The message is pre-filled but editable before sending.
 function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
   member: OverviewMember | TeamMember; period: string; pmsYear: number; senderId: string;
   onClose: () => void; onSent: () => void;
 }) {
+  // OverviewMember uses "name"; TeamMember uses "full_name"
   const name = 'full_name' in member ? member.full_name : member.name;
   const [msg,     setMsg]     = useState(`Hi ${name}, please complete your pending manual ratings for ${period} ${pmsYear} as soon as possible. The rating window is closing soon.`);
   const [sending, setSending] = useState(false);
@@ -162,6 +176,7 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
         body: JSON.stringify({ sender_id: senderId, recipient_id: member.id, period, pms_year: pmsYear, message: msg }),
       });
       setSent(true);
+      // Brief success state before closing so the user sees the confirmation
       setTimeout(() => { onSent(); onClose(); }, 1200);
     } catch { setSending(false); }
   };
@@ -197,6 +212,9 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
 // ══════════════════════════════════════════════════════════════════
 // CASCADE SCOPE PICKER
 // ══════════════════════════════════════════════════════════════════
+// Multi-level checkbox picker for selecting which org units the rating
+// period update should apply to. Selecting a parent auto-filters children;
+// deselecting a parent prunes any now-invalid child selections.
 function CascadeScopePicker({
   hierarchy, isHQ,
   selCountries, setSelCountries,
@@ -212,12 +230,12 @@ function CascadeScopePicker({
   selSubDepts:  string[]; setSelSubDepts:  (v: string[]) => void;
   includeSelf: boolean; setIncludeSelf: (v: boolean) => void;
 }) {
-  // ── Lookup maps for parent names ───────────────────────────────
+  // Lookup maps used to resolve parent names in child-level labels
   const countryById = Object.fromEntries(hierarchy.countries.map(c => [c.id, c.name]));
   const branchById  = Object.fromEntries(hierarchy.branches.map(b => [b.id, b.name]));
   const deptById    = Object.fromEntries(hierarchy.departments.map(d => [d.id, d.name]));
 
-  // ── Filtered lists — cascade downward ─────────────────────────
+  // Each level only shows items that belong to a selected parent (empty = show all)
   const filteredBranches = hierarchy.branches.filter(b =>
     selCountries.length === 0 || selCountries.includes(b.country_id));
   const filteredDepts = hierarchy.departments.filter(d =>
@@ -225,37 +243,41 @@ function CascadeScopePicker({
   const filteredSubDepts = hierarchy.sub_departments.filter(s =>
     selDepts.length === 0 || selDepts.includes(s.department_id));
 
-  // ── Prune children when parent selection changes ───────────────
+  // When a country is deselected, remove any branches/depts/sub-depts that no longer belong
   const handleCountryChange = (ids: string[]) => {
     setSelCountries(ids);
-    const vb = hierarchy.branches.filter(b => ids.length === 0 || ids.includes(b.country_id)).map(b => b.id);
-    const pb = selBranches.filter(id => vb.includes(id));
-    setSelBranches(pb);
-    const vd = hierarchy.departments.filter(d => pb.length === 0 || pb.includes(d.branch_id)).map(d => d.id);
-    const pd = selDepts.filter(id => vd.includes(id));
-    setSelDepts(pd);
-    const vs = hierarchy.sub_departments.filter(s => pd.length === 0 || pd.includes(s.department_id)).map(s => s.id);
-    setSelSubDepts(selSubDepts.filter(id => vs.includes(id)));
+    const validBranches  = hierarchy.branches.filter(b => ids.length === 0 || ids.includes(b.country_id)).map(b => b.id);
+    const prunedBranches = selBranches.filter(id => validBranches.includes(id));
+    setSelBranches(prunedBranches);
+    const validDepts  = hierarchy.departments.filter(d => prunedBranches.length === 0 || prunedBranches.includes(d.branch_id)).map(d => d.id);
+    const prunedDepts = selDepts.filter(id => validDepts.includes(id));
+    setSelDepts(prunedDepts);
+    const validSubs = hierarchy.sub_departments.filter(s => prunedDepts.length === 0 || prunedDepts.includes(s.department_id)).map(s => s.id);
+    setSelSubDepts(selSubDepts.filter(id => validSubs.includes(id)));
   };
 
+  // When a branch is deselected, prune orphaned depts and sub-depts
   const handleBranchChange = (ids: string[]) => {
     setSelBranches(ids);
-    const vd = hierarchy.departments.filter(d => ids.length === 0 || ids.includes(d.branch_id)).map(d => d.id);
-    const pd = selDepts.filter(id => vd.includes(id));
-    setSelDepts(pd);
-    const vs = hierarchy.sub_departments.filter(s => pd.length === 0 || pd.includes(s.department_id)).map(s => s.id);
-    setSelSubDepts(selSubDepts.filter(id => vs.includes(id)));
+    const validDepts  = hierarchy.departments.filter(d => ids.length === 0 || ids.includes(d.branch_id)).map(d => d.id);
+    const prunedDepts = selDepts.filter(id => validDepts.includes(id));
+    setSelDepts(prunedDepts);
+    const validSubs = hierarchy.sub_departments.filter(s => prunedDepts.length === 0 || prunedDepts.includes(s.department_id)).map(s => s.id);
+    setSelSubDepts(selSubDepts.filter(id => validSubs.includes(id)));
   };
 
+  // When a dept is deselected, prune orphaned sub-depts
   const handleDeptChange = (ids: string[]) => {
     setSelDepts(ids);
-    const vs = hierarchy.sub_departments.filter(s => ids.length === 0 || ids.includes(s.department_id)).map(s => s.id);
-    setSelSubDepts(selSubDepts.filter(id => vs.includes(id)));
+    const validSubs = hierarchy.sub_departments.filter(s => ids.length === 0 || ids.includes(s.department_id)).map(s => s.id);
+    setSelSubDepts(selSubDepts.filter(id => validSubs.includes(id)));
   };
 
+  // Toggle a single item in a selection list
   const toggleOne = (id: string, list: string[], setter: (v: string[]) => void) =>
     setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id]);
 
+  // Select-all / deselect-all for a given level
   const toggleAll = (items: { id: string }[], list: string[], setter: (v: string[]) => void) =>
     setter(list.length === items.length ? [] : items.map(i => i.id));
 
@@ -499,24 +521,30 @@ function CascadeScopePicker({
 // ══════════════════════════════════════════════════════════════════
 // EDIT PERIOD MODAL
 // ══════════════════════════════════════════════════════════════════
+// Modal that lets HQ/Country admins adjust the rating window dates and scope
 function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorId, onClose, onSaved }: {
   period: string; pmsYear: number; currentStart: string; currentEnd: string;
   evaluatorId: string; onClose: () => void; onSaved: () => void;
 }) {
   const { user } = useAuth();
+  // HQ admins can set a self-scope and pick countries; Country admins cannot
   const isHQ           = user?.role === 'hq_admin';
   const isCountryAdmin = user?.role === 'country_admin';
 
+  // Initialise date inputs from the existing period dates (trim to YYYY-MM-DD)
   const [start,  setStart]  = useState(currentStart?.slice(0, 10) ?? '');
   const [end,    setEnd]    = useState(currentEnd?.slice(0, 10) ?? '');
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
   const [error,  setError]  = useState('');
 
+  // When true (HQ only), the update also applies to the HQ Admin's own rating period
   const [includeSelf,  setIncludeSelf]  = useState(false);
+  // Full org hierarchy used to populate the scope checkboxes
   const [hierarchy,    setHierarchy]    = useState<OrgHierarchy>({ countries: [], branches: [], departments: [], sub_departments: [] });
   const [loadingHier,  setLoadingHier]  = useState(true);
 
+  // Scope selections — only the levels visible to this admin role are shown
   const [selCountries, setSelCountries] = useState<string[]>([]);
   const [selBranches,  setSelBranches]  = useState<string[]>([]);
   const [selDepts,     setSelDepts]     = useState<string[]>([]);
@@ -525,6 +553,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
   useEffect(() => {
     if (!evaluatorId || !user?.role) return;
     setLoadingHier(true);
+    // Fetch org units scoped to this evaluator's visible hierarchy
     fetch(`${API}/api/rating-periods/org-hierarchy?evaluator_id=${evaluatorId}&role=${user.role}`)
       .then(r => r.json())
       .then((d: OrgHierarchy) => setHierarchy(d))
@@ -532,10 +561,12 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
       .finally(() => setLoadingHier(false));
   }, [evaluatorId, user?.role]);
 
+  // Count of all selected scope items — used to gate the Save button
   const totalSelected =
     (includeSelf ? 1 : 0) +
     selCountries.length + selBranches.length + selDepts.length + selSubDepts.length;
 
+  // Human-readable summary shown below the scope pickers
   const summaryParts: string[] = [];
   if (includeSelf)         summaryParts.push('My rating period (HQ Admin)');
   if (selCountries.length) summaryParts.push(`${selCountries.length} ${selCountries.length === 1 ? 'country' : 'countries'}`);
@@ -557,6 +588,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
           period, pms_year: pmsYear,
           rating_start: start, rating_end: end,
           evaluator_id: evaluatorId,
+          // Country-level admins cannot set a self-scope or pick countries
           include_self:         isHQ ? includeSelf : false,
           selected_countries:   isHQ ? selCountries : [],
           selected_branches:    selBranches,
@@ -569,6 +601,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
         throw new Error((body as { error?: string }).error ?? 'Save failed');
       }
       setSaved(true);
+      // Brief success state before closing so the user sees the confirmation
       setTimeout(() => { onSaved(); onClose(); }, 1000);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save. Please try again.');
@@ -576,6 +609,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
     setSaving(false);
   };
 
+  // Reusable input style for the date pickers
   const inp: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
     border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13,
@@ -661,24 +695,35 @@ export default function RatingSettings() {
   const { user } = useAuth();
   const router   = useRouter();
 
+  // Convert role string for URL paths (e.g. "hq_admin" → "hq-admin")
   const roleSlug      = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
+  // Only HQ and Country admins can open the Edit Period drawer
   const canEditPeriod = user?.role === 'country_admin' || user?.role === 'hq_admin';
   const evaluatorId   = user?.id ?? '';
 
+  // Full response from the rating-periods endpoint
   const [periodData,    setPeriodData]    = useState<RatingPeriodState | null>(null);
+  // The period currently being viewed (open window, or most recent if none open)
   const [activePeriod,  setActivePeriod]  = useState<RatingPeriod | null>(null);
+  // Overview table rows — one per direct report of the evaluator
   const [overview,      setOverview]      = useState<OverviewMember[]>([]);
+  // Team table rows — the evaluator's own direct reports for manual rating entry
   const [team,          setTeam]          = useState<TeamMember[]>([]);
+  // Batch submission status keyed by user UUID
   const [ratingStatus,  setRatingStatus]  = useState<ManualRatingStatus>({});
   const [statusLoading, setStatusLoading] = useState(false);
   const [loading,       setLoading]       = useState(true);
-  const [reminderTarget,setReminderTarget]= useState<OverviewMember | TeamMember | null>(null);
-  const [editPeriodOpen,setEditPeriodOpen]= useState(false);
+  // The team member whose Remind button was clicked (opens the reminder modal)
+  const [reminderTarget, setReminderTarget] = useState<OverviewMember | TeamMember | null>(null);
+  // Controls visibility of the Edit Rating Period side-drawer
+  const [editPeriodOpen, setEditPeriodOpen] = useState(false);
 
+  // Convenience aliases derived from the active period so JSX stays readable
   const pmsYear        = activePeriod?.pms_year ?? new Date().getFullYear();
   const selectedPeriod = activePeriod?.period   ?? 'H1';
   const ratingIsOpen   = periodData?.rating_open ?? false;
 
+  // Fetches manual rating submission status for all team members in one batch request
   const fetchRatingStatuses = useCallback(async (members: TeamMember[], year: number, period: string) => {
     if (!members.length || !year || !period) return;
     setStatusLoading(true);
@@ -687,13 +732,15 @@ export default function RatingSettings() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setRatingStatus(await res.json());
     } catch {
-      const fb: ManualRatingStatus = {};
-      members.forEach(m => { fb[m.id] = { submitted: false, pending: 0, total: 0 }; });
-      setRatingStatus(fb);
+      // On failure, mark all as pending so the UI doesn't silently show wrong data
+      const fallbackStatus: ManualRatingStatus = {};
+      members.forEach(m => { fallbackStatus[m.id] = { submitted: false, pending: 0, total: 0 }; });
+      setRatingStatus(fallbackStatus);
     }
     setStatusLoading(false);
   }, []);
 
+  // Loads all data needed for the page: period info, overview table, and team list
   const fetchAll = useCallback(async () => {
     if (!evaluatorId) return;
     setLoading(true);
@@ -703,6 +750,7 @@ export default function RatingSettings() {
       const periodJson = periodRes.ok ? await periodRes.json() : null;
       const periods: RatingPeriod[] = periodJson?.periods ?? [];
 
+      // Prefer the currently open window; fall back to the most recent past period
       let best: RatingPeriod | null = null;
       if (periodJson?.rating_open && periodJson?.active_period) {
         best = periods.find(p => p.is_active && p.period === periodJson.active_period) ?? null;
