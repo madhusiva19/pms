@@ -62,9 +62,11 @@ def evaluator_submit():
             manual_rating  = entry.get("manual_rating")
             rating_comment = entry.get("rating_comment", None)
 
+            # Skip any malformed entries rather than aborting the whole batch
             if not obj_id or manual_rating is None:
                 continue
 
+            # Normalise to 2 decimal places before validation
             manual_rating = round(float(manual_rating), 2)
 
             if not (1.0 <= manual_rating <= 5.0):
@@ -72,6 +74,7 @@ def evaluator_submit():
                     "error": f"Rating for objective {obj_id} must be between 1.00 and 5.00"
                 }), 400
 
+            # Ratings below 3.0 must include a justification comment
             if manual_rating < 3.0:
                 if not rating_comment or not str(rating_comment).strip():
                     return jsonify({
@@ -81,6 +84,7 @@ def evaluator_submit():
                         )
                     }), 400
 
+            # Normalise whitespace; store None rather than an empty string
             rating_comment = (
                 str(rating_comment).strip()
                 if rating_comment and str(rating_comment).strip()
@@ -90,14 +94,17 @@ def evaluator_submit():
             obj     = obj_by_id.get(obj_id, {})
             mapping = mappings_by_obj.get(obj_id, {})
 
+            # Only manual-scale objectives should be submitted through this endpoint
             if mapping.get("scale_type") != "manual":
                 return jsonify(
                     {"error": f"Objective {obj_id} is not a manual-rated KPI"}
                 ), 400
 
+            # Score = rating × (weight / 100), e.g. rating 4 on a 15% objective = 0.60
             weight = float(obj.get("weight", 0))
             score  = round(manual_rating * (weight / 100), 4)
 
+            # Upsert so re-submissions overwrite rather than duplicate
             supabase.table("performance_records").upsert(
                 {
                     "user_id":        user_id,
@@ -152,12 +159,14 @@ def get_pending_evaluations():
 
         mappings_by_obj, _, obj_by_id, cat_by_id = load_scale_meta()
 
+        # Collect all objective IDs whose scale type is "manual"
         manual_obj_ids = [
             obj_id
             for obj_id, mapping in mappings_by_obj.items()
             if mapping.get("scale_type") == "manual"
         ]
 
+        # Find which of those objectives already have a rating saved for this period
         existing = (
             supabase.table("performance_records")
             .select("objective_id, manual_rating")
@@ -172,6 +181,7 @@ def get_pending_evaluations():
             if r.get("manual_rating") is not None
         }
 
+        # Return only the objectives that still need a rating
         pending = []
         for obj_id in manual_obj_ids:
             if obj_id not in submitted_ids:
@@ -211,6 +221,7 @@ def get_evaluator_team(evaluator_id: str):
         team     = result.data
         user_ids = [u["id"] for u in team]
 
+        # Fetch template assignments for the whole team in one query
         assign_res = (
             supabase.table("template_assignments")
             .select("user_id, template_id, templates(id, name)")
@@ -218,6 +229,7 @@ def get_evaluator_team(evaluator_id: str):
             .execute()
         )
 
+        # Index assignments by user_id for O(1) lookup during enrichment
         assign_by_user: dict = {}
         for row in assign_res.data or []:
             assign_by_user[row["user_id"]] = {
@@ -227,6 +239,7 @@ def get_evaluator_team(evaluator_id: str):
                 ),
             }
 
+        # Merge template assignment into each team member record
         enriched = []
         for user in team:
             assignment = assign_by_user.get(user["id"])

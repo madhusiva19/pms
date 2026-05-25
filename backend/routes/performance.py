@@ -40,6 +40,8 @@ def get_periods(user_id: str):
             .execute()
         )
 
+        # Deduplicate in Python — performance_records has one row per objective,
+        # so many rows share the same (year, period) key
         seen: set = set()
         periods: list[dict] = []
 
@@ -187,14 +189,17 @@ def get_performance(user_id: str, year: int, period: str):
                 }
 
             cats_map[cname]["objectives"].append(item)
+            # Accumulate the running score total for this category
             cats_map[cname]["category_score"] = round(
                 cats_map[cname]["category_score"] + item["score"], 4
             )
+            # max_possible = sum of (weight / 100) × 5 across all objectives in the category
             cats_map[cname]["max_possible"] = round(
                 cats_map[cname]["max_possible"] + (item["weight"] / 100) * 5, 4
             )
 
         category_list = list(cats_map.values())
+        # final_score is the sum of all category scores (already weighted by objective weights)
         final_score   = round(sum(c["category_score"] for c in category_list), 4)
         max_score     = round(sum(c["max_possible"]   for c in category_list), 4)
 
@@ -282,11 +287,13 @@ def sync_actuals():
             if mapping.get("scale_type") == "manual":
                 continue
 
+            # Build a minimal stub record so calculate_rating can derive the rating
             rec_stub = {"actual": actual, "target": target, "manual_rating": None}
             rating   = calculate_rating(rec_stub, mapping, brackets)
             weight   = float(obj.get("weight", 0))
             score    = round(rating * (weight / 100), 4)
 
+            # Upsert so re-syncs overwrite stale values without creating duplicates
             supabase.table("performance_records").upsert(
                 {
                     "user_id":       user_id,
@@ -335,6 +342,7 @@ def backfill_scores():
         )
 
         updated     = 0
+        # Collect unique (user, year, period) keys so we can refresh summary totals once per group
         period_keys: set[tuple] = set()
 
         for rec in all_records:
@@ -344,6 +352,7 @@ def backfill_scores():
             obj      = obj_by_id.get(obj_id, {})
             weight   = float(obj.get("weight", 0))
 
+            # Re-derive rating using current scale parameters (may differ from stored value)
             rating = calculate_rating(rec, mapping, brackets)
             score  = round(rating * (weight / 100), 4)
 
@@ -354,7 +363,7 @@ def backfill_scores():
             period_keys.add((rec["user_id"], rec["year"], rec["period"]))
             updated += 1
 
-        # Refresh all affected summary rows
+        # Refresh all affected summary rows after all records are updated
         for (uid, yr, per) in period_keys:
             patch_total_score(uid, yr, per)
 
