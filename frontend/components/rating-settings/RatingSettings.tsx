@@ -752,8 +752,12 @@ export default function RatingSettings() {
 
       // Prefer the currently open window; fall back to the most recent past period
       let best: RatingPeriod | null = null;
-      if (periodJson?.rating_open && periodJson?.active_period) {
-        best = periods.find(p => p.is_active && p.period === periodJson.active_period) ?? null;
+      if (periodJson?.rating_open && periodJson?.active_period && periodJson?.pms_year) {
+        best = periods.find(
+          p => p.is_active &&
+               p.period   === periodJson.active_period &&
+               p.pms_year === periodJson.pms_year
+        ) ?? null;
       }
       if (!best) best = getMostRecentPastPeriod(periods);
 
