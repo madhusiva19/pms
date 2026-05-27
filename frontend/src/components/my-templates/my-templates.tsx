@@ -15,6 +15,8 @@ import {
   Info, AlertCircle, Loader2, BookOpen,
   Target, Award, TrendingUp, TrendingDown, SlidersHorizontal,
 } from "lucide-react";
+import Sidebar    from "@/components/sidebar/Sidebar";
+import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles from "./my-templates.module.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
@@ -134,7 +136,12 @@ export function MyTemplates({ userId: userIdProp }: MyTemplatesProps) {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className={styles.wrapper}>
+     <div className={styles.dashShell}>
+      <Sidebar />
+      <main className={styles.mainContent}>
+        <Breadcrumb />
+        <div className={styles.pageWrapper}>
+
       <header className={styles.header}>
         <div className={styles.headerTop}>
           <div className={styles.headerIconWrapper}><ShieldCheck size={24} color="#3b82f6" /></div>
@@ -250,7 +257,10 @@ export function MyTemplates({ userId: userIdProp }: MyTemplatesProps) {
           </div>
         ))
       )}
-    </div>
+        </div>
+      </main>
+    </div>    
+
   );
 }
 

@@ -48,6 +48,8 @@ import {
   Trash2, 
   Sparkles,
 } from "lucide-react";
+import Sidebar    from "@/components/sidebar/Sidebar";
+import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles from "./TemplateAssignmentPage.module.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1001,7 +1003,11 @@ export default function TemplateAssignmentPage({ level = 1 }: TemplateAssignment
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className={styles.pageWrapper}>
+    <div className={styles.dashShell}>
+      <Sidebar />
+      <main className={styles.mainContent}>
+        <Breadcrumb />
+        <div className={styles.pageWrapper}>
 
       {/* ── Page Header ──────────────────────────────────────────────────── */}
       <div className={styles.pageHeader}>
@@ -1829,7 +1835,10 @@ export default function TemplateAssignmentPage({ level = 1 }: TemplateAssignment
           onCancel={() => setShowBranchModal(false)}
         />
       )}
-    </div>
+        </div>
+      </main>
+    </div>    
+
   );
 }
 

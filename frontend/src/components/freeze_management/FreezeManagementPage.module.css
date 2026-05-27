@@ -1,0 +1,682 @@
+/**
+ * FreezeManagementPage.module.css
+ *
+ * Styles for the Template Freeze Management full-page component.
+ * Scoped via CSS Modules to FreezeManagementPage.
+ *
+ * Layout overview:
+ *  .pageWrapper       — centred content column
+ *  .pageHeader        — title row + back button
+ *  .scopeBanner       — dept / sub-dept scope chips
+ *  .infoCard          — template summary bar
+ *  .contentCard       — main white card (tabs + body + footer)
+ *  .tabBar            — branch / country tab switcher
+ *  .contentBody       — scrollable list of unfrozen + frozen sections
+ *  .unfrozenRow       — a single unfrozen item row
+ *  .frozenRow         — a single frozen item row (with checkbox)
+ *  .footer            — selection summary + action buttons
+ */
+/* Shell: sidebar + content side by side */
+.dashShell {
+  display:     flex;
+  min-height:  100vh;
+  background:  #f9fafb;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+/* Main content area offset by sidebar width */
+.mainContent {
+  flex:        1;
+  margin-left: 251px;
+  min-width:   0;
+  overflow-y:  auto;
+  padding:     24px;
+}
+/* ─── Design tokens (local) ──────────────────────────────────────────────────
+   Mirror the global --tdb-* tokens where values match.          */
+:root {
+  --fm-blue:           #3b82f6;
+  --fm-blue-dark:      #1d4ed8;
+  --fm-blue-tint:      #eff6ff;
+  --fm-blue-border:    #bfdbfe;
+
+  --fm-green:          #16a34a;
+  --fm-green-tint:     #f0fdf4;
+  --fm-green-border:   #bbf7d0;
+  --fm-green-dark:     #14532d;
+
+  --fm-orange:         #ea580c;
+  --fm-orange-tint:    #fff7ed;
+  --fm-orange-border:  #fed7aa;
+
+  --fm-red:            #dc2626;
+  --fm-red-tint:       #fff5f5;
+  --fm-red-border:     #fca5a5;
+
+  --fm-border:         #e2e8f0;
+  --fm-border-light:   #f1f5f9;
+  --fm-bg-page:        #f8fafc;
+  --fm-bg-card:        #ffffff;
+  --fm-bg-muted:       #fafbff;
+
+  --fm-text-primary:   #0f172a;
+  --fm-text-secondary: #475569;
+  --fm-text-muted:     #64748b;
+  --fm-text-faint:     #94a3b8;
+
+  --fm-radius-sm:      6px;
+  --fm-radius-md:      10px;
+  --fm-radius-lg:      14px;
+  --fm-radius-xl:      18px;
+
+  --fm-shadow-card:    0 1px 4px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
+  --fm-shadow-btn:     0 4px 12px rgba(37,99,235,0.22);
+}
+
+/* ─── Page wrapper ───────────────────────────────────────────────────────────*/
+.pageWrapper {
+  max-width:   1400px;
+  margin:      0 auto;
+  padding:     32px 24px 80px;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* ─── Loading / error state ──────────────────────────────────────────────────*/
+.loadingWrapper {
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  justify-content: center;
+  min-height:      60vh;
+  gap:             16px;
+}
+
+.loadingText {
+  font-size:   14px;
+  font-weight: 500;
+  color:       var(--fm-text-muted);
+}
+
+@keyframes fmSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spinner {
+  animation: fmSpin 1s linear infinite;
+}
+
+/* ─── Page header ────────────────────────────────────────────────────────────*/
+.pageHeader {
+  display:         flex;
+  align-items:     flex-start;
+  justify-content: space-between;
+  gap:             16px;
+  margin-bottom:   22px;
+  flex-wrap:       wrap;
+}
+
+.pageHeaderLeft {
+  display:     flex;
+  align-items: center;
+  gap:         14px;
+}
+
+.pageIconWrap {
+  width:           48px;
+  height:          48px;
+  background:      #fff7ed;
+  border:          1px solid var(--fm-orange-border);
+  border-radius:   var(--fm-radius-lg);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+}
+
+.pageTitle {
+  font-size:      24px;
+  font-weight:    700;
+  color:          var(--fm-text-primary);
+  letter-spacing: -0.3px;
+  margin:         0 0 4px;
+}
+
+.pageSubtitle {
+  font-size:   13px;
+  color:       var(--fm-text-muted);
+  font-weight: 400;
+  margin:      0;
+  line-height: 1.5;
+}
+
+/* ── Back button ── */
+.backBtn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           7px;
+  padding:       9px 18px;
+  border-radius: var(--fm-radius-md);
+  border:        1.5px solid var(--fm-border);
+  background:    var(--fm-bg-card);
+  color:         var(--fm-text-secondary);
+  font-size:     13px;
+  font-weight:   700;
+  cursor:        pointer;
+  white-space:   nowrap;
+  transition:    background 0.15s, border-color 0.15s, color 0.15s;
+  flex-shrink:   0;
+  font-family:   inherit;
+}
+
+.backBtn:hover {
+  background:   var(--fm-bg-page);
+  border-color: var(--fm-blue-border);
+  color:        var(--fm-blue);
+}
+
+/* ─── Scope banner ───────────────────────────────────────────────────────────*/
+.scopeBanner {
+  display:       flex;
+  align-items:   center;
+  flex-wrap:     wrap;
+  gap:           6px;
+  padding:       10px 16px;
+  background:    var(--fm-bg-page);
+  border:        1px solid var(--fm-border);
+  border-radius: var(--fm-radius-md);
+  margin-bottom: 14px;
+}
+
+.scopeLabel {
+  font-size:      11px;
+  font-weight:    700;
+  color:          var(--fm-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink:    0;
+}
+
+.scopeChipDept {
+  font-size:     11px;
+  font-weight:   700;
+  padding:       2px 8px;
+  border-radius: 6px;
+  background:    #fef3c7;
+  color:         #92400e;
+  border:        1px solid #fde68a;
+}
+
+.scopeChipSubDept {
+  font-size:     11px;
+  font-weight:   700;
+  padding:       2px 8px;
+  border-radius: 6px;
+  background:    var(--fm-blue-tint);
+  color:         #1e40af;
+  border:        1px solid var(--fm-blue-border);
+}
+
+/* ─── Info card ──────────────────────────────────────────────────────────────*/
+.infoCard {
+  display:       flex;
+  align-items:   center;
+  gap:           14px;
+  padding:       14px 18px;
+  background:    var(--fm-bg-muted);
+  border:        1px solid var(--fm-border);
+  border-radius: var(--fm-radius-lg);
+  margin-bottom: 20px;
+}
+
+.infoCardIcon {
+  width:           38px;
+  height:          38px;
+  background:      var(--fm-blue-tint);
+  border:          1px solid var(--fm-blue-border);
+  border-radius:   var(--fm-radius-md);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+}
+
+.infoCardBody {
+  display:        flex;
+  flex-direction: column;
+  gap:            4px;
+}
+
+.infoCardTitle {
+  font-size:   15px;
+  font-weight: 800;
+  color:       var(--fm-text-primary);
+}
+
+.infoCardMeta {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+  font-size:   12px;
+  color:       var(--fm-text-muted);
+  flex-wrap:   wrap;
+}
+
+.infoCardDot {
+  display:       inline-block;
+  width:         3px;
+  height:        3px;
+  border-radius: 50%;
+  background:    currentColor;
+  opacity:       0.4;
+}
+
+.infoCardBadgeUnfrozen {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           4px;
+  padding:       2px 8px;
+  border-radius: 20px;
+  background:    var(--fm-green-tint);
+  color:         var(--fm-green);
+  border:        1px solid var(--fm-green-border);
+  font-size:     11px;
+  font-weight:   700;
+}
+
+/* ─── Main content card ──────────────────────────────────────────────────────*/
+.contentCard {
+  background:    var(--fm-bg-card);
+  border:        1.5px solid var(--fm-border);
+  border-radius: var(--fm-radius-xl);
+  box-shadow:    var(--fm-shadow-card);
+  overflow:      hidden;
+  display:       flex;
+  flex-direction: column;
+}
+
+/* ─── Tab bar ────────────────────────────────────────────────────────────────*/
+.tabBar {
+  display:       flex;
+  padding:       0 20px;
+  border-bottom: 1.5px solid var(--fm-border-light);
+  background:    var(--fm-bg-muted);
+}
+
+.tab {
+  display:      flex;
+  align-items:  center;
+  gap:          7px;
+  padding:      12px 16px;
+  border:       none;
+  cursor:       pointer;
+  font-size:    13px;
+  font-weight:  700;
+  background:   transparent;
+  border-bottom: 2px solid transparent;
+  color:        var(--fm-text-muted);
+  margin-bottom: -1.5px;
+  transition:   color 0.15s, border-color 0.15s;
+  font-family:  inherit;
+}
+
+.tabActive {
+  border-bottom-color: var(--fm-blue);
+  color:               #1e40af;
+}
+
+.tabBadge {
+  font-size:     11px;
+  font-weight:   800;
+  padding:       1px 7px;
+  border-radius: 10px;
+  background:    var(--fm-border-light);
+  color:         var(--fm-text-muted);
+}
+
+.tabBadgeActive {
+  background: var(--fm-blue-tint);
+  color:      #1e40af;
+}
+
+.tabUnfrozenBadge {
+  font-size:     10px;
+  font-weight:   800;
+  padding:       1px 6px;
+  border-radius: 10px;
+  background:    var(--fm-green-tint);
+  color:         var(--fm-green);
+  border:        1px solid var(--fm-green-border);
+}
+
+/* ─── Scrollable content body ────────────────────────────────────────────────*/
+.contentBody {
+  flex:       1;
+  overflow-y: auto;
+  padding:    0 22px 18px;
+  min-height: 200px;
+}
+
+/* ─── Section headers ────────────────────────────────────────────────────────*/
+.section {}
+
+.sectionHeader {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+  padding-top: 18px;
+  margin-bottom: 10px;
+  flex-wrap:   wrap;
+}
+
+.sectionTitleGreen {
+  font-size:      11px;
+  font-weight:    800;
+  color:          #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sectionTitleBlue {
+  font-size:      11px;
+  font-weight:    800;
+  color:          #1e3a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sectionHint {
+  font-size: 11px;
+  color:     var(--fm-text-faint);
+}
+
+/* Select all label */
+.selectAllLabel {
+  display:     flex;
+  align-items: center;
+  gap:         6px;
+  cursor:      pointer;
+  font-size:   12px;
+  font-weight: 600;
+  color:       var(--fm-text-secondary);
+  user-select: none;
+  margin-left: auto;
+}
+
+.selectAllCheckbox {
+  width:        14px;
+  height:       14px;
+  accent-color: var(--fm-blue);
+  cursor:       pointer;
+}
+
+/* ─── Item list ──────────────────────────────────────────────────────────────*/
+.itemList {
+  display:        flex;
+  flex-direction: column;
+  gap:            7px;
+}
+
+/* ── Row shared styles ── */
+.rowIcon {
+  flex-shrink: 0;
+}
+
+.rowBody {
+  flex:     1;
+  min-width: 0;
+}
+
+.rowName {
+  font-size:   13px;
+  font-weight: 700;
+  color:       var(--fm-text-primary);
+}
+
+.rowMeta {
+  font-size:  11px;
+  color:      var(--fm-text-faint);
+  margin-top: 2px;
+}
+
+.rowVariantNote {
+  font-size:   10px;
+  color:       #166534;
+  margin-top:  3px;
+  font-weight: 600;
+}
+
+.rowVariantNoteFrozen {
+  display:     flex;
+  align-items: center;
+  gap:         4px;
+  font-size:   10px;
+  color:       var(--fm-text-muted);
+  margin-top:  3px;
+  font-weight: 600;
+}
+
+.rowVariantFrozenHint {
+  color:      var(--fm-text-faint);
+  font-style: italic;
+}
+
+/* ── Unfrozen row ── */
+.unfrozenRow {
+  display:       flex;
+  align-items:   center;
+  gap:           10px;
+  padding:       11px 14px;
+  border-radius: var(--fm-radius-md);
+  background:    var(--fm-green-tint);
+  border:        1.5px solid var(--fm-green-border);
+  flex-wrap:     wrap;
+  transition:    box-shadow 0.15s;
+}
+
+/* ── Frozen row ── */
+.frozenRow {
+  display:       flex;
+  align-items:   center;
+  gap:           10px;
+  padding:       11px 14px;
+  border-radius: var(--fm-radius-md);
+  background:    var(--fm-bg-page);
+  border:        1.5px solid var(--fm-border);
+  flex-wrap:     wrap;
+  transition:    background 0.15s, border-color 0.15s;
+}
+
+.frozenRowSelected {
+  background:   var(--fm-blue-tint);
+  border-color: var(--fm-blue);
+}
+
+.rowCheckbox {
+  width:        16px;
+  height:       16px;
+  accent-color: var(--fm-blue);
+  cursor:       pointer;
+  flex-shrink:  0;
+}
+
+/* ─── Row action buttons ─────────────────────────────────────────────────────*/
+
+/* Shared base for inline row buttons */
+.btnEditVariant,
+.btnCreateVariant,
+.btnRefreeze,
+.btnViewVariant {
+  display:     inline-flex;
+  align-items: center;
+  gap:         5px;
+  padding:     5px 11px;
+  border-radius: 7px;
+  cursor:      pointer;
+  font-size:   11px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:  all 0.15s;
+  font-family: inherit;
+  border:      1px solid transparent;
+}
+
+/* Edit variant (blue, unfrozen section) */
+.btnEditVariant {
+  background: var(--fm-blue-tint);
+  border-color: var(--fm-blue-border);
+  color:       #1e40af;
+}
+
+.btnEditVariant:hover {
+  background:  #dbeafe;
+}
+
+/* Create variant (green, unfrozen section) */
+.btnCreateVariant {
+  background:  var(--fm-green-tint);
+  border-color: var(--fm-green-border);
+  color:       #166534;
+}
+
+.btnCreateVariant:hover:not(:disabled) {
+  background: #dcfce7;
+}
+
+.btnCreateVariant:disabled {
+  background:  #f1f5f9;
+  border-color: var(--fm-border);
+  color:       var(--fm-text-faint);
+  cursor:      not-allowed;
+}
+
+/* Re-freeze (red outline) */
+.btnRefreeze {
+  background:  var(--fm-bg-card);
+  border-color: var(--fm-red-border);
+  color:       var(--fm-red);
+}
+
+.btnRefreeze:hover:not(:disabled) {
+  background:  var(--fm-red-tint);
+}
+
+.btnRefreeze:disabled {
+  background:  #f1f5f9;
+  border-color: var(--fm-border);
+  color:       var(--fm-text-faint);
+  cursor:      not-allowed;
+}
+
+/* View variant (neutral, frozen section) */
+.btnViewVariant {
+  background:  var(--fm-bg-page);
+  border-color: var(--fm-border);
+  color:       var(--fm-text-muted);
+}
+
+.btnViewVariant:hover {
+  background:  #f1f5f9;
+  color:       var(--fm-text-secondary);
+}
+
+/* ─── Empty / all-unfrozen states ────────────────────────────────────────────*/
+.emptyNote {
+  font-size:  13px;
+  color:      var(--fm-text-faint);
+  text-align: center;
+  padding:    36px 0;
+}
+
+.allUnfrozenNote {
+  display:       flex;
+  align-items:   center;
+  gap:           8px;
+  margin-top:    16px;
+  padding:       12px 16px;
+  background:    var(--fm-green-tint);
+  border:        1px solid var(--fm-green-border);
+  border-radius: var(--fm-radius-md);
+  font-size:     12px;
+  font-weight:   600;
+  color:         #166534;
+}
+
+/* ─── Footer ─────────────────────────────────────────────────────────────────*/
+.footer {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  gap:             12px;
+  padding:         14px 22px 18px;
+  border-top:      1.5px solid var(--fm-border-light);
+  background:      var(--fm-bg-muted);
+  flex-wrap:       wrap;
+}
+
+.footerInfo {
+  font-size: 12px;
+  color:     var(--fm-text-muted);
+}
+
+.footerSelected {
+  font-weight: 700;
+  color:       #1e40af;
+}
+
+.footerHint {
+  color: var(--fm-text-faint);
+}
+
+.footerActions {
+  display: flex;
+  gap:     10px;
+}
+
+/* Cancel / close */
+.cancelBtn {
+  padding:       9px 20px;
+  border-radius: var(--fm-radius-md);
+  border:        1.5px solid var(--fm-border);
+  background:    var(--fm-bg-page);
+  color:         var(--fm-text-secondary);
+  font-size:     13px;
+  font-weight:   700;
+  cursor:        pointer;
+  transition:    background 0.15s;
+  font-family:   inherit;
+}
+
+.cancelBtn:hover {
+  background: #f1f5f9;
+}
+
+/* Unfreeze selected */
+.unfreezeBtn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           6px;
+  padding:       9px 20px;
+  border-radius: var(--fm-radius-md);
+  border:        none;
+  background:    linear-gradient(135deg, var(--fm-blue), var(--fm-blue-dark));
+  color:         #fff;
+  font-size:     13px;
+  font-weight:   800;
+  cursor:        pointer;
+  transition:    opacity 0.15s, box-shadow 0.15s;
+  box-shadow:    var(--fm-shadow-btn);
+  font-family:   inherit;
+}
+
+.unfreezeBtn:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.unfreezeBtnDisabled {
+  background:  #e2e8f0;
+  color:       var(--fm-text-faint);
+  box-shadow:  none;
+  cursor:      not-allowed;
+  opacity:     1;
+}
