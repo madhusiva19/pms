@@ -49,6 +49,8 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { formatDate } from "@/lib/freezeUtils";
+import Sidebar    from "@/components/sidebar/Sidebar";
+import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles       from "./TemplateCreateBase.module.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -998,7 +1000,11 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className={styles.pageWrapper}>
+    <div className={styles.dashShell}>
+      <Sidebar />
+      <main className={styles.mainContent}>
+        <Breadcrumb />
+        <div className={styles.pageWrapper}>
 
       {/* ── Variant mode banner ──────────────────────────────────────────── */}
       {isVariantMode && !isViewMode && (
@@ -1542,7 +1548,9 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
           <ArrowLeft size={15} />Back to Template Dashboard
         </button>
       </div>
+     </div>
+    </main>
+  </div> 
 
-    </div>
   );
 }

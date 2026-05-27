@@ -2,8 +2,17 @@
  * TemplateDashboardBase.tsx
  *
  * Main dashboard component for the Template Management module.
- * Handles template listing, filtering, freeze management,
- * PMS cycle display, and role-based access control.
+ *
+ * Responsibilities:
+ *  - Listing, filtering, and sorting performance templates.
+ *  - Displaying the active PMS cycle panel and status banners.
+ *  - Role-based access control for edit / delete / duplicate actions.
+ *  - Navigation to dedicated pages for:
+ *      • Edit PMS Cycle Dates  (HQ Admin only)
+ *      • Manage Freeze         (HQ Admin only, when template is frozen/grace)
+ *
+ * NOTE: EditCycleDatesModal and ManageFreezeModal have been extracted
+ * to their own full-page components. This file no longer contains them.
  *
  * @module TemplateDashboardBase
  */
@@ -11,33 +20,42 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter }                             from "next/navigation";
 import {
-  Search, FileText, Pencil, Trash2, Lock, Loader2, Inbox,
-  Target, Calendar, Copy, BookOpen, CheckCircle2, Clock3,
-  Eye, ChevronDown, ChevronUp, Layers, Unlock, Award,
-  Users, Building2, BarChart3, TrendingUp, GitBranch,
-  Settings, X, AlertTriangle, Globe, History,
-  SlidersHorizontal, Flag, Star, ShieldCheck, Plus,
-  CalendarDays,
+  Search,       FileText,     Pencil,       Trash2,       Lock,
+  Loader2,      Inbox,        Target,       Calendar,     Copy,
+  BookOpen,     CheckCircle2, Clock3,       Eye,          ChevronDown,
+  ChevronUp,    Layers,       Unlock,       Award,        Users,
+  Building2,    BarChart3,    TrendingUp,   GitBranch,    Settings,
+  X,            Globe,        History,      SlidersHorizontal,
+  Flag,         Star,         ShieldCheck,  CalendarDays,
 } from "lucide-react";
 import { toast }                  from "sonner";
 import styles                     from "./TemplateDashboardBase.module.css";
+import Sidebar                    from "@/components/sidebar/Sidebar";
+import Breadcrumb                 from "@/components/breadcrumb/Breadcrumb";
 import { formatDate, daysUntil }  from "@/lib/freezeUtils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-/** Base URL for all API requests, falls back to local dev server. */
+/** Base URL for all API requests; falls back to local dev server. */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
 
-/** Number of days before objective-setting close that triggers a "closing soon" warning banner. */
+/**
+ * Days before objective-setting close that triggers
+ * the "closing soon" warning banner.
+ */
 const CLOSING_WARNING_THRESHOLD_DAYS = 14;
 
 /**
  * Colour palette cycled across template categories.
- * Each entry contains background, fill (chart/bar), and text colours.
+ * Each entry contains background, fill (chart bar), and text colours.
  */
-const CATEGORY_PALETTE: ReadonlyArray<{ bg: string; fill: string; text: string }> = [
+const CATEGORY_PALETTE: ReadonlyArray<{
+  bg:   string;
+  fill: string;
+  text: string;
+}> = [
   { bg: "#eff6ff", fill: "#3b82f6", text: "#1e40af" },
   { bg: "#ecfdf5", fill: "#059669", text: "#065f46" },
   { bg: "#fef3c7", fill: "#d97706", text: "#92400e" },
@@ -66,10 +84,10 @@ const ROLE_PREFIXES: Readonly<Record<number, string>> = {
   5: "/sub-dept-admin",
 };
 
-/** Fallback prefix when the level is not found in ROLE_PREFIXES. */
+/** Fallback URL prefix when level is not found in ROLE_PREFIXES. */
 const DEFAULT_ROLE_PREFIX = "/hq-admin";
 
-/** Display labels used in status banners and permission summaries. */
+/** Display labels shown in banners and permission summaries. */
 const ROLE_LABELS: Readonly<Record<number, string>> = {
   1: "HQ Administrator",
   2: "Country Administrator",
@@ -140,7 +158,7 @@ interface AssignmentRule {
   scope:             string | null;
 }
 
-/** An unfreeze exception record that temporarily opens a frozen template for a branch or country. */
+/** An unfreeze exception that temporarily opens a frozen template for a branch/country. */
 interface UnfreezeException {
   id:          number;
   branch_id:   string | null;
@@ -168,7 +186,6 @@ interface TemplateRecord {
   lastModified?:             string;
   created_at?:               string;
   pms_cycle_id?:             number | null;
-  /** PMS year label, e.g. "2024/2025". Populated by the API or derived client-side. */
   pms_year?:                 string | null;
   freeze_status?:            FreezeStatus;
   is_past_cycle?:            boolean;
@@ -193,14 +210,6 @@ interface TemplateRecord {
   hasVariants?:              boolean;
 }
 
-/** Form state for the Edit PMS Cycle Dates modal. */
-interface CycleDatesForm {
-  objective_setting_end: string;
-  grace_period_end:      string;
-  mid_year_review:       string;
-  year_end_review:       string;
-}
-
 /** State object for the horizontal filter bar. */
 interface FilterState {
   search:       string;
@@ -208,7 +217,6 @@ interface FilterState {
   departments:  string[];
   branches:     string[];
   countries:    string[];
-  /** PMS year labels selected for filtering, e.g. ["2024/2025"]. */
   years:        string[];
 }
 
@@ -223,29 +231,31 @@ function getRolePrefix(level: number): string {
 }
 
 /**
- * Sorts an array of items with a `lastModified` or `created_at` field,
- * newest first. Items without dates are placed at the end.
+ * Sorts items by lastModified / created_at descending (newest first).
+ * Items without dates are placed at the end.
  */
-function sortByLastModified<T extends { lastModified?: string; created_at?: string }>(
-  items: T[],
-): T[] {
+function sortByLastModified<T extends {
+  lastModified?: string;
+  created_at?:   string;
+}>(items: T[]): T[] {
   return [...items].sort((a, b) => {
     const dateA = a.lastModified ?? a.created_at;
     const dateB = b.lastModified ?? b.created_at;
     if (!dateA && !dateB) return 0;
-    if (!dateA) return 1;
-    if (!dateB) return -1;
+    if (!dateA)           return 1;
+    if (!dateB)           return -1;
     return new Date(dateB).getTime() - new Date(dateA).getTime();
   });
 }
 
 /**
  * Derives DynamicFreezeDates from a raw PMS cycle API record.
- * Provides safe fallbacks when cycle data is missing.
+ * Provides safe fallbacks when cycle data is absent.
  */
 function buildFreezeDates(activeCycle: any): DynamicFreezeDates {
   const now          = new Date();
-  const fallbackYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const fallbackYear =
+    now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
 
   const pmsYearStart = activeCycle?.pms_start
     ? new Date(activeCycle.pms_start)
@@ -253,7 +263,9 @@ function buildFreezeDates(activeCycle: any): DynamicFreezeDates {
 
   const objectiveSettingEnd =
     activeCycle?.objective_setting_end ?? activeCycle?.objective_end
-      ? new Date(activeCycle.objective_setting_end ?? activeCycle.objective_end)
+      ? new Date(
+          activeCycle.objective_setting_end ?? activeCycle.objective_end,
+        )
       : new Date(fallbackYear, 5, 30);
 
   const graceEnd =
@@ -265,14 +277,20 @@ function buildFreezeDates(activeCycle: any): DynamicFreezeDates {
     pmsYearStart,
     objectiveSettingEnd,
     graceEnd,
-    midYearReview: activeCycle?.mid_year_review ? new Date(activeCycle.mid_year_review) : null,
-    yearEndReview:  activeCycle?.year_end_review  ? new Date(activeCycle.year_end_review)  : null,
+    midYearReview:
+      activeCycle?.mid_year_review
+        ? new Date(activeCycle.mid_year_review)
+        : null,
+    yearEndReview:
+      activeCycle?.year_end_review
+        ? new Date(activeCycle.year_end_review)
+        : null,
   };
 }
 
 /**
- * Computes the current TemplatePermissions for a given admin level and freeze dates.
- * Permissions are purely derived — they contain no side effects.
+ * Computes TemplatePermissions for a given admin level and freeze dates.
+ * Pure function — no side effects.
  */
 function computePermissions(
   level:       number,
@@ -283,14 +301,16 @@ function computePermissions(
   const freezeStatus: FreezeStatus =
     now <= freezeDates.objectiveSettingEnd ? "open"
     : now <= freezeDates.graceEnd          ? "grace"
-    : "frozen";
+    :                                        "frozen";
 
   const isHqAdmin    = level === 1;
   const isNonHqAdmin = level >= 2 && level <= 5;
 
-  const canEditLocked   = isHqAdmin && freezeStatus !== "frozen";
+  const canEditLocked =
+    isHqAdmin && freezeStatus !== "frozen";
+
   const canEditEditable =
-    (isHqAdmin && freezeStatus !== "frozen") ||
+    (isHqAdmin    && freezeStatus !== "frozen") ||
     (isNonHqAdmin && freezeStatus === "open");
 
   return {
@@ -305,22 +325,8 @@ function computePermissions(
 }
 
 /**
- * Converts an ISO date string (or null/undefined) to the YYYY-MM-DD format
- * required by HTML <input type="date"> elements.
- */
-function toInputDate(iso: string | null | undefined): string {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toISOString().split("T")[0];
-  } catch {
-    return "";
-  }
-}
-
-/**
- * Derives a human-readable PMS year label (e.g. "2024/2025") for a template.
- * Prefers template.pms_year if set, then falls back to matching pms_cycle_id
- * against the allCycles list, then falls back to the active cycle year.
+ * Derives a PMS year label (e.g. "2024/2025") for a template.
+ * Priority: template.pms_year → matched cycle → active cycle → "Unknown".
  */
 function resolvePmsYearLabel(
   template:    TemplateRecord,
@@ -338,7 +344,6 @@ function resolvePmsYearLabel(
     }
   }
 
-  // Fallback: use the active cycle year
   if (activeCycle?.pms_year) return String(activeCycle.pms_year);
   if (activeCycle?.pms_start) {
     const startYear = new Date(activeCycle.pms_start).getFullYear();
@@ -348,878 +353,10 @@ function resolvePmsYearLabel(
   return "Unknown";
 }
 
-// ─── ManageFreezeModal ────────────────────────────────────────────────────────
-
-/**
- * Modal that lets an HQ Admin:
- *  - View which branches/countries are frozen or unfrozen.
- *  - Unfreeze selected frozen branches/countries.
- *  - Re-freeze previously unfrozen ones.
- *  - Create or navigate to branch/country content variants.
- */
-function ManageFreezeModal({
-  template,
-  rolePrefix,
-  onClose,
-  onSaved,
-}: {
-  template:   TemplateRecord;
-  rolePrefix: string;
-  onClose:    () => void;
-  onSaved:    (updated: TemplateRecord) => void;
-}) {
-  const router = useRouter();
-
-  // ── Derived sets for quick membership tests ──
-  const assignedBranches  = template.assignedBranches  ?? [];
-  const assignedCountries = template.assignedCountries ?? [];
-  const exceptions        = template.unfreezeExceptions ?? [];
-  const variants          = template.variants ?? [];
-
-  const unfrozenBranchIdSet  = new Set(template.unfrozenBranchIds  ?? []);
-  const unfrozenCountryIdSet = new Set(template.unfrozenCountryIds ?? []);
-
-  const frozenBranches    = assignedBranches.filter(b  => !unfrozenBranchIdSet.has(b.id));
-  const unfrozenBranches  = assignedBranches.filter(b  =>  unfrozenBranchIdSet.has(b.id));
-  const frozenCountries   = assignedCountries.filter(c => !unfrozenCountryIdSet.has(c.id));
-  const unfrozenCountries = assignedCountries.filter(c =>  unfrozenCountryIdSet.has(c.id));
-
-  // ── Local state ──
-  const [selectedToUnfreeze, setSelectedToUnfreeze] = useState<Set<string>>(new Set());
-  const [isSaving,           setIsSaving]            = useState(false);
-  const [refreezingIds,      setRefreezingIds]        = useState<Set<string>>(new Set());
-  const [creatingVariantFor, setCreatingVariantFor]   = useState<string | null>(null);
-  const [activeTab,          setActiveTab]            = useState<"branches" | "countries">("branches");
-
-  const isBranchTab = activeTab === "branches";
-
-  // Items visible in the currently selected tab
-  const currentFrozenItems   = isBranchTab ? frozenBranches   : frozenCountries;
-  const currentUnfrozenItems = isBranchTab ? unfrozenBranches : unfrozenCountries;
-
-  // Only the items from the current tab that are selected
-  const currentTabSelected = [...selectedToUnfreeze].filter(id =>
-    currentFrozenItems.some(item => item.id === id),
-  );
-
-  const areAllFrozenSelected =
-    currentFrozenItems.length > 0 &&
-    currentFrozenItems.every(item => selectedToUnfreeze.has(item.id));
-
-  // ── Helpers ──
-
-  function toggleItemSelection(id: string): void {
-    setSelectedToUnfreeze(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  function toggleSelectAll(): void {
-    const ids = currentFrozenItems.map(item => item.id);
-    setSelectedToUnfreeze(prev => {
-      const next = new Set(prev);
-      areAllFrozenSelected
-        ? ids.forEach(id => next.delete(id))
-        : ids.forEach(id => next.add(id));
-      return next;
-    });
-  }
-
-  /** Re-fetches the full template list and calls onSaved with the updated record. */
-  async function refreshAndSave(successMessage: string): Promise<void> {
-    const refreshRes = await fetch(`${API_BASE}/templates`);
-    if (refreshRes.ok) {
-      const allTemplates: TemplateRecord[] = await refreshRes.json();
-      const updated = allTemplates.find(t => t.id === template.id);
-      if (updated) {
-        toast.success(successMessage);
-        onSaved(updated);
-        return;
-      }
-    }
-    toast.success(successMessage);
-    onClose();
-  }
-
-  /** Deletes an unfreeze exception, effectively re-freezing the branch/country. */
-  async function handleRefreeze(itemId: string): Promise<void> {
-    const exception = exceptions.find(
-      e => e.branch_id === itemId || e.country_id === itemId,
-    );
-    if (!exception) {
-      toast.error("Exception record not found.");
-      return;
-    }
-
-    setRefreezingIds(prev => new Set(prev).add(itemId));
-    try {
-      const response = await fetch(
-        `${API_BASE}/templates/${template.id}/unfreeze-exceptions/${exception.id}`,
-        { method: "DELETE", headers: { "X-User-Level": "1" } },
-      );
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.error ?? "Re-freeze failed");
-      }
-      await refreshAndSave("Re-frozen successfully.");
-    } catch (err: any) {
-      toast.error(err.message ?? "Failed to re-freeze.");
-    } finally {
-      setRefreezingIds(prev => {
-        const next = new Set(prev);
-        next.delete(itemId);
-        return next;
-      });
-    }
-  }
-
-  /** Creates unfreeze exceptions for all currently selected items in the active tab. */
-  async function handleUnfreezeSelected(): Promise<void> {
-    if (currentTabSelected.length === 0) return;
-
-    setIsSaving(true);
-    try {
-      const requestBody = isBranchTab
-        ? { branch_ids: currentTabSelected, country_ids: [] }
-        : { branch_ids: [],                 country_ids: currentTabSelected };
-
-      const response = await fetch(
-        `${API_BASE}/templates/${template.id}/unfreeze-exceptions`,
-        {
-          method:  "POST",
-          headers: { "Content-Type": "application/json", "X-User-Level": "1" },
-          body:    JSON.stringify(requestBody),
-        },
-      );
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.error ?? "Unfreeze failed");
-      }
-
-      setSelectedToUnfreeze(prev => {
-        const next = new Set(prev);
-        currentTabSelected.forEach(id => next.delete(id));
-        return next;
-      });
-
-      const entityLabel = isBranchTab ? "branch(es)" : "countr(ies)";
-      await refreshAndSave(`Unfrozen ${currentTabSelected.length} ${entityLabel}.`);
-    } catch (err: any) {
-      toast.error(err.message ?? "Failed to unfreeze.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  /**
-   * Creates a new content variant for the given branch or country,
-   * then navigates to the variant editor.
-   * If a variant already exists (HTTP 409), navigates directly to it.
-   */
-  async function handleCreateVariant(
-    branchId:  string | null,
-    countryId: string | null,
-  ): Promise<void> {
-    const scopeKey = branchId ?? countryId ?? "";
-    setCreatingVariantFor(scopeKey);
-
-    try {
-      const requestBody: Record<string, string> = {};
-      if (branchId)  requestBody.branch_id  = branchId;
-      if (countryId) requestBody.country_id = countryId;
-
-      const response = await fetch(
-        `${API_BASE}/templates/${template.id}/variants`,
-        {
-          method:  "POST",
-          headers: { "Content-Type": "application/json", "X-User-Level": "1" },
-          body:    JSON.stringify(requestBody),
-        },
-      );
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 409 && data.variant_id) {
-          onClose();
-          router.push(
-            `${rolePrefix}/template-management/template-creation?edit=${template.id}&variantId=${data.variant_id}`,
-          );
-          return;
-        }
-        throw new Error(data.error ?? "Failed to create variant");
-      }
-
-      toast.success("Variant created — opening editor…");
-      onClose();
-      router.push(
-        `${rolePrefix}/template-management/template-creation?edit=${template.id}&variantId=${data.variant.id}`,
-      );
-    } catch (err: any) {
-      toast.error(err.message ?? "Failed to create variant.");
-    } finally {
-      setCreatingVariantFor(null);
-    }
-  }
-
-  /** Navigate to edit a variant (item is currently UNFROZEN — full edit allowed). */
-  function handleEditVariant(variantId: number): void {
-    onClose();
-    router.push(
-      `${rolePrefix}/template-management/template-creation?edit=${template.id}&variantId=${variantId}`,
-    );
-  }
-
-  /**
-   * Navigate to VIEW a variant in read-only mode.
-   * Used when the parent branch/country is currently FROZEN.
-   * The variant cannot be edited until the item is unfrozen.
-   */
-  function handleViewVariant(variantId: number): void {
-    onClose();
-    router.push(
-      `${rolePrefix}/template-management/template-creation?edit=${template.id}&variantId=${variantId}&mode=view`,
-    );
-  }
-
-  // ── Tab configuration ──
-  const TAB_CONFIG = [
-    {
-      key:           "branches"  as const,
-      label:         "Branches",
-      totalCount:    assignedBranches.length,
-      unfrozenCount: unfrozenBranches.length,
-    },
-    {
-      key:           "countries" as const,
-      label:         "Countries",
-      totalCount:    assignedCountries.length,
-      unfrozenCount: unfrozenCountries.length,
-    },
-  ];
-
-  // ── Derived department / sub-dept data for scope display ──
-  const uniqueDeptNames    = [...new Set((template.assignedDepartments    ?? []).map(d => d.name))];
-  const uniqueSubDeptNames = [...new Set((template.assignedSubDepartments ?? []).map(s => s.name))];
-  const hasScopeChips      = uniqueDeptNames.length > 0 || uniqueSubDeptNames.length > 0;
-
-  return (
-    <div className={styles.modalOverlay} role="dialog" aria-modal="true">
-      <div style={{
-        background:    "#fff",
-        borderRadius:  "20px",
-        width:         "600px",
-        maxWidth:      "95vw",
-        maxHeight:     "90vh",
-        overflow:      "hidden",
-        display:       "flex",
-        flexDirection: "column",
-        boxShadow:     "0 24px 64px rgba(0,0,0,0.18)",
-        border:        "1px solid #e2e8f0",
-      }}>
-
-        {/* ── Modal header ── */}
-        <div style={{
-          padding:         "20px 24px 16px",
-          borderBottom:    "1px solid #f1f5f9",
-          background:      "#fafbff",
-          display:         "flex",
-          alignItems:      "center",
-          justifyContent:  "space-between",
-          gap:             "12px",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{
-              width:          "38px",
-              height:         "38px",
-              background:     "#fff7ed",
-              border:         "1px solid #fed7aa",
-              borderRadius:   "10px",
-              display:        "flex",
-              alignItems:     "center",
-              justifyContent: "center",
-              flexShrink:     0,
-            }}>
-              <ShieldCheck size={18} color="#ea580c" />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
-                Manage Freeze Exceptions
-              </h3>
-              <p style={{ margin: 0, fontSize: "12px", color: "#64748b", fontWeight: "500" }}>
-                {template.name}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close modal"
-            style={{
-              background:   "#f1f5f9",
-              border:       "none",
-              borderRadius: "8px",
-              padding:      "7px",
-              cursor:       "pointer",
-              color:        "#64748b",
-              display:      "flex",
-              alignItems:   "center",
-            }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* ── Scope chips (departments / sub-departments) ── */}
-        {hasScopeChips && (
-          <div style={{
-            margin:      "14px 24px 0",
-            padding:     "10px 14px",
-            background:  "#f8fafc",
-            border:      "1px solid #e2e8f0",
-            borderRadius: "10px",
-            display:     "flex",
-            gap:         "6px",
-            alignItems:  "center",
-            flexWrap:    "wrap",
-          }}>
-            <span style={{
-              fontSize:      "11px",
-              fontWeight:    "700",
-              color:         "#64748b",
-              textTransform: "uppercase",
-              letterSpacing: "0.4px",
-              flexShrink:    0,
-            }}>
-              Scope:
-            </span>
-            {uniqueDeptNames.map(name => (
-              <span key={name} style={{
-                fontSize:     "11px",
-                fontWeight:   "700",
-                padding:      "2px 8px",
-                borderRadius: "6px",
-                background:   "#fef3c7",
-                color:        "#92400e",
-                border:       "1px solid #fde68a",
-              }}>
-                {name}
-              </span>
-            ))}
-            {uniqueSubDeptNames.map(name => (
-              <span key={name} style={{
-                fontSize:     "11px",
-                fontWeight:   "700",
-                padding:      "2px 8px",
-                borderRadius: "6px",
-                background:   "#eff6ff",
-                color:        "#1e40af",
-                border:       "1px solid #bfdbfe",
-              }}>
-                {name}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* ── Tab bar ── */}
-        <div style={{ display: "flex", padding: "12px 24px 0", borderBottom: "1px solid #f1f5f9" }}>
-          {TAB_CONFIG.map(tab => {
-            const isActiveTab = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => { setActiveTab(tab.key); setSelectedToUnfreeze(new Set()); }}
-                style={{
-                  padding:      "8px 16px",
-                  border:       "none",
-                  cursor:       "pointer",
-                  fontSize:     "13px",
-                  fontWeight:   "700",
-                  background:   "transparent",
-                  borderBottom: isActiveTab ? "2px solid #3b82f6" : "2px solid transparent",
-                  color:        isActiveTab ? "#1e40af" : "#64748b",
-                  marginBottom: "-1px",
-                  transition:   "all 0.15s",
-                  display:      "flex",
-                  alignItems:   "center",
-                  gap:          "6px",
-                }}
-              >
-                {tab.label}
-                <span style={{
-                  fontSize:   "11px",
-                  fontWeight: "800",
-                  padding:    "1px 7px",
-                  borderRadius: "10px",
-                  background: isActiveTab ? "#eff6ff" : "#f1f5f9",
-                  color:      isActiveTab ? "#1e40af" : "#64748b",
-                }}>
-                  {tab.totalCount}
-                </span>
-                {tab.unfrozenCount > 0 && (
-                  <span style={{
-                    fontSize:     "10px",
-                    fontWeight:   "800",
-                    padding:      "1px 6px",
-                    borderRadius: "10px",
-                    background:   "#f0fdf4",
-                    color:        "#166534",
-                    border:       "1px solid #bbf7d0",
-                  }}>
-                    {tab.unfrozenCount} unfrozen
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ── Scrollable body ── */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 24px 16px" }}>
-
-          {/* Section: Currently Unfrozen */}
-          {currentUnfrozenItems.length > 0 && (
-            <div style={{ marginTop: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                <Unlock size={13} color="#166534" />
-                <span style={{
-                  fontSize:      "11px",
-                  fontWeight:    "800",
-                  color:         "#166534",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}>
-                  Currently Unfrozen — {currentUnfrozenItems.length}
-                </span>
-                <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                  Re-freeze or create a branch variant
-                </span>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {currentUnfrozenItems.map(item => {
-                  const isRefreezing      = refreezingIds.has(item.id);
-                  const branchId          = isBranchTab ? item.id : null;
-                  const countryId         = !isBranchTab ? item.id : null;
-                  const existingVariant   = variants.find(
-                    v => (branchId  && v.branch_id  === branchId)  ||
-                         (countryId && v.country_id === countryId),
-                  );
-                  const isCreatingVariant = creatingVariantFor === item.id;
-
-                  return (
-                    <div
-                      key={item.id}
-                      style={{
-                        display:    "flex",
-                        alignItems: "center",
-                        gap:        "10px",
-                        padding:    "11px 14px",
-                        borderRadius: "10px",
-                        background: "#f0fdf4",
-                        border:     "1.5px solid #bbf7d0",
-                        flexWrap:   "wrap",
-                      }}
-                    >
-                      <Unlock size={14} color="#16a34a" style={{ flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "13px", fontWeight: "700", color: "#14532d" }}>
-                          {(item as any).code ? `${(item as any).code} — ` : ""}
-                          {item.name}
-                        </div>
-
-                        {isBranchTab && (item as AssignedBranch).country_id && (() => {
-                          const parentCountry = assignedCountries.find(
-                            c => c.id === (item as AssignedBranch).country_id,
-                          );
-                          return parentCountry
-                            ? (
-                              <div style={{ fontSize: "11px", color: "#4ade80", marginTop: "2px" }}>
-                                {parentCountry.code ?? parentCountry.name}
-                              </div>
-                            )
-                            : null;
-                        })()}
-
-                        {existingVariant && (
-                          <div style={{
-                            fontSize:   "10px",
-                            color:      "#166534",
-                            marginTop:  "3px",
-                            fontWeight: "600",
-                          }}>
-                            Has custom variant · last modified{" "}
-                            {existingVariant.lastModified
-                              ? new Date(existingVariant.lastModified).toLocaleDateString(
-                                  "en-GB",
-                                  { day: "numeric", month: "short" },
-                                )
-                              : "—"}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Edit Variant (unfrozen — full edit allowed) */}
-                      {existingVariant ? (
-                        <button
-                          onClick={() => handleEditVariant(existingVariant.id)}
-                          style={{
-                            display:    "inline-flex",
-                            alignItems: "center",
-                            gap:        "5px",
-                            padding:    "5px 11px",
-                            borderRadius: "7px",
-                            cursor:     "pointer",
-                            fontSize:   "11px",
-                            fontWeight: "700",
-                            whiteSpace: "nowrap",
-                            background: "#eff6ff",
-                            border:     "1px solid #bfdbfe",
-                            color:      "#1e40af",
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          <Pencil size={11} /> Edit Variant
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleCreateVariant(branchId, countryId)}
-                          disabled={isCreatingVariant}
-                          style={{
-                            display:    "inline-flex",
-                            alignItems: "center",
-                            gap:        "5px",
-                            padding:    "5px 11px",
-                            borderRadius: "7px",
-                            cursor:     isCreatingVariant ? "not-allowed" : "pointer",
-                            fontSize:   "11px",
-                            fontWeight: "700",
-                            whiteSpace: "nowrap",
-                            background: isCreatingVariant ? "#e2e8f0" : "#f0fdf4",
-                            border:     `1px solid ${isCreatingVariant ? "#e2e8f0" : "#bbf7d0"}`,
-                            color:      isCreatingVariant ? "#94a3b8" : "#166534",
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          {isCreatingVariant
-                            ? <><Loader2 size={11} className={styles.spinner} /> Creating…</>
-                            : <><Plus    size={11} /> Create Variant</>}
-                        </button>
-                      )}
-
-                      {/* Re-freeze button */}
-                      <button
-                        onClick={() => handleRefreeze(item.id)}
-                        disabled={isRefreezing}
-                        style={{
-                          display:    "inline-flex",
-                          alignItems: "center",
-                          gap:        "5px",
-                          padding:    "5px 11px",
-                          borderRadius: "7px",
-                          cursor:     isRefreezing ? "not-allowed" : "pointer",
-                          fontSize:   "11px",
-                          fontWeight: "700",
-                          whiteSpace: "nowrap",
-                          background: isRefreezing ? "#e2e8f0" : "#fff",
-                          border:     `1px solid ${isRefreezing ? "#e2e8f0" : "#fca5a5"}`,
-                          color:      isRefreezing ? "#94a3b8" : "#dc2626",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {isRefreezing
-                          ? <><Loader2 size={11} className={styles.spinner} /> Freezing…</>
-                          : <><Lock    size={11} /> Re-freeze</>}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Section: Currently Frozen */}
-          {currentFrozenItems.length > 0 && (
-            <div style={{ marginTop: currentUnfrozenItems.length > 0 ? "20px" : "16px" }}>
-              <div style={{
-                display:         "flex",
-                alignItems:      "center",
-                justifyContent:  "space-between",
-                marginBottom:    "10px",
-                flexWrap:        "wrap",
-                gap:             "8px",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Lock size={13} color="#1e3a8a" />
-                  <span style={{
-                    fontSize:      "11px",
-                    fontWeight:    "800",
-                    color:         "#1e3a8a",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}>
-                    Currently Frozen — {currentFrozenItems.length}
-                  </span>
-                  <span style={{ fontSize: "11px", color: "#94a3b8" }}>Select to unfreeze</span>
-                </div>
-                {currentFrozenItems.length > 1 && (
-                  <label style={{
-                    display:    "flex",
-                    alignItems: "center",
-                    gap:        "6px",
-                    cursor:     "pointer",
-                    fontSize:   "12px",
-                    fontWeight: "600",
-                    color:      "#475569",
-                    userSelect: "none",
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={areAllFrozenSelected}
-                      onChange={toggleSelectAll}
-                      style={{ width: "14px", height: "14px", accentColor: "#3b82f6", cursor: "pointer" }}
-                    />
-                    Select all
-                  </label>
-                )}
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {currentFrozenItems.map(item => {
-                  const isSelected  = selectedToUnfreeze.has(item.id);
-                  const branchId    = isBranchTab ? item.id : null;
-                  const countryId   = !isBranchTab ? item.id : null;
-
-                  const existingVariant = variants.find(
-                    v => (branchId  && v.branch_id  === branchId)  ||
-                         (countryId && v.country_id === countryId),
-                  );
-
-                  return (
-                    <div
-                      key={item.id}
-                      style={{
-                        display:    "flex",
-                        alignItems: "center",
-                        gap:        "12px",
-                        padding:    "11px 14px",
-                        borderRadius: "10px",
-                        background: isSelected ? "#eff6ff" : "#f8fafc",
-                        border:     `1.5px solid ${isSelected ? "#3b82f6" : "#e2e8f0"}`,
-                        transition: "all 0.15s",
-                        flexWrap:   "wrap",
-                      }}
-                    >
-                      {/* Checkbox */}
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleItemSelection(item.id)}
-                        style={{
-                          width:      "16px",
-                          height:     "16px",
-                          accentColor: "#3b82f6",
-                          cursor:     "pointer",
-                          flexShrink: 0,
-                        }}
-                      />
-                      <Lock
-                        size={13}
-                        color={isSelected ? "#3b82f6" : "#94a3b8"}
-                        style={{ flexShrink: 0 }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize:   "13px",
-                          fontWeight: "700",
-                          color:      isSelected ? "#1e40af" : "#475569",
-                        }}>
-                          {(item as any).code ? `${(item as any).code} — ` : ""}
-                          {item.name}
-                        </div>
-
-                        {isBranchTab && (item as AssignedBranch).country_id && (() => {
-                          const parentCountry = assignedCountries.find(
-                            c => c.id === (item as AssignedBranch).country_id,
-                          );
-                          return parentCountry
-                            ? (
-                              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>
-                                {parentCountry.code ?? parentCountry.name}
-                              </div>
-                            )
-                            : null;
-                        })()}
-
-                        {existingVariant && (
-                          <div style={{
-                            fontSize:   "10px",
-                            color:      "#64748b",
-                            marginTop:  "3px",
-                            fontWeight: "600",
-                            display:    "flex",
-                            alignItems: "center",
-                            gap:        "4px",
-                          }}>
-                            <Lock size={9} color="#94a3b8" />
-                            Has custom variant (frozen) · last modified{" "}
-                            {existingVariant.lastModified
-                              ? new Date(existingVariant.lastModified).toLocaleDateString(
-                                  "en-GB",
-                                  { day: "numeric", month: "short" },
-                                )
-                              : "—"}
-                            {" · "}
-                            <span style={{ color: "#94a3b8", fontStyle: "italic" }}>
-                              Unfreeze to edit
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/*
-                        FIX: "View Variant" button for frozen items that already have a variant.
-                        This is deliberately read-only (mode=view). The variant cannot be edited
-                        while the branch/country is frozen — the admin must unfreeze it first,
-                        at which point the button switches to "Edit Variant" in the unfrozen section.
-                      */}
-                      {existingVariant && (
-                        <button
-                          onClick={() => handleViewVariant(existingVariant.id)}
-                          title="View variant (read-only — unfreeze to edit)"
-                          style={{
-                            display:    "inline-flex",
-                            alignItems: "center",
-                            gap:        "5px",
-                            padding:    "5px 11px",
-                            borderRadius: "7px",
-                            cursor:     "pointer",
-                            fontSize:   "11px",
-                            fontWeight: "700",
-                            whiteSpace: "nowrap",
-                            background: "#f8fafc",
-                            border:     "1px solid #e2e8f0",
-                            color:      "#64748b",
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          <Eye size={11} /> View Variant
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Empty state */}
-          {currentFrozenItems.length === 0 && currentUnfrozenItems.length === 0 && (
-            <p style={{
-              fontSize:  "13px",
-              color:     "#94a3b8",
-              textAlign: "center",
-              padding:   "32px 0",
-            }}>
-              No {isBranchTab ? "branches" : "countries"} assigned to this template.
-            </p>
-          )}
-
-          {/* All-unfrozen confirmation message */}
-          {currentFrozenItems.length === 0 && currentUnfrozenItems.length > 0 && (
-            <div style={{
-              marginTop:    "16px",
-              padding:      "12px 16px",
-              background:   "#f0fdf4",
-              border:       "1px solid #bbf7d0",
-              borderRadius: "10px",
-              fontSize:     "12px",
-              color:        "#166534",
-              fontWeight:   "600",
-              display:      "flex",
-              alignItems:   "center",
-              gap:          "8px",
-            }}>
-              <CheckCircle2 size={14} color="#16a34a" />
-              All {isBranchTab ? "branches" : "countries"} are currently unfrozen.
-            </div>
-          )}
-        </div>
-
-        {/* ── Modal footer ── */}
-        <div style={{
-          padding:         "14px 24px 20px",
-          borderTop:       "1px solid #f1f5f9",
-          display:         "flex",
-          alignItems:      "center",
-          justifyContent:  "space-between",
-          gap:             "12px",
-        }}>
-          <div style={{ fontSize: "12px", color: "#64748b" }}>
-            {currentTabSelected.length > 0
-              ? (
-                <span style={{ fontWeight: "700", color: "#1e40af" }}>
-                  {currentTabSelected.length} selected to unfreeze
-                </span>
-              )
-              : (
-                <span>
-                  Select frozen {isBranchTab ? "branches" : "countries"} above to unfreeze them
-                </span>
-              )}
-          </div>
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              onClick={onClose}
-              style={{
-                padding:      "9px 20px",
-                borderRadius: "9px",
-                border:       "1px solid #e2e8f0",
-                background:   "#f8fafc",
-                color:        "#475569",
-                fontWeight:   "700",
-                fontSize:     "13px",
-                cursor:       "pointer",
-              }}
-            >
-              Close
-            </button>
-            <button
-              onClick={handleUnfreezeSelected}
-              disabled={currentTabSelected.length === 0 || isSaving}
-              style={{
-                padding:      "9px 20px",
-                borderRadius: "9px",
-                border:       "none",
-                background:   currentTabSelected.length > 0 && !isSaving
-                  ? "linear-gradient(135deg, #2563eb, #1d4ed8)"
-                  : "#e2e8f0",
-                color:      currentTabSelected.length > 0 && !isSaving ? "#fff" : "#94a3b8",
-                fontWeight: "700",
-                fontSize:   "13px",
-                cursor:     currentTabSelected.length > 0 && !isSaving ? "pointer" : "not-allowed",
-                transition: "all 0.15s",
-                display:    "inline-flex",
-                alignItems: "center",
-                gap:        "6px",
-              }}
-            >
-              {isSaving
-                ? <><Loader2 size={13} className={styles.spinner} /> Unfreezing…</>
-                : <><Unlock  size={13} /> Unfreeze {currentTabSelected.length > 0 ? `${currentTabSelected.length} Selected` : "Selected"}</>}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── FilterDropdown ───────────────────────────────────────────────────────────
 
 /**
- * A multi-select dropdown used inside the filter bar.
+ * Multi-select dropdown used inside the filter bar.
  * Closes automatically when the user clicks outside.
  */
 function FilterDropdown({
@@ -1235,12 +372,16 @@ function FilterDropdown({
   selected: string[];
   onChange: (selected: string[]) => void;
 }) {
-  const [isOpen,    setIsOpen]    = useState(false);
-  const containerRef              = useRef<HTMLDivElement>(null);
+  const [isOpen,     setIsOpen]     = useState(false);
+  const containerRef                = useRef<HTMLDivElement>(null);
 
+  /* Close panel on outside click */
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent): void {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
@@ -1295,9 +436,12 @@ function FilterDropdown({
               </button>
             )}
           </div>
+
           <div className={styles.dropdownOptions}>
             {options.length === 0
-              ? <p className={styles.dropdownEmpty}>No options available</p>
+              ? (
+                <p className={styles.dropdownEmpty}>No options available</p>
+              )
               : options.map(option => {
                   const isChecked = selected.includes(option);
                   return (
@@ -1314,13 +458,20 @@ function FilterDropdown({
                         onChange={() => toggleOption(option)}
                         className={styles.dropdownOptionCheckbox}
                       />
-                      <span className={[
-                        styles.dropdownOptionLabel,
-                        isChecked ? styles.dropdownOptionLabelChecked : "",
-                      ].join(" ")}>
+                      <span
+                        className={[
+                          styles.dropdownOptionLabel,
+                          isChecked ? styles.dropdownOptionLabelChecked : "",
+                        ].join(" ")}
+                      >
                         {option}
                       </span>
-                      {isChecked && <CheckCircle2 size={12} className={styles.dropdownOptionCheck} />}
+                      {isChecked && (
+                        <CheckCircle2
+                          size={12}
+                          className={styles.dropdownOptionCheck}
+                        />
+                      )}
                     </label>
                   );
                 })}
@@ -1333,7 +484,7 @@ function FilterDropdown({
 
 // ─── ActiveFilterChip ─────────────────────────────────────────────────────────
 
-/** A dismissible chip that represents one active filter value. */
+/** Dismissible chip representing one active filter value. */
 function ActiveFilterChip({
   label,
   category,
@@ -1363,11 +514,8 @@ function ActiveFilterChip({
 // ─── HorizontalFilterBar ──────────────────────────────────────────────────────
 
 /**
- * Full-width filter bar containing a search input, category dropdowns,
- * active filter chips, and a result count indicator.
- *
- * NEW: A "PMS Year" dropdown is positioned after the Country dropdown,
- * allowing templates to be filtered by their PMS cycle year.
+ * Full-width filter bar with search, category dropdowns, active chips,
+ * and a result count. Includes a PMS Year dropdown after the Country dropdown.
  */
 function HorizontalFilterBar({
   filters,
@@ -1387,7 +535,6 @@ function HorizontalFilterBar({
   allDepartments:  string[];
   allBranches:     string[];
   allCountries:    string[];
-  /** Sorted list of unique PMS year labels available across all templates. */
   allYears:        string[];
   totalCount:      number;
   filteredCount:   number;
@@ -1400,6 +547,7 @@ function HorizontalFilterBar({
     filters.countries.length    +
     filters.years.length;
 
+  /** Clears all dropdown filters while preserving the search string. */
   function clearDropdownFilters(): void {
     onFilterChange({
       search:       filters.search,
@@ -1415,7 +563,7 @@ function HorizontalFilterBar({
     <div className={styles.filterBar}>
       <div className={styles.filterRow}>
 
-        {/* Search input */}
+        {/* ── Search input ── */}
         <div className={styles.searchWrapper}>
           <Search size={15} className={styles.searchIcon} />
           <input
@@ -1438,93 +586,167 @@ function HorizontalFilterBar({
         </div>
 
         <div className={styles.divider} />
+
         <div className={styles.filterLabel}>
           <SlidersHorizontal size={14} />
           <span>Filter by:</span>
         </div>
 
-        {/* Dropdown filters */}
-        <FilterDropdown label="Designation" icon={<Users       size={13} />} options={allDesignations} selected={filters.designations} onChange={v => onFilterChange({ ...filters, designations: v })} />
-        <FilterDropdown label="Department"  icon={<Building2   size={13} />} options={allDepartments}  selected={filters.departments}  onChange={v => onFilterChange({ ...filters, departments:  v })} />
-        <FilterDropdown label="Branch"      icon={<GitBranch   size={13} />} options={allBranches}     selected={filters.branches}     onChange={v => onFilterChange({ ...filters, branches:     v })} />
-        <FilterDropdown label="Country"     icon={<Globe       size={13} />} options={allCountries}    selected={filters.countries}    onChange={v => onFilterChange({ ...filters, countries:    v })} />
-        {/* NEW: PMS Year filter — positioned right after Country */}
-        <FilterDropdown label="PMS Year"    icon={<CalendarDays size={13} />} options={allYears}       selected={filters.years}        onChange={v => onFilterChange({ ...filters, years:        v })} />
+        {/* ── Dropdown filters ── */}
+        <FilterDropdown
+          label="Designation"
+          icon={<Users        size={13} />}
+          options={allDesignations}
+          selected={filters.designations}
+          onChange={v => onFilterChange({ ...filters, designations: v })}
+        />
+        <FilterDropdown
+          label="Department"
+          icon={<Building2    size={13} />}
+          options={allDepartments}
+          selected={filters.departments}
+          onChange={v => onFilterChange({ ...filters, departments: v })}
+        />
+        <FilterDropdown
+          label="Branch"
+          icon={<GitBranch    size={13} />}
+          options={allBranches}
+          selected={filters.branches}
+          onChange={v => onFilterChange({ ...filters, branches: v })}
+        />
+        <FilterDropdown
+          label="Country"
+          icon={<Globe        size={13} />}
+          options={allCountries}
+          selected={filters.countries}
+          onChange={v => onFilterChange({ ...filters, countries: v })}
+        />
+        {/* PMS Year filter — positioned after Country */}
+        <FilterDropdown
+          label="PMS Year"
+          icon={<CalendarDays size={13} />}
+          options={allYears}
+          selected={filters.years}
+          onChange={v => onFilterChange({ ...filters, years: v })}
+        />
 
         {activeFilterCount > 0 && (
-          <button className={styles.clearFiltersBtn} onClick={clearDropdownFilters}>
+          <button
+            className={styles.clearFiltersBtn}
+            onClick={clearDropdownFilters}
+          >
             <X size={12} />
             Clear filters
-            <span className={styles.clearFiltersBadge}>{activeFilterCount}</span>
+            <span className={styles.clearFiltersBadge}>
+              {activeFilterCount}
+            </span>
           </button>
         )}
 
-        {/* Result count */}
+        {/* ── Result count ── */}
         {!isLoading && (
           <span className={styles.resultCount}>
             {filteredCount !== totalCount
-              ? <>
-                  <strong className={styles.resultCountBold}>{filteredCount}</strong>
+              ? (
+                <>
+                  <strong className={styles.resultCountBold}>
+                    {filteredCount}
+                  </strong>
                   {" of "}
                   {totalCount} templates{" "}
                   <span className={styles.resultCountFiltered}>filtered</span>
                 </>
-              : <>
-                  <strong className={styles.resultCountBold}>{totalCount}</strong>
+              )
+              : (
+                <>
+                  <strong className={styles.resultCountBold}>
+                    {totalCount}
+                  </strong>
                   {" template"}{totalCount !== 1 ? "s" : ""}
-                </>}
+                </>
+              )}
           </span>
         )}
       </div>
 
-      {/* Active filter chips */}
+      {/* ── Active filter chips ── */}
       {activeFilterCount > 0 && (
         <div className={styles.chipsRow}>
           <span className={styles.chipsRowLabel}>Active:</span>
+
           {filters.designations.map(d => (
             <ActiveFilterChip
               key={`designation-${d}`}
               label={d}
               category="Designation"
               colorClass={styles.chipDesignation}
-              onRemove={() => onFilterChange({ ...filters, designations: filters.designations.filter(x => x !== d) })}
+              onRemove={() =>
+                onFilterChange({
+                  ...filters,
+                  designations: filters.designations.filter(x => x !== d),
+                })
+              }
             />
           ))}
+
           {filters.departments.map(d => (
             <ActiveFilterChip
               key={`department-${d}`}
               label={d}
               category="Department"
               colorClass={styles.chipDepartment}
-              onRemove={() => onFilterChange({ ...filters, departments: filters.departments.filter(x => x !== d) })}
+              onRemove={() =>
+                onFilterChange({
+                  ...filters,
+                  departments: filters.departments.filter(x => x !== d),
+                })
+              }
             />
           ))}
+
           {filters.branches.map(b => (
             <ActiveFilterChip
               key={`branch-${b}`}
               label={b}
               category="Branch"
               colorClass={styles.chipBranch}
-              onRemove={() => onFilterChange({ ...filters, branches: filters.branches.filter(x => x !== b) })}
+              onRemove={() =>
+                onFilterChange({
+                  ...filters,
+                  branches: filters.branches.filter(x => x !== b),
+                })
+              }
             />
           ))}
+
           {filters.countries.map(c => (
             <ActiveFilterChip
               key={`country-${c}`}
               label={c}
               category="Country"
               colorClass={styles.chipCountry}
-              onRemove={() => onFilterChange({ ...filters, countries: filters.countries.filter(x => x !== c) })}
+              onRemove={() =>
+                onFilterChange({
+                  ...filters,
+                  countries: filters.countries.filter(x => x !== c),
+                })
+              }
             />
           ))}
-          {/* NEW: Year chips */}
+
+          {/* PMS Year chips */}
           {filters.years.map(y => (
             <ActiveFilterChip
               key={`year-${y}`}
               label={y}
               category="PMS Year"
               colorClass={styles.chipYear ?? styles.chipBranch}
-              onRemove={() => onFilterChange({ ...filters, years: filters.years.filter(x => x !== y) })}
+              onRemove={() =>
+                onFilterChange({
+                  ...filters,
+                  years: filters.years.filter(x => x !== y),
+                })
+              }
             />
           ))}
         </div>
@@ -1533,203 +755,16 @@ function HorizontalFilterBar({
   );
 }
 
-// ─── EditCycleDatesModal ──────────────────────────────────────────────────────
+// ─── Milestone Configuration ──────────────────────────────────────────────────
 
-const CYCLE_DATE_FIELD_CONFIG: Array<{
-  field:    keyof CycleDatesForm;
-  label:    string;
-  required: boolean;
-  hint:     string;
-}> = [
-  {
-    field:    "objective_setting_end",
-    label:    "Objective Setting End",
-    required: true,
-    hint:     "Templates are open for editing until this date.",
-  },
-  {
-    field:    "grace_period_end",
-    label:    "Grace Period End (Hard Freeze)",
-    required: true,
-    hint:     "HQ Admin retains edit access during grace. After this, fully frozen.",
-  },
-  {
-    field:    "mid_year_review",
-    label:    "Mid-Year Review Date",
-    required: false,
-    hint:     "Target date for mid-cycle performance check-ins.",
-  },
-  {
-    field:    "year_end_review",
-    label:    "Year-End Review Date",
-    required: false,
-    hint:     "Target date for the annual appraisal / final score submission.",
-  },
-];
-
-function EditCycleDatesModal({
-  activeCycle,
-  onClose,
-  onSaved,
-}: {
-  activeCycle: any;
-  onClose:     () => void;
-  onSaved:     (updatedCycle: any) => void;
-}) {
-  const [form, setForm] = useState<CycleDatesForm>({
-    objective_setting_end: toInputDate(activeCycle?.objective_setting_end ?? activeCycle?.objective_end),
-    grace_period_end:      toInputDate(activeCycle?.grace_period_end      ?? activeCycle?.grace_end),
-    mid_year_review:       toInputDate(activeCycle?.mid_year_review),
-    year_end_review:       toInputDate(activeCycle?.year_end_review),
-  });
-  const [isSaving,       setIsSaving]       = useState(false);
-  const [isAcknowledged, setIsAcknowledged] = useState(false);
-
-  function validateForm(): string | null {
-    if (!form.objective_setting_end) return "Objective Setting End date is required.";
-    if (!form.grace_period_end)      return "Grace Period End date is required.";
-    if (new Date(form.grace_period_end) <= new Date(form.objective_setting_end)) {
-      return "Grace Period End must be after Objective Setting End.";
-    }
-    if (
-      form.mid_year_review &&
-      form.year_end_review &&
-      new Date(form.year_end_review) <= new Date(form.mid_year_review)
-    ) {
-      return "Year-End Review must be after Mid-Year Review.";
-    }
-    return null;
-  }
-
-  async function handleSave(): Promise<void> {
-    const validationError = validateForm();
-    if (validationError)   { toast.error(validationError); return; }
-    if (!isAcknowledged)   { toast.error("Please acknowledge the impact of this change."); return; }
-    if (!activeCycle?.id)  { toast.error("No active PMS cycle found."); return; }
-
-    setIsSaving(true);
-    try {
-      const payload: Record<string, string> = {
-        objective_setting_end: form.objective_setting_end,
-        grace_period_end:      form.grace_period_end,
-      };
-      if (form.mid_year_review) payload.mid_year_review = form.mid_year_review;
-      if (form.year_end_review) payload.year_end_review  = form.year_end_review;
-
-      const response = await fetch(`${API_BASE}/pms-cycles/${activeCycle.id}`, {
-        method:  "PUT",
-        headers: { "Content-Type": "application/json", "X-User-Level": "1" },
-        body:    JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.error ?? "Update failed");
-      }
-
-      const refreshRes   = await fetch(`${API_BASE}/pms-cycles/active`);
-      const updatedCycle = refreshRes.ok ? await refreshRes.json() : activeCycle;
-      toast.success("PMS cycle dates updated successfully.");
-      onSaved(updatedCycle);
-    } catch (err: any) {
-      toast.error(err.message ?? "Could not update cycle dates.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  const pmsStartLabel = activeCycle?.pms_start
-    ? new Date(activeCycle.pms_start).toLocaleDateString(
-        "en-GB",
-        { day: "numeric", month: "short", year: "numeric" },
-      )
-    : "—";
-
-  return (
-    <div className={styles.modalOverlay} role="dialog" aria-modal="true">
-      <div className={styles.editCycleModalCard}>
-        <div className={styles.editCycleHeader}>
-          <div className={styles.editCycleHeaderLeft}>
-            <div className={styles.editCycleIconWrap}>
-              <Settings size={18} color="#3b82f6" />
-            </div>
-            <div>
-              <h3 className={styles.editCycleTitle}>Edit PMS Cycle Dates</h3>
-              <p className={styles.editCycleSubtitle}>
-                PMS Year {activeCycle?.pms_year ?? "—"}&nbsp;·&nbsp;Starts {pmsStartLabel}
-              </p>
-            </div>
-          </div>
-          <button className={styles.editCycleCloseBtn} onClick={onClose} aria-label="Close">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className={styles.editCycleWarning}>
-          <AlertTriangle size={15} color="#d97706" style={{ flexShrink: 0, marginTop: 1 }} />
-          <p className={styles.editCycleWarningText}>
-            Changing cycle dates affects <strong>all employees and managers</strong> on this PMS
-            cycle. Only make changes after consulting senior management.
-          </p>
-        </div>
-
-        <div className={styles.editCycleDateGrid}>
-          {CYCLE_DATE_FIELD_CONFIG.map(({ field, label, required, hint }) => (
-            <div key={field} className={styles.editCycleDateGroup}>
-              <label className={styles.editCycleDateLabel}>
-                {label}
-                {required
-                  ? <span style={{ color: "#ef4444" }}> *</span>
-                  : <span className={styles.editCycleDateOptional}>optional</span>}
-              </label>
-              <input
-                type="date"
-                className={styles.editCycleDateInput}
-                value={form[field]}
-                onChange={e => setForm(prev => ({ ...prev, [field]: e.target.value }))}
-                aria-label={label}
-              />
-              <p className={styles.editCycleDateHint}>{hint}</p>
-            </div>
-          ))}
-        </div>
-
-        <label className={styles.editCycleAckRow}>
-          <input
-            type="checkbox"
-            checked={isAcknowledged}
-            onChange={e => setIsAcknowledged(e.target.checked)}
-            className={styles.editCycleAckCheckbox}
-          />
-          <span className={styles.editCycleAckText}>
-            I understand that these changes will take effect immediately and impact all users on
-            this PMS cycle.
-          </span>
-        </label>
-
-        <div className={styles.editCycleActions}>
-          <button className={styles.editCycleCancelBtn} onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className={`${styles.editCycleSaveBtn} ${!isAcknowledged ? styles.editCycleSaveBtnDisabled : ""}`}
-            onClick={handleSave}
-            disabled={isSaving || !isAcknowledged}
-          >
-            {isSaving ? "Saving…" : "Save Cycle Dates"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── PmsCyclePanel ────────────────────────────────────────────────────────────
-
+/** Builds the array of milestone display items for the PMS cycle panel. */
 const buildMilestones = (freezeDates: DynamicFreezeDates) => [
   {
     key:        "start",
     label:      "Cycle Start",
-    shortDate:  freezeDates.pmsYearStart.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+    shortDate:  freezeDates.pmsYearStart.toLocaleDateString("en-GB", {
+      day: "numeric", month: "short",
+    }),
     icon:       <Flag      size={22} />,
     bgGradient: "linear-gradient(135deg,#6366f1,#818cf8)",
     shadow:     "rgba(99,102,241,0.35)",
@@ -1739,7 +774,9 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
   {
     key:        "objective",
     label:      "Objective Setting",
-    shortDate:  freezeDates.objectiveSettingEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+    shortDate:  freezeDates.objectiveSettingEnd.toLocaleDateString("en-GB", {
+      day: "numeric", month: "short",
+    }),
     icon:       <Target    size={22} />,
     bgGradient: "linear-gradient(135deg,#0ea5e9,#38bdf8)",
     shadow:     "rgba(14,165,233,0.35)",
@@ -1749,7 +786,9 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
   {
     key:        "grace",
     label:      "Grace Period",
-    shortDate:  freezeDates.graceEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+    shortDate:  freezeDates.graceEnd.toLocaleDateString("en-GB", {
+      day: "numeric", month: "short",
+    }),
     icon:       <Clock3    size={22} />,
     bgGradient: "linear-gradient(135deg,#f59e0b,#fbbf24)",
     shadow:     "rgba(245,158,11,0.35)",
@@ -1759,7 +798,9 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
   {
     key:        "frozen",
     label:      "Templates Frozen",
-    shortDate:  freezeDates.graceEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+    shortDate:  freezeDates.graceEnd.toLocaleDateString("en-GB", {
+      day: "numeric", month: "short",
+    }),
     icon:       <Lock      size={22} />,
     bgGradient: "linear-gradient(135deg,#1e3a8a,#3b5bdb)",
     shadow:     "rgba(30,58,138,0.35)",
@@ -1770,8 +811,10 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
     key:        "midyear",
     label:      "Mid-Year Review",
     shortDate:  freezeDates.midYearReview
-                  ? freezeDates.midYearReview.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
-                  : "—",
+      ? freezeDates.midYearReview.toLocaleDateString("en-GB", {
+          day: "numeric", month: "short",
+        })
+      : "—",
     icon:       <BarChart3 size={22} />,
     bgGradient: "linear-gradient(135deg,#f43f5e,#fb7185)",
     shadow:     "rgba(244,63,94,0.35)",
@@ -1782,8 +825,10 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
     key:        "yearend",
     label:      "Year-End Review",
     shortDate:  freezeDates.yearEndReview
-                  ? freezeDates.yearEndReview.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
-                  : "—",
+      ? freezeDates.yearEndReview.toLocaleDateString("en-GB", {
+          day: "numeric", month: "short",
+        })
+      : "—",
     icon:       <Star      size={22} />,
     bgGradient: "linear-gradient(135deg,#8b5cf6,#a78bfa)",
     shadow:     "rgba(139,92,246,0.35)",
@@ -1792,6 +837,15 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
   },
 ];
 
+// ─── PmsCyclePanel ────────────────────────────────────────────────────────────
+
+/**
+ * Two-panel widget showing the active PMS cycle year, progress bar,
+ * key statistics, and milestone cards.
+ *
+ * The "Edit Cycle Dates" button (HQ Admin only) now navigates to a
+ * dedicated page instead of opening an inline modal.
+ */
 function PmsCyclePanel({
   freezeDates,
   activeCycle,
@@ -1808,22 +862,35 @@ function PmsCyclePanel({
   onEditCycle:   () => void;
 }) {
   const now            = new Date();
-  const cycleYearLabel = `${freezeDates.pmsYearStart.getFullYear()} / ${freezeDates.pmsYearStart.getFullYear() + 1}`;
+  const cycleYearLabel =
+    `${freezeDates.pmsYearStart.getFullYear()} / ` +
+    `${freezeDates.pmsYearStart.getFullYear() + 1}`;
 
   const yearStart = freezeDates.pmsYearStart.getTime();
-  const yearEnd   = freezeDates.yearEndReview?.getTime()
-    ?? new Date(freezeDates.pmsYearStart.getFullYear() + 1, 2, 31).getTime();
+  const yearEnd   =
+    freezeDates.yearEndReview?.getTime() ??
+    new Date(
+      freezeDates.pmsYearStart.getFullYear() + 1, 2, 31,
+    ).getTime();
 
   const progressPercent = Math.min(
     100,
-    Math.max(0, Math.round(((now.getTime() - yearStart) / (yearEnd - yearStart)) * 100)),
+    Math.max(
+      0,
+      Math.round(
+        ((now.getTime() - yearStart) / (yearEnd - yearStart)) * 100,
+      ),
+    ),
   );
 
+  /* Determine which milestone card should be highlighted as "now" */
   const activeMilestoneKey =
     now < freezeDates.objectiveSettingEnd ? "objective" :
     now < freezeDates.graceEnd            ? "grace"     :
-    (freezeDates.midYearReview && now < freezeDates.midYearReview) ? "frozen"  :
-    (freezeDates.yearEndReview  && now < freezeDates.yearEndReview) ? "midyear" :
+    (freezeDates.midYearReview && now < freezeDates.midYearReview)
+      ? "frozen"  :
+    (freezeDates.yearEndReview  && now < freezeDates.yearEndReview)
+      ? "midyear" :
     "yearend";
 
   const milestones = buildMilestones(freezeDates);
@@ -1831,6 +898,8 @@ function PmsCyclePanel({
 
   return (
     <div className={styles.cyclePanelWrapper}>
+
+      {/* ── Left panel: summary + progress ── */}
       <div className={styles.cyclePanelLeft}>
         <div className={styles.cyclePanelLeftTop}>
           <div className={styles.cyclePanelYearBadge}>
@@ -1839,9 +908,11 @@ function PmsCyclePanel({
           </div>
           <div className={styles.cyclePanelYear}>{cycleYearLabel}</div>
           <p className={styles.cyclePanelDesc}>
-            Performance Management System cycle tracking all templates, objectives, and review milestones.
+            Performance Management System cycle tracking all templates,
+            objectives, and review milestones.
           </p>
         </div>
+
         <div className={styles.cyclePanelStats}>
           <div className={styles.cyclePanelStat}>
             <span className={styles.cyclePanelStatValue}>{templateCount}</span>
@@ -1853,42 +924,72 @@ function PmsCyclePanel({
             <span className={styles.cyclePanelStatLabel}>Cycle Progress</span>
           </div>
         </div>
+
         <div className={styles.cyclePanelProgressTrack}>
-          <div className={styles.cyclePanelProgressFill} style={{ width: `${progressPercent}%` }} />
+          <div
+            className={styles.cyclePanelProgressFill}
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
+
+        {/* Edit Cycle Dates — navigates to dedicated page (HQ Admin only) */}
         {isHqAdmin && activeCycle?.id && (
-          <button className={styles.editCycleDatesBtn} onClick={onEditCycle}>
-            <Calendar size={13} />Edit Cycle Dates
+          <button
+            className={styles.editCycleDatesBtn}
+            onClick={onEditCycle}
+            title="Navigate to Edit Cycle Dates page"
+          >
+            <Settings size={13} />
+            Edit Cycle Dates
           </button>
         )}
       </div>
 
+      {/* ── Right panel: milestone icon cards ── */}
       <div className={styles.cyclePanelRight}>
         {milestones.map(milestone => {
           const isActiveMilestone = activeMilestoneKey === milestone.key;
           return (
             <div
               key={milestone.key}
-              className={`${styles.milestoneIconCard} ${isActiveMilestone ? styles.milestoneIconCardActive : ""}`}
-              style={isActiveMilestone
-                ? { background: milestone.bgGradient, boxShadow: `0 6px 20px ${milestone.shadow}` }
-                : {}}
+              className={`${styles.milestoneIconCard} ${
+                isActiveMilestone ? styles.milestoneIconCardActive : ""
+              }`}
+              style={
+                isActiveMilestone
+                  ? {
+                      background: milestone.bgGradient,
+                      boxShadow:  `0 6px 20px ${milestone.shadow}`,
+                    }
+                  : {}
+              }
             >
-              {isActiveMilestone && <div className={styles.milestoneNowDot} />}
+              {/* "Now" indicator dot on the active milestone */}
+              {isActiveMilestone && (
+                <div className={styles.milestoneNowDot} />
+              )}
+
               <div
                 className={styles.milestoneIconWrap}
-                style={isActiveMilestone
-                  ? { background: "rgba(255,255,255,0.22)", color: "#fff" }
-                  : { background: milestone.iconBg, color: milestone.iconColor }}
+                style={
+                  isActiveMilestone
+                    ? { background: "rgba(255,255,255,0.22)", color: "#fff" }
+                    : {
+                        background: milestone.iconBg,
+                        color:      milestone.iconColor,
+                      }
+                }
               >
                 {milestone.icon}
               </div>
+
               <div
                 className={styles.milestoneIconLabel}
                 style={isActiveMilestone ? { color: "rgba(255,255,255,0.8)" } : {}}
               >
                 {milestone.label}
               </div>
+
               <div
                 className={styles.milestoneIconDate}
                 style={isActiveMilestone ? { color: "#fff" } : {}}
@@ -1905,6 +1006,7 @@ function PmsCyclePanel({
 
 // ─── CycleStatusBadge ─────────────────────────────────────────────────────────
 
+/** Small pill badge reflecting the current freeze status. */
 function CycleStatusBadge({ status }: { status: FreezeStatus | string }) {
   if (status === "open") {
     return (
@@ -1929,6 +1031,10 @@ function CycleStatusBadge({ status }: { status: FreezeStatus | string }) {
 
 // ─── StatusBanner ─────────────────────────────────────────────────────────────
 
+/**
+ * Full-width informational banner at the top of the template list.
+ * Content adapts to the current freeze status and admin role.
+ */
 function StatusBanner({
   permissions,
   freezeDates,
@@ -1944,13 +1050,17 @@ function StatusBanner({
   if (permissions.freezeStatus === "frozen") {
     return (
       <div className={`${styles.banner} ${styles.bannerFrozen}`}>
-        <div className={styles.bannerIconWrapper}><Lock size={14} /></div>
+        <div className={styles.bannerIconWrapper}>
+          <Lock size={14} />
+        </div>
         <div className={styles.bannerBody}>
           <span className={styles.bannerLabel}>Templates Frozen</span>
           <span className={styles.bannerDot} />
           <span className={styles.bannerText}>
-            Read only — grace period ended <strong>{formatDate(freezeDates.graceEnd)}</strong>
-            {isHqAdmin && " · Use Manage Freeze to unfreeze specific branches"}
+            Read only — grace period ended{" "}
+            <strong>{formatDate(freezeDates.graceEnd)}</strong>
+            {isHqAdmin &&
+              " · Use Manage Freeze to unfreeze specific branches"}
           </span>
         </div>
       </div>
@@ -1960,13 +1070,18 @@ function StatusBanner({
   if (permissions.freezeStatus === "grace") {
     return (
       <div className={`${styles.banner} ${styles.bannerGrace}`}>
-        <div className={styles.bannerIconWrapper}><Clock3 size={14} /></div>
+        <div className={styles.bannerIconWrapper}>
+          <Clock3 size={14} />
+        </div>
         <div className={styles.bannerBody}>
           <span className={styles.bannerLabel}>Grace Period Active</span>
           <span className={styles.bannerDot} />
           <span className={styles.bannerText}>
-            {isHqAdmin ? "You retain edit access — " : "Read only for your role — "}
-            hard freeze <strong>{formatDate(freezeDates.graceEnd)}</strong>{" "}
+            {isHqAdmin
+              ? "You retain edit access — "
+              : "Read only for your role — "}
+            hard freeze{" "}
+            <strong>{formatDate(freezeDates.graceEnd)}</strong>{" "}
             ({daysUntil(freezeDates.graceEnd)} days)
           </span>
         </div>
@@ -1977,12 +1092,15 @@ function StatusBanner({
   if (daysRemaining <= CLOSING_WARNING_THRESHOLD_DAYS) {
     return (
       <div className={`${styles.banner} ${styles.bannerWarning}`}>
-        <div className={styles.bannerIconWrapper}><Calendar size={14} /></div>
+        <div className={styles.bannerIconWrapper}>
+          <Calendar size={14} />
+        </div>
         <div className={styles.bannerBody}>
           <span className={styles.bannerLabel}>Closing Soon</span>
           <span className={styles.bannerDot} />
           <span className={styles.bannerText}>
-            Objective-setting window closes in <strong>{daysRemaining} days</strong>{" "}
+            Objective-setting window closes in{" "}
+            <strong>{daysRemaining} days</strong>{" "}
             ({formatDate(freezeDates.objectiveSettingEnd)})
             {!isHqAdmin && " · Editable objectives only"}
           </span>
@@ -1993,14 +1111,19 @@ function StatusBanner({
 
   return (
     <div className={`${styles.banner} ${styles.bannerOpen}`}>
-      <div className={styles.bannerIconWrapper}><Unlock size={14} /></div>
+      <div className={styles.bannerIconWrapper}>
+        <Unlock size={14} />
+      </div>
       <div className={styles.bannerBody}>
         <span className={styles.bannerLabel}>
-          {isHqAdmin ? "Objective Setting Open" : `Open — ${permissions.roleLabel}`}
+          {isHqAdmin
+            ? "Objective Setting Open"
+            : `Open — ${permissions.roleLabel}`}
         </span>
         <span className={styles.bannerDot} />
         <span className={styles.bannerText}>
-          Window closes <strong>{formatDate(freezeDates.objectiveSettingEnd)}</strong>
+          Window closes{" "}
+          <strong>{formatDate(freezeDates.objectiveSettingEnd)}</strong>
           {" · "}
           <strong>{daysRemaining} days remaining</strong>
           {!isHqAdmin && " · Editable objectives only"}
@@ -2012,6 +1135,12 @@ function StatusBanner({
 
 // ─── TemplateCard ─────────────────────────────────────────────────────────────
 
+/**
+ * Card component representing a single template.
+ *
+ * The "Manage Freeze" button navigates to the dedicated freeze management
+ * page instead of opening an inline modal.
+ */
 function TemplateCard({
   template,
   level,
@@ -2044,14 +1173,20 @@ function TemplateCard({
   const categories = template.categories ?? [];
   const isHqAdmin  = level === 1;
 
-  const effectiveStatus: FreezeStatus = template.freeze_status ?? permissions.freezeStatus;
+  const effectiveStatus: FreezeStatus =
+    template.freeze_status ?? permissions.freezeStatus;
+
   const isPastCycle = template.is_past_cycle ?? false;
   const isFrozen    = effectiveStatus === "frozen";
   const isGrace     = effectiveStatus === "grace";
 
+  /* ── Objective counts ── */
   const lockedCount = categories.reduce(
     (sum: number, cat: any) =>
-      sum + (cat.objectives?.filter((obj: any) => obj.control === "Locked").length ?? 0),
+      sum +
+      (cat.objectives?.filter(
+        (obj: any) => obj.control === "Locked",
+      ).length ?? 0),
     0,
   );
   const totalObjectives = categories.reduce(
@@ -2061,32 +1196,30 @@ function TemplateCard({
   const editableCount = totalObjectives - lockedCount;
   const totalRules    = template.assignedRules?.length ?? 0;
 
-  const unfrozenBranchCount   = template.unfrozenBranchIds?.length  ?? 0;
-  const unfrozenCountryCount  = template.unfrozenCountryIds?.length ?? 0;
-  const hasUnfreezeExceptions = unfrozenBranchCount > 0 || unfrozenCountryCount > 0;
-  const variantCount          = template.variants?.length ?? 0;
-  const hasVariants           = (template.hasVariants ?? false) || variantCount > 0;
+  /* ── Unfreeze / variant metadata ── */
+  const unfrozenBranchCount  = template.unfrozenBranchIds?.length  ?? 0;
+  const unfrozenCountryCount = template.unfrozenCountryIds?.length ?? 0;
+  const hasUnfreezeExceptions =
+    unfrozenBranchCount > 0 || unfrozenCountryCount > 0;
+  const variantCount = template.variants?.length ?? 0;
+  const hasVariants  =
+    (template.hasVariants ?? false) || variantCount > 0;
 
-  /**
-   * Unfreeze exceptions grant permission to CREATE/EDIT a branch *variant* via
-   * Manage Freeze only. They never unlock the parent template for direct editing.
-   * Keep this comment here so future readers don't accidentally add hasUnfreezeExceptions
-   * to canEditThisCard.
-   */
-  const canEditThisCard         = !isPastCycle && permissions.canEdit;   // parent edit — no exception carve-out
+  /* ── Permission checks for this specific card ── */
+  const canEditThisCard         = !isPastCycle && permissions.canEdit;
   const canDeleteThisCard       = !isPastCycle && isHqAdmin && permissions.canDelete;
   const canCopyThisCard         = isHqAdmin && permissions.canCreate;
-  const canManageFreezeThisCard = isHqAdmin && !isPastCycle && (isFrozen || isGrace);
+  const canManageFreezeThisCard =
+    isHqAdmin && !isPastCycle && (isFrozen || isGrace);
 
+  /** Returns a human-readable reason why edit is blocked, or null if allowed. */
   function getEditDisabledReason(): string | null {
     if (isPastCycle) {
       return "This template belongs to a past PMS cycle and is permanently frozen.";
     }
     if (isFrozen) {
-      // hasUnfreezeExceptions is intentionally NOT a carve-out here.
-      // Unfreeze exceptions only allow variant creation via Manage Freeze.
       return hasUnfreezeExceptions
-        ? "The parent template is frozen. Use Manage Freeze to create or edit a branch/country variant instead."
+        ? 'The parent template is frozen. Use "Manage Freeze" to create or edit a branch/country variant instead.'
         : "Templates are fully frozen. No edits are permitted in this period.";
     }
     if (isGrace && !isHqAdmin) {
@@ -2131,26 +1264,36 @@ function TemplateCard({
 
   const lastUpdatedDisplay = new Date(
     template.lastModified ?? template.created_at ?? Date.now(),
-  ).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  ).toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "numeric",
+  });
 
+  /* Summarise assignment breadth into a readable string */
   const assignmentSummary = useMemo((): string => {
     const parts: string[] = [];
     if (template.assignedDesignations?.length) {
-      parts.push(`${template.assignedDesignations.length} designation${template.assignedDesignations.length !== 1 ? "s" : ""}`);
+      const count = template.assignedDesignations.length;
+      parts.push(`${count} designation${count !== 1 ? "s" : ""}`);
     }
     if (template.assignedDepartments?.length) {
-      const uniqueCount = new Set(template.assignedDepartments.map(d => d.name.trim().toLowerCase())).size;
+      const uniqueCount = new Set(
+        template.assignedDepartments.map(d => d.name.trim().toLowerCase()),
+      ).size;
       parts.push(`${uniqueCount} dept type${uniqueCount !== 1 ? "s" : ""}`);
     }
     if (template.assignedSubDepartments?.length) {
-      const uniqueCount = new Set(template.assignedSubDepartments.map(s => s.name.trim().toLowerCase())).size;
+      const uniqueCount = new Set(
+        template.assignedSubDepartments.map(s => s.name.trim().toLowerCase()),
+      ).size;
       parts.push(`${uniqueCount} sub-dept${uniqueCount !== 1 ? "s" : ""}`);
     }
     if (template.assignedCountries?.length) {
-      parts.push(`${template.assignedCountries.length} countr${template.assignedCountries.length !== 1 ? "ies" : "y"}`);
+      const count = template.assignedCountries.length;
+      parts.push(`${count} countr${count !== 1 ? "ies" : "y"}`);
     }
     if (template.assignedBranches?.length) {
-      parts.push(`${template.assignedBranches.length} branch${template.assignedBranches.length !== 1 ? "es" : ""}`);
+      const count = template.assignedBranches.length;
+      parts.push(`${count} branch${count !== 1 ? "es" : ""}`);
     }
     return parts.length ? parts.join(" · ") : "Unassigned";
   }, [template]);
@@ -2158,6 +1301,7 @@ function TemplateCard({
   const scopeRules    = template.assignedRules?.filter(r => r.scope) ?? [];
   const hasScopeRules = scopeRules.length > 0;
 
+  /* Stats displayed in the bottom row of the card */
   const statCells = [
     { label: "Categories",       value: categories.length },
     { label: "Total KPIs",       value: totalObjectives },
@@ -2169,8 +1313,13 @@ function TemplateCard({
   return (
     <div
       className={styles.card}
-      style={isPastCycle ? { opacity: 0.85, borderLeft: "3px solid #94a3b8" } : undefined}
+      style={
+        isPastCycle
+          ? { opacity: 0.85, borderLeft: "3px solid #94a3b8" }
+          : undefined
+      }
     >
+      {/* ── Past cycle banner ── */}
       {isPastCycle && (
         <div style={{
           display:      "flex",
@@ -2188,6 +1337,7 @@ function TemplateCard({
         </div>
       )}
 
+      {/* ── Partial unfreeze banner ── */}
       {hasUnfreezeExceptions && !isPastCycle && (
         <div style={{
           display:      "flex",
@@ -2202,6 +1352,7 @@ function TemplateCard({
         }}>
           <Unlock size={11} color="#ea580c" />
           Partially unfrozen:
+
           {unfrozenBranchCount > 0 && (
             <span style={{
               background:   "#fef3c7",
@@ -2215,6 +1366,7 @@ function TemplateCard({
               {unfrozenBranchCount} branch{unfrozenBranchCount !== 1 ? "es" : ""}
             </span>
           )}
+
           {unfrozenCountryCount > 0 && (
             <span style={{
               background:   "#ecfeff",
@@ -2228,6 +1380,7 @@ function TemplateCard({
               {unfrozenCountryCount} countr{unfrozenCountryCount !== 1 ? "ies" : "y"}
             </span>
           )}
+
           {hasVariants && (
             <span style={{
               background:   "#f0fdf4",
@@ -2244,13 +1397,14 @@ function TemplateCard({
         </div>
       )}
 
-      {/* Card header */}
+      {/* ── Card header ── */}
       <div className={styles.cardTop}>
         <div className={styles.cardTopInner}>
           <div className={styles.cardLeft}>
             <div className={styles.cardIconWrapper}>
               <FileText size={22} color={isPastCycle ? "#94a3b8" : "#3b82f6"} />
             </div>
+
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className={styles.cardTitleRow}>
                 <h3
@@ -2259,8 +1413,10 @@ function TemplateCard({
                 >
                   {template.name}
                 </h3>
+
                 <CycleStatusBadge status={effectiveStatus} />
 
+                {/* Variant count badge — clicking opens Manage Freeze page */}
                 {hasVariants && !isPastCycle && (
                   <button
                     onClick={canManageFreezeThisCard ? onManageFreeze : undefined}
@@ -2270,18 +1426,18 @@ function TemplateCard({
                         : `${variantCount} branch variant${variantCount !== 1 ? "s" : ""}`
                     }
                     style={{
-                      display:    "inline-flex",
-                      alignItems: "center",
-                      gap:        "4px",
-                      padding:    "2px 8px",
+                      display:      "inline-flex",
+                      alignItems:   "center",
+                      gap:          "4px",
+                      padding:      "2px 8px",
                       borderRadius: "20px",
-                      fontSize:   "10px",
-                      fontWeight: "700",
-                      background: "#eff6ff",
-                      color:      "#1e40af",
-                      border:     "1px solid #bfdbfe",
-                      cursor:     canManageFreezeThisCard ? "pointer" : "default",
-                      transition: "all 0.15s",
+                      fontSize:     "10px",
+                      fontWeight:   "700",
+                      background:   "#eff6ff",
+                      color:        "#1e40af",
+                      border:       "1px solid #bfdbfe",
+                      cursor:       canManageFreezeThisCard ? "pointer" : "default",
+                      transition:   "all 0.15s",
                     }}
                   >
                     <GitBranch size={9} />
@@ -2289,45 +1445,67 @@ function TemplateCard({
                   </button>
                 )}
               </div>
+
               <p className={styles.cardDescription}>
-                {template.description || "Standard organisational evaluation template."}
+                {template.description ||
+                  "Standard organisational evaluation template."}
               </p>
-              {!isHqAdmin && effectiveStatus === "open" && editableCount > 0 && (
-                <p style={{
-                  fontSize:   "11px",
-                  color:      "#7c3aed",
-                  fontWeight: "600",
-                  marginTop:  "4px",
-                }}>
-                  <Unlock size={10} style={{ display: "inline", marginRight: "3px" }} />
-                  {editableCount} editable objective{editableCount !== 1 ? "s" : ""} accessible to you
-                </p>
-              )}
+
+              {/* Editable objectives hint for non-HQ roles */}
+              {!isHqAdmin &&
+                effectiveStatus === "open" &&
+                editableCount > 0 && (
+                  <p style={{
+                    fontSize:   "11px",
+                    color:      "#7c3aed",
+                    fontWeight: "600",
+                    marginTop:  "4px",
+                  }}>
+                    <Unlock
+                      size={10}
+                      style={{ display: "inline", marginRight: "3px" }}
+                    />
+                    {editableCount} editable objective
+                    {editableCount !== 1 ? "s" : ""} accessible to you
+                  </p>
+                )}
             </div>
           </div>
 
-          {/* Action buttons */}
+          {/* ── Action buttons ── */}
           <div className={styles.cardActions}>
             <button className={styles.actionBtn} onClick={onView}>
               <Eye size={13} /><span>View</span>
             </button>
+
             <button
-              className={`${styles.actionBtn} ${!canEditThisCard ? styles.actionBtnDisabled : ""}`}
+              className={`${styles.actionBtn} ${
+                !canEditThisCard ? styles.actionBtnDisabled : ""
+              }`}
               onClick={handleEditClick}
-              title={!canEditThisCard ? (getEditDisabledReason() ?? undefined) : "Edit template"}
+              title={
+                !canEditThisCard
+                  ? (getEditDisabledReason() ?? undefined)
+                  : "Edit template"
+              }
             >
               <Pencil size={13} /><span>Edit</span>
             </button>
+
             {isHqAdmin && (
               <button
-                className={`${styles.actionBtn} ${!canCopyThisCard ? styles.actionBtnDisabled : ""}`}
+                className={`${styles.actionBtn} ${
+                  !canCopyThisCard ? styles.actionBtnDisabled : ""
+                }`}
                 onClick={handleCopyClick}
                 disabled={isDuplicating}
-                title={isPastCycle
-                  ? "Duplicate into current cycle"
-                  : !canCopyThisCard
-                  ? (getCopyDisabledReason() ?? undefined)
-                  : "Duplicate template"}
+                title={
+                  isPastCycle
+                    ? "Duplicate into current cycle"
+                    : !canCopyThisCard
+                    ? (getCopyDisabledReason() ?? undefined)
+                    : "Duplicate template"
+                }
               >
                 {isDuplicating
                   ? <Loader2 size={13} className={styles.spinner} />
@@ -2335,35 +1513,48 @@ function TemplateCard({
                 <span>Copy</span>
               </button>
             )}
+
+            {/* Manage Freeze — navigates to dedicated page (HQ Admin only) */}
             {isHqAdmin && canManageFreezeThisCard && (
               <button
                 onClick={onManageFreeze}
-                title="Manage freeze exceptions for specific branches/countries"
+                title="Navigate to Template Freeze Management page"
                 style={{
-                  display:    "inline-flex",
-                  alignItems: "center",
-                  gap:        "5px",
-                  padding:    "6px 12px",
+                  display:      "inline-flex",
+                  alignItems:   "center",
+                  gap:          "5px",
+                  padding:      "6px 12px",
                   borderRadius: "6px",
-                  background:  hasUnfreezeExceptions ? "#fff7ed" : "#f0f5ff",
-                  border:      `1px solid ${hasUnfreezeExceptions ? "#fed7aa" : "#c7d5f0"}`,
-                  color:       hasUnfreezeExceptions ? "#ea580c" : "#1e3a8a",
-                  fontSize:    "12px",
-                  fontWeight:  "700",
-                  cursor:      "pointer",
-                  transition:  "all 0.15s",
-                  whiteSpace:  "nowrap",
+                  background:   hasUnfreezeExceptions ? "#fff7ed" : "#f0f5ff",
+                  border:       `1px solid ${
+                    hasUnfreezeExceptions ? "#fed7aa" : "#c7d5f0"
+                  }`,
+                  color:        hasUnfreezeExceptions ? "#ea580c" : "#1e3a8a",
+                  fontSize:     "12px",
+                  fontWeight:   "700",
+                  cursor:       "pointer",
+                  transition:   "all 0.15s",
+                  whiteSpace:   "nowrap",
                 }}
               >
                 <ShieldCheck size={13} />
-                <span>{hasUnfreezeExceptions ? "Freeze Mgmt" : "Manage Freeze"}</span>
+                <span>
+                  {hasUnfreezeExceptions ? "Freeze Mgmt" : "Manage Freeze"}
+                </span>
               </button>
             )}
+
             {isHqAdmin && (
               <button
-                className={`${styles.actionBtnDanger} ${!canDeleteThisCard ? styles.actionBtnDangerDisabled : ""}`}
+                className={`${styles.actionBtnDanger} ${
+                  !canDeleteThisCard ? styles.actionBtnDangerDisabled : ""
+                }`}
                 onClick={handleDeleteClick}
-                title={!canDeleteThisCard ? (getDeleteDisabledReason() ?? undefined) : "Delete template"}
+                title={
+                  !canDeleteThisCard
+                    ? (getDeleteDisabledReason() ?? undefined)
+                    : "Delete template"
+                }
                 aria-label="Delete template"
               >
                 <Trash2 size={13} />
@@ -2373,13 +1564,18 @@ function TemplateCard({
         </div>
       </div>
 
-      {/* Stats row */}
+      {/* ── Stats row ── */}
       <div className={styles.statsRow}>
         {statCells.map((stat, index) => (
           <div
             key={stat.label}
             className={styles.statCell}
-            style={{ borderRight: index < statCells.length - 1 ? "1px solid #f1f5f9" : "none" }}
+            style={{
+              borderRight:
+                index < statCells.length - 1
+                  ? "1px solid #f1f5f9"
+                  : "none",
+            }}
           >
             <div className={styles.statValue}>{stat.value}</div>
             <div className={styles.statLabel}>{stat.label}</div>
@@ -2387,7 +1583,7 @@ function TemplateCard({
         ))}
       </div>
 
-      {/* Meta row */}
+      {/* ── Meta row ── */}
       <div className={styles.cardMeta}>
         <div className={styles.cardMetaLeft}>
           <BookOpen size={12} color="#8b5cf6" />
@@ -2397,13 +1593,20 @@ function TemplateCard({
           <Target   size={12} color="#3b82f6" />
           <span className={styles.cardMetaLabel}>Smart Analysis Enabled</span>
         </div>
-        <span className={styles.cardMetaTimestamp}>Updated: {lastUpdatedDisplay}</span>
+        <span className={styles.cardMetaTimestamp}>
+          Updated: {lastUpdatedDisplay}
+        </span>
       </div>
 
-      {/* Category expand toggle */}
-      <button className={styles.expandToggle} onClick={onToggleCategoryExpand}>
+      {/* ── Category expand toggle ── */}
+      <button
+        className={styles.expandToggle}
+        onClick={onToggleCategoryExpand}
+      >
         <Layers size={14} color="#3b82f6" />
-        <span>{isCategoryExpanded ? "Hide" : "Show"} Category Details</span>
+        <span>
+          {isCategoryExpanded ? "Hide" : "Show"} Category Details
+        </span>
         {isCategoryExpanded
           ? <ChevronUp   size={14} color="#3b82f6" />
           : <ChevronDown size={14} color="#3b82f6" />}
@@ -2415,14 +1618,23 @@ function TemplateCard({
             <Layers size={13} color="#64748b" />
             <span>Performance Categories</span>
           </div>
+
           <div className={styles.categoryGrid}>
             {categories.length === 0
-              ? <p className={styles.categoryEmptyNote}>No categories defined.</p>
+              ? (
+                <p className={styles.categoryEmptyNote}>
+                  No categories defined.
+                </p>
+              )
               : categories.map((cat: any, index: number) => {
-                  const palette    = CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
-                  const catWeight  = cat.weight ?? (cat.objectives ?? []).reduce(
-                    (sum: number, obj: any) => sum + (Number(obj.weight) || 0), 0,
-                  );
+                  const palette = CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
+                  const catWeight =
+                    cat.weight ??
+                    (cat.objectives ?? []).reduce(
+                      (sum: number, obj: any) =>
+                        sum + (Number(obj.weight) || 0),
+                      0,
+                    );
                   const lockedInCat = (cat.objectives ?? []).filter(
                     (obj: any) => obj.control === "Locked",
                   ).length;
@@ -2431,16 +1643,28 @@ function TemplateCard({
                     <div
                       key={index}
                       className={styles.categoryDetailCard}
-                      style={{ background: palette.bg, borderColor: `${palette.fill}33` }}
+                      style={{
+                        background:   palette.bg,
+                        borderColor:  `${palette.fill}33`,
+                      }}
                     >
                       <div className={styles.categoryDetailHeader}>
-                        <span style={{ fontWeight: 700, fontSize: "12px", color: palette.text }}>
+                        <span style={{
+                          fontWeight: 700,
+                          fontSize:   "12px",
+                          color:      palette.text,
+                        }}>
                           {cat.name}
                         </span>
-                        <span style={{ fontWeight: 800, fontSize: "13px", color: palette.fill }}>
+                        <span style={{
+                          fontWeight: 800,
+                          fontSize:   "13px",
+                          color:      palette.fill,
+                        }}>
                           {catWeight}%
                         </span>
                       </div>
+
                       <div className={styles.categoryDetailBar}>
                         <div style={{
                           height:       "100%",
@@ -2449,9 +1673,14 @@ function TemplateCard({
                           borderRadius: "3px",
                         }} />
                       </div>
+
                       <div className={styles.categoryDetailStats}>
-                        <span><strong>{(cat.objectives ?? []).length}</strong> KPIs</span>
-                        <span><strong>{lockedInCat}</strong> Locked</span>
+                        <span>
+                          <strong>{(cat.objectives ?? []).length}</strong> KPIs
+                        </span>
+                        <span>
+                          <strong>{lockedInCat}</strong> Locked
+                        </span>
                       </div>
                     </div>
                   );
@@ -2460,10 +1689,15 @@ function TemplateCard({
         </div>
       )}
 
-      {/* Assignment expand toggle */}
-      <button className={styles.expandToggle} onClick={onToggleAssignExpand}>
+      {/* ── Assignment expand toggle ── */}
+      <button
+        className={styles.expandToggle}
+        onClick={onToggleAssignExpand}
+      >
         <Users size={14} color="#3b82f6" />
-        <span>{isAssignExpanded ? "Hide" : "Show"} Assignments</span>
+        <span>
+          {isAssignExpanded ? "Hide" : "Show"} Assignments
+        </span>
         {!isAssignExpanded && totalRules > 0 && (
           <span style={{
             marginLeft:   "auto",
@@ -2485,10 +1719,19 @@ function TemplateCard({
       {isAssignExpanded && (
         <div className={styles.expandedSection}>
           {totalRules === 0
-            ? <p style={{ fontSize: "13px", color: "#94a3b8", padding: "8px 0" }}>No assignments set.</p>
+            ? (
+              <p style={{
+                fontSize: "13px",
+                color:    "#94a3b8",
+                padding:  "8px 0",
+              }}>
+                No assignments set.
+              </p>
+            )
             : (
               <div className={styles.rolesDeptsSection}>
 
+                {/* Global scope rules */}
                 {hasScopeRules && (
                   <div className={styles.rolesDeptsGroup}>
                     <div className={styles.rolesDeptsLabel}>
@@ -2497,21 +1740,26 @@ function TemplateCard({
                     </div>
                     <div className={styles.rolesDeptsChips}>
                       {scopeRules.map((rule, index) => (
-                        <span key={index} style={{
-                          display:      "inline-flex",
-                          alignItems:   "center",
-                          gap:          "4px",
-                          padding:      "3px 10px",
-                          borderRadius: "20px",
-                          fontSize:     "11px",
-                          fontWeight:   "700",
-                          background:   "#ecfeff",
-                          color:        "#0891b2",
-                          border:       "1px solid #a5f3fc",
-                        }}>
+                        <span
+                          key={index}
+                          style={{
+                            display:      "inline-flex",
+                            alignItems:   "center",
+                            gap:          "4px",
+                            padding:      "3px 10px",
+                            borderRadius: "20px",
+                            fontSize:     "11px",
+                            fontWeight:   "700",
+                            background:   "#ecfeff",
+                            color:        "#0891b2",
+                            border:       "1px solid #a5f3fc",
+                          }}
+                        >
                           {SCOPE_LABELS[rule.scope!] ?? rule.scope}
                           {rule.country_id && (
-                            <span style={{ fontSize: "10px", opacity: 0.7 }}>· specific country</span>
+                            <span style={{ fontSize: "10px", opacity: 0.7 }}>
+                              · specific country
+                            </span>
                           )}
                         </span>
                       ))}
@@ -2519,6 +1767,7 @@ function TemplateCard({
                   </div>
                 )}
 
+                {/* Designations */}
                 {(template.assignedDesignations?.length ?? 0) > 0 && (
                   <div className={styles.rolesDeptsGroup}>
                     <div className={styles.rolesDeptsLabel}>
@@ -2527,45 +1776,59 @@ function TemplateCard({
                     </div>
                     <div className={styles.rolesDeptsChips}>
                       {template.assignedDesignations!.map(designation => (
-                        <span key={designation} className={styles.rolesChip}>{designation}</span>
+                        <span
+                          key={designation}
+                          className={styles.rolesChip}
+                        >
+                          {designation}
+                        </span>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {(template.assignedSubDepartments?.length ?? 0) > 0 && (() => {
-                  const seen       = new Set<string>();
-                  const uniqueSubs = (template.assignedSubDepartments ?? []).filter(sub => {
-                    const key = sub.name.trim().toLowerCase();
-                    if (seen.has(key)) return false;
-                    seen.add(key);
-                    return true;
-                  });
-                  return (
-                    <div className={styles.rolesDeptsGroup}>
-                      <div className={styles.rolesDeptsLabel}>
-                        <Layers size={13} color="#0891b2" />
-                        <span>Sub-Departments</span>
+                {/* Sub-departments (deduplicated by name) */}
+                {(template.assignedSubDepartments?.length ?? 0) > 0 &&
+                  (() => {
+                    const seen       = new Set<string>();
+                    const uniqueSubs = (
+                      template.assignedSubDepartments ?? []
+                    ).filter(sub => {
+                      const key = sub.name.trim().toLowerCase();
+                      if (seen.has(key)) return false;
+                      seen.add(key);
+                      return true;
+                    });
+                    return (
+                      <div className={styles.rolesDeptsGroup}>
+                        <div className={styles.rolesDeptsLabel}>
+                          <Layers size={13} color="#0891b2" />
+                          <span>Sub-Departments</span>
+                        </div>
+                        <div className={styles.rolesDeptsChips}>
+                          {uniqueSubs.map(sub => (
+                            <span
+                              key={sub.name}
+                              style={{
+                                padding:      "3px 10px",
+                                borderRadius: "20px",
+                                fontSize:     "11px",
+                                fontWeight:   "700",
+                                background:   "#ecfeff",
+                                color:        "#0891b2",
+                                border:       "1px solid #a5f3fc",
+                              }}
+                            >
+                              {sub.code ? `[${sub.code}] ` : ""}
+                              {sub.name}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <div className={styles.rolesDeptsChips}>
-                        {uniqueSubs.map(sub => (
-                          <span key={sub.name} style={{
-                            padding:      "3px 10px",
-                            borderRadius: "20px",
-                            fontSize:     "11px",
-                            fontWeight:   "700",
-                            background:   "#ecfeff",
-                            color:        "#0891b2",
-                            border:       "1px solid #a5f3fc",
-                          }}>
-                            {sub.code ? `[${sub.code}] ` : ""}{sub.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
 
+                {/* Countries with unfreeze indicators */}
                 {(template.assignedCountries?.length ?? 0) > 0 && (
                   <div className={styles.rolesDeptsGroup}>
                     <div className={styles.rolesDeptsLabel}>
@@ -2574,69 +1837,91 @@ function TemplateCard({
                     </div>
                     <div className={styles.rolesDeptsChips}>
                       {template.assignedCountries!.map(country => (
-                        <span key={country.id} style={{
-                          display:      "inline-flex",
-                          alignItems:   "center",
-                          gap:          "4px",
-                          padding:      "3px 10px",
-                          borderRadius: "20px",
-                          fontSize:     "11px",
-                          fontWeight:   "700",
-                          background:   "#ecfeff",
-                          color:        "#0891b2",
-                          border:       "1px solid #a5f3fc",
-                        }}>
+                        <span
+                          key={country.id}
+                          style={{
+                            display:      "inline-flex",
+                            alignItems:   "center",
+                            gap:          "4px",
+                            padding:      "3px 10px",
+                            borderRadius: "20px",
+                            fontSize:     "11px",
+                            fontWeight:   "700",
+                            background:   "#ecfeff",
+                            color:        "#0891b2",
+                            border:       "1px solid #a5f3fc",
+                          }}
+                        >
                           {country.code ?? country.name}
-                          {(template.unfrozenCountryIds ?? []).includes(country.id) && (
-                            <Unlock size={9} color="#16a34a" />
-                          )}
+                          {(template.unfrozenCountryIds ?? []).includes(
+                            country.id,
+                          ) && <Unlock size={9} color="#16a34a" />}
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {(template.assignedDepartments?.length ?? 0) > 0 && (() => {
-                  const grouped = new Map<string, { name: string; code: string | null; branchCount: number }>();
-                  template.assignedDepartments!.forEach(dept => {
-                    const key = dept.name.trim().toLowerCase();
-                    if (!grouped.has(key)) grouped.set(key, { name: dept.name, code: dept.code, branchCount: 0 });
-                    if (dept.branch_id) grouped.get(key)!.branchCount++;
-                  });
-                  return (
-                    <div className={styles.rolesDeptsGroup}>
-                      <div className={styles.rolesDeptsLabel}>
-                        <Building2 size={13} color="#8b5cf6" />
-                        <span>Departments</span>
+                {/* Departments (grouped by name) */}
+                {(template.assignedDepartments?.length ?? 0) > 0 &&
+                  (() => {
+                    const grouped = new Map<
+                      string,
+                      { name: string; code: string | null; branchCount: number }
+                    >();
+                    template.assignedDepartments!.forEach(dept => {
+                      const key = dept.name.trim().toLowerCase();
+                      if (!grouped.has(key)) {
+                        grouped.set(key, {
+                          name:        dept.name,
+                          code:        dept.code,
+                          branchCount: 0,
+                        });
+                      }
+                      if (dept.branch_id) {
+                        grouped.get(key)!.branchCount++;
+                      }
+                    });
+                    return (
+                      <div className={styles.rolesDeptsGroup}>
+                        <div className={styles.rolesDeptsLabel}>
+                          <Building2 size={13} color="#8b5cf6" />
+                          <span>Departments</span>
+                        </div>
+                        <div className={styles.rolesDeptsChips}>
+                          {[...grouped.values()].map(dept => (
+                            <span
+                              key={dept.name}
+                              className={styles.deptsChip}
+                              style={{
+                                display:    "inline-flex",
+                                alignItems: "center",
+                                gap:        "6px",
+                              }}
+                            >
+                              {dept.code ? `[${dept.code}] ` : ""}
+                              {dept.name}
+                              {dept.branchCount > 0 && (
+                                <span style={{
+                                  fontSize:     "10px",
+                                  fontWeight:   "700",
+                                  background:   "#ddd6fe",
+                                  color:        "#5b21b6",
+                                  padding:      "1px 6px",
+                                  borderRadius: "10px",
+                                }}>
+                                  {dept.branchCount} branch
+                                  {dept.branchCount !== 1 ? "es" : ""}
+                                </span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <div className={styles.rolesDeptsChips}>
-                        {[...grouped.values()].map(dept => (
-                          <span
-                            key={dept.name}
-                            className={styles.deptsChip}
-                            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-                          >
-                            {dept.code ? `[${dept.code}] ` : ""}
-                            {dept.name}
-                            {dept.branchCount > 0 && (
-                              <span style={{
-                                fontSize:     "10px",
-                                fontWeight:   "700",
-                                background:   "#ddd6fe",
-                                color:        "#5b21b6",
-                                padding:      "1px 6px",
-                                borderRadius: "10px",
-                              }}>
-                                {dept.branchCount} branch{dept.branchCount !== 1 ? "es" : ""}
-                              </span>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
 
+                {/* Branches with unfreeze / variant indicators */}
                 {(template.assignedBranches?.length ?? 0) > 0 && (
                   <div className={styles.rolesDeptsGroup}>
                     <div className={styles.rolesDeptsLabel}>
@@ -2645,24 +1930,37 @@ function TemplateCard({
                     </div>
                     <div className={styles.rolesDeptsChips}>
                       {template.assignedBranches!.map(branch => {
-                        const isUnfrozen = (template.unfrozenBranchIds ?? []).includes(branch.id);
-                        const hasVariant = (template.variants ?? []).some(v => v.branch_id === branch.id);
+                        const isUnfrozen = (
+                          template.unfrozenBranchIds ?? []
+                        ).includes(branch.id);
+                        const hasVariant = (
+                          template.variants ?? []
+                        ).some(v => v.branch_id === branch.id);
                         return (
-                          <span key={branch.id} style={{
-                            display:      "inline-flex",
-                            alignItems:   "center",
-                            gap:          "4px",
-                            padding:      "3px 10px",
-                            borderRadius: "20px",
-                            fontSize:     "11px",
-                            fontWeight:   "700",
-                            background:   isUnfrozen ? "#f0fdf4" : "#f5f3ff",
-                            color:        isUnfrozen ? "#166534" : "#5b21b6",
-                            border:       `1px solid ${isUnfrozen ? "#bbf7d0" : "#ddd6fe"}`,
-                          }}>
+                          <span
+                            key={branch.id}
+                            style={{
+                              display:      "inline-flex",
+                              alignItems:   "center",
+                              gap:          "4px",
+                              padding:      "3px 10px",
+                              borderRadius: "20px",
+                              fontSize:     "11px",
+                              fontWeight:   "700",
+                              background:   isUnfrozen ? "#f0fdf4" : "#f5f3ff",
+                              color:        isUnfrozen ? "#166534" : "#5b21b6",
+                              border:       `1px solid ${
+                                isUnfrozen ? "#bbf7d0" : "#ddd6fe"
+                              }`,
+                            }}
+                          >
                             {branch.code ?? branch.name}
-                            {isUnfrozen && <Unlock    size={9} color="#16a34a" />}
-                            {hasVariant  && <GitBranch size={9} color="#1e40af" />}
+                            {isUnfrozen && (
+                              <Unlock    size={9} color="#16a34a" />
+                            )}
+                            {hasVariant && (
+                              <GitBranch size={9} color="#1e40af" />
+                            )}
                           </span>
                         );
                       })}
@@ -2679,24 +1977,34 @@ function TemplateCard({
 
 // ─── TemplateDashboardBase ────────────────────────────────────────────────────
 
+/**
+ * Root component for the Template Management dashboard.
+ *
+ * @param level - Numeric role level (1 = HQ Admin, 2–5 = lower admins).
+ */
 export default function TemplateDashboardBase({ level }: { level: number }) {
   const router = useRouter();
 
-  const [templates,           setTemplates]          = useState<TemplateRecord[]>([]);
-  const [confirmDeleteId,     setConfirmDeleteId]     = useState<number | null>(null);
-  const [isLoading,           setIsLoading]           = useState(true);
-  const [expandedCardId,      setExpandedCardId]      = useState<number | null>(null);
-  const [expandedAssignId,    setExpandedAssignId]    = useState<number | null>(null);
-  const [isDuplicatingId,     setIsDuplicatingId]     = useState<number | null>(null);
-  const [activeCycle,         setActiveCycle]         = useState<any>(null);
-  /** All PMS cycles fetched from the API, used for year-label resolution. */
-  const [allCycles,           setAllCycles]           = useState<any[]>([]);
-  const [showEditCycleModal,  setShowEditCycleModal]  = useState(false);
-  const [freezeModalTemplate, setFreezeModalTemplate] = useState<TemplateRecord | null>(null);
-  const [filters,             setFilters]             = useState<FilterState>({
-    search: "", designations: [], departments: [], branches: [], countries: [], years: [],
+  /* ── State ── */
+  const [templates,        setTemplates]        = useState<TemplateRecord[]>([]);
+  const [confirmDeleteId,  setConfirmDeleteId]  = useState<number | null>(null);
+  const [isLoading,        setIsLoading]        = useState(true);
+  const [expandedCardId,   setExpandedCardId]   = useState<number | null>(null);
+  const [expandedAssignId, setExpandedAssignId] = useState<number | null>(null);
+  const [isDuplicatingId,  setIsDuplicatingId]  = useState<number | null>(null);
+  const [activeCycle,      setActiveCycle]      = useState<any>(null);
+  /** All PMS cycles — used for year-label resolution on templates. */
+  const [allCycles,        setAllCycles]        = useState<any[]>([]);
+  const [filters,          setFilters]          = useState<FilterState>({
+    search:       "",
+    designations: [],
+    departments:  [],
+    branches:     [],
+    countries:    [],
+    years:        [],
   });
 
+  /* ── Derived values ── */
   const freezeDates = useMemo(() => buildFreezeDates(activeCycle),           [activeCycle]);
   const permissions = useMemo(() => computePermissions(level, freezeDates), [level, freezeDates]);
   const rolePrefix  = getRolePrefix(level);
@@ -2711,6 +2019,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     permissions.freezeStatus === "grace"  ? styles.periodGrace  :
     styles.periodOpen;
 
+  /* ── Filter option lists (derived from loaded templates) ── */
   const filterOptions = useMemo(() => {
     const designationSet = new Set<string>();
     const departmentSet  = new Set<string>();
@@ -2736,8 +2045,8 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
   }, [templates]);
 
   /**
-   * Unique PMS year labels derived from all loaded templates.
-   * Sorted newest-first (descending string sort works for "YYYY/YYYY" format).
+   * Unique PMS year labels across all templates,
+   * sorted newest-first (descending string compare works for "YYYY/YYYY").
    */
   const allYearOptions = useMemo((): string[] => {
     const yearSet = new Set<string>();
@@ -2748,71 +2057,81 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     return [...yearSet].sort((a, b) => b.localeCompare(a));
   }, [templates, allCycles, activeCycle]);
 
-  // ── Data fetching ──
+  // ── Data fetching ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     async function loadDashboardData(): Promise<void> {
       try {
         setIsLoading(true);
+
+        /* Fetch templates, active cycle, and all cycles in parallel */
         const [templateRes, cycleRes, allCyclesRes] = await Promise.all([
           fetch(`${API_BASE}/templates`),
           fetch(`${API_BASE}/pms-cycles/active`),
-          fetch(`${API_BASE}/pms-cycles`),          // NEW: fetch all cycles for year resolution
+          fetch(`${API_BASE}/pms-cycles`),
         ]);
 
         if (!templateRes.ok) {
           throw new Error(`Failed to load templates: ${templateRes.status}`);
         }
+
         const rawTemplates: TemplateRecord[] = await templateRes.json();
         setTemplates(sortByLastModified(rawTemplates));
 
-        if (cycleRes.ok) {
-          setActiveCycle(await cycleRes.json());
-        }
-        if (allCyclesRes.ok) {
-          setAllCycles(await allCyclesRes.json());
-        }
-      } catch (err) {
+        if (cycleRes.ok)     setActiveCycle(await cycleRes.json());
+        if (allCyclesRes.ok) setAllCycles(await allCyclesRes.json());
+      } catch {
         toast.error("Could not load templates. Please refresh and try again.");
       } finally {
         setIsLoading(false);
       }
     }
+
     loadDashboardData();
   }, []);
 
-  // ── Filtered template list ──
+  // ── Filtered template list ─────────────────────────────────────────────────
 
   const filteredTemplates = useMemo(() => {
     let result = templates;
 
     if (filters.search.trim()) {
       const query = filters.search.toLowerCase().trim();
-      result      = result.filter(t => t.name?.toLowerCase().includes(query));
+      result      = result.filter(t =>
+        t.name?.toLowerCase().includes(query),
+      );
     }
     if (filters.designations.length > 0) {
       result = result.filter(t =>
-        filters.designations.some(d => t.assignedDesignations?.includes(d)),
+        filters.designations.some(d =>
+          t.assignedDesignations?.includes(d),
+        ),
       );
     }
     if (filters.departments.length > 0) {
       result = result.filter(t =>
-        filters.departments.some(d => t.assignedDepartments?.some(x => x.name === d)),
+        filters.departments.some(d =>
+          t.assignedDepartments?.some(x => x.name === d),
+        ),
       );
     }
     if (filters.branches.length > 0) {
       result = result.filter(t =>
-        filters.branches.some(b => t.assignedBranches?.some(x => x.name === b)),
+        filters.branches.some(b =>
+          t.assignedBranches?.some(x => x.name === b),
+        ),
       );
     }
     if (filters.countries.length > 0) {
       result = result.filter(t =>
         filters.countries.some(c =>
-          t.assignedCountries?.some(x => (x.name?.trim() || x.code?.trim()) === c),
+          t.assignedCountries?.some(
+            x => (x.name?.trim() || x.code?.trim()) === c,
+          ),
         ),
       );
     }
-    // NEW: Year filter — match template's resolved PMS year label
+    /* Year filter — match resolved PMS year label */
     if (filters.years.length > 0) {
       result = result.filter(t => {
         const yearLabel = resolvePmsYearLabel(t, allCycles, activeCycle);
@@ -2823,45 +2142,53 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     return sortByLastModified(result);
   }, [templates, filters, allCycles, activeCycle]);
 
-  // ── Template action handlers ──
+  // ── Template action handlers ───────────────────────────────────────────────
 
+  /** Bumps a template to the top of the list by updating its lastModified timestamp. */
   function bumpTemplateToTop(id: number): void {
     setTemplates(prev =>
       sortByLastModified(
-        prev.map(t => t.id === id ? { ...t, lastModified: new Date().toISOString() } : t),
+        prev.map(t =>
+          t.id === id
+            ? { ...t, lastModified: new Date().toISOString() }
+            : t,
+        ),
       ),
     );
   }
 
   function handleViewTemplate(id: number): void {
-    router.push(`${rolePrefix}/template-management/template-creation?edit=${id}&mode=view`);
+    router.push(
+      `${rolePrefix}/template-management/template-creation?edit=${id}&mode=view`,
+    );
   }
 
   function handleEditTemplate(id: number, template: TemplateRecord): void {
     const effectiveStatus = template.freeze_status ?? permissions.freezeStatus;
 
     if (template.is_past_cycle) {
-      toast.error("This template is from a past PMS cycle and is permanently frozen.");
+      toast.error(
+        "This template is from a past PMS cycle and is permanently frozen.",
+      );
       return;
     }
 
-    // ── Parent template is ALWAYS frozen when the cycle is frozen ───────────────────────────
-    // Unfreeze exceptions ONLY permit variant creation/editing via Manage Freeze.
-    // They do NOT grant edit access to the parent template under any circumstance.
     if (effectiveStatus === "frozen") {
       const hasExceptions =
         (template.unfrozenBranchIds?.length  ?? 0) > 0 ||
         (template.unfrozenCountryIds?.length ?? 0) > 0;
       toast.error(
         hasExceptions
-          ? "The parent template is frozen. Use \"Manage Freeze\" to create or edit a branch/country variant instead."
+          ? 'The parent template is frozen. Use "Manage Freeze" to create or edit a branch/country variant instead.'
           : "Templates are fully frozen. No edits are permitted in this period.",
       );
       return;
     }
 
     if (effectiveStatus === "grace" && !permissions.canEdit) {
-      toast.error("Grace period is active. Only HQ Admin may edit templates during this period.");
+      toast.error(
+        "Grace period is active. Only HQ Admin may edit templates during this period.",
+      );
       return;
     }
 
@@ -2871,12 +2198,18 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     }
 
     bumpTemplateToTop(id);
-    router.push(`${rolePrefix}/template-management/template-creation?edit=${id}`);
+    router.push(
+      `${rolePrefix}/template-management/template-creation?edit=${id}`,
+    );
   }
 
-  async function handleDuplicateTemplate(template: TemplateRecord): Promise<void> {
+  async function handleDuplicateTemplate(
+    template: TemplateRecord,
+  ): Promise<void> {
     if (!permissions.canCreate) {
-      toast.error("Templates are frozen — duplication is not permitted in this period.");
+      toast.error(
+        "Templates are frozen — duplication is not permitted in this period.",
+      );
       return;
     }
 
@@ -2896,6 +2229,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
           lastModified: new Date().toISOString(),
         }),
       });
+
       if (!response.ok) throw new Error("Duplicate failed");
 
       const refreshRes = await fetch(`${API_BASE}/templates`);
@@ -2912,9 +2246,14 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     }
   }
 
-  async function handleDeleteTemplate(id: number, template: TemplateRecord): Promise<void> {
+  async function handleDeleteTemplate(
+    id:       number,
+    template: TemplateRecord,
+  ): Promise<void> {
     if (template.is_past_cycle) {
-      toast.error("Past-cycle templates are permanently archived and cannot be deleted.");
+      toast.error(
+        "Past-cycle templates are permanently archived and cannot be deleted.",
+      );
       setConfirmDeleteId(null);
       return;
     }
@@ -2929,23 +2268,44 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     setConfirmDeleteId(null);
 
     try {
-      const response = await fetch(`${API_BASE}/templates/${id}`, { method: "DELETE" });
+      const response = await fetch(`${API_BASE}/templates/${id}`, {
+        method: "DELETE",
+      });
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
         throw new Error(errorBody.error ?? "Delete failed");
       }
-      toast.success("Template deleted.");
+      toast.success("Template deleted successfully");
     } catch (err: any) {
       setTemplates(previousTemplates);
       toast.error(err.message ?? "Could not delete template.");
     }
   }
 
-  function handleFreezeModalSaved(updated: TemplateRecord): void {
-    setTemplates(prev =>
-      sortByLastModified(prev.map(t => t.id === updated.id ? updated : t)),
+  /**
+   * Navigates to the dedicated Edit Cycle Dates page.
+   * Passes the active cycle ID as a query parameter.
+   */
+  function handleNavigateToCycleDates(): void {
+    if (!activeCycle?.id) {
+      toast.error("No active PMS cycle found.");
+      return;
+    }
+    router.push(
+      `${rolePrefix}/template-management/cycle-dates?cycleId=${activeCycle.id}`,
     );
-    setFreezeModalTemplate(updated);
+  }
+
+  /**
+   * Navigates to the dedicated Template Freeze Management page.
+   * Passes the template ID as a query parameter.
+   */
+  function handleNavigateToFreezeManagement(
+    template: TemplateRecord,
+  ): void {
+    router.push(
+      `${rolePrefix}/template-management/freeze-management?templateId=${template.id}`,
+    );
   }
 
   const hasAnyFilter =
@@ -2956,8 +2316,15 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     filters.countries.length    > 0 ||
     filters.years.length        > 0;
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <div className={styles.wrapper}>
+      <div className={styles.dashShell}>
+      <Sidebar />
+      <main className={styles.mainContent}>
+        <Breadcrumb />
+        <div className={styles.wrapper}>
+  
 
       {/* ── Delete confirmation modal ── */}
       {confirmDeleteId !== null && (
@@ -2967,19 +2334,22 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
               <Trash2 size={22} color="#ef4444" />
             </div>
             <h3 className={styles.modalTitle}>Delete Template?</h3>
+
             {confirmDeleteTemplate?.is_past_cycle
               ? (
                 <p className={styles.modalText}>
                   This template belongs to a past PMS cycle and{" "}
-                  <strong>cannot be deleted</strong>. Past-cycle templates are permanently
-                  frozen for audit purposes.
+                  <strong>cannot be deleted</strong>. Past-cycle templates
+                  are permanently frozen for audit purposes.
                 </p>
               )
               : (
                 <p className={styles.modalText}>
-                  This action cannot be undone. All assignments will also be removed.
+                  This action cannot be undone. All assignments will also
+                  be removed.
                 </p>
               )}
+
             <div className={styles.modalActions}>
               <button
                 className={styles.modalCancelBtn}
@@ -2992,7 +2362,10 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
                   className={styles.modalDeleteBtn}
                   onClick={() =>
                     confirmDeleteTemplate &&
-                    handleDeleteTemplate(confirmDeleteId, confirmDeleteTemplate)
+                    handleDeleteTemplate(
+                      confirmDeleteId,
+                      confirmDeleteTemplate,
+                    )
                   }
                 >
                   Delete
@@ -3001,23 +2374,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
             </div>
           </div>
         </div>
-      )}
-
-      {showEditCycleModal && activeCycle && (
-        <EditCycleDatesModal
-          activeCycle={activeCycle}
-          onClose={() => setShowEditCycleModal(false)}
-          onSaved={updated => { setActiveCycle(updated); setShowEditCycleModal(false); }}
-        />
-      )}
-
-      {freezeModalTemplate && (
-        <ManageFreezeModal
-          template={freezeModalTemplate}
-          rolePrefix={rolePrefix}
-          onClose={() => setFreezeModalTemplate(null)}
-          onSaved={handleFreezeModalSaved}
-        />
+       
       )}
 
       {/* ── Page header ── */}
@@ -3031,28 +2388,36 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
             <span className={styles.rolePill}>{permissions.roleLabel}</span>
             {permissions.freezeStatus === "open" && (
               <span className={styles.subtitleNote}>
-                Objective window closes <strong>{formatDate(freezeDates.objectiveSettingEnd)}</strong>
+                Objective window closes{" "}
+                <strong>{formatDate(freezeDates.objectiveSettingEnd)}</strong>
               </span>
             )}
             {permissions.freezeStatus === "grace" && (
               <span className={styles.subtitleNoteAmber}>
-                Grace period until <strong>{formatDate(freezeDates.graceEnd)}</strong>
+                Grace period until{" "}
+                <strong>{formatDate(freezeDates.graceEnd)}</strong>
               </span>
             )}
             {permissions.freezeStatus === "frozen" && (
               <span className={styles.subtitleNoteFrozen}>
                 Templates frozen — read only
-                {level === 1 && " (use Manage Freeze to unfreeze per branch)"}
+                {level === 1 &&
+                  " (use Manage Freeze to unfreeze per branch)"}
               </span>
             )}
           </p>
         </div>
+
         <div className={styles.headerActions}>
           <CycleStatusBadge status={permissions.freezeStatus} />
           {permissions.canCreate && (
             <button
               className={styles.createBtn}
-              onClick={() => router.push(`${rolePrefix}/template-management/template-creation`)}
+              onClick={() =>
+                router.push(
+                  `${rolePrefix}/template-management/template-creation`,
+                )
+              }
             >
               + Create New Template
             </button>
@@ -3060,8 +2425,14 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         </div>
       </div>
 
-      <StatusBanner permissions={permissions} freezeDates={freezeDates} level={level} />
+      {/* ── Status banner ── */}
+      <StatusBanner
+        permissions={permissions}
+        freezeDates={freezeDates}
+        level={level}
+      />
 
+      {/* ── PMS cycle panel ── */}
       {!isLoading && (
         <PmsCyclePanel
           freezeDates={freezeDates}
@@ -3069,11 +2440,11 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
           templateCount={templates.filter(t => !t.is_past_cycle).length}
           permissions={permissions}
           level={level}
-          onEditCycle={() => setShowEditCycleModal(true)}
+          onEditCycle={handleNavigateToCycleDates}
         />
       )}
 
-      {/* ── Filter bar (now includes PMS Year) ── */}
+      {/* ── Filter bar ── */}
       <HorizontalFilterBar
         filters={filters}
         onFilterChange={setFilters}
@@ -3089,71 +2460,100 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
 
       {/* ── Template list ── */}
       <div className={`${styles.periodWrapper} ${periodWrapperClass}`}>
-        {isLoading ? (
-          <div className={styles.loadingWrapper}>
-            <Loader2 size={36} color="#3b82f6" className={styles.spinner} />
-            <p className={styles.loadingText}>Loading templates…</p>
-          </div>
-        ) : filteredTemplates.length === 0 ? (
-          <div className={styles.emptyState}>
-            <Inbox size={48} color="#cbd5e1" style={{ margin: "0 auto 16px" }} />
-            <h3 className={styles.emptyTitle}>
-              {hasAnyFilter ? "No Matching Templates" : "No Templates Yet"}
-            </h3>
-            <p className={styles.emptyText}>
-              {hasAnyFilter
-                ? "No templates match your current filters. Try adjusting or clearing them."
-                : "Click \"Create New Template\" to get started."}
-            </p>
-            {hasAnyFilter && (
-              <button
-                onClick={() => setFilters({
-                  search: "", designations: [], departments: [], branches: [], countries: [], years: [],
-                })}
-                style={{
-                  marginTop:    "12px",
-                  padding:      "8px 16px",
-                  borderRadius: "8px",
-                  border:       "1.5px solid #e2e8f0",
-                  background:   "#f8fafc",
-                  color:        "#374151",
-                  fontSize:     "13px",
-                  fontWeight:   600,
-                  cursor:       "pointer",
-                }}
-              >
-                Clear all filters
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className={styles.cardList}>
-            {filteredTemplates.map(template => (
-              <TemplateCard
-                key={template.id}
-                template={template}
-                level={level}
-                permissions={permissions}
-                isCategoryExpanded={expandedCardId  === template.id}
-                isAssignExpanded={expandedAssignId  === template.id}
-                isDuplicating={isDuplicatingId      === template.id}
-                onToggleCategoryExpand={() =>
-                  setExpandedCardId(prev  => prev === template.id ? null : template.id)
-                }
-                onToggleAssignExpand={() =>
-                  setExpandedAssignId(prev => prev === template.id ? null : template.id)
-                }
-                onView={()         => handleViewTemplate(template.id)}
-                onEdit={()         => handleEditTemplate(template.id, template)}
-                onDelete={()       => setConfirmDeleteId(template.id)}
-                onDuplicate={()    => handleDuplicateTemplate(template)}
-                onManageFreeze={() => setFreezeModalTemplate(template)}
+        {isLoading
+          ? (
+            <div className={styles.loadingWrapper}>
+              <Loader2
+                size={36}
+                color="#3b82f6"
+                className={styles.spinner}
               />
-            ))}
-          </div>
-        )}
+              <p className={styles.loadingText}>Loading templates…</p>
+            </div>
+          )
+          : filteredTemplates.length === 0
+          ? (
+            <div className={styles.emptyState}>
+              <Inbox
+                size={48}
+                color="#cbd5e1"
+                style={{ margin: "0 auto 16px" }}
+              />
+              <h3 className={styles.emptyTitle}>
+                {hasAnyFilter
+                  ? "No Matching Templates"
+                  : "No Templates Yet"}
+              </h3>
+              <p className={styles.emptyText}>
+                {hasAnyFilter
+                  ? "No templates match your current filters. Try adjusting or clearing them."
+                  : 'Click "Create New Template" to get started.'}
+              </p>
+              {hasAnyFilter && (
+                <button
+                  onClick={() =>
+                    setFilters({
+                      search:       "",
+                      designations: [],
+                      departments:  [],
+                      branches:     [],
+                      countries:    [],
+                      years:        [],
+                    })
+                  }
+                  style={{
+                    marginTop:    "12px",
+                    padding:      "8px 16px",
+                    borderRadius: "8px",
+                    border:       "1.5px solid #e2e8f0",
+                    background:   "#f8fafc",
+                    color:        "#374151",
+                    fontSize:     "13px",
+                    fontWeight:   600,
+                    cursor:       "pointer",
+                  }}
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
+          )
+          : (
+            <div className={styles.cardList}>
+              {filteredTemplates.map(template => (
+                <TemplateCard
+                  key={template.id}
+                  template={template}
+                  level={level}
+                  permissions={permissions}
+                  isCategoryExpanded={expandedCardId  === template.id}
+                  isAssignExpanded={expandedAssignId  === template.id}
+                  isDuplicating={isDuplicatingId      === template.id}
+                  onToggleCategoryExpand={() =>
+                    setExpandedCardId(prev =>
+                      prev === template.id ? null : template.id,
+                    )
+                  }
+                  onToggleAssignExpand={() =>
+                    setExpandedAssignId(prev =>
+                      prev === template.id ? null : template.id,
+                    )
+                  }
+                  onView={()      => handleViewTemplate(template.id)}
+                  onEdit={()      => handleEditTemplate(template.id, template)}
+                  onDelete={()    => setConfirmDeleteId(template.id)}
+                  onDuplicate={() => handleDuplicateTemplate(template)}
+                  onManageFreeze={() =>
+                    handleNavigateToFreezeManagement(template)
+                  }
+                />
+              ))}
+            </div>
+          )}
       </div>
+    </div>
+    
+      </main>
     </div>
   );
 }
-

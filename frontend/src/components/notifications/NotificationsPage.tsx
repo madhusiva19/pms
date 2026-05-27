@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import Sidebar    from "@/components/sidebar/Sidebar";
+import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles from "./notifications.module.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -218,6 +220,13 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
+
+      
+  
+     <div className={styles.dashShell}>
+      <Sidebar />
+      <main className={styles.mainContent}>
+        <Breadcrumb />
     <div className={styles.page}>
 
       {/* Header */}
@@ -340,6 +349,8 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
           )}
         </>
       )}
+    </div>
+       </main>
     </div>
   );
 }

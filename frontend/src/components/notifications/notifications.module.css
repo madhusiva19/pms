@@ -1,4 +1,20 @@
 /* notifications.module.css */
+/* Shell: sidebar + content side by side */
+.dashShell {
+  display:     flex;
+  min-height:  100vh;
+  background:  #f9fafb;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+/* Main content area offset by sidebar width */
+.mainContent {
+  flex:        1;
+  margin-left: 251px;
+  min-width:   0;
+  overflow-y:  auto;
+  padding:     24px;
+}
 
 .page {
   padding: 32px;
