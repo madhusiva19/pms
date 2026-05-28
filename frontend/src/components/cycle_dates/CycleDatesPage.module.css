@@ -1,19 +1,12 @@
 /**
  * CycleDatesPage.module.css
- *
- * Styles for the Edit PMS Cycle Dates full-page component.
- * Scoped to CycleDatesPage via CSS Modules.
- *
- * Layout overview:
- *  .pageWrapper        — centred content column
- *  .pageHeader         — title row + back button
- *  .infoCard           — read-only cycle summary banner
- *  .warningBox         — amber impact-warning panel
- *  .formCard           — white card wrapping the date grid
- *  .dateGrid           — 2-column responsive grid of date fields
- *  .ackRow             — acknowledgement checkbox row
- *  .actionsRow         — cancel + save buttons
  */
+
+ 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Layout Shell
+   ───────────────────────────────────────────────────────────────────────────── */
+
 /* Shell: sidebar + content side by side */
 .dashShell {
   display:     flex;
