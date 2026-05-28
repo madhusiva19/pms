@@ -11,7 +11,7 @@ def client():
         yield c
 
 
-@patch("app.supabase")
+@patch("services.diary_service.supabase")
 def test_save_diary_success(mock_supabase, client):
     """Valid diary entry saves and returns 201."""
     mock_supabase.table.return_value.insert.return_value\
@@ -37,7 +37,7 @@ def test_save_diary_missing_fields(client):
     assert res.status_code == 400
 
 
-@patch("app.supabase")
+@patch("services.diary_service.supabase")
 def test_get_diary(mock_supabase, client):
     """Returns self and supervisor entries for an employee."""
 

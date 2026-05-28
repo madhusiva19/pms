@@ -19,39 +19,48 @@ _JOBS = {
 
 
 def get_notifications(employee_id):
-    result = supabase.table("notifications")\
-        .select("*")\
-        .eq("receiver_id", employee_id)\
-        .order("created_at", desc=True)\
-        .execute()
+    try:
+        result = supabase.table("notifications")\
+            .select("*")\
+            .eq("receiver_id", employee_id)\
+            .order("created_at", desc=True)\
+            .execute()
 
-    return {"notifications": result.data}, 200
+        return {"notifications": result.data}, 200
+    except Exception as e:
+        return {"message": str(e)}, 500
 
 
 def mark_read(notification_id):
-    url     = f"{SUPABASE_URL}/rest/v1/notifications"
-    headers = {
-        "apikey":        SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type":  "application/json",
-        "Prefer":        "return=representation"
-    }
-    params   = {"id": f"eq.{notification_id}"}
-    response = req.patch(url, headers=headers, params=params, json={"is_read": True})
+    try:
+        url     = f"{SUPABASE_URL}/rest/v1/notifications"
+        headers = {
+            "apikey":        SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type":  "application/json",
+            "Prefer":        "return=representation"
+        }
+        params   = {"id": f"eq.{notification_id}"}
+        response = req.patch(url, headers=headers, params=params, json={"is_read": True})
 
-    if response.status_code in (200, 204):
-        return {"message": "Marked as read"}, 200
+        if response.status_code in (200, 204):
+            return {"message": "Marked as read"}, 200
 
-    return {"message": f"Failed: {response.text}"}, 400
+        return {"message": f"Failed: {response.text}"}, 400
+    except Exception as e:
+        return {"message": str(e)}, 500
 
 
 def trigger_cutoff(data):
-    job = (data.get("job") or "").strip()
+    try:
+        job = (data.get("job") or "").strip()
 
-    if job not in _JOBS:
-        return {
-            "message": "Invalid job. Use: july_1, july_31, aug_5, aug_10, aug_15, aug_25, aug_31, sep_15"
-        }, 400
+        if job not in _JOBS:
+            return {
+                "message": "Invalid job. Use: july_1, july_31, aug_5, aug_10, aug_15, aug_25, aug_31, sep_15"
+            }, 400
 
-    _JOBS[job]()
-    return {"message": f"Notification triggered: {job}"}, 200
+        _JOBS[job]()
+        return {"message": f"Notification triggered: {job}"}, 200
+    except Exception as e:
+        return {"message": str(e)}, 500

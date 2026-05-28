@@ -99,8 +99,7 @@ export default function NotificationTemplate({
   const totalUnread        = unreadAchievements + unreadCutoffs;
 
   // ── Mark achievement as read ──
-  console.log("achievementList:", achievementList);
-console.log("unreadAchievements:", unreadAchievements);
+
   const markAchievementRead = async (id: string) => {
     setAchievementList((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
     try {

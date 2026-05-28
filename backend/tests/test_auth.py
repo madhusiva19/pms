@@ -14,8 +14,8 @@ def client():
 
 # ── LOGIN TESTS ──────────────────────────────────────────
 
-@patch("app.req.post")
-@patch("app.supabase")
+@patch("services.auth_service.req.post")
+@patch("services.auth_service.supabase")
 def test_login_success(mock_supabase, mock_post, client):
     """Valid credentials return 200 with user data and redirect."""
 
@@ -53,7 +53,7 @@ def test_login_success(mock_supabase, mock_post, client):
     assert data["user"]["role"] == "employee"
 
 
-@patch("app.req.post")
+@patch("services.auth_service.req.post")
 def test_login_wrong_password(mock_post, client):
     """Wrong password returns 401."""
     mock_response = MagicMock()
@@ -78,7 +78,7 @@ def test_login_missing_fields(client):
 
 # ── RESET PASSWORD TESTS ─────────────────────────────────
 
-@patch("app.req.post")
+@patch("services.auth_service.req.post")
 def test_reset_password_success(mock_post, client):
     """Valid token and password returns 200."""
 
@@ -92,7 +92,7 @@ def test_reset_password_success(mock_post, client):
 
     mock_post.side_effect = [mock_verify]
 
-    with patch("app.req.put", return_value=mock_update):
+    with patch("services.auth_service.req.put", return_value=mock_update):
         res = client.post("/api/auth/reset-password", json={
             "token":    "valid-token-hash",
             "password": "NewPassword123"
@@ -102,7 +102,7 @@ def test_reset_password_success(mock_post, client):
     assert res.get_json()["message"] == "Password reset successfully"
 
 
-@patch("app.req.post")
+@patch("services.auth_service.req.post")
 def test_reset_password_invalid_token(mock_post, client):
     """Expired or invalid token returns 400."""
     mock_verify = MagicMock()
