@@ -11,7 +11,7 @@ def client():
         yield c
 
 
-@patch("app.supabase")
+@patch("services.profile_service.supabase")
 def test_get_profile_success(mock_supabase, client):
     """Returns profile with flattened designation name."""
     mock_supabase.table.return_value.select.return_value\
@@ -30,7 +30,7 @@ def test_get_profile_success(mock_supabase, client):
     assert data["profile"]["full_name"]   == "Madhu Test"
 
 
-@patch("app.supabase")
+@patch("services.profile_service.supabase")
 def test_get_profile_not_found(mock_supabase, client):
     """Non-existent employee returns 404."""
     mock_supabase.table.return_value.select.return_value\

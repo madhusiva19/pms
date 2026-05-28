@@ -98,7 +98,7 @@ export default function TrainingPassport({
 }: TrainingPassportProps) {
   const router = useRouter();
   const config = ROLE_CONFIG[role];
-  const { refreshBadges } = useAuth();
+  const { refreshBadges, clearTrainingBadge } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"attended" | "suggestions">("attended");
 
@@ -230,7 +230,7 @@ export default function TrainingPassport({
 
   // ── Pending counts for badges ──
   const pendingSubordinateCount = subordinateSuggestions.filter(s => s.status === "pending").length;
-  const pendingOwnCount         = suggestionList.filter(s => s.status === "pending").length;
+  const reviewedOwnCount        = suggestionList.filter(s => s.status === "approved" || s.status === "rejected").length;
 
   return (
     <div className={styles.shell}>
@@ -284,16 +284,17 @@ export default function TrainingPassport({
               <button
                 type="button"
                 className={activeTab === "suggestions" ? styles.tabActive : styles.tabInactive}
-                onClick={() => setActiveTab("suggestions")}
-              >
+                onClick={() => { setActiveTab("suggestions"); clearTrainingBadge() }}
+  >
+        
                 🔮 Training Suggestions
                 {/* Badge for supervisor — pending subordinate suggestions */}
                 {config.canReview && pendingSubordinateCount > 0 && (
                   <span className={styles.tabBadge}>{pendingSubordinateCount}</span>
                 )}
-                {/* Badge for employee — own pending suggestions */}
-                {config.canSuggest && !config.canReview && pendingOwnCount > 0 && (
-                  <span className={styles.tabBadge}>{pendingOwnCount}</span>
+                {/* Badge for employee — reviewed (approved/rejected) suggestions */}
+                {config.canSuggest && !config.canReview && reviewedOwnCount > 0 && (
+                  <span className={styles.tabBadge}>{reviewedOwnCount}</span>
                 )}
               </button>
             )}
