@@ -1,5 +1,11 @@
 /* TemplateCreateBase.module.css */
 
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Layout Shell
+   ───────────────────────────────────────────────────────────────────────────── */
+
+
 /* Shell: sidebar + content side by side */
 .dashShell {
   display:     flex;
