@@ -842,9 +842,6 @@ const buildMilestones = (freezeDates: DynamicFreezeDates) => [
 /**
  * Two-panel widget showing the active PMS cycle year, progress bar,
  * key statistics, and milestone cards.
- *
- * The "Edit Cycle Dates" button (HQ Admin only) now navigates to a
- * dedicated page instead of opening an inline modal.
  */
 function PmsCyclePanel({
   freezeDates,
@@ -934,17 +931,21 @@ function PmsCyclePanel({
 
         {/* Edit Cycle Dates — navigates to dedicated page (HQ Admin only) */}
         {isHqAdmin && activeCycle?.id && (
-          <button
-            className={styles.editCycleDatesBtn}
-            onClick={onEditCycle}
-            title="Navigate to Edit Cycle Dates page"
-          >
-            <Settings size={13} />
-            Edit Cycle Dates
-          </button>
-        )}
-      </div>
-
+         <div
+         className={styles.editCycleDatesBtn}
+         onClick={onEditCycle}
+         title="Navigate to Edit Cycle Dates page"
+         role="button"
+         tabIndex={0}
+         onKeyDown={(e) => e.key === 'Enter' && onEditCycle()}
+         >
+         <div className={styles.editCycleDatesBtnIcon}>
+           <CalendarDays size={17} strokeWidth={2} />
+         </div>
+         <span className={styles.editCycleDatesBtnLabel}>Manage Cycle Dates</span>
+            </div>
+           )}
+         </div>
       {/* ── Right panel: milestone icon cards ── */}
       <div className={styles.cyclePanelRight}>
         {milestones.map(milestone => {
