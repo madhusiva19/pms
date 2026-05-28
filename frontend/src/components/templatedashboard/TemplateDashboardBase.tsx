@@ -940,7 +940,7 @@ function PmsCyclePanel({
          onKeyDown={(e) => e.key === 'Enter' && onEditCycle()}
          >
          <div className={styles.editCycleDatesBtnIcon}>
-           <CalendarDays size={17} strokeWidth={2} />
+           <CalendarDays size={17} strokeWidth={2.5} />
          </div>
          <span className={styles.editCycleDatesBtnLabel}>Manage Cycle Dates</span>
             </div>
