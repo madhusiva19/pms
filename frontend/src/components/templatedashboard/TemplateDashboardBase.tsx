@@ -2,18 +2,7 @@
  * TemplateDashboardBase.tsx
  *
  * Main dashboard component for the Template Management module.
- *
- * Responsibilities:
- *  - Listing, filtering, and sorting performance templates.
- *  - Displaying the active PMS cycle panel and status banners.
- *  - Role-based access control for edit / delete / duplicate actions.
- *  - Navigation to dedicated pages for:
- *      • Edit PMS Cycle Dates  (HQ Admin only)
- *      • Manage Freeze         (HQ Admin only, when template is frozen/grace)
- *
- * NOTE: EditCycleDatesModal and ManageFreezeModal have been extracted
- * to their own full-page components. This file no longer contains them.
- *
+
  * @module TemplateDashboardBase
  */
 
@@ -28,7 +17,8 @@ import {
   ChevronUp,    Layers,       Unlock,       Award,        Users,
   Building2,    BarChart3,    TrendingUp,   GitBranch,    Settings,
   X,            Globe,        History,      SlidersHorizontal,
-  Flag,         Star,         ShieldCheck,  CalendarDays,
+  Flag,         Star,         ShieldCheck,  CalendarDays, Sparkles,
+  FilePen
 } from "lucide-react";
 import { toast }                  from "sonner";
 import styles                     from "./TemplateDashboardBase.module.css";
@@ -2420,7 +2410,11 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
                 )
               }
             >
-              + Create New Template
+               <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+               <FilePen size={17} strokeWidth={2.5} />
+               <Sparkles size={14} strokeWidth={2.5} style={{ marginLeft: -4, marginTop: -8, color: '#f4ff7c' }} />
+                </span>
+                <span>Create New Template</span>
             </button>
           )}
         </div>
