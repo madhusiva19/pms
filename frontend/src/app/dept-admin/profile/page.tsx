@@ -24,7 +24,6 @@ export default function DeptAdminProfilePage() {
       try {
         const profileRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${targetId}`);
         const profileJson = await profileRes.json();
-        console.log("Profile API response:", profileJson);
         setProfileData(profileJson.profile);
 
         const diaryRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${targetId}`);

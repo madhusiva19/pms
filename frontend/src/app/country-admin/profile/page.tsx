@@ -24,7 +24,6 @@ export default function CountryAdminProfilePage() {
       try {
         const profileRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${targetId}`);
         const profileJson = await profileRes.json();
-        console.log("Profile data:", profileJson.profile); 
         setProfileData(profileJson.profile);
 
         const diaryRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${targetId}`);
@@ -50,9 +49,6 @@ export default function CountryAdminProfilePage() {
 
   const targetId = searchParams.get("employee_id") || user.employee_id;
   const isOwnProfile = targetId === user.employee_id;
-
-  console.log("profileData:", profileData);
-  console.log("full_name:", profileData?.full_name);
   
   return (
       <ProfileTemplate

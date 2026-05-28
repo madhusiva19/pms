@@ -407,6 +407,9 @@ const avatarBg = "#F9BE00";
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>Remarkable Performance / Achievements</h2>
             </div>
+            
+
+            
 
             {/* Table 1: Supervisor Comments */}
             {(config.showSupervisorComments || viewMode === "supervisor") && (
@@ -441,6 +444,9 @@ const avatarBg = "#F9BE00";
               </div>
             )}
 
+
+            
+
             {/* Table 2: Self Submissions */}
             <div style={{ padding: "14px 20px 0 20px" }}>
               <p style={{ margin: "0 0 8px 0", fontSize: "13px", fontWeight: 600, color: "#374151" }}>
@@ -453,6 +459,8 @@ const avatarBg = "#F9BE00";
                         Pending
                         <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "2px", background: "#DCFCE7", border: "1px solid #86EFAC", marginRight: "4px", marginLeft: "10px" }} />
                         Approved
+                        <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "2px", background: "#FEE2E2", border: "1px solid #F87171", marginRight: "4px", marginLeft: "10px" }} />
+                        Rejected
                       </span>
                     </>
                   )

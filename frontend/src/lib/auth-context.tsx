@@ -20,6 +20,7 @@ interface AuthContextType {
   notificationCount: number;
   trainingBadgeCount: number;
   refreshBadges: () => void;
+  clearTrainingBadge: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -29,12 +30,14 @@ const AuthContext = createContext<AuthContextType>({
   notificationCount: 0,
   trainingBadgeCount: 0,
   refreshBadges: () => {},
+  clearTrainingBadge: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [trainingBadgeCount, setTrainingBadgeCount] = useState(0);
+  const clearTrainingBadge = () => setTrainingBadgeCount(0);
 
   useEffect(() => {
     const raw = localStorage.getItem("pms_user");
@@ -59,18 +62,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ── Training badge ──
       // Supervisors see pending subordinate suggestions
       // Employees see their own pending suggestions
+
       const isSupervisor = ["hq_admin", "country_admin", "branch_admin", "dept_admin", "sub_dept_admin"].includes(role);
 
+      let trainingBadge = 0;
+
+      // Everyone sees badge when their OWN suggestion is reviewed
+      const suggRes  = await fetch(`${API}/api/training/suggestions/${employeeId}`);
+      const suggData = await suggRes.json();
+      const reviewed = (suggData.suggestions || []).filter(
+        (s: any) => s.status === "approved" || s.status === "rejected"
+      ).length;
+      trainingBadge += reviewed;
+
+      // Supervisors ALSO see badge for pending subordinate suggestions
       if (isSupervisor) {
-        const subRes = await fetch(`${API}/api/training/subordinate-suggestions/${employeeId}`);
+        const subRes  = await fetch(`${API}/api/training/subordinate-suggestions/${employeeId}`);
         const subData = await subRes.json();
-        setTrainingBadgeCount((subData.suggestions || []).length);
-      } else {
-        const suggRes = await fetch(`${API}/api/training/suggestions/${employeeId}`);
-        const suggData = await suggRes.json();
-        const pending = (suggData.suggestions || []).filter((s: any) => s.status === "pending").length;
-        setTrainingBadgeCount(pending);
+        trainingBadge += (subData.suggestions || []).length;
       }
+
+      setTrainingBadgeCount(trainingBadge);
 
     } catch (err) {
       console.error("Failed to fetch badges:", err);
@@ -97,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       notificationCount,
       trainingBadgeCount,
       refreshBadges,
+      clearTrainingBadge,
     }}>
       {children}
     </AuthContext.Provider>
