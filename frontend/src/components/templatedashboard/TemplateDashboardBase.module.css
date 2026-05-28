@@ -153,12 +153,15 @@
 }
 
 .createBtn {
-  padding:       12px 28px;
+  display:       flex;         
+  align-items:   center;       
+  gap:           8px;  
+  padding:       12px 42px 12px 36px;
   border-radius: 12px;
   background:    linear-gradient(135deg, #6366f1, #06b6d4);
   color:         #fff;
   font-weight:   600;
-  font-size:     14px;
+  font-size:     15px;
   border:        none;
   cursor:        pointer;
   box-shadow:    0 4px 14px rgba(99, 102, 241, 0.35);
