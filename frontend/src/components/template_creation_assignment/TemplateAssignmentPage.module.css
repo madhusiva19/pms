@@ -1,7 +1,12 @@
 /**
  * TemplateAssignmentPage.module.css
- * Complete — every class name matched exactly to the current TSX.
  */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Layout Shell
+   ───────────────────────────────────────────────────────────────────────────── */
+
+
 /* Shell: sidebar + content side by side */
 .dashShell {
   display:     flex;

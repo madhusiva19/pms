@@ -1,21 +1,12 @@
 /**
  * FreezeManagementPage.module.css
- *
- * Styles for the Template Freeze Management full-page component.
- * Scoped via CSS Modules to FreezeManagementPage.
- *
- * Layout overview:
- *  .pageWrapper       — centred content column
- *  .pageHeader        — title row + back button
- *  .scopeBanner       — dept / sub-dept scope chips
- *  .infoCard          — template summary bar
- *  .contentCard       — main white card (tabs + body + footer)
- *  .tabBar            — branch / country tab switcher
- *  .contentBody       — scrollable list of unfrozen + frozen sections
- *  .unfrozenRow       — a single unfrozen item row
- *  .frozenRow         — a single frozen item row (with checkbox)
- *  .footer            — selection summary + action buttons
  */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Layout Shell
+   ───────────────────────────────────────────────────────────────────────────── */
+
+
 /* Shell: sidebar + content side by side */
 .dashShell {
   display:     flex;
