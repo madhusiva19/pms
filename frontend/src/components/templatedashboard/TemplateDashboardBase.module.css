@@ -294,6 +294,7 @@
 .modalDeleteBtn:hover { background: #dc2626; }
 
 /* ─── Buttons ────────────────────────────────────────────────────────────── */
+
 .editCycleDatesBtn {
   display: inline-flex; align-items: center;
   border-radius: 12px; min-width: 170px;
