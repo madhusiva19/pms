@@ -1079,7 +1079,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
       <div className={styles.pageHeader}>
         <div>
           <div className={styles.pageTitleRow}>
-            {isViewMode && <div className={styles.viewModeIconWrapper}><Eye size={18} color="#3b82f6" /></div>}
+            
             <h1 className={styles.pageTitle}>
               {!editId               ? "Create Evaluation Template"
                : isViewMode         ? "View Evaluation Template"
