@@ -438,8 +438,8 @@
   cursor:  not-allowed;
 }
 
-/* active colours applied inline via style prop in TSX */
-.scopeToggleBtnActive {}
+/* active colours applied inline via style prop in TSX 
+.scopeToggleBtnActive {} */
 
 .scopeToggleIconWrap {
   display:     inline-flex;
