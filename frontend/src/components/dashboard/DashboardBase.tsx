@@ -9,7 +9,7 @@ import {
 } from "recharts";
 
 function renderPieLabel(props: any) {
-  const { cx, cy, midAngle, outerRadius, value, name } = props;
+  const { cx, cy, midAngle, outerRadius, value } = props;
   const RADIAN = Math.PI / 180;
   const r = outerRadius + 22;
   const x = cx + r * Math.cos(-midAngle * RADIAN);
@@ -27,7 +27,7 @@ function renderPieLabel(props: any) {
       dominantBaseline="central"
       textAnchor={x > cx ? "start" : "end"}
     >
-      {`${name}: ${value}`}
+      {`${value}`}
     </text>
   );
 }
@@ -54,21 +54,41 @@ export default function DashboardBase({ level }: { level: number }) {
     const currentUser = JSON.parse(raw);
     setUser(currentUser);
 
+    const CACHE_KEY = `dashboard_cache_${currentUser.employee_id}`;
+    const CACHE_TTL = 0; // Disabled cache to prevent stale data
+
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const { stats: cachedStats, chartData: cachedChart, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < CACHE_TTL) {
+        setStats(cachedStats);
+        setChartData(cachedChart);
+        setLoading(false);
+        return;
+      }
+    }
+
     const fetchData = async () => {
       try {
-        // Fetch stats
-        const statsRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats/${currentUser.employee_id}`
-        );
-        const statsJson = await statsRes.json();
-        setStats(statsJson.stats || {});
+        const [statsRes, chartRes] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats/${currentUser.employee_id}`),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/charts/${currentUser.employee_id}`),
+        ]);
 
-        // Fetch chart data
-        const chartRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/charts/${currentUser.employee_id}`
-        );
+        const statsJson = await statsRes.json();
         const chartJson = await chartRes.json();
-        setChartData(chartJson.data || { bar: [], pie: [] });
+
+        const freshStats = statsJson.stats || {};
+        const freshChart = chartJson.data || { bar: [], pie: [] };
+
+        setStats(freshStats);
+        setChartData(freshChart);
+
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          stats: freshStats,
+          chartData: freshChart,
+          timestamp: Date.now(),
+        }));
 
       } catch (err) {
         console.error("Failed to fetch dashboard data:", err);
