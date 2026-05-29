@@ -166,40 +166,44 @@ def approve_diary(diary_id, body):
     try:
         reviewer_id = (body.get("reviewer_id") or "").strip()
 
-        supabase.table("performance_diary")\
+        update_result = supabase.table("performance_diary")\
             .update({
                 "status":      "approved",
                 "reviewed_by": reviewer_id,
                 "reviewed_at": datetime.now(timezone.utc).isoformat()
             })\
             .eq("id", diary_id)\
+            .eq("status", "pending")\
             .execute()
 
-        diary = supabase.table("performance_diary")\
-            .select("user_id, entry_text")\
-            .eq("id", diary_id)\
-            .execute()
-
-        if diary.data:
-            employee_id = diary.data[0]["user_id"]
-            description = diary.data[0]["entry_text"]
-
-            user = supabase.table("users")\
-                .select("org_level")\
-                .eq("id", employee_id)\
+        if not update_result.data:
+            existing = supabase.table("performance_diary")\
+                .select("status")\
+                .eq("id", diary_id)\
                 .execute()
+            if existing.data and existing.data[0]["status"] == "approved":
+                return {"message": "Diary entry already approved"}, 200
+            return {"message": "Diary entry not found or not pending"}, 404
 
-            org_level  = user.data[0]["org_level"] if user.data else 6
-            action_url = ROLE_PROFILE_PATHS.get(org_level, "/")
+        employee_id = update_result.data[0]["user_id"]
+        description = update_result.data[0]["entry_text"]
 
-            supabase.table("notifications").insert({
-                "receiver_id":  employee_id,
-                "type":         "diary_approval",
-                "title":        "Achievement Approved ✅",
-                "message":      f"Your diary entry has been approved: {description[:100]}",
-                "triggered_by": "system",
-                "action_link":  action_url,
-            }).execute()
+        user = supabase.table("users")\
+            .select("org_level")\
+            .eq("id", employee_id)\
+            .execute()
+
+        org_level  = user.data[0]["org_level"] if user.data else 6
+        action_url = ROLE_PROFILE_PATHS.get(org_level, "/")
+
+        supabase.table("notifications").insert({
+            "receiver_id":  employee_id,
+            "type":         "diary_approval",
+            "title":        "Achievement Approved ✅",
+            "message":      f"Your diary entry has been approved: {description[:100]}",
+            "triggered_by": "system",
+            "action_link":  action_url,
+        }).execute()
 
         return {"message": "Diary entry approved"}, 200
     except Exception as e:
@@ -210,40 +214,44 @@ def reject_diary(diary_id, body):
     try:
         reviewer_id = (body.get("reviewer_id") or "").strip()
 
-        supabase.table("performance_diary")\
+        update_result = supabase.table("performance_diary")\
             .update({
                 "status":      "rejected",
                 "reviewed_by": reviewer_id,
                 "reviewed_at": datetime.now(timezone.utc).isoformat()
             })\
             .eq("id", diary_id)\
+            .eq("status", "pending")\
             .execute()
 
-        diary = supabase.table("performance_diary")\
-            .select("user_id, entry_text")\
-            .eq("id", diary_id)\
-            .execute()
-
-        if diary.data:
-            employee_id = diary.data[0]["user_id"]
-            description = diary.data[0]["entry_text"]
-
-            user = supabase.table("users")\
-                .select("org_level")\
-                .eq("id", employee_id)\
+        if not update_result.data:
+            existing = supabase.table("performance_diary")\
+                .select("status")\
+                .eq("id", diary_id)\
                 .execute()
+            if existing.data and existing.data[0]["status"] == "rejected":
+                return {"message": "Diary entry already rejected"}, 200
+            return {"message": "Diary entry not found or not pending"}, 404
 
-            org_level  = user.data[0]["org_level"] if user.data else 6
-            action_url = ROLE_PROFILE_PATHS.get(org_level, "/")
+        employee_id = update_result.data[0]["user_id"]
+        description = update_result.data[0]["entry_text"]
 
-            supabase.table("notifications").insert({
-                "receiver_id":  employee_id,
-                "type":         "diary_approval",
-                "title":        "Achievement Rejected ❌",
-                "message":      f"Your diary entry was not approved: {description[:100]}",
-                "triggered_by": "system",
-                "action_link":  action_url,
-            }).execute()
+        user = supabase.table("users")\
+            .select("org_level")\
+            .eq("id", employee_id)\
+            .execute()
+
+        org_level  = user.data[0]["org_level"] if user.data else 6
+        action_url = ROLE_PROFILE_PATHS.get(org_level, "/")
+
+        supabase.table("notifications").insert({
+            "receiver_id":  employee_id,
+            "type":         "diary_approval",
+            "title":        "Achievement Rejected ❌",
+            "message":      f"Your diary entry was not approved: {description[:100]}",
+            "triggered_by": "system",
+            "action_link":  action_url,
+        }).execute()
 
         return {"message": "Diary entry rejected"}, 200
     except Exception as e:

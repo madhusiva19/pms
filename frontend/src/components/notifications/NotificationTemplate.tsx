@@ -85,6 +85,7 @@ export default function NotificationTemplate({
   dashboardPath,
   achievementNotifications = [],
   cutoffNotifications = [],
+
 }: NotificationPageProps) {
   const router = useRouter();
   const config = ROLE_CONFIG[role];
@@ -162,8 +163,6 @@ const user = raw ? JSON.parse(raw) : null;
   
   return (
     <div className={styles.shell}>
-
-      <Sidebar />
 
       {/* ══════════════ MAIN ══════════════ */}
       <main className={styles.main}>
