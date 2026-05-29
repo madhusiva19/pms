@@ -2,6 +2,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationTemplate from "@/components/notifications/NotificationTemplate";
+import Sidebar from "@/components/sidebar/Sidebar";
+import styles from "@/components/notifications/notifications.module.css";
+
+const CACHE_TTL = 0; // Disabled cache to prevent stale data
 
 export default function SubDeptAdminNotificationsPage() {
   const router = useRouter();
@@ -17,33 +21,52 @@ export default function SubDeptAdminNotificationsPage() {
     setUser(currentUser);
 
     const fetchNotifications = async () => {
+      const cacheKey = `notification_cache_${currentUser.employee_id}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const { achievementNotifs: an, cutoffNotifs: cn, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < CACHE_TTL) {
+            setAchievementNotifs(an);
+            setCutoffNotifs(cn);
+            setLoading(false);
+            return;
+          }
+        } catch {}
+      }
+
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${currentUser.employee_id}`);
         const data = await res.json();
 
-        setAchievementNotifs(
-          (data.notifications || []).filter((n: any) => n.type === "diary_approval").map((n: any) => ({
-            id: n.id,
-            fromName: n.title,
-            fromRole: "",
-            submittedAt: n.created_at?.split("T")[0],
-            achievement: n.message,
-            isRead: n.is_read,
-            actionUrl: n.action_link || "/sub-dept-admin/profile",
-          }))
-        );
+        const mappedAchievements = (data.notifications || []).filter((n: any) => n.type === "diary_approval").map((n: any) => ({
+          id: n.id,
+          fromName: n.title,
+          fromRole: "",
+          submittedAt: n.created_at?.split("T")[0],
+          achievement: n.message,
+          isRead: n.is_read,
+          actionUrl: n.action_link || "/sub-dept-admin/profile",
+        }));
 
-        setCutoffNotifs(
-          (data.notifications || []).filter((n: any) => n.type === "objective_cutoff").map((n: any) => ({
-            id: n.id,
-            title: n.title,
-            message: n.message,
-            cutoffDate: n.created_at?.split("T")[0],
-            status: "normal",
-            isRead: n.is_read,
-            actionUrl: n.action_link ||  "/sub-dept-admin/dashboard",
-          }))
-        );
+        const mappedCutoffs = (data.notifications || []).filter((n: any) => n.type === "objective_cutoff").map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          message: n.message,
+          cutoffDate: n.created_at?.split("T")[0],
+          status: "normal",
+          isRead: n.is_read,
+          actionUrl: n.action_link || "/sub-dept-admin/dashboard",
+        }));
+
+        setAchievementNotifs(mappedAchievements);
+        setCutoffNotifs(mappedCutoffs);
+
+        localStorage.setItem(cacheKey, JSON.stringify({
+          achievementNotifs: mappedAchievements,
+          cutoffNotifs: mappedCutoffs,
+          timestamp: Date.now(),
+        }));
       } catch (err) {
         console.error("Failed to fetch notifications:", err);
       } finally {
@@ -53,16 +76,24 @@ export default function SubDeptAdminNotificationsPage() {
     fetchNotifications();
   }, []);
 
-  if (loading) return <div style={{ padding: "40px" }}>Loading...</div>;
-  if (!user) return null;
-
   return (
-    <NotificationTemplate
-      role="Sub Dept Admin"
-      sidebarName={user.full_name.split(" ")[0]}
-      dashboardPath="/sub-dept-admin/dashboard"
-      achievementNotifications={achievementNotifs}
-      cutoffNotifications={cutoffNotifs}
-    />
+    <div className={styles.shell}>
+      <Sidebar />
+      <main className={styles.main}>
+        {(loading || !user) ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "#9CA3AF", fontSize: "14px" }}>
+            Loading...
+          </div>
+        ) : (
+          <NotificationTemplate
+            role="Sub Dept Admin"
+            sidebarName={user.full_name.split(" ")[0]}
+            dashboardPath="/sub-dept-admin/dashboard"
+            achievementNotifications={achievementNotifs}
+            cutoffNotifications={cutoffNotifs}
+          />
+        )}
+      </main>
+    </div>
   );
 }

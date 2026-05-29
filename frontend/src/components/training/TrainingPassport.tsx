@@ -235,8 +235,6 @@ export default function TrainingPassport({
   return (
     <div className={styles.shell}>
 
-      <Sidebar />
-
       {/* ══════════ MAIN ══════════ */}
       <main className={styles.main}>
 

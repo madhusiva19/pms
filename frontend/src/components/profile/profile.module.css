@@ -296,10 +296,6 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-/* Remove old heroInitials since AvatarUpload handles it */
-.heroInitials {
-  display: none;
-}
 
 /* ── Grid ── */
 .grid{
@@ -374,6 +370,7 @@
   border: 1px solid #E5E7EB;
   padding: 12px;
   outline: none;
+  color: #000;
   font-size: 14px;
   line-height: 20px;
   background: #FFFFFF;

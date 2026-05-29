@@ -5,7 +5,6 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./profile.module.css";
-import Sidebar from "@/components/sidebar/Sidebar";
 import AvatarUpload from "./AvatarUpload";
 import { refresh } from "next/cache";
 
@@ -42,6 +41,7 @@ export type ProfileData = {
   country?: string;
   branch?: string;
   department?: string;
+  phonenumber?: string;
 };
 
 interface ProfileTemplateProps {
@@ -96,6 +96,7 @@ export default function ProfileTemplate({
   const [selfAchievements, setSelfAchievements] = useState<SelfAchievement[]>(initialSelfAchievements);
   const [supervisorCommentsList, setSupervisorCommentsList] = useState<SupervisorComment[]>(initialSupervisorComments);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl || null);
+  const [processingIds, setProcessingIds] = useState<string[]>([]);
   const initials = profile?.fullName
     ? profile.fullName
     .split(" ")
@@ -208,6 +209,8 @@ const avatarBg = "#F9BE00";
 
   // ── Approve diary entry (supervisor mode) ──
   const handleApprove = async (diaryId: string) => {
+    if (processingIds.includes(diaryId)) return;
+    setProcessingIds((prev) => [...prev, diaryId]);
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/diary/${diaryId}/approve`,
@@ -232,12 +235,15 @@ const avatarBg = "#F9BE00";
       setStatus("error");
       setStatusMsg("Backend connection failed ❌");
     } finally {
+      setProcessingIds((prev) => prev.filter((id) => id !== diaryId));
       setTimeout(() => { setStatus("idle"); setStatusMsg(""); }, 3000);
     }
   };
 
   // ── Reject diary entry (supervisor mode) ──
   const handleReject = async (diaryId: string) => {
+    if (processingIds.includes(diaryId)) return;
+    setProcessingIds((prev) => [...prev, diaryId]);
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/diary/${diaryId}/reject`,
@@ -262,6 +268,7 @@ const avatarBg = "#F9BE00";
       setStatus("error");
       setStatusMsg("Backend connection failed ❌");
     } finally {
+      setProcessingIds((prev) => prev.filter((id) => id !== diaryId));
       setTimeout(() => { setStatus("idle"); setStatusMsg(""); }, 3000);
     }
   };
@@ -310,9 +317,6 @@ const avatarBg = "#F9BE00";
 
   return (
     <div className={styles.shell}>
-
-      
-      <Sidebar />
 
       {/* ══════════════ MAIN ══════════════ */}
       <main className={styles.main}>
@@ -393,6 +397,7 @@ const avatarBg = "#F9BE00";
               <div className={styles.field}><div className={styles.label}>Date Joined</div><div className={styles.value}>{profile.joinedDate}</div></div>
               <div className={styles.field}><div className={styles.label}>Date of Birth</div><div className={styles.value}>{profile.dob}</div></div>
               <div className={styles.field}><div className={styles.label}>Designation</div><div className={styles.value}>{profile.designation}</div></div>
+              <div className={styles.field}><div className={styles.label}>Phone Number</div><div className={styles.value}>{profile.phonenumber || "Not set"}</div></div>
               {config.showBranch && profile.branch && (
                 <div className={styles.field}><div className={styles.label}>Branch</div><div className={styles.value}>{profile.branch}</div></div>
               )}
@@ -514,12 +519,38 @@ const avatarBg = "#F9BE00";
                             {/* Supervisor mode — approve/reject pending */}
                             {viewMode === "supervisor" && item.status === "pending" && (
                               <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
-                                <button onClick={() => handleApprove(item.id)}
-                                  style={{ padding: "4px 10px", background: "#DCFCE7", color: "#065F46", border: "1px solid #86EFAC", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>
+                                <button 
+                                  onClick={() => handleApprove(item.id)}
+                                  disabled={processingIds.includes(item.id)}
+                                  style={{ 
+                                    padding: "4px 10px", 
+                                    background: "#DCFCE7", 
+                                    color: "#065F46", 
+                                    border: "1px solid #86EFAC", 
+                                    borderRadius: "6px", 
+                                    cursor: processingIds.includes(item.id) ? "not-allowed" : "pointer", 
+                                    fontSize: "12px", 
+                                    fontWeight: 600,
+                                    opacity: processingIds.includes(item.id) ? 0.6 : 1
+                                  }}
+                                >
                                   ✓ Approve
                                 </button>
-                                <button onClick={() => handleReject(item.id)}
-                                  style={{ padding: "4px 10px", background: "#FEE2E2", color: "#991B1B", border: "1px solid #FECACA", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>
+                                <button 
+                                  onClick={() => handleReject(item.id)}
+                                  disabled={processingIds.includes(item.id)}
+                                  style={{ 
+                                    padding: "4px 10px", 
+                                    background: "#FEE2E2", 
+                                    color: "#991B1B", 
+                                    border: "1px solid #FECACA", 
+                                    borderRadius: "6px", 
+                                    cursor: processingIds.includes(item.id) ? "not-allowed" : "pointer", 
+                                    fontSize: "12px", 
+                                    fontWeight: 600,
+                                    opacity: processingIds.includes(item.id) ? 0.6 : 1
+                                  }}
+                                >
                                   ✕ Reject
                                 </button>
                               </div>
