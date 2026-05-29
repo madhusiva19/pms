@@ -1298,7 +1298,7 @@ export default function TemplateAssignmentPage({ level = 1 }: TemplateAssignment
               <LayoutGrid size={18} />
             </div>
             <div>
-              <h2 className={styles.panelTitle}>Rule-Based Assignment</h2>
+              <h2 className={styles.panelTitle}>Org-Based Assignment</h2>
               <p className={styles.panelSubtitle}>
                 Designate employees by Designation → Department → Sub-Department → Branches.
               </p>
@@ -1442,7 +1442,7 @@ export default function TemplateAssignmentPage({ level = 1 }: TemplateAssignment
                           onClick={handleAddCombinationRule}
                         >
                           <CheckCircle2 size={13} />
-                          Assign to All {matchingBranches.length} Branch{matchingBranches.length !== 1 ? "es" : ""}
+                          Confirm Assignment to All {matchingBranches.length} Branch{matchingBranches.length !== 1 ? "es" : ""}
                         </button>
                       </div>
                       <div className={styles.branchChipList}>
