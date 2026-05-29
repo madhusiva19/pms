@@ -41,18 +41,27 @@ rating_periods_bp = Blueprint("rating_periods", __name__)
 def resolve_period_for_user(user: dict, rows: list) -> dict | None:
     """
     Given a user dict and a list of rating_periods rows (same pms_year+period),
-    return the most specific matching row.
+    return the correct row for this user.
 
-    Resolution priority (most specific wins):
-      1. sub_department_id match
-      2. department_id match
-      3. branch_id match
-      4. country_id match
-      5. global row (all NULLs) — fallback
+    Resolution: EXACT LEVEL MATCH → global fallback (no parent cascade)
+    ─────────────────────────────────────────────────────────────────────
+    Each user resolves to the row that was set for THEIR specific admin level,
+    then falls back directly to the global (all-NULL) row if no level-specific
+    row exists. Intermediate parent levels are deliberately skipped.
 
-    This means each scoped row affects only the admin whose user record
-    matches exactly at that level — e.g. a country-scoped row only matches
-    a Country Admin who has country_id set but branch_id = NULL.
+    Why no parent cascade?
+      If a Country Admin row exists for India (country_id=India, rest NULL),
+      we do NOT want Branch/Dept/Sub-Dept admins under India to resolve to it.
+      They should always fall back to global unless they have their own
+      branch/dept/sub-dept level row. This ensures "selecting India in the
+      scope picker only changes the Country Admin's period" as intended.
+
+    Level determination is based on which org-unit fields are set on the user:
+      sub_department_id set → Sub-Dept Admin level
+      department_id set     → Dept Admin level
+      branch_id set         → Branch Admin level
+      country_id set        → Country Admin level
+      none set              → HQ Admin level (global only)
     """
     sub_dept_id = user.get("sub_department_id")
     dept_id     = user.get("department_id")
@@ -60,6 +69,7 @@ def resolve_period_for_user(user: dict, rows: list) -> dict | None:
     country_id  = user.get("country_id")
 
     def find(country=None, branch=None, dept=None, sub=None):
+        """Find a row matching all four org-unit columns exactly."""
         for r in rows:
             if (r.get("country_id")        == country and
                 r.get("branch_id")         == branch  and
@@ -68,28 +78,36 @@ def resolve_period_for_user(user: dict, rows: list) -> dict | None:
                 return r
         return None
 
-    # Build check list from most specific to least specific
-    checks = []
-    if sub_dept_id:
-        checks.append(dict(country=country_id, branch=branch_id,
-                           dept=dept_id, sub=sub_dept_id))
-    if dept_id:
-        checks.append(dict(country=country_id, branch=branch_id,
-                           dept=dept_id, sub=None))
-    if branch_id:
-        checks.append(dict(country=country_id, branch=branch_id,
-                           dept=None, sub=None))
-    if country_id:
-        checks.append(dict(country=country_id, branch=None,
-                           dept=None, sub=None))
-    # Global fallback — always last
-    checks.append(dict(country=None, branch=None, dept=None, sub=None))
+    # Global row — the all-NULL fallback used when no level-specific row exists
+    global_row = find()
 
-    for c in checks:
-        r = find(**c)
-        if r:
-            return r
-    return rows[0] if rows else None
+    if sub_dept_id:
+        # Sub-Dept Admin: only match (country, branch, dept, sub_dept) exactly.
+        # Does NOT fall through to dept/branch/country rows — only to global.
+        return find(country=country_id, branch=branch_id,
+                    dept=dept_id, sub=sub_dept_id) or global_row
+
+    if dept_id:
+        # Dept Admin: only match (country, branch, dept, NULL) exactly.
+        # Does NOT fall through to branch/country rows — only to global.
+        return find(country=country_id, branch=branch_id,
+                    dept=dept_id, sub=None) or global_row
+
+    if branch_id:
+        # Branch Admin: only match (country, branch, NULL, NULL) exactly.
+        # Does NOT fall through to country row — only to global.
+        # This is the key fix: a country-scoped row does NOT affect Branch Admins.
+        return find(country=country_id, branch=branch_id,
+                    dept=None, sub=None) or global_row
+
+    if country_id:
+        # Country Admin: only match (country, NULL, NULL, NULL) exactly.
+        # Falls back to global if HQ Admin hasn't set a country-specific row.
+        return find(country=country_id, branch=None,
+                    dept=None, sub=None) or global_row
+
+    # HQ Admin: no org-unit fields set — global row only
+    return global_row or (rows[0] if rows else None)
 
 
 def get_user_org(user_id: str) -> dict:
