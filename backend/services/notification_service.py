@@ -99,11 +99,6 @@ CUTOFF_SCHEDULE = [
 # An entry is visible to a user if:
 #   - entry.role == "all"  (broadcast to everyone), OR
 #   - entry.level >= user_level  (higher-privilege roles see escalations below them)
-#
-# Examples:
-#   level=1 (HQ Admin)   → sees all entries
-#   level=3 (Branch)     → sees branch_admin + dept_admin + sub_dept_admin + all
-#   level=5 (Sub Dept)   → sees only sub_dept_admin + all
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_entries_for_level(user_level: int) -> list:
