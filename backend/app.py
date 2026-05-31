@@ -32,5 +32,4 @@ def debug_env():
 
 
 if __name__ == "__main__":
-    # start_scheduler()  # Uncomment in production
     app.run(host="127.0.0.1", port=5000, debug=True)

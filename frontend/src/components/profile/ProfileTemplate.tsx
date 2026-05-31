@@ -41,7 +41,6 @@ export type ProfileData = {
   country?: string;
   branch?: string;
   department?: string;
-  phonenumber?: string;
 };
 
 interface ProfileTemplateProps {
@@ -397,7 +396,7 @@ const avatarBg = "#F9BE00";
               <div className={styles.field}><div className={styles.label}>Date Joined</div><div className={styles.value}>{profile.joinedDate}</div></div>
               <div className={styles.field}><div className={styles.label}>Date of Birth</div><div className={styles.value}>{profile.dob}</div></div>
               <div className={styles.field}><div className={styles.label}>Designation</div><div className={styles.value}>{profile.designation}</div></div>
-              <div className={styles.field}><div className={styles.label}>Phone Number</div><div className={styles.value}>{profile.phonenumber || "Not set"}</div></div>
+        
               {config.showBranch && profile.branch && (
                 <div className={styles.field}><div className={styles.label}>Branch</div><div className={styles.value}>{profile.branch}</div></div>
               )}

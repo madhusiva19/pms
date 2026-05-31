@@ -1,5 +1,6 @@
 import requests as req
 from models import supabase, SUPABASE_URL, SUPABASE_KEY
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
 def login_user(body):
@@ -87,7 +88,7 @@ def forgot_password(body):
             },
             json={
                 "email":       email,
-                "redirect_to": "http://localhost:3000/reset-password"
+                "redirect_to": f"{FRONTEND_URL}/reset-password"
             }
         )
 
