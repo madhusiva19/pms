@@ -21,11 +21,3 @@ def mark_notification_read(notification_id):
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
-
-@notification_bp.post("/trigger-cutoff")
-def trigger_cutoff_route():
-    try:
-        result, status = trigger_cutoff(request.get_json(silent=True) or {})
-        return jsonify(result), status
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
