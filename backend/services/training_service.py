@@ -32,7 +32,6 @@ def add_training_attended(body):
             "training_name":    programme_name,
             "training_date":    training_date,
             "trainer_provider": trainer_provider,
-            "provider":         trainer_provider,
             "cycle_id":         cycle_id or None,
         }).execute()
 
@@ -100,25 +99,23 @@ def get_subordinate_suggestions(supervisor_id):
             .order("created_at", desc=True)\
             .execute()
 
+        employee_ids = list({s["employee_id"] for s in result.data if s.get("employee_id")})
+        user_map = {}
+        if employee_ids:
+            users_res = supabase.table("users")\
+                .select("id, full_name, role")\
+                .in_("id", employee_ids)\
+                .execute()
+            user_map = {u["id"]: u for u in users_res.data}
+
         suggestions = []
         for s in result.data:
-            employee_id = s.get("employee_id")
-            full_name   = ""
-            role        = ""
-            if employee_id:
-                user = supabase.table("users")\
-                    .select("full_name, role")\
-                    .eq("id", employee_id)\
-                    .execute()
-                if user.data:
-                    full_name = user.data[0].get("full_name", "")
-                    role      = user.data[0].get("role", "")
-
+            u = user_map.get(s.get("employee_id"), {})
             suggestions.append({
                 **s,
                 "users": {
-                    "full_name": full_name,
-                    "role":      role,
+                    "full_name": u.get("full_name", ""),
+                    "role":      u.get("role", ""),
                 }
             })
 

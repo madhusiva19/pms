@@ -545,6 +545,11 @@ export default function TrainingPassport({
                 <h2 className={styles.aiTitle}>AI Training Recommendations</h2>
               </div>
               <p className={styles.aiSubtitle}>Based on your PMS performance scores, supervisor inputs and self suggestions</p>
+              {aiRecommendations === DUMMY_AI && (
+                <p style={{ fontSize: "11px", color: "#B45309", background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: "4px", padding: "2px 8px", display: "inline-block", marginTop: "6px" }}>
+                  Demo data — real recommendations coming soon
+                </p>
+              )}
             </div>
             <div className={styles.aiGrid}>
               {aiRecommendations.map((rec) => (

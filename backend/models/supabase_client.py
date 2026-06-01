@@ -59,6 +59,10 @@ class SupabaseTable:
         self.params[col] = f"eq.{val}"
         return self
 
+    def in_(self, col, vals):
+        self.params[col] = "in.({})".format(",".join(str(v) for v in vals))
+        return self
+
     def order(self, col, desc=False):
         self.params["order"] = f"{col}.{'desc' if desc else 'asc'}"
         return self
@@ -77,6 +81,9 @@ class SupabaseTable:
             res = req.patch(url, headers=self.headers, params=filter_params, json=self.body)
         elif self.method == "DELETE":
             res = req.delete(url, headers=self.headers, params=filter_params)
+
+        if not res.ok:
+            raise Exception(f"Supabase error {res.status_code}: {res.text}")
 
         class Result:
             pass

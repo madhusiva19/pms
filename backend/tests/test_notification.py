@@ -49,17 +49,6 @@ SAMPLE_NOTIFICATIONS = [
         "action_link":  "/employee/profile",
         "created_at":   "2026-05-01T08:00:00"
     },
-    {
-        "id":           "a1b2c3d4-0000-0000-0000-000000000002",
-        "receiver_id":  SAMPLE_EMPLOYEE_ID,
-        "type":         "objective_cutoff",
-        "title":        "Objectives Setting Reminder",
-        "message":      "Please begin KPI assignment now.",
-        "is_read":      True,
-        "triggered_by": "system",
-        "action_link":  None,
-        "created_at":   "2026-04-30T08:00:00"
-    }
 ]
 
 

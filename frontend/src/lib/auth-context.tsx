@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem("pms_user");
+    document.cookie = "pms_auth=; path=/; max-age=0; SameSite=Lax";
     setUser(null);
     setNotificationCount(0);
     setTrainingBadgeCount(0);
