@@ -44,7 +44,8 @@ interface CycleInfo {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
+const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
+const API  = BASE + "/api";
 
 const ROLE_PREFIXES: Record<number, string> = {
   1:  "/hq-admin",
@@ -165,7 +166,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   // ── Fetch freeze status ───────────────────────────────────────────────────
   const fetchFreezeStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/pms-cycles/active`, { headers });
+      const res = await fetch(`${BASE}/pms-cycles/active`, { headers });
       if (res.ok) {
         const data = await res.json();
         setFreezeStatus(data.freeze_status ?? "open");
