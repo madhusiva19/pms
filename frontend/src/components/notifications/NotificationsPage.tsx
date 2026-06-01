@@ -83,18 +83,36 @@ const LEVEL_LABEL: Record<number, string> = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * Parse a date-only ISO string (YYYY-MM-DD) as LOCAL midnight.
+ * Never use new Date("YYYY-MM-DD") directly — it parses as UTC midnight
+ * and shifts back 1 day in timezones behind UTC (e.g. Asia/Colombo).
+ */
+function parseLocalDate(iso: string): Date {
+  const [year, month, day] = iso.split("T")[0].split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 function daysRemaining(endDateStr: string): number {
-  const end = new Date(endDateStr);
+  if (!endDateStr) return 0;
+  const end = parseLocalDate(endDateStr);
   const now = new Date();
   end.setHours(0, 0, 0, 0);
   now.setHours(0, 0, 0, 0);
   return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000));
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric", month: "short", year: "numeric",
-  });
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    // Use parseLocalDate for date-only strings to avoid UTC shift
+    const d = iso.includes("T") ? new Date(iso) : parseLocalDate(iso);
+    return d.toLocaleDateString("en-GB", {
+      day: "numeric", month: "short", year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
 }
 
 function roleFromTriggerKey(key: string | null): string {
@@ -139,7 +157,6 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
       if (res.ok) {
         const data = await res.json();
         setCycle(data.cycle ?? null);
-        // upcoming = not yet triggered
         setUpcoming((data.schedule ?? []).filter((s: ScheduleEntry) => !s.is_triggered));
       }
     } catch (e) { console.error("fetchSchedule:", e); }
@@ -201,156 +218,186 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
     if (freezeStatus === "frozen") return (
       <div className={`${styles.banner} ${styles.bannerFrozen}`}>
         <span className={styles.bannerIcon}>🔒</span>
-        <span>PMS templates are fully frozen · Grace period ended <strong>{formatDate(graceEnd)}</strong></span>
+        <span>
+          PMS templates are fully frozen · Grace period ended{" "}
+          <strong>{formatDate(graceEnd)}</strong>
+        </span>
       </div>
     );
     if (freezeStatus === "grace") return (
       <div className={`${styles.banner} ${styles.bannerGrace}`}>
         <span className={styles.bannerIcon}>⚠️</span>
-        <span>Grace period active · ends <strong>{formatDate(graceEnd)}</strong> ({daysRemaining(graceEnd)} days remaining)</span>
+        <span>
+          Grace period active · ends <strong>{formatDate(graceEnd)}</strong>{" "}
+          ({daysRemaining(graceEnd)} days remaining)
+        </span>
       </div>
     );
     return (
       <div className={`${styles.banner} ${styles.bannerOpen}`}>
         <span className={styles.bannerIcon}>🕐</span>
-        <span>Objective-setting window open · closes <strong>{formatDate(objEnd)}</strong> ({daysRemaining(objEnd)} days remaining)</span>
+        <span>
+          Objective-setting window open · closes{" "}
+          <strong>{formatDate(objEnd)}</strong>{" "}
+          ({daysRemaining(objEnd)} days remaining)
+        </span>
       </div>
     );
   };
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-
-      
-  
-     <div className={styles.dashShell}>
+    <div className={styles.dashShell}>
       <Sidebar />
       <main className={styles.mainContent}>
         <Breadcrumb />
-    <div className={styles.page}>
+        <div className={styles.page}>
 
-      {/* Header */}
-      <div className={styles.headerRow}>
-        <div>
-          <h1 className={styles.title}>Notifications</h1>
-          <p className={styles.subtitle}>
-            Stay updated on approvals and upcoming deadlines · <strong>{levelLabel}</strong>
-          </p>
-        </div>
-        <div className={styles.headerActions}>
-          {unreadCount > 0 && activeTab === "cutoff" && (
-            <button className={styles.markAllBtn} onClick={markAllRead}>
-              Mark all as read
-            </button>
-          )}
-          <button className={styles.refreshBtn} onClick={refresh} disabled={refreshing}>
-            <RefreshIcon spinning={refreshing} />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className={styles.tabRow}>
-        <button
-          className={activeTab === "approvals" ? styles.tabActive : styles.tabInactive}
-          onClick={() => setActiveTab("approvals")}
-        >
-          Achievement Approvals
-        </button>
-        <button
-          className={activeTab === "cutoff" ? styles.tabActive : styles.tabInactive}
-          onClick={() => setActiveTab("cutoff")}
-        >
-          Objectives Cut-off
-          {unreadCount > 0 && <span className={styles.tabBadge}>{unreadCount}</span>}
-        </button>
-      </div>
-
-      {/* Achievement Approvals stub */}
-      {activeTab === "approvals" && (
-        <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}><BellIcon /></div>
-          <p className={styles.emptyTitle}>No approval notifications yet.</p>
-          <p className={styles.emptyBody}>
-            Approval requests will appear here when team members submit their achievements.
-          </p>
-        </div>
-      )}
-
-      {/* Objectives Cut-off tab */}
-      {activeTab === "cutoff" && (
-        <>
-          {renderBanner()}
-
-          {loading ? (
-            <div className={styles.loadingWrap}>
-              {[1, 2, 3].map((i) => <div key={i} className={styles.skeletonCard} />)}
+          {/* Header */}
+          <div className={styles.headerRow}>
+            <div>
+              <h1 className={styles.title}>Notifications</h1>
+              <p className={styles.subtitle}>
+                Stay updated on approvals and upcoming deadlines ·{" "}
+                <strong>{levelLabel}</strong>
+              </p>
             </div>
-          ) : (
+            <div className={styles.headerActions}>
+              {unreadCount > 0 && activeTab === "cutoff" && (
+                <button className={styles.markAllBtn} onClick={markAllRead}>
+                  Mark all as read
+                </button>
+              )}
+              <button
+                className={styles.refreshBtn}
+                onClick={refresh}
+                disabled={refreshing}
+              >
+                <RefreshIcon spinning={refreshing} />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className={styles.tabRow}>
+            <button
+              className={activeTab === "approvals" ? styles.tabActive : styles.tabInactive}
+              onClick={() => setActiveTab("approvals")}
+            >
+              Achievement Approvals
+            </button>
+            <button
+              className={activeTab === "cutoff" ? styles.tabActive : styles.tabInactive}
+              onClick={() => setActiveTab("cutoff")}
+            >
+              Objectives Cut-off
+              {unreadCount > 0 && (
+                <span className={styles.tabBadge}>{unreadCount}</span>
+              )}
+            </button>
+          </div>
+
+          {/* Achievement Approvals stub */}
+          {activeTab === "approvals" && (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIcon}><BellIcon /></div>
+              <p className={styles.emptyTitle}>No approval notifications yet.</p>
+              <p className={styles.emptyBody}>
+                Approval requests will appear here when team members submit
+                their achievements.
+              </p>
+            </div>
+          )}
+
+          {/* Objectives Cut-off tab */}
+          {activeTab === "cutoff" && (
             <>
-              {/* Triggered notifications from DB */}
-              {notifications.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyIcon}><BellIcon /></div>
-                  <p className={styles.emptyTitle}>No cut-off notifications yet.</p>
-                  <p className={styles.emptyBody}>
-                    Notifications are sent automatically on schedule and will appear here when triggered.
-                  </p>
-                </div>
-              ) : (
-                <div className={styles.notifList}>
-                  {notifications.map((n) => (
-                    <NotifCard
-                      key={n.id}
-                      notif={n}
-                      role={roleFromTriggerKey(n.trigger_key)}
-                      templateManagementPath={templateManagementPath}
-                      onMarkRead={() => markRead(n.id)}
-                    />
+              {renderBanner()}
+
+              {loading ? (
+                <div className={styles.loadingWrap}>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className={styles.skeletonCard} />
                   ))}
                 </div>
-              )}
+              ) : (
+                <>
+                  {/* Triggered notifications from DB */}
+                  {notifications.length === 0 ? (
+                    <div className={styles.emptyState}>
+                      <div className={styles.emptyIcon}><BellIcon /></div>
+                      <p className={styles.emptyTitle}>
+                        No cut-off notifications yet.
+                      </p>
+                      <p className={styles.emptyBody}>
+                        Notifications are sent automatically on schedule and
+                        will appear here when triggered.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className={styles.notifList}>
+                      {notifications.map((n) => (
+                        <NotifCard
+                          key={n.id}
+                          notif={n}
+                          role={roleFromTriggerKey(n.trigger_key)}
+                          templateManagementPath={templateManagementPath}
+                          onMarkRead={() => markRead(n.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
 
-              {/* Upcoming schedule timeline */}
-              {upcoming.length > 0 && (
-                <div className={styles.upcomingSection}>
-                  <h2 className={styles.upcomingTitle}>Upcoming Notifications</h2>
-                  <div className={styles.timelineList}>
-                    {upcoming.map((s) => (
-                      <div key={s.trigger_key} className={styles.timelineItem}>
-                        <div className={styles.timelineDot} />
-                        <div className={styles.timelineContent}>
-                          <div className={styles.timelineHeader}>
-                            <span
-                              className={styles.roleBadge}
-                              style={{
-                                background: (ROLE_BADGE_COLOR[s.role] ?? "#374151") + "18",
-                                color: ROLE_BADGE_COLOR[s.role] ?? "#374151",
-                              }}
-                            >
-                              {ROLE_DISPLAY[s.role] ?? s.role}
-                            </span>
-                            <span className={styles.timelineDate}>
-                              {formatDate(s.trigger_date)}
-                              {s.days_until > 0 && (
-                                <span className={styles.daysLeft}> · {s.days_until}d away</span>
-                              )}
-                            </span>
+                  {/* Upcoming schedule timeline */}
+                  {upcoming.length > 0 && (
+                    <div className={styles.upcomingSection}>
+                      <h2 className={styles.upcomingTitle}>
+                        Upcoming Notifications
+                      </h2>
+                      <div className={styles.timelineList}>
+                        {upcoming.map((s) => (
+                          <div
+                            key={s.trigger_key}
+                            className={styles.timelineItem}
+                          >
+                            <div className={styles.timelineDot} />
+                            <div className={styles.timelineContent}>
+                              <div className={styles.timelineHeader}>
+                                <span
+                                  className={styles.roleBadge}
+                                  style={{
+                                    background:
+                                      (ROLE_BADGE_COLOR[s.role] ?? "#374151") +
+                                      "18",
+                                    color:
+                                      ROLE_BADGE_COLOR[s.role] ?? "#374151",
+                                  }}
+                                >
+                                  {ROLE_DISPLAY[s.role] ?? s.role}
+                                </span>
+                                <span className={styles.timelineDate}>
+                                  {formatDate(s.trigger_date)}
+                                  {s.days_until > 0 && (
+                                    <span className={styles.daysLeft}>
+                                      {" "}· {s.days_until}d away
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                              <p className={styles.timelineMsg}>{s.message}</p>
+                            </div>
                           </div>
-                          <p className={styles.timelineMsg}>{s.message}</p>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
-        </>
-      )}
-    </div>
-       </main>
+        </div>
+      </main>
     </div>
   );
 }
@@ -371,9 +418,6 @@ function NotifCard({
   const isUnread  = !notif.is_read;
   const roleColor = ROLE_BADGE_COLOR[role] ?? "#374151";
 
-  // Only show a button for template-related notifications.
-  // "window open/closed" and "frozen" notifications have action_link="/notifications"
-  // — no button needed since the user is already here.
   const isTemplateAction = notif.action_link === "/template-management";
   const viewHref = isTemplateAction ? templateManagementPath : null;
 
@@ -387,11 +431,16 @@ function NotifCard({
             <div className={styles.notifRoleRow}>
               <span
                 className={styles.roleBadge}
-                style={{ background: roleColor + "18", color: roleColor }}
+                style={{
+                  background: roleColor + "18",
+                  color: roleColor,
+                }}
               >
                 {ROLE_DISPLAY[role] ?? role}
               </span>
-              <span className={styles.notifDate}>{formatDate(notif.created_at)}</span>
+              <span className={styles.notifDate}>
+                {formatDate(notif.created_at)}
+              </span>
             </div>
           </div>
         </div>
@@ -418,9 +467,14 @@ function NotifCard({
 function RefreshIcon({ spinning }: { spinning: boolean }) {
   return (
     <svg
-      width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5"
-      strokeLinecap="round" strokeLinejoin="round"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       style={spinning ? { animation: "spin 0.8s linear infinite" } : {}}
     >
       <polyline points="23 4 23 10 17 10" />
@@ -432,8 +486,14 @@ function RefreshIcon({ spinning }: { spinning: boolean }) {
 
 function BellIcon() {
   return (
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.5">
+    <svg
+      width="40"
+      height="40"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>

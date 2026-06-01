@@ -42,8 +42,6 @@ template_bp = Blueprint("template", __name__)
 @template_bp.route("/templates", methods=["POST"])
 def save_template():
     try:
-        if get_request_level() > 1:
-            return jsonify({"error": "Only HQ Admin can create templates."}), 403
         result = create_template(request.get_json())
         return jsonify({"message": "Template saved!", "id": result["id"]}), 200
     except Exception as e:
