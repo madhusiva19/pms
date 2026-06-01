@@ -4,22 +4,35 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ProfileTemplate from "@/components/profile/ProfileTemplate";
 import Sidebar from "@/components/sidebar/Sidebar";
 import styles from "@/components/profile/profile.module.css";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import type { CurrentUser } from "@/hooks/useCurrentUser";
+
+interface RawProfileData {
+  full_name: string;
+  date_of_birth?: string;
+  date_joined?: string;
+  designation: string;
+  email: string;
+  avatar_url?: string | null;
+  iata_branch_code?: string;
+}
+interface RawDiaryEntry { id: string; entry_date: string; entry_text: string; status: "pending" | "approved" | "rejected"; }
+interface RawSupervisorEntry { id: string; entry_date: string; entry_text: string; author_name?: string; }
 
 const CACHE_TTL = 0; // Disabled cache to prevent stale data
 
 export default function BranchAdminProfilePage() {
   const router = useRouter();
+  const currentUser = useCurrentUser();
   const searchParams = useSearchParams();
-  const [user, setUser] = useState<any>(null);
-  const [profileData, setProfileData] = useState<any>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [profileData, setProfileData] = useState<RawProfileData | null>(null);
   const [selfEntries, setSelfEntries] = useState([]);
   const [supervisorEntries, setSupervisorEntries] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const raw = localStorage.getItem("pms_user");
-    if (!raw) { router.push("/login"); return; }
-    const currentUser = JSON.parse(raw);
+    if (!currentUser) { router.push("/login"); return; }
     setUser(currentUser);
 
     const targetId = searchParams.get("employee_id") || currentUser.employee_id;
@@ -47,10 +60,10 @@ export default function BranchAdminProfilePage() {
         const diaryRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${targetId}`);
         const diaryJson = await diaryRes.json();
 
-        const mappedSelf = (diaryJson.self_entries || []).map((e: any) => ({
+        const mappedSelf = (diaryJson.self_entries || []).map((e: RawDiaryEntry) => ({
           id: e.id, date: e.entry_date, content: e.entry_text, status: e.status,
         }));
-        const mappedSupervisor = (diaryJson.supervisor_entries || []).map((e: any) => ({
+        const mappedSupervisor = (diaryJson.supervisor_entries || []).map((e: RawSupervisorEntry) => ({
           id: e.id, date: e.entry_date, supervisorName: e.author_name, comment: e.entry_text,
         }));
 

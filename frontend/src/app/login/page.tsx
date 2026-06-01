@@ -51,6 +51,7 @@ export default function LoginPage() {
           avatar_url:       data.user.avatar_url || null,
         };
         localStorage.setItem("pms_user", JSON.stringify(userData));
+        document.cookie = "pms_auth=1; path=/; max-age=604800; SameSite=Lax";
         setUser(userData);
         router.push(data.redirect);
       } else {

@@ -3,10 +3,20 @@
 import styles from "./dashboard.module.css";
 import Sidebar from "@/components/sidebar/Sidebar";
 import { useEffect, useState } from "react";
+import { useCurrentUser, CurrentUser } from "@/hooks/useCurrentUser";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   PieChart, Pie, Cell, Legend
 } from "recharts";
+
+interface BarEntry { name: string; score: number; fill: string; }
+interface PieEntry { name: string; value: number; color: string; }
+interface ChartData { bar: BarEntry[]; pie: PieEntry[]; }
+
+const COLORS = [
+  "#2563EB", "#00C49F", "#FFBB28", "#FF8042", "#8884D8",
+  "#4F39F6", "#E11D48", "#0891B2", "#65A30D", "#D97706",
+];
 
 function renderPieLabel(props: any) {
   const { cx, cy, midAngle, outerRadius, value } = props;
@@ -14,8 +24,6 @@ function renderPieLabel(props: any) {
   const r = outerRadius + 22;
   const x = cx + r * Math.cos(-midAngle * RADIAN);
   const y = cy + r * Math.sin(-midAngle * RADIAN);
-
-  
 
   return (
     <text
@@ -33,25 +41,24 @@ function renderPieLabel(props: any) {
 }
 
 const ROLE_CONFIG: Record<number, any> = {
-  1: { role: "HQ Admin",       stats: ["Total Countries", "Total Employees", "Total Branches"],    barTitle: "Avg Performance by Country",        pieTitle: "Employee Distribution by Country",        showPie: true  },
-  2: { role: "Country Admin",  stats: ["Total Branches", "Total Employees", "Total Departments"],  barTitle: "Avg Performance by Branch",         pieTitle: "Employee Distribution by Branch",         showPie: true  },
-  3: { role: "Branch Admin",   stats: ["Total Departments", "Total Employees", "Total Sub-Depts"], barTitle: "Avg Performance by Department",     pieTitle: "Employee Distribution by Department",     showPie: true  },
-  4: { role: "Dept Admin",     stats: ["Total Sub-Departments", "Total Employees"],                barTitle: "Avg Performance by Sub-Department", pieTitle: "Employee Distribution by Sub-Department", showPie: true  },
+  1: { role: "HQ Admin",       stats: ["Total Countries", "Total Employees", "Total Branches"],    barTitle: "Average Performance by Country",        pieTitle: "Employee Distribution by Country",        showPie: true  },
+  2: { role: "Country Admin",  stats: ["Total Branches", "Total Employees", "Total Departments"],  barTitle: "Average Performance by Branch",         pieTitle: "Employee Distribution by Branch",         showPie: true  },
+  3: { role: "Branch Admin",   stats: ["Total Departments", "Total Employees", "Total Sub-Depts"], barTitle: "Average Performance by Department",     pieTitle: "Employee Distribution by Department",     showPie: true  },
+  4: { role: "Dept Admin",     stats: ["Total Sub-Departments", "Total Employees"],                barTitle: "Average Performance by Sub-Department", pieTitle: "Employee Distribution by Sub-Department", showPie: true  },
   5: { role: "Sub-Dept Admin", stats: ["Total Employees"],                                         barTitle: "Team Member Performance",           pieTitle: "",                                        showPie: false },
 };
 
 export default function DashboardBase({ level }: { level: number }) {
   const config = ROLE_CONFIG[level] || ROLE_CONFIG[1];
+  const currentUser = useCurrentUser();
 
   const [stats,     setStats]     = useState<Record<string, number>>({});
-  const [chartData, setChartData] = useState<any>({ bar: [], pie: [] });
-  const [user,      setUser]      = useState<any>(null);
+  const [chartData, setChartData] = useState<ChartData>({ bar: [], pie: [] });
+  const [user,      setUser]      = useState<CurrentUser | null>(null);
   const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
-    const raw = localStorage.getItem("pms_user");
-    if (!raw) return;
-    const currentUser = JSON.parse(raw);
+    if (!currentUser) return;
     setUser(currentUser);
 
     const CACHE_KEY = `dashboard_cache_${currentUser.employee_id}`;
@@ -100,6 +107,16 @@ export default function DashboardBase({ level }: { level: number }) {
     fetchData();
   }, []);
 
+  const coloredBar = (chartData.bar || []).map((item: any, i: number) => ({
+    ...item,
+    fill: COLORS[i % COLORS.length],
+  }));
+
+  const coloredPie = (chartData.pie || []).map((item: any, i: number) => ({
+    ...item,
+    color: COLORS[i % COLORS.length],
+  }));
+
   return (
     <div className={styles.dashShell}>
       <Sidebar />
@@ -144,18 +161,18 @@ export default function DashboardBase({ level }: { level: number }) {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
                   Loading...
                 </div>
-              ) : chartData.bar.length === 0 ? (
+              ) : coloredBar.length === 0 ? (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
                   No data available
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData.bar}>
+                  <BarChart data={coloredBar}>
                     <CartesianGrid strokeDasharray="4 4" vertical={false} />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
                     <YAxis domain={[0, 5]} ticks={[0,1,2,3,4,5]} axisLine={false} tickLine={false} />
                     <Bar dataKey="score" radius={[10, 10, 0, 0]}>
-                      {chartData.bar.map((entry: any, index: number) => (
+                      {coloredBar.map((entry: BarEntry, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} fillOpacity={0.85} />
                       ))}
                     </Bar>
@@ -176,7 +193,7 @@ export default function DashboardBase({ level }: { level: number }) {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
                     Loading...
                   </div>
-                ) : chartData.pie.length === 0 ? (
+                ) : coloredPie.length === 0 ? (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
                     No data available
                   </div>
@@ -184,7 +201,7 @@ export default function DashboardBase({ level }: { level: number }) {
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
-                        data={chartData.pie}
+                        data={coloredPie}
                         dataKey="value"
                         nameKey="name"
                         cx="50%"
@@ -193,7 +210,7 @@ export default function DashboardBase({ level }: { level: number }) {
                         outerRadius={90}
                         label={renderPieLabel}
                       >
-                        {chartData.pie.map((entry: any, index: number) => (
+                        {coloredPie.map((entry: PieEntry, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
