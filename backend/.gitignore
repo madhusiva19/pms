@@ -51,6 +51,20 @@ coverage.xml
 .pytest_cache/
 cover/
 
+
+# Utility scripts - not for production
+create_users.py
+update_users_table.py
+fix_missing.py
+fix_subdept_ids.py
+fix_emails.py
+created_users.json
+assign_subdepts.py
+create_cus_das.py
+fix_designations.py
+
+
+
 # Translations
 *.mo
 *.pot
