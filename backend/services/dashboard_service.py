@@ -1,11 +1,6 @@
 import requests as req
 from models import supabase, SUPABASE_URL, SUPABASE_KEY
 
-COLORS = [
-    "#2563EB", "#00C49F", "#FFBB28", "#FF8042", "#8884D8",
-    "#4F39F6", "#E11D48", "#0891B2", "#65A30D", "#D97706",
-]
-
 
 def get_score(entity_id: str, entity_type: str) -> float:
     url      = f"{SUPABASE_URL}/rest/v1/performance_scores"
@@ -124,12 +119,12 @@ def get_charts(employee_id):
                 bar.append({
                     "name":  c["name"],
                     "score": get_score(c["id"], "country"),
-                    "fill":  COLORS[i % len(COLORS)]
+    
                 })
                 pie.append({
                     "name":  c["name"],
                     "value": c.get("total_employees") or 0,
-                    "color": COLORS[i % len(COLORS)]
+                    
                 })
 
         elif org_level == 2:
@@ -143,12 +138,12 @@ def get_charts(employee_id):
                     bar.append({
                         "name":  b.get("name", "Unknown"),
                         "score": get_score(b["id"], "branch"),
-                        "fill":  COLORS[i % len(COLORS)]
+                        
                     })
                     pie.append({
                         "name":  b.get("name", "Unknown"),
                         "value": b.get("total_employees") or 0,
-                        "color": COLORS[i % len(COLORS)]
+                        
                     })
             else:
                 # No branches (e.g. Sri Lanka) — fall back to departments
@@ -160,12 +155,12 @@ def get_charts(employee_id):
                     bar.append({
                         "name":  d["name"],
                         "score": get_score(d["id"], "department"),
-                        "fill":  COLORS[i % len(COLORS)]
+                        
                     })
                     pie.append({
                         "name":  d["name"],
                         "value": d.get("total_employees") or 0,
-                        "color": COLORS[i % len(COLORS)]
+                        
                     })
 
         elif org_level == 3:
@@ -177,12 +172,12 @@ def get_charts(employee_id):
                 bar.append({
                     "name":  d["name"],
                     "score": get_score(d["id"], "department"),
-                    "fill":  COLORS[i % len(COLORS)]
+                    
                 })
                 pie.append({
                     "name":  d["name"],
                     "value": d.get("total_employees") or 0,
-                    "color": COLORS[i % len(COLORS)]
+                    
                 })
 
         elif org_level == 4:
@@ -194,12 +189,12 @@ def get_charts(employee_id):
                 bar.append({
                     "name":  sd["name"],
                     "score": get_score(sd["id"], "sub_department"),
-                    "fill":  COLORS[i % len(COLORS)]
+                    
                 })
                 pie.append({
                     "name":  sd["name"],
                     "value": sd.get("total_employees") or 0,
-                    "color": COLORS[i % len(COLORS)]
+                    
                 })
 
         elif org_level == 5:
@@ -213,7 +208,7 @@ def get_charts(employee_id):
                 bar.append({
                     "name":  short,
                     "score": get_score(e["id"], "employee"),
-                    "fill":  COLORS[i % len(COLORS)]
+                    
                 })
 
         return {"data": {"bar": bar, "pie": pie}}, 200

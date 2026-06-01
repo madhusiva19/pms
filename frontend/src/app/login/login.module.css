@@ -217,11 +217,12 @@
 }
 
 .logo {
-  width: 100px;
-  max-width: 148px;
-  height: auto;
-  display: block;
-  margin: 0 auto;
+  width: 100px !important;
+  max-width: 148px !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 auto !important;
+  object-fit: contain;
 }
 
 

@@ -6,7 +6,6 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./profile.module.css";
 import AvatarUpload from "./AvatarUpload";
-import { refresh } from "next/cache";
 
 // ── Types ──────────────────────────────────────────────
 export type Role =

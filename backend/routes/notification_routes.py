@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.notification_service import get_notifications, mark_read, trigger_cutoff
+from services.notification_service import get_notifications, mark_read
 
 notification_bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")
 

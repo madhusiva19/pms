@@ -4,21 +4,26 @@ import { useRouter } from "next/navigation";
 import TrainingPassport from "@/components/training/TrainingPassport";
 import Sidebar from "@/components/sidebar/Sidebar";
 import styles from "@/components/training/training.module.css";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import type { CurrentUser } from "@/hooks/useCurrentUser";
+
+interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; }
+interface RawSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; supervisor_comment?: string; }
+interface RawSubordinateSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; users?: { full_name: string; role: string; }; }
 
 const CACHE_TTL = 0; // Disabled cache to prevent stale data
 
 export default function CountryAdminTrainingPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const currentUser = useCurrentUser();
+  const [user, setUser] = useState<CurrentUser | null>(null);
   const [attended, setAttended] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [subordinateSuggestions, setSubordinateSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const raw = localStorage.getItem("pms_user");
-    if (!raw) { router.push("/login"); return; }
-    const currentUser = JSON.parse(raw);
+    if (!currentUser) { router.push("/login"); return; }
     setUser(currentUser);
 
     const fetchData = async () => {
@@ -40,20 +45,20 @@ export default function CountryAdminTrainingPage() {
       try {
         const attRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended/${currentUser.employee_id}`);
         const attData = await attRes.json();
-        const mappedAttended = (attData.trainings || []).map((t: any) => ({
+        const mappedAttended = (attData.trainings || []).map((t: RawTraining) => ({
           id: t.id, trainingName: t.training_name, date: t.training_date, provider: t.trainer_provider,
         }));
 
         const suggRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions/${currentUser.employee_id}`);
         const suggData = await suggRes.json();
-        const mappedSuggestions = (suggData.suggestions || []).map((s: any) => ({
+        const mappedSuggestions = (suggData.suggestions || []).map((s: RawSuggestion) => ({
           id: s.id, trainingName: s.training_name, justification: s.justification,
           status: s.status, supervisorComment: s.supervisor_comment || "",
         }));
 
         const subRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/subordinate-suggestions/${currentUser.employee_id}`);
         const subData = await subRes.json();
-        const mappedSubordinate = (subData.suggestions || []).map((s: any) => ({
+        const mappedSubordinate = (subData.suggestions || []).map((s: RawSubordinateSuggestion) => ({
           id: s.id, trainingName: s.training_name, justification: s.justification,
           status: s.status, submittedBy: s.users?.full_name || "", submittedByRole: s.users?.role || "",
         }));

@@ -1,3 +1,4 @@
+import os
 import requests as req
 from models import supabase, SUPABASE_URL, SUPABASE_KEY
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
