@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from '@sentry/nextjs';
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
@@ -232,7 +233,7 @@ export default function Notifications() {
         setPaList(paNotifs);
 
       } catch (err) {
-        console.error("[Notifications] fetch error:", err);
+        Sentry.captureException(err);
       }
       setLoading(false);
     }
@@ -245,7 +246,7 @@ export default function Notifications() {
     try {
       await fetch(`${API}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" });
     } catch (err) {
-      console.error("Failed to mark as read:", err);
+      Sentry.captureException(err);
     }
   };
 
@@ -253,7 +254,7 @@ export default function Notifications() {
     try {
       await fetch(`${API}/api/potential-assessment-notifications/${id}/read`, { method: "PATCH" });
     } catch (err) {
-      console.error("Failed to mark PA notification as read:", err);
+      Sentry.captureException(err);
     }
   };
 

@@ -4,6 +4,7 @@
  * This file is isolated — it does NOT modify any existing api.ts exports.
  */
 
+import * as Sentry from '@sentry/nextjs';
 import axios, { AxiosInstance } from 'axios';
 import type {
   AppraisalCycle,
@@ -27,7 +28,7 @@ const paClient: AxiosInstance = axios.create({
 paClient.interceptors.response.use(
   (res) => res,
   (err) => {
-    console.error('[PotentialAssessment API]', err.response?.data || err.message);
+    Sentry.captureException(err);
     return Promise.reject(err);
   }
 );
