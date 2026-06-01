@@ -5,6 +5,7 @@
  * Displays a grid of countries to select for detailed reporting
  */
 
+import * as Sentry from '@sentry/nextjs';
 import React, { useState, useEffect } from 'react';
 import { MapPin } from 'lucide-react';
 import CountryCard from '@/components/CountryCard';
@@ -27,7 +28,7 @@ export default function ReportsListingPage() {
         const data = await countriesApi.getAll();
         setCountries(data || []);
       } catch (error) {
-        console.error('Error fetching countries:', error);
+        Sentry.captureException(error);
       } finally {
         setLoading(false);
       }

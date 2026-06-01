@@ -93,7 +93,7 @@ export default function SubDeptAdminReportDetailPage() {
         );
         setTeamScores(scores);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [user?.sub_department_id, employeeId]);
 
@@ -126,7 +126,7 @@ export default function SubDeptAdminReportDetailPage() {
           employee_year_end: yearEndMetrics.employee_score,
         });
       })
-      .catch(console.error);
+      .catch(() => {});
   }, [user?.sub_department_id, employeeId]);
 
   const handleDownload = async () => {

@@ -279,7 +279,7 @@ export default function CreateReportModal({
       try {
         savedReport = await savedReportsApi.create(dbPayload);
       } catch (saveErr) {
-        console.warn('DB save failed, generating PDF anyway:', saveErr);
+        // intentionally ignored
         savedReport = {
           ...dbPayload,
           id: `local-${Date.now()}`,

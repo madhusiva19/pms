@@ -5,6 +5,7 @@
  * Same UI as HQ Admin report detail, branch-level data from DB
  */
 
+import * as Sentry from '@sentry/nextjs';
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -166,7 +167,7 @@ export default function BranchAdminReportDetailPage() {
       setComparisonData(comparison);
     } catch (err) {
       setError('Failed to load report data. Please try again.');
-      console.error('Error fetching data:', err);
+      Sentry.captureException(err);
     } finally {
       setLoading(false);
     }
@@ -185,7 +186,7 @@ export default function BranchAdminReportDetailPage() {
       try {
         await reportRequestApi.create(branch.country_id, activeTab, 'current-admin-id');
       } catch (logErr) {
-        console.warn('⚠️ Failed to log report request:', logErr);
+        // intentionally ignored
       }
       setDownloadStatus('generating');
       const fileName = `${deptName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
