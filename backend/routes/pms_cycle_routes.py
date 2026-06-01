@@ -112,13 +112,13 @@ def get_active_pms_cycle_route():
 
 @pms_cycle_bp.route("/pms-cycles/<int:cycle_id>", methods=["PUT"])
 def update_pms_cycle_route(cycle_id):
-    """Update a PMS cycle's review and grace-period dates. HQ Admin only."""
     try:
         guard = _require_hq_admin()
         if guard:
             return guard
 
-        update_pms_cycle(cycle_id, request.get_json())
+        # Pass _seed_fn so rollover fires immediately if year_end_review is past
+        update_pms_cycle(cycle_id, request.get_json(), _seed_fn)
         return jsonify({"message": "PMS cycle updated"}), 200
     except Exception as e:
         return _error(str(e), 400)

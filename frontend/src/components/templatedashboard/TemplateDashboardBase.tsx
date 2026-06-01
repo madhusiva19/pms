@@ -247,6 +247,19 @@ function buildFreezeDates(activeCycle: any): DynamicFreezeDates {
   const fallbackYear =
     now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
 
+  // No active cycle — backend returned source: "none"
+  // Force dates to past so computePermissions() always returns "frozen"
+  if (!activeCycle?.id && activeCycle?.source === "none") {
+    const pastDate = new Date(2000, 0, 1);
+    return {
+      pmsYearStart:        new Date(fallbackYear, 3, 1),
+      objectiveSettingEnd: pastDate,
+      graceEnd:            pastDate,
+      midYearReview:       null,
+      yearEndReview:       null,
+    };
+  }
+
   const pmsYearStart = activeCycle?.pms_start
     ? new Date(activeCycle.pms_start)
     : new Date(fallbackYear, 3, 1);
@@ -2552,3 +2565,5 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     </div>
   );
 }
+
+

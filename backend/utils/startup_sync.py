@@ -1,11 +1,20 @@
 """
 utils/startup_sync.py
 
-Functions that run once at startup to ensure the pms_cycles table is
-consistent with the constants defined in models/constants.py.
+Runs once on Flask startup.
+
+POLICY:
+  - NEVER creates a new PMS cycle automatically.
+  - NEVER rolls over to next year on restart.
+  - ONLY fixes duplicate active cycles (data integrity).
+  - ONLY backfills missing date fields on existing active cycle.
+
+  Rollover is handled by:
+    Primary:  Supabase pg_cron → auto_rollover_pms_cycle() daily at 00:05
+    Backup:   APScheduler     → auto_rollover_if_needed()  daily at 00:05
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -13,78 +22,7 @@ from models.supabase_client import supabase
 from models.constants import (
     OBJECTIVE_SETTING_MONTHS,
     GRACE_PERIOD_DAYS,
-    PMS_START_MONTH,
-    PMS_START_DAY,
 )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# INTERNAL HELPERS  (not exported)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _create_cycle_from_constants(seed_fn) -> None:
-    today     = date.today()
-    year      = today.year
-    pms_start = date(year, PMS_START_MONTH, PMS_START_DAY)
-    if today < pms_start:
-        pms_start = date(year - 1, PMS_START_MONTH, PMS_START_DAY)
-    objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
-    grace_end     = objective_end + timedelta(days=GRACE_PERIOD_DAYS)
-    result = supabase.table("pms_cycles").insert({
-        "pms_year":              pms_start.year,
-        "pms_start":             pms_start.isoformat(),
-        "objective_setting_end": objective_end.isoformat(),
-        "grace_period_end":      grace_end.isoformat(),
-        "is_active":             True,
-        "created_at":            datetime.now().isoformat(),
-    }).execute()
-    print(f"✅ sync: created new cycle {pms_start.year} from constants.")
-    if result.data:
-        seed_fn(result.data[0])
-
-
-def _maybe_rollover_cycle(cycle: dict, seed_fn) -> None:
-    try:
-        grace_end_str = cycle.get("grace_period_end") or cycle.get("grace_end")
-        if not grace_end_str:
-            return
-        grace_end = datetime.fromisoformat(grace_end_str).date()
-        today     = date.today()
-
-        obj_end_str = cycle.get("objective_setting_end")
-        if obj_end_str and today <= datetime.fromisoformat(obj_end_str).date():
-            return
-        if today <= grace_end:
-            return
-
-        pms_start     = datetime.fromisoformat(cycle["pms_start"]).date()
-        objective_end = datetime.fromisoformat(cycle["objective_setting_end"]).date()
-        obj_months    = (
-            (objective_end.year - pms_start.year) * 12
-            + (objective_end.month - pms_start.month)
-        )
-        grace_days     = (grace_end - objective_end).days
-        next_start     = date(pms_start.year + 1, pms_start.month, pms_start.day)
-        next_obj_end   = next_start + relativedelta(months=obj_months)
-        next_grace_end = next_obj_end + timedelta(days=grace_days)
-
-        if supabase.table("pms_cycles").select("id").eq("pms_year", next_start.year).execute().data:
-            return
-
-        supabase.table("pms_cycles").update({"is_active": False}).eq("id", cycle["id"]).execute()
-        new_result = supabase.table("pms_cycles").insert({
-            "pms_year":              next_start.year,
-            "pms_start":             next_start.isoformat(),
-            "objective_setting_end": next_obj_end.isoformat(),
-            "grace_period_end":      next_grace_end.isoformat(),
-            "is_active":             True,
-            "created_at":            datetime.now().isoformat(),
-        }).execute()
-        print(f"✅ rollover: created cycle {next_start.year}")
-        if new_result.data:
-            seed_fn(new_result.data[0])
-    except Exception as error:
-        print(f"❌ _maybe_rollover_cycle failed: {error}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -92,7 +30,14 @@ def _maybe_rollover_cycle(cycle: dict, seed_fn) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def fix_duplicate_active_cycles() -> None:
-    """Ensure only the most-recent cycle is marked active."""
+    """
+    Ensure only the most-recent cycle is marked active.
+
+    Data-integrity fix only.
+    If somehow more than one cycle has is_active = True,
+    keeps the newest one and deactivates the rest.
+    Never creates or modifies cycle dates.
+    """
     try:
         result = (
             supabase.table("pms_cycles")
@@ -102,23 +47,42 @@ def fix_duplicate_active_cycles() -> None:
             .execute()
         )
         active_cycles = result.data or []
+
         if len(active_cycles) <= 1:
             return
+
         keep   = active_cycles[0]
         to_fix = [c["id"] for c in active_cycles[1:]]
-        supabase.table("pms_cycles").update({"is_active": False}).in_("id", to_fix).execute()
+
+        supabase.table("pms_cycles").update(
+            {"is_active": False}
+        ).in_("id", to_fix).execute()
+
         print(
             f"⚠️  fix_duplicate_active_cycles: deactivated {len(to_fix)} duplicate(s),"
-            f" keeping id={keep['id']}"
+            f" keeping id={keep['id']} pms_year={keep['pms_year']}"
         )
+
     except Exception as error:
         print(f"❌ fix_duplicate_active_cycles failed: {error}")
 
 
-def sync_cycle_dates_from_constants(seed_fn) -> None:
+def sync_cycle_dates_from_constants(seed_fn=None) -> None:
     """
-    Make sure the active cycle has objective_setting_end and grace_period_end.
-    If none exists, create one from constants. Then check for rollover.
+    Backfill ONLY missing date fields on the existing active cycle.
+
+    Rules:
+      - No active cycle      → log warning, do nothing
+      - Has all date fields  → log success, do nothing
+      - Missing date fields  → backfill from constants only
+        (handles old DB records created before all columns existed)
+
+    Will NEVER:
+      - Create a new PMS cycle
+      - Roll over to the next year
+      - Seed notifications
+      - Change is_active on any cycle
+      - Overwrite existing date values
     """
     try:
         result = (
@@ -129,28 +93,50 @@ def sync_cycle_dates_from_constants(seed_fn) -> None:
             .limit(1)
             .execute()
         )
+
+        # ── No active cycle ───────────────────────────────────────────────────
         if not result.data:
-            _create_cycle_from_constants(seed_fn)
+            print(
+                "⚠️  sync: No active PMS cycle found in database. "
+                "Rollover is handled by Supabase pg_cron or APScheduler. "
+                "If this is a fresh setup, HQ Admin must create the first cycle."
+            )
             return
 
         cycle = result.data[0]
-        if bool(cycle.get("objective_setting_end")) and bool(cycle.get("grace_period_end")):
-            print(f"✅ sync: cycle {cycle['pms_year']} already has dates — skipping overwrite.")
-            _maybe_rollover_cycle(cycle, seed_fn)
+
+        # ── All date fields already populated ────────────────────────────────
+        if cycle.get("objective_setting_end") and cycle.get("grace_period_end"):
+            print(
+                f"✅ sync: cycle {cycle['pms_year']} already has all dates — "
+                "no changes needed."
+            )
             return
 
+        # ── Backfill missing date fields from constants ───────────────────────
         pms_start     = datetime.fromisoformat(cycle["pms_start"]).date()
         objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
         grace_end     = objective_end + timedelta(days=GRACE_PERIOD_DAYS)
-        supabase.table("pms_cycles").update({
-            "objective_setting_end": objective_end.isoformat(),
-            "grace_period_end":      grace_end.isoformat(),
-        }).eq("id", cycle["id"]).execute()
-        _maybe_rollover_cycle(
-            {**cycle,
-             "objective_setting_end": objective_end.isoformat(),
-             "grace_period_end":      grace_end.isoformat()},
-            seed_fn,
-        )
+
+        update_payload = {}
+
+        if not cycle.get("objective_setting_start"):
+            update_payload["objective_setting_start"] = pms_start.isoformat()
+
+        if not cycle.get("objective_setting_end"):
+            update_payload["objective_setting_end"] = objective_end.isoformat()
+
+        if not cycle.get("grace_period_end"):
+            update_payload["grace_period_end"] = grace_end.isoformat()
+
+        if update_payload:
+            supabase.table("pms_cycles").update(
+                update_payload
+            ).eq("id", cycle["id"]).execute()
+            print(
+                f"✅ sync: backfilled missing dates for cycle "
+                f"{cycle['pms_year']}: {list(update_payload.keys())}"
+            )
+
     except Exception as error:
         print(f"❌ sync_cycle_dates_from_constants failed: {error}")

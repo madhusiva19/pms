@@ -133,9 +133,22 @@ interface TemplateCreateBaseProps {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Derives freeze-related dates from the active PMS cycle API record. */
-function buildFreezeDates(activeCycle: Record<string, unknown> | null): FreezeDates {
+// CHANGE THIS LINE ONLY
+function buildFreezeDates(activeCycle: any): FreezeDates {
   const now          = new Date();
   const fallbackYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+
+  // No active cycle — backend returned source: "none"
+  if (!activeCycle?.id && activeCycle?.source === "none") {
+    const pastDate = new Date(2000, 0, 1);
+    return {
+      pmsYearStart:        new Date(fallbackYear, 3, 1),
+      objectiveSettingEnd: pastDate,
+      graceEnd:            pastDate,
+      midYearReview:       null,
+      yearEndReview:       null,
+    };
+  }
 
   const pmsYearStart = activeCycle?.pms_start
     ? new Date(activeCycle.pms_start as string)
