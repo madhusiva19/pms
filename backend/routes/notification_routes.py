@@ -44,7 +44,7 @@ from services.notification_service import (
 )
 from models.supabase_client import supabase
 
-notifications_bp = Blueprint("notifications", __name__)
+notifications_bp = Blueprint("pms_notifications", __name__, url_prefix="/api")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
