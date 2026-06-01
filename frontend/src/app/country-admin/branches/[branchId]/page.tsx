@@ -1,5 +1,7 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
+
 /**
  * Country Admin Branch Report Details Page
  * Displays comprehensive performance analytics for a selected branch
@@ -101,13 +103,10 @@ export default function BranchReportPage() {
       setLoading(true);
       setError(null);
 
-      console.log('🔍 Fetching branch dashboard summary for ID:', branchId);
       const summaryData = await branchDashboardApi.getSummary(branchId);
-      console.log('✅ Dashboard summary:', summaryData);
 
       // Use branch data from dashboard summary
       const branchData = summaryData.branch;
-      console.log('✅ Branch data:', branchData);
 
       if (!branchData) {
         setError('Branch not found');
@@ -118,7 +117,6 @@ export default function BranchReportPage() {
       setSummary(summaryData);
 
       const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
-      console.log('📊 Active report:', activeReport);
 
       // Fetch live bell curve from performance_summaries — independent of activeReport
       const bellCurve = await bellCurveApi.getLive({
@@ -127,7 +125,6 @@ export default function BranchReportPage() {
         scope: 'branch',
         scope_id: branchId,
       });
-      console.log('✅ Bell curve data:', bellCurve);
       setBellCurveData(bellCurve as any);
 
       // Fetch dynamic metrics for the branch
@@ -140,9 +137,7 @@ export default function BranchReportPage() {
       setMetrics(metricsData);
 
       if (activeReport) {
-        console.log('🔍 Fetching insights...');
         const insightsData = await branchInsightsApi.getByReport(activeReport.id);
-        console.log('✅ Insights data:', insightsData);
         if (insightsData && insightsData.length > 0) {
           setInsights(insightsData);
         } else {
@@ -158,8 +153,6 @@ export default function BranchReportPage() {
             created_at: new Date().toISOString(),
           }]);
         }
-      } else {
-        console.log('⚠️ No active report found for:', activeTab);
       }
 
       const comparison = await comparisonLiveApi.get({
@@ -169,8 +162,7 @@ export default function BranchReportPage() {
       });
       setComparisonData(comparison);
     } catch (err: any) {
-      console.error('❌ Error fetching data:', err);
-      console.error('Error details:', err.response?.data || err.message);
+      Sentry.captureException(err);
       setError(`Failed to load report data: ${err.message}`);
     } finally {
       setLoading(false);
@@ -200,16 +192,13 @@ export default function BranchReportPage() {
         );
         currentRequestId = request.id;
         setRequestId(request.id);
-        console.log('✅ Report request logged:', currentRequestId);
       } catch (logErr) {
-        console.warn('⚠️ Failed to log report request (continuing anyway):', logErr);
-        // Don't fail - just continue with download
+        // intentionally ignored
       }
 
       setDownloadStatus('generating');
       const fileName = `${branch.name}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
 
-      console.log('📥 Generating PDF:', fileName);
       await new Promise(resolve => setTimeout(resolve, 800));
 
       await downloadReportAsPDF('report-content', fileName, {
@@ -224,15 +213,12 @@ export default function BranchReportPage() {
         } : undefined,
         generatedAt: new Date(),
       });
-      console.log('✅ PDF downloaded successfully');
-
       // Try to mark as completed, but don't fail if it doesn't work
       if (currentRequestId) {
         try {
           await reportRequestApi.updateStatus(currentRequestId, 'completed');
-          console.log('✅ Download status marked as completed');
         } catch (statusErr) {
-          console.warn('⚠️ Failed to update download status:', statusErr);
+          // intentionally ignored
         }
       }
 
@@ -240,7 +226,7 @@ export default function BranchReportPage() {
       setTimeout(() => setDownloadStatus('idle'), 3000);
 
     } catch (err: any) {
-      console.error('❌ Download failed:', err);
+      Sentry.captureException(err);
       const errorMsg = err?.message || 'Download failed. Please check your connection.';
       setError(`Download Error: ${errorMsg}`);
 
@@ -248,7 +234,7 @@ export default function BranchReportPage() {
         try {
           await reportRequestApi.updateStatus(currentRequestId, 'failed');
         } catch (statusErr) {
-          console.warn('⚠️ Failed to update failure status:', statusErr);
+          // intentionally ignored
         }
       }
       setDownloadStatus('failed');

@@ -1,7 +1,9 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
+
 
 export type UserRole = 'hq_admin' | 'country_admin' | 'branch_admin' | 'dept_admin' | 'sub_dept_admin' | 'employee';
 export interface User {
@@ -40,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const validRoles: UserRole[] = ['hq_admin', 'country_admin', 'branch_admin', 'dept_admin', 'sub_dept_admin', 'employee'];
         if (validRoles.includes(demoRole as UserRole)) {
-          console.log(`🔧 Demo mode enabled with role: ${demoRole}`);
           sessionStorage.setItem('demo-role', demoRole!);
         }
 
@@ -107,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .single();
 
         if (profileError) {
-          console.error('Error fetching user profile:', profileError);
+          Sentry.captureException(profileError);
           // Fallback: create a default hq_admin user with the actual auth user ID
           setUser({
             id: authUser.id,
@@ -120,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(userProfile);
         }
       } catch (err) {
-        console.error('Authentication error:', err);
+        Sentry.captureException(err);
         setError('Authentication error');
       } finally {
         setLoading(false);

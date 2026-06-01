@@ -5,6 +5,7 @@
  * Displays a grid of branches within the country admin's assigned country (India)
  */
 
+import * as Sentry from '@sentry/nextjs';
 import React, { useState, useEffect } from 'react';
 import { Building } from 'lucide-react';
 import BranchCard from '@/components/BranchCard';
@@ -42,7 +43,7 @@ export default function CountryAdminReportsPage() {
     branchesApi.getByCountry(user.country_id, searchTerm)
       .then(data => setBranches(data || []))
       .catch(err => {
-        console.error('Error fetching branches:', err);
+        Sentry.captureException(err);
         setBranches([]);
       })
       .finally(() => setLoading(false));
