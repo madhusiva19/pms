@@ -61,20 +61,6 @@ export default function DashboardBase({ level }: { level: number }) {
     if (!currentUser) return;
     setUser(currentUser);
 
-    const CACHE_KEY = `dashboard_cache_${currentUser.employee_id}`;
-    const CACHE_TTL = 0; // Disabled cache to prevent stale data
-
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      const { stats: cachedStats, chartData: cachedChart, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < CACHE_TTL) {
-        setStats(cachedStats);
-        setChartData(cachedChart);
-        setLoading(false);
-        return;
-      }
-    }
-
     const fetchData = async () => {
       try {
         const [statsRes, chartRes] = await Promise.all([
@@ -90,12 +76,6 @@ export default function DashboardBase({ level }: { level: number }) {
 
         setStats(freshStats);
         setChartData(freshChart);
-
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          stats: freshStats,
-          chartData: freshChart,
-          timestamp: Date.now(),
-        }));
 
       } catch (err) {
         console.error("Failed to fetch dashboard data:", err);
@@ -122,10 +102,6 @@ export default function DashboardBase({ level }: { level: number }) {
       <Sidebar />
 
       <main className={styles.main}>
-        <div className={styles.breadcrumb}>
-          <span className={styles.crumbLink}>Home</span> › <span className={styles.crumbCurrent}>Dashboard</span>
-        </div>
-
         <div className={styles.headerRow}>
           <div>
             <h1 className={styles.pageTitle}>{config.role} Dashboard</h1>

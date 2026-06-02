@@ -19,8 +19,6 @@ interface RawProfileData {
 interface RawDiaryEntry { id: string; entry_date: string; entry_text: string; status: "pending" | "approved" | "rejected"; }
 interface RawSupervisorEntry { id: string; entry_date: string; entry_text: string; author_name?: string; }
 
-const CACHE_TTL = 0; // Disabled cache to prevent stale data
-
 export default function EmployeeProfilePage() {
   const router = useRouter();
   const currentUser = useCurrentUser();
@@ -38,21 +36,6 @@ export default function EmployeeProfilePage() {
     const targetId = searchParams.get("employee_id") || currentUser.employee_id;
 
     const fetchData = async () => {
-      const cacheKey = `profile_cache_${targetId}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        try {
-          const { profileData: pd, selfEntries: se, supervisorEntries: sve, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < CACHE_TTL) {
-            setProfileData(pd);
-            setSelfEntries(se);
-            setSupervisorEntries(sve);
-            setLoading(false);
-            return;
-          }
-        } catch {}
-      }
-
       try {
         const profileRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${targetId}`);
         const profileJson = await profileRes.json();
@@ -70,13 +53,6 @@ export default function EmployeeProfilePage() {
         setProfileData(profileJson.profile);
         setSelfEntries(mappedSelf);
         setSupervisorEntries(mappedSupervisor);
-
-        localStorage.setItem(cacheKey, JSON.stringify({
-          profileData: profileJson.profile,
-          selfEntries: mappedSelf,
-          supervisorEntries: mappedSupervisor,
-          timestamp: Date.now(),
-        }));
       } catch (err) {
         console.error("Failed to fetch data:", err);
       } finally {
@@ -94,8 +70,35 @@ export default function EmployeeProfilePage() {
       <Sidebar />
       <main className={styles.main}>
         {(loading || !user || !profileData) ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "#9CA3AF", fontSize: "14px" }}>
-            Loading...
+          <div style={{ padding: "32px 40px", width: "100%" }}>
+            <style>{`
+              @keyframes shimmer {
+                0%   { background-position: -600px 0; }
+                100% { background-position:  600px 0; }
+              }
+              .skeleton {
+                background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+                background-size: 600px 100%;
+                animation: shimmer 1.4s infinite linear;
+                border-radius: 8px;
+              }
+            `}</style>
+            <div className="skeleton" style={{ height: 14, width: 180, marginBottom: 28 }} />
+            <div className="skeleton" style={{ height: 22, width: 260, marginBottom: 10 }} />
+            <div className="skeleton" style={{ height: 14, width: 200, marginBottom: 32 }} />
+            <div style={{ display: "flex", gap: 20, marginBottom: 32 }}>
+              <div className="skeleton" style={{ width: 88, height: 88, borderRadius: "50%", flexShrink: 0 }} />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10, justifyContent: "center" }}>
+                <div className="skeleton" style={{ height: 16, width: "40%" }} />
+                <div className="skeleton" style={{ height: 13, width: "25%" }} />
+                <div className="skeleton" style={{ height: 13, width: "30%" }} />
+              </div>
+            </div>
+            {[1,2,3].map((i) => (
+              <div key={i} style={{ marginBottom: 16 }}>
+                <div className="skeleton" style={{ height: 56, width: "100%", borderRadius: 12 }} />
+              </div>
+            ))}
           </div>
         ) : (
           <ProfileTemplate
