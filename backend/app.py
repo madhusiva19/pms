@@ -38,7 +38,7 @@ from services.pms_cycle_service import auto_rollover_if_needed
 # ─────────────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": os.getenv("FRONTEND_URL", "http://localhost:3000").split(",")}})
+CORS(app)
 
 # Register your blueprints
 app.register_blueprint(notifications_bp)
