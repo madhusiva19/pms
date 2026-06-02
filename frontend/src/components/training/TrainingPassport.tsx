@@ -46,6 +46,7 @@ interface TrainingPassportProps {
   userName: string;
   designation: string;
   employeeId?: string;
+  avatarUrl?: string | null;
   initialAttended?: TrainingAttended[];
   initialSuggestions?: TrainingSuggestion[];
   initialSubordinateSuggestions?: TrainingSuggestion[];
@@ -91,6 +92,7 @@ export default function TrainingPassport({
   userName,
   designation,
   employeeId,
+  avatarUrl,
   initialAttended = [],
   initialSuggestions = [],
   initialSubordinateSuggestions = [],
@@ -156,6 +158,26 @@ export default function TrainingPassport({
       setTrainingMsg("Backend connection failed ❌");
     } finally {
       setSavingTraining(false);
+      setTimeout(() => setTrainingMsg(""), 3000);
+    }
+  };
+
+  const handleDeleteTraining = async (recordId: string) => {
+    if (!confirm("Remove this training record?")) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/training/attended/${recordId}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        setAttendedList((prev) => prev.filter((t) => t.id !== recordId));
+      } else {
+        const data = await res.json();
+        setTrainingMsg(data.message || "Failed to delete ❌");
+        setTimeout(() => setTrainingMsg(""), 3000);
+      }
+    } catch {
+      setTrainingMsg("Backend connection failed ❌");
       setTimeout(() => setTrainingMsg(""), 3000);
     }
   };
@@ -255,7 +277,21 @@ export default function TrainingPassport({
 
         {/* Profile strip */}
         <div className={styles.profileStrip}>
-          <div className={styles.stripAvatar}>{initials}</div>
+          <div className={styles.stripAvatar} style={{
+            background: avatarUrl ? "transparent" : undefined,
+            overflow: "hidden",
+            padding: 0,
+          }}>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Profile"
+                style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+              />
+            ) : (
+              initials
+            )}
+          </div>
           <div>
             <div className={styles.stripName}>{userName}</div>
             <div className={styles.stripDesig}>{designation}</div>
@@ -379,11 +415,24 @@ export default function TrainingPassport({
                     <th className={styles.th}>Training Name</th>
                     <th className={styles.th}>Date</th>
                     <th className={styles.th}>Provider</th>
+                    <th className={styles.th}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {attendedList.length === 0 ? (
-                    <tr><td colSpan={4} className={styles.emptyCell}>No trainings recorded yet.</td></tr>
+                    <tr>
+                      <td colSpan={5} className={styles.emptyCell}>
+                        <div style={{ padding: "32px 16px", textAlign: "center" }}>
+                          <div style={{ fontSize: "28px", marginBottom: "8px" }}>📋</div>
+                          <div style={{ fontWeight: 600, color: "#374151", fontSize: "14px", marginBottom: "4px" }}>
+                            No trainings recorded yet
+                          </div>
+                          <div style={{ color: "#9CA3AF", fontSize: "13px" }}>
+                            Use the "Log Training" button above to add your first record.
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
                   ) : (
                     attendedList.map((t, idx) => (
                       <tr key={t.id || idx} className={idx % 2 === 0 ? styles.rowEven : styles.rowOdd}>
@@ -391,6 +440,33 @@ export default function TrainingPassport({
                         <td className={styles.td}>{t.trainingName}</td>
                         <td className={styles.td}>{t.date}</td>
                         <td className={styles.td}>{t.provider}</td>
+                        <td className={styles.td}>
+                          <button
+                            onClick={() => handleDeleteTraining(t.id)}
+                            title="Delete record"
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "#EF4444",
+                              padding: "4px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRadius: "6px",
+                              transition: "background 0.15s",
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = "#FEF2F2")}
+                            onMouseLeave={e => (e.currentTarget.style.background = "none")}
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                              stroke="#EF4444" strokeWidth="2" strokeLinecap="round">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                              <path d="M10 11v6M14 11v6"/>
+                            </svg>
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -471,7 +547,15 @@ export default function TrainingPassport({
                 {/* Own suggestions list */}
                 <div className={styles.cardList}>
                   {suggestionList.length === 0 ? (
-                    <div className={styles.emptyState}>No suggestions submitted yet.</div>
+                    <div className={styles.emptyState} style={{ textAlign: "center", padding: "32px 16px" }}>
+                      <div style={{ fontSize: "28px", marginBottom: "8px" }}>💡</div>
+                      <div style={{ fontWeight: 600, color: "#374151", fontSize: "14px", marginBottom: "4px" }}>
+                        No suggestions submitted yet
+                      </div>
+                      <div style={{ color: "#9CA3AF", fontSize: "13px" }}>
+                        Suggest a training programme using the form above.
+                      </div>
+                    </div>
                   ) : (
                     suggestionList.map((s, idx) => {
                       const st = STATUS_STYLE[s.status];
@@ -505,7 +589,15 @@ export default function TrainingPassport({
                 </h3>
                 <div className={styles.cardList}>
                   {subordinateSuggestions.filter(s => s.status === "pending").length === 0 ? (
-                    <div className={styles.emptyState}>No pending suggestions to review.</div>
+                    <div className={styles.emptyState} style={{ textAlign: "center", padding: "32px 16px" }}>
+                      <div style={{ fontSize: "28px", marginBottom: "8px" }}>✅</div>
+                      <div style={{ fontWeight: 600, color: "#374151", fontSize: "14px", marginBottom: "4px" }}>
+                        No pending suggestions
+                      </div>
+                      <div style={{ color: "#9CA3AF", fontSize: "13px" }}>
+                        All subordinate training suggestions have been reviewed.
+                      </div>
+                    </div>
                   ) : (
                     subordinateSuggestions.filter(s => s.status === "pending").map((s, idx) => (
                       <div key={s.id || idx} className={styles.suggCard}>

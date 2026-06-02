@@ -3,6 +3,7 @@ from services.training_service import (
     get_training_attended, add_training_attended,
     add_training_suggestion, get_training_suggestions,
     get_subordinate_suggestions, review_suggestion,
+    delete_training_attended,
 )
 
 training_bp = Blueprint("training", __name__, url_prefix="/api/training")
@@ -57,6 +58,15 @@ def get_subordinate_suggestions_route(supervisor_id):
 def review_suggestion_route(suggestion_id):
     try:
         result, status = review_suggestion(suggestion_id, request.get_json(silent=True) or {})
+        return jsonify(result), status
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+
+@training_bp.delete("/attended/<record_id>")
+def delete_training_attended_route(record_id):
+    try:
+        result, status = delete_training_attended(record_id)
         return jsonify(result), status
     except Exception as e:
         return jsonify({"message": str(e)}), 500
