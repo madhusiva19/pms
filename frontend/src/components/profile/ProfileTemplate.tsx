@@ -86,11 +86,14 @@ export default function ProfileTemplate({
 
   const router = useRouter();
   const config = ROLE_CONFIG[role];
-  const { refreshBadges } = useAuth();
+  const { refreshBadges, user, setUser } = useAuth();
   const [achievement, setAchievement] = useState("");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [statusMsg, setStatusMsg] = useState("");
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTargetId, setDeleteTargetId]   = useState<string | null>(null);
   const [selfAchievements, setSelfAchievements] = useState<SelfAchievement[]>(initialSelfAchievements);
   const [supervisorCommentsList, setSupervisorCommentsList] = useState<SupervisorComment[]>(initialSupervisorComments);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl || null);
@@ -143,6 +146,12 @@ const avatarBg = "#F9BE00";
     }
   };
 
+  // ── Open submit confirm modal (all roles except HQ Admin) ──
+  const openSubmitModal = () => {
+    if (achievement.trim().length === 0) return;
+    setShowSubmitModal(true);
+  };
+
   // ── Submit for approval (all roles except HQ Admin) ──
   const handleSubmit = async () => {
     if (achievement.trim().length === 0) return;
@@ -178,21 +187,27 @@ const avatarBg = "#F9BE00";
       setStatusMsg("Backend connection failed ❌");
     } finally {
       setSaving(false);
+      setShowSubmitModal(false);
       setTimeout(() => { setStatus("idle"); setStatusMsg(""); }, 3000);
     }
   };
 
   // ── Delete (HQ Admin own profile only) ──
-  const handleDelete = async (diaryId: string) => {
-    if (!confirm("Are you sure you want to delete this entry?")) return;
+  const openDeleteModal = (diaryId: string) => {
+    setDeleteTargetId(diaryId);
+    setShowDeleteModal(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTargetId) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${diaryId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${deleteTargetId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ employee_id: employeeId }),
       });
       if (res.ok) {
-        setSelfAchievements((prev) => prev.filter((item) => item.id !== diaryId));
+        setSelfAchievements((prev) => prev.filter((item) => item.id !== deleteTargetId));
         setStatus("success");
         setStatusMsg("Entry deleted.");
       } else {
@@ -202,6 +217,9 @@ const avatarBg = "#F9BE00";
     } catch {
       setStatus("error");
       setStatusMsg("Backend connection failed ❌");
+    } finally {
+      setShowDeleteModal(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -314,6 +332,7 @@ const avatarBg = "#F9BE00";
   };
 
   return (
+    <>
     <div className={styles.shell}>
 
       {/* ══════════════ MAIN ══════════════ */}
@@ -321,13 +340,8 @@ const avatarBg = "#F9BE00";
 
         {/* Breadcrumb */}
         <div className={styles.breadcrumb}>
+          <span className={styles.crumbLink} onClick={() => router.push(dashboardPath)}>Home</span>
           <span className={styles.crumbSep}>›</span>
-          {role !== "Employee" && (
-            <>
-              <span className={styles.crumbLink} onClick={() => router.push(dashboardPath)}>Dashboard</span>
-              <span className={styles.crumbSep}>›</span>
-            </>
-          )}
           <span className={styles.crumbCurrent}>
             {viewMode === "supervisor" ? `${profile.fullName}'s Profile` : "My Profile"}
           </span>
@@ -356,7 +370,19 @@ const avatarBg = "#F9BE00";
         currentUrl={avatarUrl}
         initials={initials}
         employeeId={employeeId}
-        onUpdate={(newUrl) => setAvatarUrl(newUrl)}
+        onUpdate={(newUrl) => {
+          setAvatarUrl(newUrl);
+          if (user) {
+            const updatedUser = { ...user, avatar_url: newUrl };
+            setUser(updatedUser);
+            const raw = localStorage.getItem("pms_user");
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              parsed.avatar_url = newUrl;
+              localStorage.setItem("pms_user", JSON.stringify(parsed));
+            }
+          }
+        }}
         avatarBg={avatarBg}
         viewMode={viewMode}
       />
@@ -494,7 +520,7 @@ const avatarBg = "#F9BE00";
 
                             {/* Own mode — HQ Admin delete */}
                             {viewMode === "own" && config.isHQ && (
-                              <button onClick={() => handleDelete(item.id)}
+                              <button onClick={() => openDeleteModal(item.id)}
                                 style={{ background: "none", border: "none", cursor: "pointer", color: "#EF4444" }} title="Delete">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <polyline points="3 6 5 6 21 6" />
@@ -595,7 +621,7 @@ const avatarBg = "#F9BE00";
                   <button
                     type="button"
                     className={styles.saveBtn}
-                    onClick={config.isHQ ? handleSave : handleSubmit}
+                    onClick={config.isHQ ? handleSave : openSubmitModal}
                     disabled={achievement.trim().length === 0 || saving}
                   >
                     {saving
@@ -649,5 +675,149 @@ const avatarBg = "#F9BE00";
         </section>
       </main>
     </div>
+
+      {/* ── Submit Confirmation Modal ── */}
+      {showSubmitModal && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000, backdropFilter: "blur(4px)",
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: "20px", padding: "32px 28px",
+            width: "400px", maxWidth: "calc(100vw - 32px)",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
+          }}>
+
+            <h3 style={{ margin: "0 0 4px", fontSize: "17px", fontWeight: 700, color: "#111827" }}>
+              Confirm Submission
+            </h3>
+            <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#9CA3AF" }}>
+              This will be sent to your {config.approvedBy} for approval
+            </p>
+
+            {/* Achievement preview */}
+            <div style={{
+              background: "#F9FAFB", border: "1.5px solid #E5E7EB",
+              borderRadius: "12px", padding: "14px 16px", marginBottom: "20px",
+              textAlign: "left",
+            }}>
+              <p style={{
+                margin: 0, fontSize: "13px", color: "#374151",
+                lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-word",
+              }}>
+                {achievement.trim()}
+              </p>
+            </div>
+
+            {/* Date */}
+            <p style={{ margin: "0 0 24px", fontSize: "12px", color: "#9CA3AF", textAlign: "left" }}>
+              📅 Submitted on {new Date().toLocaleDateString("en-GB", {
+                day: "numeric", month: "long", year: "numeric"
+              })}
+            </p>
+
+            {/* Buttons */}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => setShowSubmitModal(false)}
+                style={{
+                  flex: 1, padding: "10px", borderRadius: "10px",
+                  border: "1.5px solid #E5E7EB", background: "#fff",
+                  cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#374151",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                style={{
+                  flex: 2, padding: "10px", borderRadius: "10px",
+                  border: "none", background: saving ? "#93C5FD" : "#2563EB",
+                  color: "#fff", cursor: saving ? "not-allowed" : "pointer",
+                  fontSize: "13px", fontWeight: 700, transition: "background 0.2s",
+                }}
+              >
+                {saving ? "Submitting..." : "Submit for Approval"}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {showDeleteModal && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000, backdropFilter: "blur(4px)",
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: "20px", padding: "32px 28px",
+            width: "400px", maxWidth: "calc(100vw - 32px)",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
+          }}>
+
+            <div style={{
+              width: "48px", height: "48px", borderRadius: "50%",
+              background: "#FEF2F2", display: "flex", alignItems: "center",
+              justifyContent: "center", margin: "0 auto 16px",
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="#EF4444" strokeWidth="2" strokeLinecap="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </div>
+
+            <h3 style={{
+              margin: "0 0 4px", fontSize: "17px", fontWeight: 700,
+              color: "#111827", textAlign: "center",
+            }}>
+              Delete Entry
+            </h3>
+            <p style={{
+              margin: "0 0 24px", fontSize: "13px", color: "#9CA3AF",
+              textAlign: "center",
+            }}>
+              This achievement entry will be permanently removed and cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => { setShowDeleteModal(false); setDeleteTargetId(null); }}
+                style={{
+                  flex: 1, padding: "10px", borderRadius: "10px",
+                  border: "1.5px solid #E5E7EB", background: "#fff",
+                  cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#374151",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                style={{
+                  flex: 1, padding: "10px", borderRadius: "10px",
+                  border: "none", background: "#EF4444",
+                  color: "#fff", cursor: "pointer",
+                  fontSize: "13px", fontWeight: 700, transition: "background 0.2s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#DC2626")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#EF4444")}
+              >
+                Delete
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+    </>
   );
 }

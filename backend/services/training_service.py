@@ -154,3 +154,14 @@ def review_suggestion(suggestion_id, body):
         return {"message": f"Failed: {response.text}"}, 400
     except Exception as e:
         return {"message": str(e)}, 500
+
+
+def delete_training_attended(record_id):
+    try:
+        supabase.table("training_passport")\
+            .delete()\
+            .eq("id", record_id)\
+            .execute()
+        return {"message": "Training record deleted"}, 200
+    except Exception as e:
+        return {"message": str(e)}, 500
