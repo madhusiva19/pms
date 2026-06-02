@@ -376,3 +376,25 @@ def fire_notification_now():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+
+
+from services.notification_service import get_notifications, mark_read
+
+notification_bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")
+
+@notification_bp.get("/<employee_id>")
+def get_notifications_route(employee_id):
+    try:
+        result, status = get_notifications(employee_id)
+        return jsonify(result), status
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@notification_bp.patch("/<notification_id>/read")
+def mark_notification_read_legacy(notification_id):   # renamed to avoid clash
+    try:
+        result, status = mark_read(notification_id)
+        return jsonify(result), status
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
