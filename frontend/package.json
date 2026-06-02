@@ -11,7 +11,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",
-    "@tailwindcss/postcss": "^4.2.4",
+    "@tailwindcss/postcss": "^4.3.0",
     "axios": "^1.15.2",
     "lucide": "^1.9.0",
     "lucide-react": "^1.8.0",
