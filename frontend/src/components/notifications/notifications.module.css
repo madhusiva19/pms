@@ -194,3 +194,14 @@
 }
 
 
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.crumbLink { color: #64748B; cursor: pointer; }
+.crumbLink:hover { text-decoration: underline; }
+.crumbSep { color: #64748B; }
+.crumbCurrent { color: #1E293B; }
