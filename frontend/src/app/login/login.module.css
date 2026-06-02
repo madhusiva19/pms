@@ -51,37 +51,45 @@
 
 .header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
-.logoBox {
-  width: 150px;
-  height: 64px;
-  border-radius: 12px;
-  margin: 0 auto 16px;
+
+
+.brandRow {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  place-items: center;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(4px);
-
-  opacity: 0.9;
+  gap: 6px;
 }
+
 
 .title {
   margin: 0;
-  font-size: 30px;
-  line-height: 36px;
-  font-weight: 400;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.3px;
 }
 
+
+
 .subtitle {
-  margin: 8px 0 0;
-  font-size: 14px;
+  margin: 4px 0 0;
+  font-size: 13px;
   line-height: 20px;
   font-weight: 400;
-  color: #dbeafe;
+  color: rgba(219, 234, 254, 0.8);
+  letter-spacing: 0.01em;
+}
+
+.dividerLine {
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  margin: 8px auto 0;
+  border-radius: 999px;
 }
 
 .form {
@@ -209,9 +217,122 @@
 }
 
 .logo {
-  width: 150px;
-  max-width: 120px;
-  height: auto;
-  display: block;
-  margin: 0 auto 10px;
+  width: 100px !important;
+  max-width: 148px !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 auto !important;
+  object-fit: contain;
+}
+
+
+/* ── Forgot Password ── */
+.forgotLink {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0;
+  transition: color 0.15s;
+  font-family: inherit;
+}
+
+.forgotLink:hover {
+  color: #ffffff;
+}
+
+.resetHeader {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.resetIconBox {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.resetTitle {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.resetSubtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #dbeafe;
+  line-height: 1.5;
+}
+
+.statusBox {
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #ffffff;
+}
+
+.statusSuccess {
+  background: rgba(6, 95, 70, 0.3);
+  border: 1px solid rgba(167, 243, 208, 0.4);
+}
+
+.statusError {
+  background: rgba(153, 27, 27, 0.3);
+  border: 1px solid rgba(254, 202, 202, 0.4);
+}
+
+.backBtn {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  color: #dbeafe;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.backBtn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.passwordLabelRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.passwordLabelRow .label {
+  margin: 0;
+}
+
+.hintText {
+  font-size: 11px;
+  color: rgba(219, 234, 254, 0.6);
+  margin: -8px 0 0;
+  line-height: 1.5;
 }

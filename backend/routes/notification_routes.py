@@ -395,10 +395,13 @@ def get_notifications_route(employee_id):
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
+
+
 @notification_bp.patch("/<notification_id>/read")
-def mark_notification_read_legacy(notification_id):   # renamed to avoid clash
+def mark_notification_read(notification_id):
     try:
         result, status = mark_read(notification_id)
         return jsonify(result), status
     except Exception as e:
         return jsonify({"message": str(e)}), 500
+

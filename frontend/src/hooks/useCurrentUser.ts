@@ -18,4 +18,8 @@ export function useCurrentUser(): CurrentUser | null {
   const raw = localStorage.getItem("pms_user");
   if (!raw) return null;
   return JSON.parse(raw) as CurrentUser;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 3c94b24f862b11554ab5acc4a2487cd8ba23f02b
