@@ -1,3 +1,4 @@
+
 .sidebar {
   width: 251px;
   background: #1c398e;
@@ -148,4 +149,34 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 12px;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #dbeafe;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 36px;
+  transition: background 0.15s;
+}
+
+.logoutBtn:hover {
+  background: #1e40af;
+}
+
+.avatarCircle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #F9BE00;   /* ← yellow from dev-final */
+  color: #78350F;        /* ← dark text from dev-final */
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;      /* ← needed for avatar image */
 }
