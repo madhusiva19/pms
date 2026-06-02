@@ -1,18 +1,18 @@
+// app/(hq-admin)/notifications/page.tsx
 "use client";
-import AdminNotificationsPage from "@/components/notifications/AdminNotificationsPage";
 import NotificationsPage from "@/components/notifications/NotificationsPage";
+import AdminNotificationsPage from "@/components/notifications/AdminNotificationsPage";
 
-// Use AdminNotificationsPage if available, fallback to NotificationsPage
 export default function HQAdminNotificationsPage() {
   return (
     <>
-      <AdminNotificationsPage
-        role="HQ Admin"
-        dashboardPath="/hq-admin/dashboard"
-        profilePath="/hq-admin/profile"
-      />
-      {/* Dev-final's level-based page — remove if duplicate */}
-      {/* <NotificationsPage level={1} /> */}
+      <NotificationsPage level={1} />
+      {/* AdminNotificationsPage — kept for compatibility with other branch */}
+      {/* <AdminNotificationsPage 
+            role="HQ Admin" 
+            dashboardPath="/hq-admin/dashboard" 
+            profilePath="/hq-admin/profile" 
+          /> */}
     </>
   );
 }

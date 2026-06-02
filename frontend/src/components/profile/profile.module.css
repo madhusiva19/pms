@@ -192,83 +192,110 @@
 
 .backBtn:hover{ background: #F3F4F6; }
 
-/* ── Profile Hero Card ── */
-.profileTopCard{
-  position: relative;
-  background: #fff;
-  border: 1px solid #E5E7EB;
-  border-radius: 12px;
-  overflow: hidden;
+/* Profile top card */
+.profileTopCard {
+  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #3B82F6 100%);
+  border-radius: 16px;
+  padding: 28px 32px;
   margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(37, 99, 235, 0.18);
 }
 
-.profileHero{
+.profileHero {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px 24px;
+  gap: 24px;
+  position: relative;
+  z-index: 1;
 }
 
-.heroAvatar{
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  background: #EFF6FF;
-  display: grid;
-  place-items: center;
-  border: 1px solid #DBEAFE;
+/* Avatar wrapper — no background, just flex */
+.heroAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.heroInitials{
-  font-family: "Segoe UI", Inter, sans-serif;
-  font-weight: 800;
-  font-size: 24px;
-  color: #155DFC;
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.heroText{ display: flex; flex-direction: column; gap: 6px; }
-
-.heroName{
+.heroName {
   font-family: "Segoe UI", Inter, sans-serif;
   font-weight: 700;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 28px;
-  color: #101828;
+  color: #FFFFFF;
+  letter-spacing: -0.3px;
 }
 
-.heroMeta{
+.heroMeta {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.pill{
-  background: #F3F4F6;
-  border: 1px solid #E5E7EB;
-  color: #1E293B;
-  border-radius: 999px;
-  padding: 4px 10px;
+.pill {
+  background: rgba(255, 255, 255, 0.18);
+  color: #EFF6FF;
   font-size: 12px;
   font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
 }
 
-.dot{ color: #94A3B8; }
-.muted{ color: #64748B; font-size: 13px; }
-
-.heroEmail{
-  color: #4A5565;
+.dot {
+  color: rgba(255, 255, 255, 0.4);
   font-size: 14px;
 }
 
-.heroAccent{
-  position: absolute;
-  right: -40px;
-  top: -40px;
-  width: 180px;
-  height: 180px;
-  border-radius: 999px;
-  background: radial-gradient(circle at 30% 30%, rgba(59,130,246,0.35), rgba(28,57,142,0.0));
+.muted {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  font-weight: 500;
 }
+
+.heroEmail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+/* Decorative accent */
+.heroAccent {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+
+.heroAccent::after {
+  content: "";
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 
 /* ── Grid ── */
 .grid{
@@ -343,6 +370,7 @@
   border: 1px solid #E5E7EB;
   padding: 12px;
   outline: none;
+  color: #000;
   font-size: 14px;
   line-height: 20px;
   background: #FFFFFF;
