@@ -10,6 +10,7 @@ export interface Country {
   total_employees: number;
   total_branches: number;
   created_at: string;
+  country_admin_name?: string;
 }
 
 export interface PerformanceReport {
@@ -61,6 +62,7 @@ export interface Branch {
   total_employees: number;
   created_at: string;
   updated_at?: string;
+  branch_admin_name?: string;
 }
 
 export interface BranchPerformanceReport {
@@ -192,6 +194,7 @@ export interface Department {
   total_employees: number;
   dept_admin_name?: string | number;
   created_at: string;
+  country_id?: string;
 }
 
 export interface DepartmentCompletion {
@@ -261,15 +264,14 @@ export interface Employee {
   full_name: string;
   role: string;
   is_admin?: boolean;
-  designation?: string;
   emp_id?: string;              // human-readable code e.g. EMP-0001
-  department?: string;
   department_id?: string;       // UUID
   sub_department_id?: string;   // UUID
   branch_id?: string;           // UUID
   country_id?: string;          // UUID
   manager_id?: string;
   iata_branch_code?: string;
+  avatar_url?: string;
   created_at?: string;
   updated_at?: string;
 
@@ -291,11 +293,11 @@ export interface TeamOverviewSummary {
 
 
 export interface AppraisalCycle {
-  id: string;
-  name: string;         // e.g. "2024-25"
-  is_active: boolean;
-  starts_at: string | null;
-  ends_at: string | null;
+  cycle_id: string;
+  cycle_year: number;
+  start_date: string;
+  end_date: string;
+  status: string;
   created_at: string;
 }
 
@@ -346,7 +348,6 @@ export interface SubordinateAssessmentSummary {
   iata_branch_code?: string;
   department_id?: string;
   sub_department_id?: string;
-  designation?: string;
   // assessment state
   assessment_status: AssessmentStatus;
   talent_block: RatingValue | null;
