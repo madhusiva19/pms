@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 import services.report_service as report_service
+from utils.helpers import execute_with_retry
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -101,13 +102,13 @@ def get_report_metrics():
         if not scope_id:
             return jsonify({'success': False, 'error': 'scope_id is required'}), 400
         from datetime import datetime
-        data = report_service.get_report_metrics(
+        data = execute_with_retry(lambda: report_service.get_report_metrics(
             period_type=request.args.get('period_type', 'mid_year'),
             year=int(request.args.get('year', datetime.now().year)),
             scope=request.args.get('scope', 'country'),
             scope_id=scope_id,
             employee_id=request.args.get('employee_id'),
-        )
+        ))
         return jsonify({'success': True, 'data': data}), 200
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
