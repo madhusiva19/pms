@@ -55,7 +55,7 @@ def mark_notification_read(notification_id: str) -> dict | None:
 
 def get_active_cycle() -> dict | None:
     # limit(1): only one cycle should be active; prevents returning multiple rows on data-integrity issues
-    resp = supabase.table('appraisal_cycles').select('*').eq('is_active', True).limit(1).execute()
+    resp = supabase.table('appraisal_cycles').select('*').eq('status', 'open').limit(1).execute()
     return resp.data[0] if resp.data else None
 
 
@@ -105,7 +105,7 @@ def get_subordinates(supervisor_id: str, supervisor_role: str, cycle: str) -> li
     elif supervisor_role == 'sub_dept_admin':
         sup = supabase.table('users').select('sub_department_id').eq('id', supervisor_id).single().execute().data
         if sup and sup.get('sub_department_id'):
-            subordinates = supabase.table('users').select('id, full_name, email, emp_id, sub_department_id, designation, role').eq('role', 'employee').eq('sub_department_id', sup['sub_department_id']).execute().data or []
+            subordinates = supabase.table('users').select('id, full_name, email, emp_id, sub_department_id, role').eq('role', 'employee').eq('sub_department_id', sup['sub_department_id']).execute().data or []
 
     if not subordinates:
         return []
