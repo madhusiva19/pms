@@ -33,8 +33,8 @@ export default function DeptAdminReviewPage() {
 
   const loadData = async (activeCycle: AppraisalCycle) => {
     const [data, subs] = await Promise.all([
-      potentialAssessmentApi.getForEmployee(subDeptAdminId, activeCycle.name, user!.id),
-      potentialAssessmentApi.getSubordinates(user!.id, activeCycle.name, user!.role),
+      potentialAssessmentApi.getForEmployee(subDeptAdminId, String(activeCycle.cycle_year), user!.id),
+      potentialAssessmentApi.getSubordinates(user!.id, String(activeCycle.cycle_year), user!.role),
     ]);
     if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
     const found = subs.find((s) => s.id === subDeptAdminId);
@@ -57,7 +57,7 @@ export default function DeptAdminReviewPage() {
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
       <Breadcrumb items={[{ label: 'Home', href: '/dept-admin/dashboard' }, { label: 'Potential Assessment', href: '/dept-admin/potential-assessment' }, { label: appraisee?.full_name ?? 'Review' }]} />
-      <div><h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>{cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.name}</strong></p>}</div>
+      <div><h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>{cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.cycle_year}</strong></p>}</div>
       <div className="w-full rounded-xl border border-[#BEDBFF] px-4 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(90deg, #EFF6FF 0%, #F3F4F6 100%)' }}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-[#DBEAFE] flex items-center justify-center"><User className="w-5 h-5 text-[#1D4ED8]" /></div>

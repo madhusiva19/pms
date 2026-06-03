@@ -23,7 +23,7 @@ export default function SubDeptAdminReviewEmployeePage() {
   const params = useParams();
   const employeeId = params?.employeeId as string;
   const [cycle, setCycle] = useState<AppraisalCycle | null>(null);
-  const [appraisee, setAppraisee] = useState<{ full_name: string; emp_id?: string; designation?: string } | null>(null);
+  const [appraisee, setAppraisee] = useState<{ full_name: string; emp_id?: string } | null>(null);
   const [assessment, setAssessment] = useState<PotentialAssessment & { items: any[] } | null>(null);
   const [status, setStatus] = useState<AssessmentStatus>('not_started');
   const [loading, setLoading] = useState(true);
@@ -32,7 +32,7 @@ export default function SubDeptAdminReviewEmployeePage() {
   useEffect(() => { if (!authLoading && (!user || user.role !== 'sub_dept_admin')) router.push('/'); }, [user, authLoading, router]);
 
   const loadData = async (activeCycle: AppraisalCycle) => {
-    const data = await potentialAssessmentApi.getForEmployee(employeeId, activeCycle.name, user!.id);
+    const data = await potentialAssessmentApi.getForEmployee(employeeId, String(activeCycle.cycle_year), user!.id);
     if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
   };
 
@@ -42,7 +42,7 @@ export default function SubDeptAdminReviewEmployeePage() {
     appraisalCyclesApi.getActive().then(async (activeCycle) => {
       setCycle(activeCycle);
       await loadData(activeCycle);
-      const subs = await potentialAssessmentApi.getSubordinates(user.id, activeCycle.name, 'sub_dept_admin');
+      const subs = await potentialAssessmentApi.getSubordinates(user.id, String(activeCycle.cycle_year), 'sub_dept_admin');
       const found = subs.find((s) => s.id === employeeId);
       if (found) setAppraisee(found);
     }).catch((err) => setError(err?.response?.data?.error ?? 'Failed to load.')).finally(() => setLoading(false));
@@ -55,14 +55,13 @@ export default function SubDeptAdminReviewEmployeePage() {
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
       <Breadcrumb items={[{ label: 'Home', href: '/sub-dept-admin/dashboard' }, { label: 'Potential Assessment', href: '/sub-dept-admin/potential-assessment' }, { label: appraisee?.full_name ?? 'Review' }]} />
-      <div><h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>{cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.name}</strong></p>}</div>
+      <div><h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>{cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.cycle_year}</strong></p>}</div>
       <div className="w-full rounded-xl border border-[#BEDBFF] px-4 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(90deg, #EFF6FF 0%, #F3F4F6 100%)' }}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-[#DBEAFE] flex items-center justify-center"><User className="w-5 h-5 text-[#1D4ED8]" /></div>
           <div className="flex flex-col">
             <span className="text-[12.7px] text-[#4A5565]">Selected Employee</span>
             <span className="text-[18px] font-semibold text-[#101828]">{appraisee?.full_name ?? '—'}</span>
-            {appraisee?.designation && <span className="text-[12px] text-[#64748B]">{appraisee.designation}</span>}
           </div>
           <span className={`ml-4 inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium border ${badge.cls}`}>{badge.label}</span>
         </div>
