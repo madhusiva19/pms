@@ -16,6 +16,7 @@ export interface User {
   department_id?: string;         // For dept_admin
   sub_department_id?: string;
   // For sub_dept_admin
+  avatar_url?: string;
 }
 
 
