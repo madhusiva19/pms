@@ -2,7 +2,21 @@
 Shared helper functions used across services and routes.
 """
 
+import time
 from lib.supabase_client import supabase
+
+
+def execute_with_retry(fn, retries: int = 2, delay: float = 0.6):
+    """Call fn(); on exception wait delay seconds and retry up to retries times."""
+    last_err = None
+    for attempt in range(retries):
+        try:
+            return fn()
+        except Exception as e:
+            last_err = e
+            if attempt < retries - 1:
+                time.sleep(delay)
+    raise last_err
 
 
 _SCOPE_FIELD_MAP = {
