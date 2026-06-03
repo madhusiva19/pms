@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { User, Briefcase } from 'lucide-react';
+import { User } from 'lucide-react';
 import Link from 'next/link';
 import type { Employee } from '@/types';
 
@@ -42,10 +42,6 @@ export default function EmployeeCard({ employee }: EmployeeCardProps) {
             <div className="flex items-center gap-2 text-[13px] text-[#4A5565]">
               <User className="w-4 h-4 flex-shrink-0" />
               <span className="font-mono text-[12px]">{employee.emp_id}</span>
-            </div>
-            <div className="flex items-center gap-2 text-[13px] text-[#4A5565]">
-              <Briefcase className="w-4 h-4 flex-shrink-0" />
-              <span>{employee.designation}</span>
             </div>
             <Link
               href={`/sub-dept-admin/reports/${employee.id}`}
