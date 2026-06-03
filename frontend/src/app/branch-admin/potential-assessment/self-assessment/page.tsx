@@ -31,7 +31,7 @@ export default function BranchAdminSelfAssessmentPage() {
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Self Assessment</h1>
-        {cycle && <p className="text-[15px] text-[#4A5565]">Appraisal Cycle: <strong>{cycle.name}</strong></p>}
+        {cycle && <p className="text-[15px] text-[#4A5565]">Appraisal Cycle: <strong>{cycle.cycle_year}</strong></p>}
       </div>
 
       <section className="flex flex-col gap-4">
@@ -51,7 +51,7 @@ export default function BranchAdminSelfAssessmentPage() {
             employeeId={user.id}
             supervisorId={assessment?.supervisor_id ?? (user as any).manager_id ?? ''}
             role="branch_admin"
-            cycle={cycle?.name ?? ''}
+            cycle={String(cycle?.cycle_year ?? '')}
             currentStatus={status}
             assessmentData={assessment}
             onSubmitSuccess={() => reload()}
