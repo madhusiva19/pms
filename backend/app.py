@@ -33,6 +33,13 @@ app.register_blueprint(comparisons_bp)
 app.register_blueprint(saved_reports_bp)
 app.register_blueprint(potential_assessment_bp)
 
+with app.app_context():
+    try:
+        from lib.supabase_client import supabase
+        supabase.table('users').select('id').limit(1).execute()
+    except Exception:
+        pass
+
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
