@@ -24,7 +24,7 @@ export default function SubDeptAdminTeamReviewPage() {
     if (authLoading || !user) return;
     appraisalCyclesApi.getActive()
       .then(async (activeCycle) => {
-        const subs = await potentialAssessmentApi.getSubordinates(user.id, activeCycle.name, user.role);
+        const subs = await potentialAssessmentApi.getSubordinates(user.id, String(activeCycle.cycle_year), user.role);
         setSubordinates(subs);
       })
       .finally(() => setTeamLoading(false));
@@ -71,7 +71,7 @@ export default function SubDeptAdminTeamReviewPage() {
                     <tr key={sub.id} className="border-b border-[#F1F5F9] hover:bg-[#FAFAFA] transition-colors">
                       <td className="px-5 py-4"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-[#DBEAFE] flex items-center justify-center"><User className="w-4 h-4 text-[#1D4ED8]" /></div><span className="text-[13.5px] font-medium text-[#101828]">{sub.full_name}</span></div></td>
                       <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{sub.emp_id ?? sub.id.slice(0, 8)}</td>
-                      <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{sub.designation ?? '—'}</td>
+                      <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{'—'}</td>
                       <td className="px-5 py-4"><span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium border ${badge.cls}`}>{badge.label}</span></td>
                       <td className="px-5 py-4">
                         <button disabled={!canReview} onClick={() => router.push(`/sub-dept-admin/potential-assessment/${sub.id}`)}

@@ -39,7 +39,7 @@ export default function HQAdminPotentialAssessmentPage() {
     appraisalCyclesApi.getActive()
       .then(async (activeCycle) => {
         setCycle(activeCycle);
-        const subs = await potentialAssessmentApi.getSubordinates(user.id, activeCycle.name, user.role);
+        const subs = await potentialAssessmentApi.getSubordinates(user.id, String(activeCycle.cycle_year), user.role);
         setSubordinates(subs);
       })
       .catch((err) => setError(err?.response?.data?.error ?? 'Failed to load data.'))
@@ -57,7 +57,7 @@ export default function HQAdminPotentialAssessmentPage() {
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>
         <p className="text-[15px] text-[#4A5565]">
           Review potential assessments for Country Admins.
-          {cycle && <span className="ml-2 text-[#64748B]">Cycle: <strong>{cycle.name}</strong></span>}
+          {cycle && <span className="ml-2 text-[#64748B]">Cycle: <strong>{cycle.cycle_year}</strong></span>}
         </p>
       </div>
 
