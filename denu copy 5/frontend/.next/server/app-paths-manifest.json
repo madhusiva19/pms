@@ -1,9 +1,0 @@
-{
-  "/notifications/page": "app/notifications/page.js",
-  "/approvals/[id]/page": "app/approvals/[id]/page.js",
-  "/status-tracking/page": "app/status-tracking/page.js",
-  "/approvals/page": "app/approvals/page.js",
-  "/my-team/page": "app/my-team/page.js",
-  "/rejection/[id]/page": "app/rejection/[id]/page.js",
-  "/enquiry/page": "app/enquiry/page.js"
-}
