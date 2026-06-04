@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import Sidebar    from "@/components/sidebar/Sidebar";
 import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles from "./notifications.module.css";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -130,13 +131,15 @@ interface NotificationsPageProps {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function NotificationsPage({ level = 1 }: NotificationsPageProps) {
-  const [activeTab,      setActiveTab]      = useState<Tab>("cutoff");
-  const [notifications,  setNotifications]  = useState<DBNotification[]>([]);
-  const [upcoming,       setUpcoming]       = useState<ScheduleEntry[]>([]);
-  const [cycle,          setCycle]          = useState<CycleInfo | null>(null);
-  const [freezeStatus,   setFreezeStatus]   = useState<"open" | "grace" | "frozen">("open");
-  const [loading,        setLoading]        = useState(true);
-  const [refreshing,     setRefreshing]     = useState(false);
+  const [activeTab,        setActiveTab]        = useState<Tab>("cutoff");
+  const [notifications,    setNotifications]    = useState<DBNotification[]>([]);
+  const [upcoming,         setUpcoming]         = useState<ScheduleEntry[]>([]);
+  const [cycle,            setCycle]            = useState<CycleInfo | null>(null);
+  const [freezeStatus,     setFreezeStatus]     = useState<"open" | "grace" | "frozen">("open");
+  const [loading,          setLoading]          = useState(true);
+  const [refreshing,       setRefreshing]       = useState(false);
+  const [achievementNotifs, setAchievementNotifs] = useState<any[]>([]);
+  const currentUser = useCurrentUser();
 
   const levelLabel = LEVEL_LABEL[level] ?? "Admin";
   const headers    = { "X-User-Level": String(level) };
@@ -180,12 +183,34 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
     } catch (e) { console.error("fetchFreezeStatus:", e); }
   }, [level]);
 
+  // ── Fetch achievement notifications ───────────────────────────────────────
+  const fetchAchievements = useCallback(async () => {
+    if (!currentUser?.employee_id) return;
+    try {
+      const res  = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${currentUser.employee_id}`
+      );
+      const data = await res.json();
+      const mapped = (data.notifications || [])
+        .filter((n: any) => n.type === "diary_approval")
+        .map((n: any) => ({
+          id:          n.id,
+          fromName:    n.title,
+          submittedAt: n.created_at?.split("T")[0],
+          achievement: n.message,
+          isRead:      n.is_read,
+          actionUrl:   n.action_link,
+        }));
+      setAchievementNotifs(mapped);
+    } catch (e) { console.error("fetchAchievements:", e); }
+  }, [currentUser?.employee_id]);
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchNotifications(), fetchSchedule(), fetchFreezeStatus()]);
+    await Promise.all([fetchNotifications(), fetchSchedule(), fetchFreezeStatus(), fetchAchievements()]);
     setLoading(false);
     setRefreshing(false);
-  }, [fetchNotifications, fetchSchedule, fetchFreezeStatus]);
+  }, [fetchNotifications, fetchSchedule, fetchFreezeStatus, fetchAchievements]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -299,15 +324,55 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
             </button>
           </div>
 
-          {/* Achievement Approvals stub */}
+          {/* Achievement Approvals */}
           {activeTab === "approvals" && (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyIcon}><BellIcon /></div>
-              <p className={styles.emptyTitle}>No approval notifications yet.</p>
-              <p className={styles.emptyBody}>
-                Approval requests will appear here when team members submit
-                their achievements.
-              </p>
+            <div className={styles.notifList}>
+              {achievementNotifs.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIcon}><BellIcon /></div>
+                  <p className={styles.emptyTitle}>No approval notifications yet.</p>
+                  <p className={styles.emptyBody}>
+                    Approval requests will appear here when team members submit
+                    their achievements.
+                  </p>
+                </div>
+              ) : (
+                achievementNotifs.map((n) => (
+                  <div key={n.id} className={`${styles.notifCard} ${!n.isRead ? styles.unread : ""}`}>
+                    <div className={styles.notifTop}>
+                      <div className={styles.notifMeta}>
+                        {!n.isRead && <span className={styles.unreadDot} />}
+                        <div>
+                          <p className={styles.notifTitle}>
+                            {n.fromName.includes("Approved") || n.fromName.includes("Rejected")
+                              ? n.fromName
+                              : `Achievement submitted by ${n.fromName}`}
+                          </p>
+                          <span className={styles.notifDate}>{n.submittedAt}</span>
+                        </div>
+                      </div>
+                      {!n.isRead && (
+                        <button className={styles.readBtn} onClick={() => markRead(n.id)}>
+                          Mark as read
+                        </button>
+                      )}
+                    </div>
+                    <p className={styles.notifBody}>{n.achievement}</p>
+                    <div className={styles.notifActions}>
+                      <button
+                        type="button"
+                        className={styles.actionBtn}
+                        onClick={() => {
+                          markRead(n.id);
+                          window.location.href = n.actionUrl;
+                        }}
+                      >
+                        Review Achievement →
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
 
