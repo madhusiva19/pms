@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from datetime import datetime, timezone
 import services.assessment_service as assessment_service
 from lib.supabase_client import supabase
 
@@ -146,6 +147,204 @@ def assessment_components_list():
             'created_by': data.get('created_by'),
         }).execute()
         return jsonify({'success': True, 'data': resp.data[0]}), 201
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── Reconsideration
+
+
+@potential_assessment_bp.route('/api/potential-assessment/<assessment_id>/reconsideration', methods=['POST'])
+def submit_reconsideration(assessment_id: str):
+    try:
+        body = request.json or {}
+
+        assessment_resp = supabase.table('potential_assessments').select('*').eq('id', assessment_id).limit(1).execute()
+        if not assessment_resp.data:
+            return jsonify({'success': False, 'error': 'Assessment not found'}), 404
+        assessment = assessment_resp.data[0]
+
+        if assessment['status'] in ('reconsideration_requested', 'reconsideration_rejected'):
+            return jsonify({'success': False, 'error': 'A reconsideration has already been submitted for this assessment.'}), 400
+
+        if assessment['status'] not in ('supervisor_reviewed', 'completed'):
+            return jsonify({'success': False, 'error': 'Reconsideration can only be requested after supervisor review is complete.'}), 400
+
+        requesting_user_id = body.get('employee_id', '')
+        if requesting_user_id != assessment['employee_id']:
+            return jsonify({'success': False, 'error': 'Only the assessed employee may request reconsideration.'}), 403
+
+        senior_supervisor_id, err = assessment_service.resolve_senior_supervisor_id(assessment['supervisor_id'])
+        if err:
+            return jsonify({'success': False, 'error': err}), 400
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # Record in dedicated reconsideration table
+        recon = supabase.table('potential_assessment_reconsiderations').insert({
+            'assessment_id': assessment_id,
+            'employee_id': assessment['employee_id'],
+            'comment': body.get('reconsideration_comment'),
+            'requested_at': now_iso,
+        }).execute()
+
+        # Update only the status on the main assessment
+        supabase.table('potential_assessments').update({
+            'status': 'reconsideration_requested',
+        }).eq('id', assessment_id).execute()
+
+        try:
+            emp_resp = supabase.table('users').select('full_name').eq('id', assessment['employee_id']).single().execute()
+            employee_name = emp_resp.data.get('full_name', 'An employee') if emp_resp.data else 'An employee'
+        except Exception:
+            employee_name = 'An employee'
+
+        try:
+            assessment_service.send_pa_notification(
+                recipient_id=senior_supervisor_id,
+                notif_type='reconsideration_request',
+                title='Reconsideration Request Received',
+                message=f"{employee_name} has requested a reconsideration of their potential assessment. Please review at your earliest convenience.",
+            )
+        except Exception as e:
+            print(f'[PA NOTIFICATION ERROR] {e}')
+
+        try:
+            assessment_service.send_pa_notification(
+                recipient_id=assessment['supervisor_id'],
+                notif_type='reconsideration_fyi',
+                title='Employee Has Requested Reconsideration',
+                message=f"{employee_name} has escalated their assessment result for reconsideration by a senior reviewer.",
+            )
+        except Exception as e:
+            print(f'[PA NOTIFICATION ERROR] {e}')
+
+        assessment_service.log_assessment_action(
+            assessment_id, assessment['employee_id'],
+            assessment.get('appraisee_role', 'employee'),
+            'reconsideration_requested',
+            assessment.get('appraisal_cycle', ''),
+        )
+
+        return jsonify({'success': True, 'data': recon.data[0]}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@potential_assessment_bp.route('/api/potential-assessment/<assessment_id>/reconsideration/review', methods=['PUT'])
+def review_reconsideration(assessment_id: str):
+    try:
+        body = request.json or {}
+        action = body.get('action', '')
+        rejection_note = (body.get('rejection_note') or '').strip()
+        reviewer_id = body.get('reviewer_id', '')
+
+        assessment_resp = supabase.table('potential_assessments').select('*').eq('id', assessment_id).limit(1).execute()
+        if not assessment_resp.data:
+            return jsonify({'success': False, 'error': 'Assessment not found'}), 404
+        assessment = assessment_resp.data[0]
+
+        if assessment['status'] != 'reconsideration_requested':
+            return jsonify({'success': False, 'error': "Assessment is not in 'reconsideration_requested' status."}), 400
+
+        senior_supervisor_id, err = assessment_service.resolve_senior_supervisor_id(assessment['supervisor_id'])
+        if err:
+            return jsonify({'success': False, 'error': err}), 400
+
+        if reviewer_id != senior_supervisor_id:
+            return jsonify({'success': False, 'error': 'Only the designated senior supervisor may review this reconsideration.'}), 403
+
+        if action == 'reject' and not rejection_note:
+            return jsonify({'success': False, 'error': 'A rejection note is required when rejecting a reconsideration.'}), 400
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        recon_update = {
+            'reviewed_by': reviewer_id,
+            'reviewed_at': now_iso,
+            'action': action,
+        }
+
+        if action == 'approve':
+            new_status = 'completed'
+            recon_update['rejection_note'] = None
+            notif_type = 'reconsideration_approved'
+            notif_title = 'Reconsideration Approved'
+            notif_message = 'Your reconsideration request has been reviewed and approved by the senior supervisor.'
+
+        elif action == 'reject':
+            new_status = 'reconsideration_rejected'
+            recon_update['rejection_note'] = rejection_note
+            notif_type = 'reconsideration_rejected'
+            notif_title = 'Reconsideration Rejected'
+            notif_message = f"Your reconsideration request was reviewed and rejected. Note: {rejection_note}"
+
+        else:
+            return jsonify({'success': False, 'error': "action must be 'approve' or 'reject'."}), 400
+
+        # Update the reconsideration record
+        recon_resp = supabase.table('potential_assessment_reconsiderations').update(recon_update).eq('assessment_id', assessment_id).execute()
+
+        # Update only the status on the main assessment
+        supabase.table('potential_assessments').update({'status': new_status}).eq('id', assessment_id).execute()
+
+        try:
+            assessment_service.send_pa_notification(
+                recipient_id=assessment['employee_id'],
+                notif_type=notif_type,
+                title=notif_title,
+                message=notif_message,
+            )
+        except Exception as e:
+            print(f'[PA NOTIFICATION ERROR] {e}')
+
+        assessment_service.log_assessment_action(
+            assessment_id, reviewer_id, assessment.get('appraisee_role', 'unknown'),
+            f'reconsideration_{action}d',
+            assessment.get('appraisal_cycle', ''),
+        )
+
+        return jsonify({'success': True, 'data': recon_resp.data[0] if recon_resp.data else {}}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@potential_assessment_bp.route('/api/potential-assessment/<assessment_id>/reconsideration', methods=['GET'])
+def get_reconsideration_status(assessment_id: str):
+    try:
+        recon_resp = supabase.table('potential_assessment_reconsiderations').select('*').eq('assessment_id', assessment_id).order('requested_at', desc=True).limit(1).execute()
+        if not recon_resp.data:
+            return jsonify({'success': False, 'error': 'No reconsideration found for this assessment'}), 404
+        recon = recon_resp.data[0]
+
+        # Enrich with assessment context (cycle, status, supervisor)
+        try:
+            a = supabase.table('potential_assessments').select(
+                'status, appraisal_cycle, supervisor_id, appraisee_role'
+            ).eq('id', assessment_id).single().execute().data or {}
+            recon['assessment_status'] = a.get('status')
+            recon['appraisal_cycle'] = a.get('appraisal_cycle')
+            recon['appraisee_role'] = a.get('appraisee_role')
+            supervisor_id = a.get('supervisor_id')
+        except Exception:
+            supervisor_id = None
+
+        try:
+            emp_resp = supabase.table('users').select('full_name').eq('id', recon['employee_id']).single().execute()
+            recon['employee_name'] = emp_resp.data.get('full_name', '—') if emp_resp.data else '—'
+        except Exception:
+            recon['employee_name'] = '—'
+
+        try:
+            if supervisor_id:
+                sup_resp = supabase.table('users').select('full_name').eq('id', supervisor_id).single().execute()
+                recon['supervisor_name'] = sup_resp.data.get('full_name', '—') if sup_resp.data else '—'
+            else:
+                recon['supervisor_name'] = '—'
+        except Exception:
+            recon['supervisor_name'] = '—'
+
+        return jsonify({'success': True, 'data': recon}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
