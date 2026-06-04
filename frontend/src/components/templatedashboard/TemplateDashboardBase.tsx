@@ -18,7 +18,7 @@ import {
   Building2,    BarChart3,    TrendingUp,   GitBranch,    Settings,
   X,            Globe,        History,      SlidersHorizontal,
   Flag,         Star,         ShieldCheck,  CalendarDays, Sparkles,
-  FilePen
+  Pen
 } from "lucide-react";
 import { toast }                  from "sonner";
 import styles                     from "./TemplateDashboardBase.module.css";
@@ -2411,26 +2411,33 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
             )}
           </p>
         </div>
-
-        <div className={styles.headerActions}>
-          <CycleStatusBadge status={permissions.freezeStatus} />
-          {permissions.canCreate && (
-            <button
-              className={styles.createBtn}
-              onClick={() =>
-                router.push(
-                  `${rolePrefix}/template-management/template-creation`,
-                )
-              }
-            >
-               <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-               <FilePen size={17} strokeWidth={2.5} />
-               <Sparkles size={14} strokeWidth={2.5} style={{ marginLeft: -4, marginTop: -8, color: '#f4ff7c' }} />
-                </span>
-                <span>Create New Template</span>
-            </button>
-          )}
-        </div>
+<div className={styles.headerActions}>
+  <CycleStatusBadge status={permissions.freezeStatus} />
+ {permissions.canCreate && (
+  
+<button
+  className={styles.createBtn}
+  onClick={() =>
+    router.push(
+      `${rolePrefix}/template-management/template-creation`,
+    )
+  }
+>
+  <span className={styles.createBtnIcon}>
+    <FileText size={32} strokeWidth={1.8} className={styles.createBtnMainIcon} />
+    <Sparkles size={16} strokeWidth={2}   className={styles.createBtnSparkle1} />
+    <Sparkles size={12} strokeWidth={2}   className={styles.createBtnSparkle2} />
+    <Pen size={20} strokeWidth={2}   className={styles.createBtnPen} />
+    <Sparkles size={12} strokeWidth={2}   className={styles.createBtnSparkle3} />
+  </span>
+  <span className={styles.createBtnTexts}>
+    <span className={styles.createBtnText}>Create</span>
+    <span className={styles.createBtnSubText}>New Template</span>
+  </span>
+</button>
+)}
+  
+</div>
       </div>
 
       {/* ── Status banner ── */}
