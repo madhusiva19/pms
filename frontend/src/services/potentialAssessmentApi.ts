@@ -120,29 +120,23 @@ export const reconsiderationApi = {
     return res.data.data;
   },
 
-  /** Senior supervisor approves or rejects, optionally overriding scores. */
+  /** Senior supervisor approves or rejects, optionally overriding component scores. */
   review: async (
     assessmentId: string,
     action: 'approve' | 'reject',
     opts?: {
-      rejectionNote?: string;
-      reviewerId?: string;
-      justification?: string;
-      overrideAbility?: string;
-      overrideAspiration?: string;
-      overrideLeadership?: string;
-      overrideTalentBlock?: string;
+      rejectionNote?:  string;
+      reviewerId?:     string;
+      justification?:  string;
+      overrideItems?:  { item_id: string; rating: string }[];
     },
   ): Promise<PotentialAssessmentReconsideration> => {
     const res = await paClient.put(`/potential-assessment/${assessmentId}/reconsideration/review`, {
       action,
-      rejection_note:        opts?.rejectionNote ?? '',
-      reviewer_id:           opts?.reviewerId ?? '',
-      justification:         opts?.justification ?? '',
-      override_ability:      opts?.overrideAbility ?? null,
-      override_aspiration:   opts?.overrideAspiration ?? null,
-      override_leadership:   opts?.overrideLeadership ?? null,
-      override_talent_block: opts?.overrideTalentBlock ?? null,
+      rejection_note: opts?.rejectionNote ?? '',
+      reviewer_id:    opts?.reviewerId    ?? '',
+      justification:  opts?.justification ?? '',
+      override_items: opts?.overrideItems ?? [],
     });
     return res.data.data;
   },
