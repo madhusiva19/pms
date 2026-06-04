@@ -1,5 +1,6 @@
 "use client";
-import AdminNotificationsPage from "@/components/notifications/AdminNotificationsPage";
+import NotificationsPage from "@/components/notifications/NotificationsPage";
+
 export default function DeptAdminNotificationsPage() {
-  return <AdminNotificationsPage role="Dept Admin" dashboardPath="/dept-admin/dashboard" profilePath="/dept-admin/profile" />;
+  return <NotificationsPage level={4} />;
 }

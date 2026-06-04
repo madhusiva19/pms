@@ -10,7 +10,7 @@ interface User {
   role: string;
   org_level: number;
   iata_branch_code: string;
-  avatar_url?: string | null;
+  avatar_url?: string | null;   // ← from dev-final
 }
 
 interface AuthContextType {
@@ -20,7 +20,7 @@ interface AuthContextType {
   notificationCount: number;
   trainingBadgeCount: number;
   refreshBadges: () => void;
-  clearTrainingBadge: () => void;
+  clearTrainingBadge: () => void;   // ← from dev-final
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -30,18 +30,32 @@ const AuthContext = createContext<AuthContextType>({
   notificationCount: 0,
   trainingBadgeCount: 0,
   refreshBadges: () => {},
-  clearTrainingBadge: () => {},
+  clearTrainingBadge: () => {},   // ← from dev-final
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [trainingBadgeCount, setTrainingBadgeCount] = useState(0);
-  const clearTrainingBadge = () => setTrainingBadgeCount(0);
+  const clearTrainingBadge = () => setTrainingBadgeCount(0);   // ← from dev-final
 
   useEffect(() => {
     const raw = localStorage.getItem("pms_user");
-    if (raw) setUser(JSON.parse(raw));
+    if (raw) {
+      const parsedUser = JSON.parse(raw);
+      setUser(parsedUser);
+
+      // Sync user to public.users — yours, kept
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/sync-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id:   parsedUser.id,
+          email:     parsedUser.email,
+          full_name: parsedUser.full_name,
+        }),
+      }).catch(() => {});
+    }
   }, []);
 
   const refreshBadges = useCallback(async () => {
@@ -54,20 +68,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       // ── Notification badge ──
-      const notifRes = await fetch(`${API}/api/notifications/${employeeId}`);
+      const notifRes  = await fetch(`${API}/api/notifications/${employeeId}`);
       const notifData = await notifRes.json();
       const unread = (notifData.notifications || []).filter((n: any) => !n.is_read).length;
       setNotificationCount(unread);
 
-      // ── Training badge ──
-      // Supervisors see pending subordinate suggestions
-      // Employees see their own pending suggestions
-
+      // ── Training badge — from dev-final (counts reviewed too) ──
       const isSupervisor = ["hq_admin", "country_admin", "branch_admin", "dept_admin", "sub_dept_admin"].includes(role);
 
       let trainingBadge = 0;
 
-      // Everyone sees badge when their OWN suggestion is reviewed
       const suggRes  = await fetch(`${API}/api/training/suggestions/${employeeId}`);
       const suggData = await suggRes.json();
       const reviewed = (suggData.suggestions || []).filter(
@@ -75,7 +85,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ).length;
       trainingBadge += reviewed;
 
-      // Supervisors ALSO see badge for pending subordinate suggestions
       if (isSupervisor) {
         const subRes  = await fetch(`${API}/api/training/subordinate-suggestions/${employeeId}`);
         const subData = await subRes.json();
@@ -89,14 +98,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Refresh badges when user changes
   useEffect(() => {
     if (user) refreshBadges();
   }, [user, refreshBadges]);
 
   const logout = () => {
     localStorage.removeItem("pms_user");
-    document.cookie = "pms_auth=; path=/; max-age=0; SameSite=Lax";
+    document.cookie = "pms_auth=; path=/; max-age=0; SameSite=Lax";  // ← from dev-final
     setUser(null);
     setNotificationCount(0);
     setTrainingBadgeCount(0);
@@ -110,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       notificationCount,
       trainingBadgeCount,
       refreshBadges,
-      clearTrainingBadge,
+      clearTrainingBadge,   // ← from dev-final
     }}>
       {children}
     </AuthContext.Provider>
@@ -120,3 +128,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
+

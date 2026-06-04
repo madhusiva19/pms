@@ -1,5 +1,6 @@
 "use client";
-import AdminNotificationsPage from "@/components/notifications/AdminNotificationsPage";
+import NotificationsPage from "@/components/notifications/NotificationsPage";
+
 export default function EmployeeNotificationsPage() {
-  return <AdminNotificationsPage role="Employee" dashboardPath="/employee/profile" profilePath="/employee/profile" showCutoffs={false} />;
+  return <NotificationsPage level={99} />;
 }

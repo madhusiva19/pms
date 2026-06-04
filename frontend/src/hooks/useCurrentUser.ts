@@ -1,16 +1,16 @@
 export interface CurrentUser {
-  id: string;
-  employee_id: string;
-  email: string;
-  full_name: string;
-  role: string;
-  org_level: number;
+  id:               string;
+  employee_id:      string;
+  email:            string;
+  full_name:        string;
+  role:             string;
+  org_level:        number;
   iata_branch_code: string;
-  avatar_url?: string | null;
-  country_id?: string;
-  branch_id?: string;
-  dept_id?: string;
-  sub_dept_id?: string;
+  avatar_url?:      string | null;
+  country_id?:      string;
+  branch_id?:       string;
+  dept_id?:         string;
+  sub_dept_id?:     string;
 }
 
 export function useCurrentUser(): CurrentUser | null {
