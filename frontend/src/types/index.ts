@@ -301,7 +301,13 @@ export interface AppraisalCycle {
   created_at: string;
 }
 
-export type AssessmentStatus = 'not_started' | 'pending_self' | 'pending_supervisor' | 'completed';
+export type AssessmentStatus =
+  | 'not_started'
+  | 'pending_self'
+  | 'pending_supervisor'
+  | 'completed'
+  | 'reconsideration_requested'
+  | 'reconsideration_rejected';
 export type PillarType = 'ability' | 'aspiration' | 'leadership';
 export type RatingValue = 'H' | 'M' | 'L';
 export type TalentBlock = 'A' | 'B' | 'C';
@@ -322,6 +328,26 @@ export interface PotentialAssessment {
   talent_block: RatingValue | null;
   created_at: string;
   items?: PotentialAssessmentItem[];
+}
+
+/** Returned by GET /api/potential-assessment/:id/reconsideration */
+export interface PotentialAssessmentReconsideration {
+  id: string;
+  assessment_id: string;
+  employee_id: string;
+  comment: string | null;
+  requested_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  action: 'approve' | 'reject' | null;
+  rejection_note: string | null;
+  created_at: string;
+  // Enriched by backend
+  assessment_status?: AssessmentStatus;
+  appraisal_cycle?:   string;
+  appraisee_role?:    AppraiseeRole;
+  employee_name?:     string;
+  supervisor_name?:   string;
 }
 
 export interface PotentialAssessmentItem {
@@ -350,6 +376,7 @@ export interface SubordinateAssessmentSummary {
   sub_department_id?: string;
   // assessment state
   assessment_status: AssessmentStatus;
+  assessment_id?: string | null;
   talent_block: RatingValue | null;
 }
 
