@@ -5,28 +5,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import Breadcrumb from '@/components/Breadcrumb';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { reconsiderationApi } from '@/services/potentialAssessmentApi';
+import { reconsiderationApi, assessmentComponentsApi } from '@/services/potentialAssessmentApi';
 import { ChevronLeft } from 'lucide-react';
+import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey } from '@/utils/assessmentContent';
+import { buildPillars, calcOverallPotentiality } from '@/utils/assessmentUtils';
 import type { PotentialAssessmentReconsideration, PotentialAssessmentItem, RatingValue } from '@/types';
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-GB', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
-
-function calcSelfPillarRating(items: PotentialAssessmentItem[], pillar: string): RatingValue | null {
-  const pi = items.filter(i => i.pillar === pillar);
-  if (!pi.length) return null;
-  const counts: Record<string, number> = { H: 0, M: 0, L: 0 };
-  pi.forEach(i => { if (i.self_rating) counts[i.self_rating]++; });
-  const max = Math.max(counts.H, counts.M, counts.L);
-  if (max === 0) return null;
-  if (counts.H === max) return 'H';
-  if (counts.M === max) return 'M';
-  return 'L';
+  return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 const ratingCls: Record<RatingValue, string> = {
@@ -44,26 +31,32 @@ function RatingBadge({ value }: { value: RatingValue | null | undefined }) {
   );
 }
 
-const RATING_OPTIONS: { value: RatingValue; label: string }[] = [
-  { value: 'H', label: 'H — High' },
-  { value: 'M', label: 'M — Medium' },
-  { value: 'L', label: 'L — Low' },
-];
-
-function RatingSelect({ value, onChange, label }: { value: RatingValue | ''; onChange: (v: RatingValue | '') => void; label: string }) {
+function OverrideSelect({ itemId, value, onChange }: {
+  itemId: string; value: RatingValue | ''; onChange: (itemId: string, v: RatingValue | '') => void;
+}) {
   return (
     <select
       value={value}
-      onChange={e => onChange(e.target.value as RatingValue | '')}
-      aria-label={label}
-      className="border border-[#D1D5DB] rounded-lg px-3 py-2 text-[13.5px] text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] bg-white"
+      onChange={e => onChange(itemId, e.target.value as RatingValue | '')}
+      aria-label="Override rating"
+      className={`border rounded-lg px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] bg-white ${
+        value ? 'border-[#1D4ED8] text-[#1D4ED8] font-medium' : 'border-[#D1D5DB] text-[#6B7280]'
+      }`}
     >
-      <option value="">— unchanged —</option>
-      {RATING_OPTIONS.map(o => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
+      <option value="">Keep current</option>
+      <option value="H">H — High</option>
+      <option value="M">M — Medium</option>
+      <option value="L">L — Low</option>
     </select>
   );
+}
+
+function majority(ratings: RatingValue[]): RatingValue {
+  const h = ratings.filter(r => r === 'H').length;
+  const l = ratings.filter(r => r === 'L').length;
+  if (h >= 2) return 'H';
+  if (l >= 2) return 'L';
+  return 'M';
 }
 
 const BACK_PATH = '/branch-admin/potential-assessment/supervisor-review';
@@ -75,15 +68,12 @@ export default function BranchAdminReconsiderationReviewPage() {
   const assessmentId = params?.assessmentId as string;
 
   const [assessment, setAssessment] = useState<PotentialAssessmentReconsideration | null>(null);
+  const [pillars, setPillars] = useState(ASSESSMENT_PILLARS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rejectionNote, setRejectionNote] = useState('');
-  const [showOverride, setShowOverride] = useState(false);
+  const [overrides, setOverrides] = useState<Record<string, RatingValue | ''>>({});
   const [justification, setJustification] = useState('');
-  const [overrideAbility, setOverrideAbility] = useState<RatingValue | ''>('');
-  const [overrideAspiration, setOverrideAspiration] = useState<RatingValue | ''>('');
-  const [overrideLeadership, setOverrideLeadership] = useState<RatingValue | ''>('');
-  const [overrideTalentBlock, setOverrideTalentBlock] = useState<RatingValue | ''>('');
+  const [rejectionNote, setRejectionNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -95,50 +85,62 @@ export default function BranchAdminReconsiderationReviewPage() {
     setLoading(true);
     reconsiderationApi.getStatus(assessmentId)
       .then(setAssessment)
-      .catch((err) => setError(err?.response?.data?.error ?? 'Failed to load assessment.'))
+      .catch(err => setError(err?.response?.data?.error ?? 'Failed to load assessment.'))
       .finally(() => setLoading(false));
   }, [user, authLoading, assessmentId]);
 
+  useEffect(() => {
+    if (!assessment?.appraisee_role) return;
+    assessmentComponentsApi.getForRole(assessment.appraisee_role)
+      .then(comps => { if (comps.length > 0) setPillars(buildPillars(comps)); })
+      .catch(() => {});
+  }, [assessment?.appraisee_role]);
+
   if (authLoading || loading) return <LoadingSpinner />;
   if (!user || user.role !== 'branch_admin') return null;
-
-  if (!assessment) {
-    return (
-      <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
-        <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">
-          {error ?? 'Assessment not found.'}
-        </div>
-      </div>
-    );
-  }
+  if (!assessment) return (
+    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
+      <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">{error ?? 'Assessment not found.'}</div>
+    </div>
+  );
 
   const items = assessment.items ?? [];
-  const selfAbility    = calcSelfPillarRating(items, 'ability');
-  const selfAspiration = calcSelfPillarRating(items, 'aspiration');
-  const selfLeadership = calcSelfPillarRating(items, 'leadership');
-  const hasAnyOverride = !!(overrideAbility || overrideAspiration || overrideLeadership || overrideTalentBlock);
+  const itemsByPillar: Record<PillarKey, PotentialAssessmentItem[]> = { ability: [], aspiration: [], leadership: [] };
+  items.forEach(item => { const p = item.pillar as PillarKey; if (itemsByPillar[p]) itemsByPillar[p].push(item); });
+  PILLAR_KEYS.forEach(p => itemsByPillar[p].sort((a, b) => a.component_number - b.component_number));
+
+  const effectiveRating = (item: PotentialAssessmentItem): RatingValue | null =>
+    (overrides[item.id] as RatingValue) || item.supervisor_rating || null;
+
+  const livePillarOverall = (pillar: PillarKey): RatingValue | null => {
+    const ratings = itemsByPillar[pillar].map(effectiveRating).filter(Boolean) as RatingValue[];
+    return ratings.length === 3 ? majority(ratings) : null;
+  };
+
+  const liveAbility     = livePillarOverall('ability');
+  const liveAspiration  = livePillarOverall('aspiration');
+  const liveLeadership  = livePillarOverall('leadership');
+  const liveTalentBlock = calcOverallPotentiality(liveAbility, liveAspiration, liveLeadership);
+  const hasAnyOverride  = Object.values(overrides).some(Boolean);
+
+  const setOverride = (itemId: string, v: RatingValue | '') => setOverrides(prev => ({ ...prev, [itemId]: v }));
 
   const handleApprove = async () => {
     setSubmitting(true);
     try {
+      const overrideItems = Object.entries(overrides)
+        .filter(([, rating]) => rating)
+        .map(([item_id, rating]) => ({ item_id, rating: rating as string }));
       await reconsiderationApi.review(assessmentId, 'approve', {
-        reviewerId:          user.id,
-        justification:       justification     || undefined,
-        overrideAbility:     overrideAbility   || undefined,
-        overrideAspiration:  overrideAspiration || undefined,
-        overrideLeadership:  overrideLeadership || undefined,
-        overrideTalentBlock: overrideTalentBlock || undefined,
+        reviewerId: user.id,
+        justification: justification || undefined,
+        overrideItems: overrideItems.length ? overrideItems : undefined,
       });
-      const msg = showOverride && hasAnyOverride
-        ? 'Scores updated and reconsideration approved.'
-        : 'Reconsideration approved. Assessment marked as completed.';
-      alert(msg);
+      alert(hasAnyOverride ? 'Scores updated and reconsideration approved.' : 'Reconsideration approved.');
       router.push(BACK_PATH);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? 'Failed to approve reconsideration. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
+      alert(err?.response?.data?.error ?? 'Failed to approve. Please try again.');
+    } finally { setSubmitting(false); }
   };
 
   const handleReject = async () => {
@@ -149,121 +151,165 @@ export default function BranchAdminReconsiderationReviewPage() {
       alert('Reconsideration rejected.');
       router.push(BACK_PATH);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? 'Failed to reject reconsideration. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
+      alert(err?.response?.data?.error ?? 'Failed to reject. Please try again.');
+    } finally { setSubmitting(false); }
   };
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
-      <Breadcrumb items={[
-        { label: 'Potential Assessment', href: BACK_PATH },
-        { label: 'Reconsideration Review' },
-      ]} />
+      <Breadcrumb items={[{ label: 'Potential Assessment', href: BACK_PATH }, { label: 'Reconsideration Review' }]} />
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Reconsideration Review</h1>
-        <p className="text-[14px] text-[#64748B]">{assessment.employee_name} · {assessment.appraisal_cycle}</p>
+        <p className="text-[14px] text-[#64748B]">{assessment.employee_name} · Cycle {assessment.appraisal_cycle}</p>
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">{error}</div>}
 
       <div className="flex items-start gap-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-5 py-4">
         <span className="text-[20px] shrink-0">⚠️</span>
-        <div>
+        <div className="flex flex-col gap-0.5">
           <p className="text-[14px] font-semibold text-[#92400E]">Reconsideration Requested</p>
-          <p className="text-[13.5px] text-[#92400E] mt-0.5">
-            {assessment.employee_name ?? 'This employee'} has requested a reconsideration.
-            Requested on {formatDate(assessment.requested_at)}.
-            Direct supervisor: <strong>{assessment.supervisor_name ?? '—'}</strong>.
+          <p className="text-[13.5px] text-[#92400E]">
+            <strong>{assessment.employee_name ?? 'This employee'}</strong> has requested a reconsideration
+            of their assessment result. Requested on {formatDate(assessment.requested_at)}.
           </p>
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
-        <div className="px-5 py-3.5 bg-[#F8FAFC] border-b border-[#E5E7EB]">
-          <h2 className="text-[14px] font-semibold text-[#101828]">Assessment Results Comparison</h2>
-          <p className="text-[12.5px] text-[#64748B] mt-0.5">Employee self-assessment vs supervisor review</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#E5E7EB]">
+          <div className="p-6 flex flex-col gap-4">
+            <h2 className="text-[14px] font-semibold text-[#101828] pb-2 border-b border-[#F1F5F9]">Assessment Details</h2>
+            <dl className="flex flex-col gap-3">
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">Employee</dt>
+                <dd className="text-[13.5px] text-[#1E293B] font-medium">{assessment.employee_name ?? '—'}</dd>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">Assessment Cycle</dt>
+                <dd className="text-[13.5px] text-[#1E293B]">{assessment.appraisal_cycle ?? '—'}</dd>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">Direct Supervisor</dt>
+                <dd className="text-[13.5px] text-[#1E293B]">{assessment.supervisor_name ?? '—'}</dd>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">Requested At</dt>
+                <dd className="text-[13.5px] text-[#1E293B]">{formatDate(assessment.requested_at)}</dd>
+              </div>
+            </dl>
+          </div>
+          <div className="p-6 flex flex-col gap-3">
+            <h2 className="text-[14px] font-semibold text-[#101828] pb-2 border-b border-[#F1F5F9]">Employee's Comment</h2>
+            {assessment.comment ? (
+              <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-4 py-3 text-[13.5px] text-[#374151] leading-6">{assessment.comment}</div>
+            ) : (
+              <p className="text-[13.5px] text-[#94A3B8] italic">No comment provided.</p>
+            )}
+          </div>
         </div>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="border-b border-[#F1F5F9]">
-              <th className="text-left px-5 py-3 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-1/3">Pillar</th>
-              <th className="text-left px-5 py-3 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-1/3">Employee (Self)</th>
-              <th className="text-left px-5 py-3 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-1/3">Supervisor Review</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { label: 'Ability',      self: selfAbility,    supervisor: assessment.overall_ability    },
-              { label: 'Aspiration',   self: selfAspiration, supervisor: assessment.overall_aspiration },
-              { label: 'Leadership',   self: selfLeadership, supervisor: assessment.overall_leadership },
-              { label: 'Talent Block', self: null,           supervisor: assessment.talent_block       },
-            ].map((row) => (
-              <tr key={row.label} className="border-b border-[#F1F5F9] last:border-0">
-                <td className="px-5 py-3.5 text-[13.5px] font-medium text-[#101828]">{row.label}</td>
-                <td className="px-5 py-3.5">{row.label === 'Talent Block' ? <span className="text-[#94A3B8] text-[13px]">N/A</span> : <RatingBadge value={row.self} />}</td>
-                <td className="px-5 py-3.5"><RatingBadge value={row.supervisor} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
 
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 flex flex-col gap-3">
-        <h2 className="text-[14px] font-semibold text-[#101828] pb-2 border-b border-[#F1F5F9]">Employee's Reconsideration Comment</h2>
-        {assessment.comment ? (
-          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-4 py-3 text-[13.5px] text-[#374151] leading-6">
-            {assessment.comment}
+      {pillars.map(pillar => {
+        const pillarItems = itemsByPillar[pillar.key as PillarKey];
+        const pillarOverall = livePillarOverall(pillar.key as PillarKey);
+        return (
+          <div key={pillar.key} className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
+            <div className="px-5 py-3 bg-[#F8FAFC] border-b border-[#E5E7EB] flex items-center justify-between">
+              <h2 className="text-[14px] font-semibold text-[#101828]">{pillar.label}</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] text-[#64748B]">Pillar Overall:</span>
+                <RatingBadge value={pillarOverall} />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-[#F1F5F9]">
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[30%]">Component</th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[16%]">Self Rating</th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[16%]">Supervisor Rating</th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[16%]">Final Result</th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[22%]">Override</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pillarItems.map((item, idx) => {
+                    const desc = pillar.components[item.component_number - 1] ?? `Component ${item.component_number}`;
+                    const final = effectiveRating(item);
+                    const isOverridden = !!overrides[item.id];
+                    return (
+                      <tr key={item.id} className="border-b border-[#F1F5F9] last:border-0">
+                        <td className="px-4 py-4 align-top">
+                          <p className="text-[12px] font-semibold text-[#6B7280] mb-1">Q{idx + 1}</p>
+                          <p className="text-[13px] text-[#374151] leading-5">{desc}</p>
+                          {item.self_example && (
+                            <p className="mt-1.5 text-[12px] text-[#64748B] italic leading-4 border-l-2 border-[#E2E8F0] pl-2">&ldquo;{item.self_example}&rdquo;</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-top"><RatingBadge value={item.self_rating} /></td>
+                        <td className="px-4 py-4 align-top">
+                          <RatingBadge value={item.supervisor_rating} />
+                          {item.supervisor_justification && (
+                            <p className="mt-1.5 text-[12px] text-[#64748B] italic leading-4 border-l-2 border-[#E2E8F0] pl-2">&ldquo;{item.supervisor_justification}&rdquo;</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          {isOverridden ? (
+                            <div className="flex flex-col gap-1">
+                              <RatingBadge value={final} />
+                              <span className="text-[11px] text-[#1D4ED8] font-medium">Overridden</span>
+                            </div>
+                          ) : (
+                            <RatingBadge value={final} />
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          <OverrideSelect itemId={item.id} value={overrides[item.id] ?? ''} onChange={setOverride} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        ) : (
-          <p className="text-[13.5px] text-[#94A3B8] italic">No comment provided.</p>
-        )}
+        );
+      })}
+
+      <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
+        <div className="px-5 py-3 bg-[#F8FAFC] border-b border-[#E5E7EB]">
+          <h2 className="text-[14px] font-semibold text-[#101828]">Overall Results Summary</h2>
+          <p className="text-[12.5px] text-[#64748B] mt-0.5">Updates live as you change overrides above</p>
+        </div>
+        <div className="grid grid-cols-4 divide-x divide-[#F1F5F9]">
+          {[
+            { label: 'Ability',      value: liveAbility    },
+            { label: 'Aspiration',   value: liveAspiration },
+            { label: 'Leadership',   value: liveLeadership },
+            { label: 'Talent Block', value: liveTalentBlock },
+          ].map(row => (
+            <div key={row.label} className="p-4 flex flex-col gap-2 items-center">
+              <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">{row.label}</span>
+              <RatingBadge value={row.value} />
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 flex flex-col gap-5">
         <h2 className="text-[15px] font-semibold text-[#101828] pb-2 border-b border-[#F1F5F9]">Your Decision</h2>
 
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={() => setShowOverride(v => !v)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showOverride ? 'bg-[#1D4ED8]' : 'bg-[#D1D5DB]'}`}>
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showOverride ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
-          <span className="text-[13.5px] font-medium text-[#374151]">Override supervisor scores</span>
-        </div>
-
-        {showOverride && (
-          <div className="flex flex-col gap-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4">
-            <p className="text-[12.5px] text-[#64748B]">Leave a field as "— unchanged —" to keep the existing score.</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Ability</label>
-                <RatingSelect value={overrideAbility} onChange={setOverrideAbility} label="Override Ability Rating" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Aspiration</label>
-                <RatingSelect value={overrideAspiration} onChange={setOverrideAspiration} label="Override Aspiration Rating" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Leadership</label>
-                <RatingSelect value={overrideLeadership} onChange={setOverrideLeadership} label="Override Leadership Rating" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Talent Block</label>
-                <RatingSelect value={overrideTalentBlock} onChange={setOverrideTalentBlock} label="Override Talent Block Rating" />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[13px] font-medium text-[#374151]">
-                Justification <span className="text-[#DC2626]">(required when overriding)</span>
-              </label>
-              <textarea rows={3}
-                placeholder="Explain why you are changing the supervisor's scores..."
-                value={justification} onChange={e => setJustification(e.target.value)}
-                className="w-full rounded-lg border border-[#D1D5DB] px-3 py-2.5 text-[13.5px] text-[#1E293B] resize-none focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:border-transparent"
-              />
-            </div>
+        {hasAnyOverride && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-medium text-[#374151]">
+              Justification <span className="text-[#DC2626]">(required — you have overridden scores)</span>
+            </label>
+            <textarea rows={3} placeholder="Explain why you are changing the supervisor's scores..."
+              value={justification} onChange={e => setJustification(e.target.value)}
+              className="w-full rounded-lg border border-[#D1D5DB] px-3 py-2.5 text-[13.5px] text-[#1E293B] resize-none focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:border-transparent"
+            />
           </div>
         )}
 
@@ -271,8 +317,7 @@ export default function BranchAdminReconsiderationReviewPage() {
           <label className="text-[13px] font-medium text-[#374151]">
             Rejection Note <span className="text-[#DC2626]">(required if rejecting)</span>
           </label>
-          <textarea rows={3}
-            placeholder="Explain why this reconsideration is being rejected..."
+          <textarea rows={3} placeholder="Explain why this reconsideration is being rejected..."
             value={rejectionNote} onChange={e => setRejectionNote(e.target.value)}
             className="w-full rounded-lg border border-[#D1D5DB] px-3 py-2.5 text-[13.5px] text-[#1E293B] resize-none focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:border-transparent"
           />
@@ -289,7 +334,7 @@ export default function BranchAdminReconsiderationReviewPage() {
           </button>
           <button type="button" onClick={handleApprove} disabled={submitting}
             className="px-4 py-2 bg-[#1D4ED8] text-white text-[13.5px] font-medium rounded-lg hover:bg-[#1E40AF] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-            {submitting ? 'Processing…' : (showOverride && hasAnyOverride ? 'Override & Approve' : 'Approve')}
+            {submitting ? 'Processing…' : hasAnyOverride ? 'Override & Approve' : 'Approve'}
           </button>
         </div>
       </div>
