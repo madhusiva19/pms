@@ -70,7 +70,59 @@ def get_assessment(employee_id: str, cycle: str, requester_id: str = '') -> dict
     return {**assessment, 'items': items}
 
 
-# -- Business logic 
+# -- Senior supervisor resolution (uses org hierarchy columns, no supervisor_id FK)
+
+def resolve_senior_supervisor_id(direct_supervisor_id: str):
+    """
+    Returns (senior_supervisor_id, error_message).
+    Walks one level up the org hierarchy from the direct supervisor using
+    role + location columns (department_id / iata_branch_code / country_id).
+    When the direct supervisor is hq_admin (top of hierarchy) they handle
+    the reconsideration themselves.
+    """
+    sup = supabase.table('users').select(
+        'role, department_id, iata_branch_code, country_id'
+    ).eq('id', direct_supervisor_id).limit(1).execute()
+    if not sup.data:
+        return None, 'Direct supervisor not found.'
+
+    s = sup.data[0]
+    role = s.get('role')
+
+    if role == 'sub_dept_admin':
+        dept_id = s.get('department_id')
+        if not dept_id:
+            return None, 'No senior supervisor found to handle this reconsideration.'
+        row = supabase.table('users').select('id').eq('role', 'dept_admin').eq('department_id', dept_id).limit(1).execute()
+
+    elif role == 'dept_admin':
+        branch = s.get('iata_branch_code')
+        if not branch:
+            return None, 'No senior supervisor found to handle this reconsideration.'
+        row = supabase.table('users').select('id').eq('role', 'branch_admin').eq('iata_branch_code', branch).limit(1).execute()
+
+    elif role == 'branch_admin':
+        country_id = s.get('country_id')
+        if not country_id:
+            return None, 'No senior supervisor found to handle this reconsideration.'
+        row = supabase.table('users').select('id').eq('role', 'country_admin').eq('country_id', country_id).limit(1).execute()
+
+    elif role == 'country_admin':
+        row = supabase.table('users').select('id').eq('role', 'hq_admin').limit(1).execute()
+
+    elif role == 'hq_admin':
+        # Top of hierarchy — hq_admin handles the reconsideration themselves
+        return direct_supervisor_id, None
+
+    else:
+        return None, 'No senior supervisor found to handle this reconsideration.'
+
+    if not row.data:
+        return None, 'No senior supervisor found to handle this reconsideration.'
+    return row.data[0]['id'], None
+
+
+# -- Business logic
 
 def get_subordinates(supervisor_id: str, supervisor_role: str, cycle: str) -> list:
     # Each branch follows the org hierarchy: hq_admin→country_admin→branch_admin→dept_admin→sub_dept_admin→employee
@@ -112,12 +164,13 @@ def get_subordinates(supervisor_id: str, supervisor_role: str, cycle: str) -> li
 
     sub_ids = [s['id'] for s in subordinates]
     # Single IN query for all subordinates avoids N+1 DB calls when a supervisor has many reports
-    assessments_resp = supabase.table('potential_assessments').select('employee_id, status, talent_block, overall_ability, overall_aspiration, overall_leadership').in_('employee_id', sub_ids).eq('appraisal_cycle', cycle).execute()
+    assessments_resp = supabase.table('potential_assessments').select('id, employee_id, status, talent_block, overall_ability, overall_aspiration, overall_leadership').in_('employee_id', sub_ids).eq('appraisal_cycle', cycle).execute()
     assessment_map = {a['employee_id']: a for a in (assessments_resp.data or [])}
 
     return [{
         **sub,
         'assessment_status': assessment_map[sub['id']]['status'] if sub['id'] in assessment_map else 'not_started',
+        'assessment_id': assessment_map[sub['id']]['id'] if sub['id'] in assessment_map else None,
         'talent_block': assessment_map[sub['id']].get('talent_block') if sub['id'] in assessment_map else None,
     } for sub in subordinates]
 
