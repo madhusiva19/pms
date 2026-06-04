@@ -5,7 +5,7 @@ from flask import Blueprint
 from services import notification_service as service
 
 
-notification_bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")
+notification_bp = Blueprint("evaluation_notifications", __name__, url_prefix="/api/evaluation-notifications")
 
 # Notification endpoints let the UI list alerts, create test/manual alerts, and
 # persist read state.

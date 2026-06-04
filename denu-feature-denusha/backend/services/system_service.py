@@ -21,7 +21,7 @@ def index():
                 "/api/performance-records",
                 "/api/evaluations",
                 "/api/approvals",
-                "/api/notifications",
+                "/api/evaluation-notifications",
                 "/api/evaluation-status/1",
             ],
         }

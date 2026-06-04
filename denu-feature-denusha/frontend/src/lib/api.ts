@@ -43,9 +43,9 @@ export const getApproval = (id: EntityId): Promise<AxiosResponse<Approval>> => a
 export const updateApproval = (id: EntityId, data: Record<string, unknown>) => api.put(`/approvals/${id}`, data);
 
 // Fetch notifications for the notification center.
-export const getNotifications = (): Promise<AxiosResponse<NotificationItem[]>> => api.get('/notifications');
+export const getNotifications = (): Promise<AxiosResponse<NotificationItem[]>> => api.get('/evaluation-notifications');
 // Persist a notification's read state.
-export const markNotificationRead = (id: EntityId) => api.put(`/notifications/${id}/read`);
+export const markNotificationRead = (id: EntityId) => api.put(`/evaluation-notifications/${id}/read`);
 
 // Fetch evaluation progress stages for the status tracking timeline.
 export const getEvaluationStatus = (id: EntityId): Promise<AxiosResponse<EvaluationStatus>> => api.get(`/evaluation-status/${id}`);
