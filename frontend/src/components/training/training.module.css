@@ -3,6 +3,8 @@
   display: flex;
   background: #F9FAFB;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  max-width:   100vw;  
+  overflow-x:  hidden;
 }
 
 /* ── Sidebar ── */
@@ -113,8 +115,10 @@
 /* ── Main ── */
 .main {
   flex: 1;
+  margin-left: 101px; 
   padding: 32px;
-  overflow: auto;
+  overflow:  auto;
+  min-width:   0;
 }
 
 .breadcrumb {
