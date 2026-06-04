@@ -235,15 +235,13 @@ def submit_reconsideration(assessment_id: str):
 def review_reconsideration(assessment_id: str):
     try:
         body = request.json or {}
-        action = body.get('action', '')
+        action        = body.get('action', '')
         rejection_note = (body.get('rejection_note') or '').strip()
-        reviewer_id = body.get('reviewer_id', '')
+        reviewer_id   = body.get('reviewer_id', '')
         justification = (body.get('justification') or '').strip()
-        override_ability    = body.get('override_ability')
-        override_aspiration = body.get('override_aspiration')
-        override_leadership = body.get('override_leadership')
-        override_talent_block = body.get('override_talent_block')
-        has_overrides = any([override_ability, override_aspiration, override_leadership, override_talent_block])
+        # List of {item_id, rating} — only entries where rating is non-empty are true overrides
+        override_items = [i for i in (body.get('override_items') or []) if i.get('item_id') and i.get('rating')]
+        has_overrides  = len(override_items) > 0
 
         assessment_resp = supabase.table('potential_assessments').select('*').eq('id', assessment_id).limit(1).execute()
         if not assessment_resp.data:
@@ -279,15 +277,15 @@ def review_reconsideration(assessment_id: str):
             recon_update['rejection_note'] = None
             if justification:
                 recon_update['justification'] = justification
-            notif_type = 'reconsideration_approved'
-            notif_title = 'Reconsideration Approved'
+            notif_type    = 'reconsideration_approved'
+            notif_title   = 'Reconsideration Approved'
             notif_message = 'Your reconsideration request has been reviewed and approved by the senior supervisor.'
 
         elif action == 'reject':
             new_status = 'reconsideration_rejected'
             recon_update['rejection_note'] = rejection_note
-            notif_type = 'reconsideration_rejected'
-            notif_title = 'Reconsideration Rejected'
+            notif_type    = 'reconsideration_rejected'
+            notif_title   = 'Reconsideration Rejected'
             notif_message = f"Your reconsideration request was reviewed and rejected. Note: {rejection_note}"
 
         else:
@@ -296,13 +294,47 @@ def review_reconsideration(assessment_id: str):
         # Update the reconsideration record
         recon_resp = supabase.table('potential_assessment_reconsiderations').update(recon_update).eq('assessment_id', assessment_id).execute()
 
-        # Build assessment update: always update status; optionally update overridden scores
+        # Build assessment update — always update status
         assessment_update: dict = {'status': new_status}
+
         if action == 'approve' and has_overrides:
-            if override_ability:    assessment_update['overall_ability']    = override_ability
-            if override_aspiration: assessment_update['overall_aspiration'] = override_aspiration
-            if override_leadership: assessment_update['overall_leadership'] = override_leadership
-            if override_talent_block: assessment_update['talent_block']     = override_talent_block
+            # Apply each component-level override
+            for ov in override_items:
+                supabase.table('potential_assessment_items').update(
+                    {'supervisor_rating': ov['rating']}
+                ).eq('id', ov['item_id']).execute()
+
+            # Recalculate pillar overalls from updated items (majority vote)
+            all_items = supabase.table('potential_assessment_items').select(
+                'pillar, supervisor_rating'
+            ).eq('assessment_id', assessment_id).execute().data or []
+
+            def majority(ratings):
+                h = ratings.count('H')
+                l = ratings.count('L')
+                if h >= 2: return 'H'
+                if l >= 2: return 'L'
+                return 'M'
+
+            for pillar_key, field in [('ability', 'overall_ability'), ('aspiration', 'overall_aspiration'), ('leadership', 'overall_leadership')]:
+                pillar_ratings = [i['supervisor_rating'] for i in all_items if i['pillar'] == pillar_key and i['supervisor_rating']]
+                if pillar_ratings:
+                    assessment_update[field] = majority(pillar_ratings)
+
+            # Recalculate talent block from new pillar overalls
+            a = assessment_update.get('overall_ability', assessment.get('overall_ability'))
+            s = assessment_update.get('overall_aspiration', assessment.get('overall_aspiration'))
+            l = assessment_update.get('overall_leadership', assessment.get('overall_leadership'))
+            if a and s and l:
+                h_count = [a, s, l].count('H')
+                l_count = [a, s, l].count('L')
+                if h_count >= 2 and l_count == 0:
+                    assessment_update['talent_block'] = 'H'
+                elif l_count >= 2 and h_count == 0:
+                    assessment_update['talent_block'] = 'L'
+                else:
+                    assessment_update['talent_block'] = 'M'
+
         supabase.table('potential_assessments').update(assessment_update).eq('id', assessment_id).execute()
 
         try:
