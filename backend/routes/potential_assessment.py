@@ -366,11 +366,12 @@ def get_reconsideration_status(assessment_id: str):
             return jsonify({'success': False, 'error': 'No reconsideration found for this assessment'}), 404
         recon = recon_resp.data[0]
 
-        # Enrich with assessment context, scores, and supervisor
+        # Enrich with assessment context, scores, supervisor, and employee_id fallback
         supervisor_id = None
+        assessment_employee_id = None
         try:
             a = supabase.table('potential_assessments').select(
-                'status, appraisal_cycle, supervisor_id, appraisee_role, '
+                'status, appraisal_cycle, supervisor_id, appraisee_role, employee_id, '
                 'overall_ability, overall_aspiration, overall_leadership, talent_block'
             ).eq('id', assessment_id).single().execute().data or {}
             recon['assessment_status']    = a.get('status')
@@ -380,7 +381,8 @@ def get_reconsideration_status(assessment_id: str):
             recon['overall_aspiration']   = a.get('overall_aspiration')
             recon['overall_leadership']   = a.get('overall_leadership')
             recon['talent_block']         = a.get('talent_block')
-            supervisor_id = a.get('supervisor_id')
+            supervisor_id          = a.get('supervisor_id')
+            assessment_employee_id = a.get('employee_id')
         except Exception:
             pass
 
@@ -391,11 +393,16 @@ def get_reconsideration_status(assessment_id: str):
         except Exception:
             recon['items'] = []
 
+        # Resolve employee name — prefer reconsideration.employee_id, fall back to assessment.employee_id
+        employee_id = recon.get('employee_id') or assessment_employee_id
         try:
-            emp_resp = supabase.table('users').select('full_name').eq('id', recon['employee_id']).single().execute()
-            recon['employee_name'] = emp_resp.data.get('full_name', '—') if emp_resp.data else '—'
+            if employee_id:
+                emp_resp = supabase.table('users').select('full_name').eq('id', employee_id).single().execute()
+                recon['employee_name'] = emp_resp.data.get('full_name') if emp_resp.data else None
+            else:
+                recon['employee_name'] = None
         except Exception:
-            recon['employee_name'] = '—'
+            recon['employee_name'] = None
 
         try:
             if supervisor_id:
