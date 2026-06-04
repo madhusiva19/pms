@@ -341,13 +341,21 @@ export interface PotentialAssessmentReconsideration {
   reviewed_at: string | null;
   action: 'approve' | 'reject' | null;
   rejection_note: string | null;
+  justification: string | null;
   created_at: string;
   // Enriched by backend
-  assessment_status?: AssessmentStatus;
-  appraisal_cycle?:   string;
-  appraisee_role?:    AppraiseeRole;
-  employee_name?:     string;
-  supervisor_name?:   string;
+  assessment_status?:   AssessmentStatus;
+  appraisal_cycle?:     string;
+  appraisee_role?:      AppraiseeRole;
+  employee_name?:       string;
+  supervisor_name?:     string;
+  // Supervisor overall scores (for comparison panel)
+  overall_ability?:     RatingValue | null;
+  overall_aspiration?:  RatingValue | null;
+  overall_leadership?:  RatingValue | null;
+  talent_block?:        RatingValue | null;
+  // Assessment items (self + supervisor rating per component)
+  items?:               PotentialAssessmentItem[];
 }
 
 export interface PotentialAssessmentItem {
