@@ -10,6 +10,7 @@ import type {
   AppraisalCycle,
   PotentialAssessment,
   PotentialAssessmentItem,
+  PotentialAssessmentReconsideration,
   SubordinateAssessmentSummary,
   SelfSubmitPayload,
   SupervisorSubmitPayload,
@@ -106,6 +107,44 @@ export const potentialAssessmentApi = {
 };
 
 // Assessment Components (HQ Admin CRUD + per-role fetch) 
+
+// Reconsideration
+
+export const reconsiderationApi = {
+  /** Employee submits a reconsideration request. employee_id is verified by the backend. */
+  submit: async (assessmentId: string, comment: string, employeeId: string): Promise<PotentialAssessmentReconsideration> => {
+    const res = await paClient.post(`/potential-assessment/${assessmentId}/reconsideration`, {
+      reconsideration_comment: comment,
+      employee_id: employeeId,
+    });
+    return res.data.data;
+  },
+
+  /** Senior supervisor approves or rejects. reviewer_id is verified by the backend. */
+  review: async (
+    assessmentId: string,
+    action: 'approve' | 'reject',
+    rejectionNote?: string,
+    reviewerId?: string,
+  ): Promise<PotentialAssessmentReconsideration> => {
+    const res = await paClient.put(`/potential-assessment/${assessmentId}/reconsideration/review`, {
+      action,
+      rejection_note: rejectionNote ?? '',
+      reviewer_id: reviewerId ?? '',
+    });
+    return res.data.data;
+  },
+
+  /**
+   * Fetch the reconsideration record for an assessment, enriched with
+   * employee_name, supervisor_name, appraisal_cycle, and assessment_status.
+   * Returns 404 if no reconsideration exists yet.
+   */
+  getStatus: async (assessmentId: string): Promise<PotentialAssessmentReconsideration> => {
+    const res = await paClient.get(`/potential-assessment/${assessmentId}/reconsideration`);
+    return res.data.data;
+  },
+};
 
 export const assessmentComponentsApi = {
   /** HQ Admin: all components (global + role-specific). */
