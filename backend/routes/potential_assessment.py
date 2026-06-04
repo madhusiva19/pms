@@ -238,6 +238,12 @@ def review_reconsideration(assessment_id: str):
         action = body.get('action', '')
         rejection_note = (body.get('rejection_note') or '').strip()
         reviewer_id = body.get('reviewer_id', '')
+        justification = (body.get('justification') or '').strip()
+        override_ability    = body.get('override_ability')
+        override_aspiration = body.get('override_aspiration')
+        override_leadership = body.get('override_leadership')
+        override_talent_block = body.get('override_talent_block')
+        has_overrides = any([override_ability, override_aspiration, override_leadership, override_talent_block])
 
         assessment_resp = supabase.table('potential_assessments').select('*').eq('id', assessment_id).limit(1).execute()
         if not assessment_resp.data:
@@ -257,6 +263,9 @@ def review_reconsideration(assessment_id: str):
         if action == 'reject' and not rejection_note:
             return jsonify({'success': False, 'error': 'A rejection note is required when rejecting a reconsideration.'}), 400
 
+        if has_overrides and not justification:
+            return jsonify({'success': False, 'error': 'A justification is required when overriding scores.'}), 400
+
         now_iso = datetime.now(timezone.utc).isoformat()
 
         recon_update = {
@@ -268,6 +277,8 @@ def review_reconsideration(assessment_id: str):
         if action == 'approve':
             new_status = 'completed'
             recon_update['rejection_note'] = None
+            if justification:
+                recon_update['justification'] = justification
             notif_type = 'reconsideration_approved'
             notif_title = 'Reconsideration Approved'
             notif_message = 'Your reconsideration request has been reviewed and approved by the senior supervisor.'
@@ -285,8 +296,14 @@ def review_reconsideration(assessment_id: str):
         # Update the reconsideration record
         recon_resp = supabase.table('potential_assessment_reconsiderations').update(recon_update).eq('assessment_id', assessment_id).execute()
 
-        # Update only the status on the main assessment
-        supabase.table('potential_assessments').update({'status': new_status}).eq('id', assessment_id).execute()
+        # Build assessment update: always update status; optionally update overridden scores
+        assessment_update: dict = {'status': new_status}
+        if action == 'approve' and has_overrides:
+            if override_ability:    assessment_update['overall_ability']    = override_ability
+            if override_aspiration: assessment_update['overall_aspiration'] = override_aspiration
+            if override_leadership: assessment_update['overall_leadership'] = override_leadership
+            if override_talent_block: assessment_update['talent_block']     = override_talent_block
+        supabase.table('potential_assessments').update(assessment_update).eq('id', assessment_id).execute()
 
         try:
             assessment_service.send_pa_notification(
@@ -317,17 +334,30 @@ def get_reconsideration_status(assessment_id: str):
             return jsonify({'success': False, 'error': 'No reconsideration found for this assessment'}), 404
         recon = recon_resp.data[0]
 
-        # Enrich with assessment context (cycle, status, supervisor)
+        # Enrich with assessment context, scores, and supervisor
+        supervisor_id = None
         try:
             a = supabase.table('potential_assessments').select(
-                'status, appraisal_cycle, supervisor_id, appraisee_role'
+                'status, appraisal_cycle, supervisor_id, appraisee_role, '
+                'overall_ability, overall_aspiration, overall_leadership, talent_block'
             ).eq('id', assessment_id).single().execute().data or {}
-            recon['assessment_status'] = a.get('status')
-            recon['appraisal_cycle'] = a.get('appraisal_cycle')
-            recon['appraisee_role'] = a.get('appraisee_role')
+            recon['assessment_status']    = a.get('status')
+            recon['appraisal_cycle']      = a.get('appraisal_cycle')
+            recon['appraisee_role']       = a.get('appraisee_role')
+            recon['overall_ability']      = a.get('overall_ability')
+            recon['overall_aspiration']   = a.get('overall_aspiration')
+            recon['overall_leadership']   = a.get('overall_leadership')
+            recon['talent_block']         = a.get('talent_block')
             supervisor_id = a.get('supervisor_id')
         except Exception:
-            supervisor_id = None
+            pass
+
+        # Fetch assessment items (self + supervisor ratings per component)
+        try:
+            items_resp = supabase.table('potential_assessment_items').select('*').eq('assessment_id', assessment_id).execute()
+            recon['items'] = items_resp.data or []
+        except Exception:
+            recon['items'] = []
 
         try:
             emp_resp = supabase.table('users').select('full_name').eq('id', recon['employee_id']).single().execute()
