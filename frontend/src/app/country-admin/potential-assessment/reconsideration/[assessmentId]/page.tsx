@@ -161,7 +161,7 @@ export default function CountryAdminReconsiderationReviewPage() {
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Reconsideration Review</h1>
-        <p className="text-[14px] text-[#64748B]">{assessment.employee_name} · Cycle {assessment.appraisal_cycle}</p>
+        <p className="text-[14px] text-[#64748B]">{assessment.employee_name ?? '—'} · Cycle {assessment.appraisal_cycle}</p>
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">{error}</div>}
