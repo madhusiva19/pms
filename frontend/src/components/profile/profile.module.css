@@ -132,7 +132,7 @@
 /* ── Main ── */
 .main{
   flex: 1;
-  margin-left: 251px; 
+  margin-left: 251px;
   padding: 32px;
   overflow: auto;
 }
