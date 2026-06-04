@@ -1,5 +1,6 @@
 "use client";
-import AdminNotificationsPage from "@/components/notifications/AdminNotificationsPage";
+import NotificationsPage from "@/components/notifications/NotificationsPage";
+
 export default function HQAdminNotificationsPage() {
-  return <AdminNotificationsPage role="HQ Admin" dashboardPath="/hq-admin/dashboard" profilePath="/hq-admin/profile" />;
+  return <NotificationsPage level={1} />;
 }

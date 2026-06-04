@@ -1,5 +1,6 @@
 "use client";
-import AdminNotificationsPage from "@/components/notifications/AdminNotificationsPage";
+import NotificationsPage from "@/components/notifications/NotificationsPage";
+
 export default function BranchAdminNotificationsPage() {
-  return <AdminNotificationsPage role="Branch Admin" dashboardPath="/branch-admin/dashboard" profilePath="/branch-admin/profile" />;
+  return <NotificationsPage level={3} />;
 }

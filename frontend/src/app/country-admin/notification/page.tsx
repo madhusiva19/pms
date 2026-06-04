@@ -1,5 +1,6 @@
 "use client";
-import AdminNotificationsPage from "@/components/notifications/AdminNotificationsPage";
+import NotificationsPage from "@/components/notifications/NotificationsPage";
+
 export default function CountryAdminNotificationsPage() {
-  return <AdminNotificationsPage role="Country Admin" dashboardPath="/country-admin/dashboard" profilePath="/country-admin/profile" />;
+  return <NotificationsPage level={2} />;
 }

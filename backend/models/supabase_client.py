@@ -1,14 +1,18 @@
 import os
+from supabase import create_client, Client
 import requests as req
 from dotenv import load_dotenv
 
 load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-SERVICE_KEY  = os.getenv("SUPABASE_SERVICE_KEY")
+SUPABASE_URL: str = os.getenv("SUPABASE_URL")
+SUPABASE_KEY: str = os.getenv("SUPABASE_KEY")
+SERVICE_KEY: str  = os.getenv("SUPABASE_SERVICE_KEY")
 
+# ── Official Supabase client (primary) ────────────────────────────────────────
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# ── Custom HTTP client (kept for branches that use it) ────────────────────────
 class SupabaseClient:
     def __init__(self, url, key):
         self.url = url
@@ -19,10 +23,8 @@ class SupabaseClient:
             "Content-Type":  "application/json",
             "Prefer":        "return=representation"
         }
-
     def table(self, table_name):
         return SupabaseTable(self.url, self.headers, table_name)
-
 
 class SupabaseTable:
     def __init__(self, url, headers, table_name):
@@ -63,13 +65,16 @@ class SupabaseTable:
         self.params[col] = "in.({})".format(",".join(str(v) for v in vals))
         return self
 
+    def limit(self, n):
+        self.params["limit"] = str(n)
+        return self
+
     def order(self, col, desc=False):
         self.params["order"] = f"{col}.{'desc' if desc else 'asc'}"
         return self
 
     def execute(self):
         url = f"{self.url}/rest/v1/{self.table_name}"
-
         filter_params = {k: v for k, v in self.params.items() if k != "select"}
         all_params    = self.params
 
@@ -87,7 +92,6 @@ class SupabaseTable:
 
         class Result:
             pass
-
         result = Result()
         try:
             result.data = res.json() if res.text else []
@@ -107,5 +111,5 @@ class SupabaseTable:
 
         return result
 
-
-supabase = SupabaseClient(SUPABASE_URL, SUPABASE_KEY)
+# Legacy client — used by branches that import SupabaseClient directly
+supabase_http = SupabaseClient(SUPABASE_URL, SUPABASE_KEY)
