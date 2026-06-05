@@ -51,8 +51,14 @@ type ManualRatingNotification = {
   createdAt: string;
 };
 
-// Self-Assessment (Potential Assessment) Notification 
-type PaNotificationType = "self_submitted" | "supervisor_completed";
+// Self-Assessment (Potential Assessment) Notification
+type PaNotificationType =
+  | "self_submitted"
+  | "supervisor_completed"
+  | "reconsideration_request"
+  | "reconsideration_fyi"
+  | "reconsideration_approved"
+  | "reconsideration_rejected";
 
 type PaNotification = {
   id: string;
@@ -63,6 +69,28 @@ type PaNotification = {
   createdAt: string;
   actionUrl: string;
 };
+
+// Types where the recipient is the appraisee viewing their OWN result.
+// Everything else is supervisor-facing (reviewing someone else).
+const PA_APPRAISEE_FACING: PaNotificationType[] = [
+  "supervisor_completed",
+  "reconsideration_approved",
+  "reconsideration_rejected",
+];
+
+// Resolve the correct destination per notification type + role.
+function resolvePaActionUrl(type: PaNotificationType, roleSlug: string): string {
+  if (PA_APPRAISEE_FACING.includes(type)) {
+    // Appraisee views their own assessment; the employee route has no /self-assessment segment
+    return roleSlug === "employee"
+      ? "/employee/potential-assessment"
+      : `/${roleSlug}/potential-assessment/self-assessment`;
+  }
+  // Supervisor-facing — hq-admin's review list lives at the root, others use /supervisor-review
+  return roleSlug === "hq-admin"
+    ? "/hq-admin/potential-assessment"
+    : `/${roleSlug}/potential-assessment/supervisor-review`;
+}
 
 //  Cutoff status badge config
 const STATUS_STYLES: Record<
@@ -93,6 +121,10 @@ const PA_STYLES: Record<
 > = {
   self_submitted: { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: " Self Submitted", borderColor: "#BFDBFE", bg: "#F0F7FF" },
   supervisor_completed: { badge: "#DCFCE7", badgeColor: "#166534", badgeText: " Review Completed", borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  reconsideration_request: { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "Reconsideration Requested", borderColor: "#FDE047", bg: "#FFFBEB" },
+  reconsideration_fyi: { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Reconsideration (FYI)", borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  reconsideration_approved: { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "Reconsideration Approved", borderColor: "#86EFAC", bg: "#F0FDF4" },
+  reconsideration_rejected: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "Reconsideration Rejected", borderColor: "#FECACA", bg: "#FEF2F2" },
 };
 
 function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
@@ -224,10 +256,8 @@ export default function Notifications() {
             createdAt: n.created_at
               ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
               : "",
-            // Employees go to their self-assessment page; supervisors go to their review page
-            actionUrl: n.type === "supervisor_completed"
-              ? `/${roleSlug}/potential-assessment`
-              : `/${roleSlug}/potential-assessment/supervisor-review`,
+            // Route based on whether the recipient is the appraisee or a supervisor
+            actionUrl: resolvePaActionUrl(n.type, roleSlug),
           })
         );
         setPaList(paNotifs);
@@ -456,7 +486,7 @@ export default function Notifications() {
                         router.push(n.actionUrl);
                       }}
                     >
-                      {n.type === "supervisor_completed" ? "View My Assessment →" : "Review Assessment →"}
+                      {PA_APPRAISEE_FACING.includes(n.type) ? "View My Assessment →" : "Review Assessment →"}
                     </button>
                     {!n.isRead && (
                       <button type="button" className={styles.readBtn} onClick={() => markPaRead(n.id)}>
