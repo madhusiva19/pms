@@ -36,8 +36,8 @@ def log_assessment_action(assessment_id: str, actor_id: str, actor_role: str, ac
 # -- Data access helpers 
 
 def strip_supervisor_columns(items: list, status: str) -> list:
-    # Hides supervisor ratings until 'completed' so the appraisee cannot see them mid-review
-    if status == 'completed':
+    # Reveal supervisor fields once the supervisor has submitted (completed or any post-review status)
+    if status in ('completed', 'reconsideration_requested', 'reconsideration_rejected'):
         return items
     return [{k: v for k, v in item.items() if k not in ('supervisor_rating', 'supervisor_justification')} for item in items]
 
