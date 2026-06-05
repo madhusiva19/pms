@@ -337,15 +337,12 @@ def review_reconsideration(assessment_id: str):
 
         supabase.table('potential_assessments').update(assessment_update).eq('id', assessment_id).execute()
 
-        try:
-            assessment_service.send_pa_notification(
-                recipient_id=assessment['employee_id'],
-                notif_type=notif_type,
-                title=notif_title,
-                message=notif_message,
-            )
-        except Exception as e:
-            print(f'[PA NOTIFICATION ERROR] {e}')
+        assessment_service.send_pa_notification(
+            recipient_id=assessment['employee_id'],
+            notif_type=notif_type,
+            title=notif_title,
+            message=notif_message,
+        )
 
         assessment_service.log_assessment_action(
             assessment_id, reviewer_id, assessment.get('appraisee_role', 'unknown'),
