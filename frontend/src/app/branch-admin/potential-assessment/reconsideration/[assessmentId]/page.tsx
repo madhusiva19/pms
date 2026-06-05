@@ -31,6 +31,11 @@ function RatingBadge({ value }: { value: RatingValue | null | undefined }) {
   );
 }
 
+function ComponentRating({ value }: { value: RatingValue | null | undefined }) {
+  if (!value) return <span className="text-[#94A3B8] text-[13px]">—</span>;
+  return <span className="text-[14px] font-bold text-[#1D4ED8]">{value}</span>;
+}
+
 function OverrideSelect({ itemId, value, onChange }: {
   itemId: string; value: RatingValue | ''; onChange: (itemId: string, v: RatingValue | '') => void;
 }) {
@@ -226,7 +231,7 @@ export default function BranchAdminReconsiderationReviewPage() {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse min-w-[700px]">
                 <thead>
-                  <tr className="border-b border-[#F1F5F9]">
+                  <tr className="border-b border-[#F1F5F9] divide-x divide-[#E5E7EB]">
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[30%]">Component</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[16%]">Self Rating</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[16%]">Supervisor Rating</th>
@@ -240,7 +245,7 @@ export default function BranchAdminReconsiderationReviewPage() {
                     const final = effectiveRating(item);
                     const isOverridden = !!overrides[item.id];
                     return (
-                      <tr key={item.id} className="border-b border-[#F1F5F9] last:border-0">
+                      <tr key={item.id} className="border-b border-[#F1F5F9] last:border-0 divide-x divide-[#E5E7EB]">
                         <td className="px-4 py-4 align-top">
                           <p className="text-[12px] font-semibold text-[#6B7280] mb-1">Q{idx + 1}</p>
                           <p className="text-[13px] text-[#374151] leading-5">{desc}</p>
@@ -248,21 +253,23 @@ export default function BranchAdminReconsiderationReviewPage() {
                             <p className="mt-1.5 text-[12px] text-[#64748B] italic leading-4 border-l-2 border-[#E2E8F0] pl-2">&ldquo;{item.self_example}&rdquo;</p>
                           )}
                         </td>
-                        <td className="px-4 py-4 align-top"><RatingBadge value={item.self_rating} /></td>
+                        <td className="px-4 py-4 align-middle text-center"><ComponentRating value={item.self_rating} /></td>
                         <td className="px-4 py-4 align-top">
-                          <RatingBadge value={item.supervisor_rating} />
+                          <div className="flex justify-center mb-1">
+                            <ComponentRating value={item.supervisor_rating} />
+                          </div>
                           {item.supervisor_justification && (
-                            <p className="mt-1.5 text-[12px] text-[#64748B] italic leading-4 border-l-2 border-[#E2E8F0] pl-2">&ldquo;{item.supervisor_justification}&rdquo;</p>
+                            <p className="text-[12px] text-[#64748B] italic leading-4 border-l-2 border-[#E2E8F0] pl-2">&ldquo;{item.supervisor_justification}&rdquo;</p>
                           )}
                         </td>
-                        <td className="px-4 py-4 align-top">
+                        <td className="px-4 py-4 align-middle text-center">
                           {isOverridden ? (
-                            <div className="flex flex-col gap-1">
-                              <RatingBadge value={final} />
+                            <div className="flex flex-col gap-1 items-center">
+                              <ComponentRating value={final} />
                               <span className="text-[11px] text-[#1D4ED8] font-medium">Overridden</span>
                             </div>
                           ) : (
-                            <RatingBadge value={final} />
+                            <ComponentRating value={final} />
                           )}
                         </td>
                         <td className="px-4 py-4 align-top">
@@ -284,17 +291,26 @@ export default function BranchAdminReconsiderationReviewPage() {
           <p className="text-[12.5px] text-[#64748B] mt-0.5">Updates live as you change overrides above</p>
         </div>
         <div className="grid grid-cols-4 divide-x divide-[#F1F5F9]">
-          {[
-            { label: 'Ability',      value: liveAbility    },
-            { label: 'Aspiration',   value: liveAspiration },
-            { label: 'Leadership',   value: liveLeadership },
-            { label: 'Talent Block', value: liveTalentBlock },
-          ].map(row => (
+          {([
+            { label: 'Ability',    value: liveAbility    },
+            { label: 'Aspiration', value: liveAspiration },
+            { label: 'Leadership', value: liveLeadership },
+          ] as { label: string; value: RatingValue | null }[]).map(row => (
             <div key={row.label} className="p-4 flex flex-col gap-2 items-center">
               <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">{row.label}</span>
               <RatingBadge value={row.value} />
             </div>
           ))}
+          <div className="p-4 flex flex-col gap-2 items-center">
+            <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">Talent Block</span>
+            {liveTalentBlock ? (
+              <div className="w-10 h-10 rounded-full bg-[#EFF6FF] border-2 border-[#BFDBFE] flex items-center justify-center text-[15px] font-bold text-[#2563EB]">
+                {liveTalentBlock}
+              </div>
+            ) : (
+              <span className="text-[#94A3B8] text-[13px]">—</span>
+            )}
+          </div>
         </div>
       </div>
 
