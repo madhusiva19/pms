@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -143,22 +143,20 @@ export default function BranchAdminReconsiderationReviewPage() {
         justification: justification || undefined,
         overrideItems: overrideItems.length ? overrideItems : undefined,
       });
-      alert(hasAnyOverride ? 'Scores updated and reconsideration approved.' : 'Reconsideration approved.');
       router.push(BACK_PATH);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? 'Failed to approve. Please try again.');
+      setError(err?.response?.data?.error ?? 'Failed to approve. Please try again.');
     } finally { setSubmitting(false); }
   };
 
   const handleReject = async () => {
-    if (!rejectionNote.trim()) { alert('Please provide a rejection note before rejecting.'); return; }
+    if (!rejectionNote.trim()) { setError('Please provide a rejection note before rejecting.'); return; }
     setSubmitting(true);
     try {
       await reconsiderationApi.review(assessmentId, 'reject', { reviewerId: user.id, rejectionNote });
-      alert('Reconsideration rejected.');
       router.push(BACK_PATH);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? 'Failed to reject. Please try again.');
+      setError(err?.response?.data?.error ?? 'Failed to reject. Please try again.');
     } finally { setSubmitting(false); }
   };
 
