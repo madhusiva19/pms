@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
-  title: 'Performance Evaluation App',
+  title: 'DGL Performance Management System',
   description: 'Team evaluation workflow dashboard',
 };
 
