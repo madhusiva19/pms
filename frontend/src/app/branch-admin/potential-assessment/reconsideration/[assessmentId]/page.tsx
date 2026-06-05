@@ -49,9 +49,9 @@ function OverrideSelect({ itemId, value, onChange }: {
       }`}
     >
       <option value="">Keep current</option>
-      <option value="H">H — High</option>
-      <option value="M">M — Medium</option>
-      <option value="L">L — Low</option>
+      <option value="H">H - High</option>
+      <option value="M">M - Medium</option>
+      <option value="L">L - Low</option>
     </select>
   );
 }
@@ -277,7 +277,7 @@ export default function BranchAdminReconsiderationReviewPage() {
                           {isOverridden ? (
                             <div className="flex flex-col gap-1 items-center">
                               <ComponentRating value={final} />
-                              <span className="text-[11px] text-[#1D4ED8] font-medium">Overridden</span>
+                              <span className="text-[11px] text-red-500 font-medium">Overridden</span>
                             </div>
                           ) : (
                             <ComponentRating value={final} />
