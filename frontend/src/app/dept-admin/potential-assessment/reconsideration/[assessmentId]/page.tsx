@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -143,22 +143,20 @@ export default function DeptAdminReconsiderationReviewPage() {
         justification: justification || undefined,
         overrideItems: overrideItems.length ? overrideItems : undefined,
       });
-      alert(hasAnyOverride ? 'Scores updated and reconsideration approved.' : 'Reconsideration approved.');
       router.push(BACK_PATH);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? 'Failed to approve. Please try again.');
+      setError(err?.response?.data?.error ?? 'Failed to approve. Please try again.');
     } finally { setSubmitting(false); }
   };
 
   const handleReject = async () => {
-    if (!rejectionNote.trim()) { alert('Please provide a rejection note before rejecting.'); return; }
+    if (!rejectionNote.trim()) { setError('Please provide a rejection note before rejecting.'); return; }
     setSubmitting(true);
     try {
       await reconsiderationApi.review(assessmentId, 'reject', { reviewerId: user.id, rejectionNote });
-      alert('Reconsideration rejected.');
       router.push(BACK_PATH);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? 'Failed to reject. Please try again.');
+      setError(err?.response?.data?.error ?? 'Failed to reject. Please try again.');
     } finally { setSubmitting(false); }
   };
 
@@ -174,7 +172,7 @@ export default function DeptAdminReconsiderationReviewPage() {
       {error && <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">{error}</div>}
 
       <div className="flex items-start gap-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-5 py-4">
-        <span className="text-[20px] shrink-0">⚠️</span>
+        <span className="text-[20px] shrink-0"></span>
         <div className="flex flex-col gap-0.5">
           <p className="text-[14px] font-semibold text-[#92400E]">Reconsideration Requested</p>
           <p className="text-[13.5px] text-[#92400E]">
