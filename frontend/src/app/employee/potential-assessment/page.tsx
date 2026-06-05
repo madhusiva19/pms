@@ -79,7 +79,7 @@ export default function EmployeePotentialAssessmentPage() {
         <h2 className="text-[18px] font-semibold text-[#101828]">My Self-Assessment</h2>
 
         {(status === 'completed' || status === 'reconsideration_requested' || status === 'reconsideration_rejected') && assessment ? (
-          <CompletedSummary assessmentData={assessment} viewerRole="appraisee" />
+          <CompletedSummary assessmentData={assessment} />
         ) : (
           <SelfAssessmentForm
             employeeId={user.id}
