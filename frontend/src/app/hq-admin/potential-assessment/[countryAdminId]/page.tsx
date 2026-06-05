@@ -4,7 +4,7 @@
  * HQ Admin — Potential Assessment review detail page for a Country Admin
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import Breadcrumb from '@/components/Breadcrumb';
@@ -12,15 +12,9 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import SupervisorReviewForm from '@/components/potential-assessment/SupervisorReviewForm';
 import CompletedSummary from '@/components/potential-assessment/CompletedSummary';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
+import { statusBadge } from '@/lib/assessmentStatusBadge';
 import { ChevronLeft, User } from 'lucide-react';
 import type { AppraisalCycle, AssessmentStatus, PotentialAssessment } from '@/types';
-
-const statusBadge: Record<AssessmentStatus, { label: string; cls: string }> = {
-  not_started:        { label: 'Not Started',   cls: 'bg-[#F1F5F9] text-[#64748B] border-[#E2E8F0]' },
-  pending_self:       { label: 'Pending Self',   cls: 'bg-[#FEF9C3] text-[#92400E] border-[#FDE68A]' },
-  pending_supervisor: { label: 'Pending Review', cls: 'bg-[#DBEAFE] text-[#1D4ED8] border-[#93C5FD]' },
-  completed:          { label: 'Completed',      cls: 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]' },
-};
 
 export default function HQAdminReviewPage() {
   const { user, loading: authLoading } = useAuth();
@@ -61,7 +55,7 @@ export default function HQAdminReviewPage() {
   if (authLoading || loading) return <LoadingSpinner />;
   if (!user || user.role !== 'hq_admin') return null;
 
-  const badge = statusBadge[status];
+  const badge = statusBadge[status] ?? statusBadge.not_started;
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
