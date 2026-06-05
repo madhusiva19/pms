@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import Breadcrumb from '@/components/Breadcrumb';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { reconsiderationApi, assessmentComponentsApi } from '@/services/potentialAssessmentApi';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ChevronDown } from 'lucide-react';
 import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey } from '@/utils/assessmentContent';
 import { buildPillars, calcOverallPotentiality } from '@/utils/assessmentUtils';
 import type { PotentialAssessmentReconsideration, PotentialAssessmentItem, RatingValue } from '@/types';
@@ -78,6 +78,8 @@ export default function HQAdminReconsiderationReviewPage() {
   const [pillars, setPillars] = useState(ASSESSMENT_PILLARS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => setExpandedItems(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const [overrides, setOverrides] = useState<Record<string, RatingValue | ''>>({});
   const [justification, setJustification] = useState('');
   const [rejectionNote, setRejectionNote] = useState('');
@@ -270,20 +272,27 @@ export default function HQAdminReconsiderationReviewPage() {
                             </p>
                           )}
                         </td>
-                        <td className="px-4 py-4 align-middle text-center">
+                        <td className="px-4 py-4 align-top text-center">
                           <ComponentRating value={item.self_rating} />
                         </td>
-                        <td className="px-4 py-4 align-top">
-                          <div className="flex justify-center mb-1">
+                        <td className="px-4 py-4 align-top text-center">
+                          <div className="flex flex-col items-center gap-1">
                             <ComponentRating value={item.supervisor_rating} />
+                            {item.supervisor_justification && (
+                              <button type="button" onClick={() => toggleExpand(item.id)}
+                                className="inline-flex items-center gap-0.5 text-[11px] text-[#64748B] hover:text-[#1D4ED8] transition-colors">
+                                {expandedItems.has(item.id) ? 'Hide note' : 'View note'}
+                                <ChevronDown className={`w-3 h-3 transition-transform ${expandedItems.has(item.id) ? 'rotate-180' : ''}`} />
+                              </button>
+                            )}
+                            {item.supervisor_justification && expandedItems.has(item.id) && (
+                              <p className="mt-1 text-[12px] text-[#64748B] italic leading-4 text-left bg-[#F8FAFC] border border-[#E2E8F0] rounded-md px-2.5 py-1.5 w-full">
+                                &ldquo;{item.supervisor_justification}&rdquo;
+                              </p>
+                            )}
                           </div>
-                          {item.supervisor_justification && (
-                            <p className="text-[12px] text-[#64748B] italic leading-4 border-l-2 border-[#E2E8F0] pl-2">
-                              &ldquo;{item.supervisor_justification}&rdquo;
-                            </p>
-                          )}
                         </td>
-                        <td className="px-4 py-4 align-middle text-center">
+                        <td className="px-4 py-4 align-top text-center">
                           {isOverridden ? (
                             <div className="flex flex-col gap-1 items-center">
                               <ComponentRating value={final} />
