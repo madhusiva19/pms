@@ -693,7 +693,7 @@ def get_rating_overview(evaluator_id: str):
         # Get direct reports of this evaluator
         team = (
             supabase.table("users")
-            .select("id, full_name, role, designation_id, designations(name)")
+            .select("id, full_name, role, designation_id, designations!fk_designation(name)")
             .eq("manager_id", evaluator_id)
             .execute()
             .data or []
