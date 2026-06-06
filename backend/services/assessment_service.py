@@ -15,8 +15,8 @@ def send_pa_notification(recipient_id: str, notif_type: str, title: str, message
             'message': message,
             'is_read': False,
         }).execute()
-    except Exception as e:
-        print(f'[PA NOTIFICATION ERROR] Failed to send to {recipient_id}: {e}')
+    except Exception:
+        pass  # intentionally ignored — notification failure should not block assessment flow
 
 
 def log_assessment_action(assessment_id: str, actor_id: str, actor_role: str, action: str, cycle: str):
@@ -29,8 +29,8 @@ def log_assessment_action(assessment_id: str, actor_id: str, actor_role: str, ac
             'action': action,
             'cycle': cycle,
         }).execute()
-    except Exception as e:
-        print(f'[AUDIT LOG WARNING] Failed to write audit log: {e}')
+    except Exception:
+        pass  # intentionally ignored — audit log failure is non-fatal, assessment data already committed
 
 
 # -- Data access helpers 
