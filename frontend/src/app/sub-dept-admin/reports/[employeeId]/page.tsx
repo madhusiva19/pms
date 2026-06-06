@@ -31,9 +31,10 @@ import {
   employeesApi,
   performanceSummariesApi,
   metricsApi,
+  activeReportYearApi,
 } from '@/services/api';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
-import { REPORT_YEAR, DEFAULT_RECOMMENDATIONS, OVERALL_TEAM_INSIGHT } from '@/utils/constants';
+import { DEFAULT_RECOMMENDATIONS, OVERALL_TEAM_INSIGHT } from '@/utils/constants';
 
 type DownloadStatus = 'idle' | 'generating' | 'success' | 'failed';
 
@@ -54,9 +55,15 @@ export default function SubDeptAdminReportDetailPage() {
     employee_year_end: number | null;
   } | null>(null);
 
+  const [reportYear, setReportYear] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
 
+  useEffect(() => {
+    activeReportYearApi.get()
+      .then(data => setReportYear(data.active_report_year))
+      .catch(() => setReportYear(new Date().getFullYear()));
+  }, []);
 
   // Auth guard
   useEffect(() => {
@@ -74,13 +81,13 @@ export default function SubDeptAdminReportDetailPage() {
 
   // Fetch team scores (mid-year + year-end together)
   useEffect(() => {
-    if (!user?.sub_department_id || !employeeId) return;
+    if (!user?.sub_department_id || !employeeId || reportYear === null) return;
     setLoading(true);
     employeesApi.getBySubDepartment(user.sub_department_id)
       .then(async (emps) => {
         const scores = await Promise.all(
           emps.map(async (emp) => {
-            const records = await performanceSummariesApi.getByUser(emp.id, REPORT_YEAR);
+            const records = await performanceSummariesApi.getByUser(emp.id, reportYear!);
             const midYear = records.find((r: any) => r.period === 'mid_year');
             const yearEnd = records.find((r: any) => r.period === 'year_end');
             return {
@@ -95,24 +102,24 @@ export default function SubDeptAdminReportDetailPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [user?.sub_department_id, employeeId]);
+  }, [user?.sub_department_id, employeeId, reportYear]);
 
   // Fetch metrics for both periods
   useEffect(() => {
-    if (!user?.sub_department_id || !employeeId) return;
+    if (!user?.sub_department_id || !employeeId || reportYear === null) return;
     setMetrics(null);
 
     Promise.all([
       metricsApi.get({
         period_type: 'mid_year',
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'sub_department',
         scope_id: String(user.sub_department_id),
         employee_id: employeeId,
       }),
       metricsApi.get({
         period_type: 'year_end',
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'sub_department',
         scope_id: String(user.sub_department_id),
         employee_id: employeeId,
@@ -127,17 +134,17 @@ export default function SubDeptAdminReportDetailPage() {
         });
       })
       .catch(() => {});
-  }, [user?.sub_department_id, employeeId]);
+  }, [user?.sub_department_id, employeeId, reportYear]);
 
   const handleDownload = async () => {
     try {
       setDownloadStatus('generating');
-      const fileName = `${empName}-Performance-${REPORT_YEAR}.pdf`;
+      const fileName = `${empName}-Performance-${reportYear!}.pdf`;
       await new Promise(resolve => setTimeout(resolve, 800));
       await downloadReportAsPDF('report-content', fileName, {
         entityType: 'Employee',
         entityName: empName,
-        reportYear: REPORT_YEAR,
+        reportYear: reportYear!,
         metrics: metrics ? {
           totalEvaluated: metrics.total_evaluated,
           topPerformers: metrics.top_performers,
@@ -219,7 +226,7 @@ export default function SubDeptAdminReportDetailPage() {
                 Performance Reports
               </h1>
               <p className="text-[15px] text-[#4A5565]">
-                {empName} — Mid-Year & Year-End {REPORT_YEAR} Analytics
+                {empName} — Mid-Year & Year-End {reportYear!} Analytics
               </p>
             </div>
 
@@ -309,7 +316,7 @@ export default function SubDeptAdminReportDetailPage() {
               data={teamScores}
               currentEmployeeId={employeeId}
               title="Team Performance Scores"
-              subtitle={`Mid-Year & Year-End ${REPORT_YEAR} — selected employee highlighted`}
+              subtitle={`Mid-Year & Year-End ${reportYear!} — selected employee highlighted`}
             />
           )}
 
