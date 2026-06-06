@@ -206,8 +206,8 @@ def submit_reconsideration(assessment_id: str):
                 title='Reconsideration Request Received',
                 message=f"{employee_name} has requested a reconsideration of their potential assessment. Please review at your earliest convenience.",
             )
-        except Exception as e:
-            print(f'[PA NOTIFICATION ERROR] {e}')
+        except Exception:
+            pass  # intentionally ignored — notification failure should not block reconsideration
 
         try:
             assessment_service.send_pa_notification(
@@ -216,8 +216,8 @@ def submit_reconsideration(assessment_id: str):
                 title='Employee Has Requested Reconsideration',
                 message=f"{employee_name} has escalated their assessment result for reconsideration by a senior reviewer.",
             )
-        except Exception as e:
-            print(f'[PA NOTIFICATION ERROR] {e}')
+        except Exception:
+            pass  # intentionally ignored — notification failure should not block reconsideration
 
         assessment_service.log_assessment_action(
             assessment_id, assessment['employee_id'],
