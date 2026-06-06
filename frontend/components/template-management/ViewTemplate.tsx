@@ -752,7 +752,7 @@ export default function ViewTemplatePage() {
                         <td style={tdStyle('left',   { color: '#fff', fontWeight: 700, fontSize: 13 })}>{cat.name}</td>
                         <td style={tdStyle('center', { color: '#fff', fontWeight: 700, fontSize: 13 })}>
                           <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8, marginRight: 2 }}>GAP </span>
-                          <span style={{ color: editMode && !gapOk ? '#FDE047' : '#fff' }}>{catSum}%</span>
+                          <span style={{ color: editMode && !gapOk ? '#FDE047#fd4768' : '#fff' }}>{catSum}%</span>
                         </td>
                         <td style={tdStyle('center')} />
                         <td style={tdStyle('left')} />
