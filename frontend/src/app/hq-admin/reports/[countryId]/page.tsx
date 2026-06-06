@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -184,16 +185,13 @@ export default function CountryReportPage() {
         );
         currentRequestId = request.id;
         setRequestId(request.id);
-        console.log('✅ Report request logged:', currentRequestId);
       } catch (logErr) {
-        console.warn('⚠️ Failed to log report request (continuing anyway):', logErr);
-        // Don't fail - just continue with download
+        // intentionally ignored — logging failure should not block download
       }
 
       setDownloadStatus('generating');
       const fileName = `${country.name}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
 
-      console.log('📥 Generating PDF:', fileName);
       await new Promise(resolve => setTimeout(resolve, 800));
 
       await downloadReportAsPDF('report-content', fileName, {
@@ -208,15 +206,12 @@ export default function CountryReportPage() {
         } : undefined,
         generatedAt: new Date(),
       });
-      console.log('✅ PDF downloaded successfully');
-
       // Try to mark as completed, but don't fail if it doesn't work
       if (currentRequestId) {
         try {
           await reportRequestApi.updateStatus(currentRequestId, 'completed');
-          console.log('✅ Download status marked as completed');
         } catch (statusErr) {
-          console.warn('⚠️ Failed to update download status:', statusErr);
+          // intentionally ignored — status update failure should not affect the user
         }
       }
 
@@ -224,7 +219,7 @@ export default function CountryReportPage() {
       setTimeout(() => setDownloadStatus('idle'), 3000);
 
     } catch (err: any) {
-      console.error('❌ Download failed:', err);
+      Sentry.captureException(err);
       const errorMsg = err?.message || 'Download failed. Please check your connection.';
       setError(`Download Error: ${errorMsg}`);
 
