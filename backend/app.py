@@ -58,6 +58,7 @@ def not_found(error):
 
 @app.errorhandler(500)
 def internal_error(error):
+    app.logger.error("500 Internal Server Error: %s", error, exc_info=True)
     return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
