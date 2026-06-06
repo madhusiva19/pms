@@ -80,6 +80,11 @@ function formatDate(d: string) {
 // business convention means H1 2025 (Jul–Dec performance) has its rating window
 // in Jan 2026, making it MORE recently completed than H2 2025 (Jan–Jun)
 // whose window closed in Jul 2025.
+function fiscalLabel(year: number, period: string): string {
+  if (period === 'H1') return `H1 ${year}/${String(year + 1).slice(-2)}`;
+  return `H2 ${year - 1}/${String(year).slice(-2)}`;
+}
+
 function getMostRecentPastPeriod(periods: RatingPeriod[]): RatingPeriod | null {
   if (!periods?.length) return null;
   const now = new Date();
@@ -195,7 +200,7 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
   const name = 'full_name' in member ? member.full_name : member.name;
 
   const [msg,     setMsg]     = useState(
-    `Hi ${name}, please complete your pending manual ratings for ${period} ${pmsYear} as soon as possible. The rating window is closing soon.`
+    `Hi ${name}, please complete your pending manual ratings for ${fiscalLabel(pmsYear, period)} as soon as possible. The rating window is closing soon.`
   );
   const [sending, setSending] = useState(false);
   const [sent,    setSent]    = useState(false);
@@ -980,7 +985,7 @@ export default function RatingSettings() {
               fontSize: 13, fontWeight: 600,
             }}>
               <Calendar size={13} color="#6B7280" />
-              {activePeriod.period} {activePeriod.pms_year}
+              {fiscalLabel(activePeriod.pms_year, activePeriod.period)}
             </div>
           )}
         </div>
@@ -998,7 +1003,7 @@ export default function RatingSettings() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
                 <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: '#101828' }}>
-                  Rating Period — {selectedPeriod} {activePeriod?.pms_year ?? new Date().getFullYear()}
+                  Rating Period — {fiscalLabel(activePeriod?.pms_year ?? new Date().getFullYear(), selectedPeriod)}
                 </h3>
                 <span style={{
                   padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700,
@@ -1036,7 +1041,7 @@ export default function RatingSettings() {
         }}>
           <SectionHeader
             title="Team Members Requiring Manual Ratings"
-            subtitle={`Enter manual ratings for each team member · ${selectedPeriod} ${pmsYear}`}
+            subtitle={`Enter manual ratings for each team member · ${fiscalLabel(pmsYear, selectedPeriod)}`}
           />
 
           {!ratingIsOpen && (
