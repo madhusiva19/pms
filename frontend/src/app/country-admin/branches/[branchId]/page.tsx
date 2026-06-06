@@ -37,12 +37,12 @@ import {
   branchInsightsApi,
   branchesApi,
   metricsApi,
+  activeReportYearApi,
 } from '@/services/api';
 import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
 import { useAuth } from '@/lib/auth-context';
 import {
-  REPORT_YEAR,
   DEFAULT_RECOMMENDATIONS,
   FALLBACK_INSIGHT_MID_YEAR,
   FALLBACK_INSIGHT_YEAR_END,
@@ -74,6 +74,7 @@ export default function BranchReportPage() {
     avg_score: number;
     top_performers: number;
   } | null>(null);
+  const [reportYear, setReportYear] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
@@ -83,6 +84,11 @@ export default function BranchReportPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createReportSuccess, setCreateReportSuccess] = useState(false);
 
+  useEffect(() => {
+    activeReportYearApi.get()
+      .then(data => setReportYear(data.active_report_year))
+      .catch(() => setReportYear(new Date().getFullYear()));
+  }, []);
 
   // Security check: verify user is country_admin
   useEffect(() => {
@@ -93,10 +99,10 @@ export default function BranchReportPage() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (branchId && !authLoading && user?.role === 'country_admin') {
+    if (branchId && !authLoading && user?.role === 'country_admin' && reportYear !== null) {
       fetchAllData();
     }
-  }, [branchId, activeTab, authLoading, user?.role]);
+  }, [branchId, activeTab, authLoading, user?.role, reportYear]);
 
   const fetchAllData = async () => {
     try {
@@ -121,7 +127,7 @@ export default function BranchReportPage() {
       // Fetch live bell curve from performance_summaries — independent of activeReport
       const bellCurve = await bellCurveApi.getLive({
         period_type: activeTab,
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'branch',
         scope_id: branchId,
       });
@@ -130,7 +136,7 @@ export default function BranchReportPage() {
       // Fetch dynamic metrics for the branch
       const metricsData = await metricsApi.get({
         period_type: activeTab,
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'branch',
         scope_id: branchId,
       });
@@ -156,7 +162,7 @@ export default function BranchReportPage() {
       }
 
       const comparison = await comparisonLiveApi.get({
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'branch',
         scope_id: branchId,
       });
@@ -197,7 +203,7 @@ export default function BranchReportPage() {
       }
 
       setDownloadStatus('generating');
-      const fileName = `${branch.name}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
+      const fileName = `${branch.name}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${reportYear!}.pdf`;
 
       await new Promise(resolve => setTimeout(resolve, 800));
 
@@ -205,7 +211,7 @@ export default function BranchReportPage() {
         entityType: 'Branch',
         entityName: branch.name,
         reportPeriod: activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End',
-        reportYear: REPORT_YEAR,
+        reportYear: reportYear!,
         metrics: metrics ? {
           totalEvaluated: metrics.total_evaluated,
           avgScore: metrics.avg_score.toFixed(2),
@@ -431,7 +437,7 @@ export default function BranchReportPage() {
           {bellCurveData.length > 0 && (
             <BellCurveChart
               data={bellCurveData}
-              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${REPORT_YEAR}`}
+              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear!}`}
               subtitle={
                 activeTab === 'mid_year'
                   ? 'Performance rating distribution with normalization'
