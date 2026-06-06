@@ -254,7 +254,7 @@ def get_assignments(template_id: int):
         # Fetch all assignments for this template
         result = (
             supabase.table("template_assignments")
-            .select("user_id, users(id, full_name, designation_id, designations(name))")
+            .select("user_id, users(id, full_name, designation_id, designations!fk_designation(name))")
             .eq("template_id", template_id)
             .execute()
         )
@@ -319,7 +319,7 @@ def search_employees():
     try:
         user_query = (
             supabase.table("users")
-            .select("id, full_name, designation_id, designations(name)")
+            .select("id, full_name, designation_id, designations!fk_designation(name)")
             .ilike("full_name", f"%{query}%")
             .limit(10)
         )
