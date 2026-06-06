@@ -17,6 +17,7 @@ from routes.bell_curve import bell_curve_bp
 from routes.comparisons import comparisons_bp
 from routes.saved_reports import saved_reports_bp
 from routes.potential_assessment import potential_assessment_bp
+from routes.report_cycle import report_cycle_bp
 
 load_dotenv()
 
@@ -32,6 +33,7 @@ app.register_blueprint(bell_curve_bp)
 app.register_blueprint(comparisons_bp)
 app.register_blueprint(saved_reports_bp)
 app.register_blueprint(potential_assessment_bp)
+app.register_blueprint(report_cycle_bp)
 
 with app.app_context():
     try:
