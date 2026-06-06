@@ -427,7 +427,7 @@ export default function CountryReportPage() {
           {bellCurveData.length > 0 && (
             <BellCurveChart
               data={bellCurveData}
-              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear!}`}
+              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear! - 1}/${String(reportYear!).slice(-2)}`}
               subtitle={
                 activeTab === 'mid_year'
                   ? 'Performance rating distribution with normalization'
