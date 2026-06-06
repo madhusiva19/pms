@@ -28,12 +28,6 @@ interface CreateReportModalProps {
 
 //  Constants 
 
-const AVAILABLE_PERIODS = [
-  { value: 'mid_year_2025', label: 'Mid-Year 2025' },
-  { value: 'year_end_2025', label: 'Year-End 2025' },
-  { value: 'mid_year_2026', label: 'Mid-Year 2026' },
-  { value: 'year_end_2026', label: 'Year-End 2026' },
-];
 
 const MODE_CARDS = [
   {
@@ -76,6 +70,13 @@ export default function CreateReportModal({
   reportPeriod, reportYear,
   userId, userEmail,
 }: CreateReportModalProps) {
+
+  const availablePeriods = [
+    { value: `mid_year_${reportYear - 1}`, label: `Mid-Year ${reportYear - 1}` },
+    { value: `year_end_${reportYear - 1}`, label: `Year-End ${reportYear - 1}` },
+    { value: `mid_year_${reportYear}`, label: `Mid-Year ${reportYear}` },
+    { value: `year_end_${reportYear}`, label: `Year-End ${reportYear}` },
+  ];
 
   // Mode
   const [mode, setMode] = useState<ReportMode>('year_comparison');
@@ -527,7 +528,7 @@ export default function CreateReportModal({
                     </span>
                   </div>
                   <div className="divide-y divide-[#F3F4F6]">
-                    {AVAILABLE_PERIODS.map(({ value, label }) => {
+                    {availablePeriods.map(({ value, label }) => {
                       const checked = selectedPeriods.includes(value);
                       return (
                         <label
