@@ -12,19 +12,19 @@ import {
 // ll = lower limit (rating 1), ul = upper limit (rating 5).
 // inverse = true means a lower actual value is better (e.g. WIP days).
 export const KPI_SCALE_OPTIONS = [
-  { value: 'financial_achievement', label: 'Financial Achievement',       group: 'Interpolated', scale_type: 'interpolated', input_type: 'achievement_pct',  ll: 90,   ul: 110,  inverse: false },
-  { value: 'to_gp_contribution',    label: 'T/O & GP Contribution',       group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 4,    ul: 15,   inverse: false },
-  { value: 'effective_sales_ratio', label: 'Effective Sales Ratio',        group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 20,   ul: 100,  inverse: false },
-  { value: 'individual_gp_margin',  label: 'Individual GP Margin %',       group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 6,    ul: 30,   inverse: false },
-  { value: 'ees_360',               label: 'EES / 360 Degree Feedback',    group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 65,   ul: 85,   inverse: false },
-  { value: 'nps_ccr',               label: 'NPS / CCR Score',              group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 20,   ul: 50,   inverse: false },
-  { value: 'employee_retention',    label: 'Employee Retention',           group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 75,   ul: 95,   inverse: false },
-  { value: 'overall_dpam',          label: 'Overall DPAM Score',           group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual',       ll: 75,   ul: 90,   inverse: false },
-  { value: 'statutory_legal_dpam',  label: 'Statutory & Legal Compliance', group: 'Bracket',      scale_type: 'bracket',      input_type: 'raw_actual',       ll: null, ul: null, inverse: false },
-  { value: 'wip_score',             label: 'WIP Score (Days)',              group: 'Bracket',      scale_type: 'bracket',      input_type: 'raw_actual',       ll: null, ul: null, inverse: true  },
-  { value: 'operations_score',      label: 'Operations Score / DPAM Ops',  group: 'Bracket',      scale_type: 'bracket',      input_type: 'raw_actual',       ll: null, ul: null, inverse: false },
-  { value: 'individual_sales_gp',   label: 'Individual Sales GP',          group: 'Bracket',      scale_type: 'bracket',      input_type: 'raw_actual',       ll: null, ul: null, inverse: false },
-  { value: 'manual',                label: 'Manual Rating (1–5)',           group: 'Manual',       scale_type: 'manual',       input_type: null,               ll: null, ul: null, inverse: false },
+  { value: 'interpolated_financial',      label: 'Financial Achievement',       group: 'Interpolated', scale_type: 'interpolated', input_type: 'achievement_pct',  ll: 90,   ul: 110,  inverse: false },
+  { value: 'interpolated_to_gp',          label: 'T/O & GP Contribution',       group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 4,    ul: 15,   inverse: false },
+  { value: 'interpolated_sales_ratio',    label: 'Effective Sales Ratio',        group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 20,   ul: 100,  inverse: false },
+  { value: 'interpolated_gp_margin',      label: 'Individual GP Margin %',       group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 6,    ul: 30,   inverse: false },
+  { value: 'interpolated_ees_360',        label: 'EES / 360 Degree Feedback',    group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 65,   ul: 85,   inverse: false },
+  { value: 'interpolated_nps_ccr',        label: 'NPS / CCR Score',              group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 20,   ul: 50,   inverse: false },
+  { value: 'interpolated_emp_retention',  label: 'Employee Retention',           group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual_x100',  ll: 75,   ul: 95,   inverse: false },
+  { value: 'interpolated_dpam',           label: 'Overall DPAM Score',           group: 'Interpolated', scale_type: 'interpolated', input_type: 'raw_actual',       ll: 75,   ul: 90,   inverse: false },
+  { value: 'bracket_statutory',           label: 'Statutory & Legal Compliance', group: 'Bracket',      scale_type: 'bracket',      input_type: 'raw_actual',       ll: null, ul: null, inverse: false },
+  { value: 'bracket_wip',                 label: 'WIP Score (Days)',              group: 'Bracket',      scale_type: 'bracket',      input_type: 'raw_actual',       ll: null, ul: null, inverse: true  },
+  { value: 'bracket_ops_dpam',            label: 'Operations Score / DPAM Ops',  group: 'Bracket',      scale_type: 'bracket',      input_type: 'raw_actual',       ll: null, ul: null, inverse: false },
+  { value: 'bracket_individual_sales_gp', label: 'Individual Sales GP',          group: 'Bracket',      scale_type: 'bracket',      input_type: 'raw_actual',       ll: null, ul: null, inverse: false },
+  { value: 'manual',                      label: 'Manual Rating (1–5)',           group: 'Manual',       scale_type: 'manual',       input_type: null,               ll: null, ul: null, inverse: false },
 ] as const;
 
 // Union type of all valid KPI scale key strings
