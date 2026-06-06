@@ -74,7 +74,15 @@ export const reportsApi = {
   },
 };
 
-//  Bell Curve (live from performance_summaries) 
+//  Active Report Year (derived from performance_summaries H1 data)
+export const activeReportYearApi = {
+  get: async (): Promise<{ active_report_year: number; mid_year_data_year: number; year_end_data_year: number }> => {
+    const res: AxiosResponse = await apiClient.get('/active-report-year');
+    return res.data.data;
+  },
+};
+
+//  Bell Curve (live from performance_summaries)
 export const bellCurveApi = {
   /** Fetches live bell curve distribution computed from performance_summaries.total_score */
   getLive: async (params: {
