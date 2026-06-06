@@ -151,7 +151,7 @@ export default function CountryReportPage() {
       setComparisonData(comparison);
     } catch (err) {
       setError('Failed to load report data. Please try again.');
-      console.error('Error fetching data:', err);
+      Sentry.captureException(err);
     } finally {
       setLoading(false);
     }
@@ -227,7 +227,7 @@ export default function CountryReportPage() {
         try {
           await reportRequestApi.updateStatus(currentRequestId, 'failed');
         } catch (statusErr) {
-          console.warn('⚠️ Failed to update failure status:', statusErr);
+          // intentionally ignored — status update failure should not affect the user
         }
       }
       setDownloadStatus('failed');
