@@ -490,7 +490,7 @@ export default function CountryReportPage() {
           reportType="country"
           countryId={countryId}
           reportPeriod="both"
-          reportYear={summary?.year_end?.report_year || new Date().getFullYear()}
+          reportYear={reportYear!}
           userId={user.id}
           userEmail={user.email}
         />
