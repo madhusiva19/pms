@@ -2,8 +2,6 @@
  * Application constants and configuration
  */
 
-export const REPORT_YEAR = 2026;
-
 export const FALLBACK_INSIGHT_MID_YEAR =
   'Distribution follows a normal curve with slight right skew. Top 18% performers exceed 4.5 rating. Recommend targeted development programs for the lower 15%';
 
