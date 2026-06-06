@@ -37,11 +37,11 @@ import {
   insightsApi,
   countriesApi,
   metricsApi,
+  activeReportYearApi,
 } from '@/services/api';
 import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
 import {
-  REPORT_YEAR,
   DEFAULT_RECOMMENDATIONS,
   FALLBACK_INSIGHT_MID_YEAR,
   FALLBACK_INSIGHT_YEAR_END,
@@ -75,6 +75,7 @@ export default function CountryReportPage() {
     avg_score: number;
     top_performers: number;
   } | null>(null);
+  const [reportYear, setReportYear] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,10 +89,16 @@ export default function CountryReportPage() {
 
 
   useEffect(() => {
-    if (countryId) {
+    activeReportYearApi.get()
+      .then(data => setReportYear(data.active_report_year))
+      .catch(() => setReportYear(new Date().getFullYear()));
+  }, []);
+
+  useEffect(() => {
+    if (countryId && reportYear !== null) {
       fetchAllData();
     }
-  }, [countryId, activeTab]);
+  }, [countryId, activeTab, reportYear]);
 
   const fetchAllData = async () => {
     try {
@@ -109,7 +116,7 @@ export default function CountryReportPage() {
       // Fetch live bell curve from performance_summaries
       const bellCurve = await bellCurveApi.getLive({
         period_type: activeTab,
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'country',
         scope_id: countryId,
       });
@@ -118,7 +125,7 @@ export default function CountryReportPage() {
       // Fetch dynamic metrics (total_evaluated, avg_score, top_performers)
       const metricsData = await metricsApi.get({
         period_type: activeTab,
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'country',
         scope_id: countryId,
       });
@@ -144,7 +151,7 @@ export default function CountryReportPage() {
       }
 
       const comparison = await comparisonLiveApi.get({
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'country',
         scope_id: countryId,
       });
@@ -190,7 +197,7 @@ export default function CountryReportPage() {
       }
 
       setDownloadStatus('generating');
-      const fileName = `${country.name}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
+      const fileName = `${country.name}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${reportYear!}.pdf`;
 
       await new Promise(resolve => setTimeout(resolve, 800));
 
@@ -198,7 +205,7 @@ export default function CountryReportPage() {
         entityType: 'Country',
         entityName: country.name,
         reportPeriod: activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End',
-        reportYear: REPORT_YEAR,
+        reportYear: reportYear!,
         metrics: metrics ? {
           totalEvaluated: metrics.total_evaluated,
           avgScore: metrics.avg_score.toFixed(2),
@@ -420,7 +427,7 @@ export default function CountryReportPage() {
           {bellCurveData.length > 0 && (
             <BellCurveChart
               data={bellCurveData}
-              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${REPORT_YEAR}`}
+              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear!}`}
               subtitle={
                 activeTab === 'mid_year'
                   ? 'Performance rating distribution with normalization'
