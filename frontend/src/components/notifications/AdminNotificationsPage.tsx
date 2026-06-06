@@ -106,7 +106,7 @@ export default function AdminNotificationsPage({ role, dashboardPath, profilePat
       <Sidebar />
       <main className={styles.main}>
         {(loading || !user) ? (
-          <div style={{ padding: "32px 40px", width: "100%" }}>
+          <div style={{ padding: "32px", width: "100%", boxSizing: "border-box" }}>
             <style>{`
               @keyframes shimmer {
                 0%   { background-position: -600px 0; }

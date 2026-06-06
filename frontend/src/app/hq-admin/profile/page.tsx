@@ -15,6 +15,10 @@ interface RawProfileData {
   email: string;
   avatar_url?: string | null;
   iata_branch_code?: string;
+  performance_score?: number | null;
+  potential_block?: "H" | "M" | "L" | null;
+  cycle_year?: number | null;
+  cycle_period?: string | null;
 }
 interface RawDiaryEntry { id: string; entry_date: string; entry_text: string; status: "pending" | "approved" | "rejected"; }
 interface RawSupervisorEntry { id: string; entry_date: string; entry_text: string; author_name?: string; }
@@ -70,7 +74,9 @@ export default function HQAdminProfilePage() {
       <Sidebar />
       <main className={styles.main}>
         {(loading || !user || !profileData) ? (
-          <div style={{ padding: "32px 40px", width: "100%" }}>
+          <div style={{ display: "flex", minHeight: "100vh", background: "#F9FAFB" }}>
+            <div style={{ width: "251px", flexShrink: 0 }} />
+            <div style={{ flex: 1, padding: "32px", boxSizing: "border-box" }}>
             <style>{`
               @keyframes shimmer {
                 0%   { background-position: -600px 0; }
@@ -99,6 +105,7 @@ export default function HQAdminProfilePage() {
                 <div className="skeleton" style={{ height: 56, width: "100%", borderRadius: 12 }} />
               </div>
             ))}
+            </div>
           </div>
         ) : (
           <ProfileTemplate
@@ -111,6 +118,10 @@ export default function HQAdminProfilePage() {
               designation: profileData.designation,
               email: profileData.email,
               avatarUrl: profileData.avatar_url || null,
+              performanceScore: profileData.performance_score ?? null,
+              potentialBlock:   profileData.potential_block   ?? null,
+              cycleYear:        profileData.cycle_year        ?? null,
+              cyclePeriod:      profileData.cycle_period      ?? null,
             }}
             dashboardPath="/hq-admin/dashboard"
             employeeId={targetId}
