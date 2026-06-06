@@ -90,7 +90,7 @@ def get_performance(user_id: str, year: int, period: str):
             supabase.table("users")
             .select(
                 "id, full_name, designation_id, department_id, "
-                "designations(name), departments(name)"
+                "designations!fk_designation(name), departments(name)"
             )
             .eq("id", user_id)
             .single()
