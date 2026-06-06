@@ -137,7 +137,7 @@ def get_supervisor_feedback(user_id: str, year: int, period: str):
             supabase.table("evaluations")
             .select(
                 "id, evaluator_id, "
-                "users!evaluations_evaluator_id_fkey(full_name, designation_id, designations(name))"
+                "users!evaluations_evaluator_id_fkey(full_name, designation_id, designations!fk_designation(name))"
             )
             .eq("user_id", user_id)
             .eq("year", year)
