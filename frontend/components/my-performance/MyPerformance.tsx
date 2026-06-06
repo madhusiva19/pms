@@ -34,6 +34,14 @@ interface PerformanceData {
 
 // ── Helpers ────────────────────────────────────────────────────────
 // Only interpolated percentage-based objectives can be shown on the achievement chart
+// Derives fiscal year display label from pms_year + period.
+// H1 of year Y covers Jul-Dec Y, rated Jan Y+1  -> "H1 Y/YY"
+// H2 of year Y covers Jan-Jun Y, rated Jul Y     -> "H2 Y-1/YY"
+function fiscalLabel(year: number, period: 'H1' | 'H2'): string {
+  if (period === 'H1') return `H1 ${year}/${String(year + 1).slice(-2)}`;
+  return `H2 ${year - 1}/${String(year).slice(-2)}`;
+}
+
 const isChartable = (obj: Objective) =>
   obj.scale_type === 'interpolated' &&
   (obj.input_type === 'achievement_pct' || obj.input_type === 'raw_actual_x100') &&
@@ -194,11 +202,12 @@ export default function MyPerformance() {
   const [dataH1,         setDataH1]         = useState<PerformanceData | null>(null);
   const [dataH2,         setDataH2]         = useState<PerformanceData | null>(null);
   const [loading,        setLoading]        = useState(false);
+  const [activeYear,     setActiveYear]     = useState<number>(new Date().getFullYear());
 
   // Fetches one period's performance data; returns null on error or empty response
-  const fetchPeriod = async (empId: string, period: 'H1' | 'H2'): Promise<PerformanceData | null> => {
+  const fetchPeriod = async (empId: string, period: 'H1' | 'H2', year: number): Promise<PerformanceData | null> => {
     try {
-      const res = await fetch(`${API_BASE}/api/performance/${empId}/2025/${period}`);
+      const res = await fetch(`${API_BASE}/api/performance/${empId}/${year}/${period}`);
       if (!res.ok) return null;
       const performanceJson = await res.json();
       return isValidData(performanceJson) ? performanceJson : null;
@@ -207,13 +216,20 @@ export default function MyPerformance() {
     }
   };
 
-  // Fetch both H1 and H2 in parallel whenever the resolved employee changes
+  // Fetch both H1 and H2 in parallel whenever the resolved employee changes.
+  // Active year is resolved from pms_cycles first so labels and URLs stay in sync.
   useEffect(() => {
     if (!employeeId) return;
     setDataH1(null); setDataH2(null); setShowDetail(false); setOpenCats({});
     setLoading(true);
     let cancelled = false;
-    Promise.all([fetchPeriod(employeeId, 'H1'), fetchPeriod(employeeId, 'H2')])
+    fetch(`${API_BASE}/api/pms-cycle/current`)
+      .then(r => r.ok ? r.json() : null)
+      .then(cycleJson => {
+        const yr = cycleJson?.cycle?.pms_year ?? new Date().getFullYear();
+        if (!cancelled) setActiveYear(yr);
+        return Promise.all([fetchPeriod(employeeId, 'H1', yr), fetchPeriod(employeeId, 'H2', yr)]);
+      })
       .then(([h1, h2]) => { if (!cancelled) { setDataH1(h1); setDataH2(h2); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -267,11 +283,11 @@ export default function MyPerformance() {
 
   useEffect(() => {
     if (!employeeId) return;
-    fetch(`${API_BASE}/api/feedback/${employeeId}/2025/${selectedPeriod}`)
+    fetch(`${API_BASE}/api/feedback/${employeeId}/${activeYear}/${selectedPeriod}`)
       .then(r => r.json()).then(setSupervisorFeedback).catch(() => setSupervisorFeedback(null));
-    fetch(`${API_BASE}/api/recommendations/${employeeId}/2025/${selectedPeriod}`)
+    fetch(`${API_BASE}/api/recommendations/${employeeId}/${activeYear}/${selectedPeriod}`)
       .then(r => r.json()).then(setRecommendations).catch(() => setRecommendations([]));
-  }, [employeeId, selectedPeriod]);
+  }, [employeeId, selectedPeriod, activeYear]);
 
   const displayName        = data?.employee?.name        ?? user?.full_name ?? null;
   const displayDesignation = data?.employee?.designation ?? null;
@@ -308,7 +324,7 @@ export default function MyPerformance() {
                     style={{ padding: '5px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
                       background: active ? '#fff' : 'transparent', color: active ? C.textDark : C.textMuted,
                       boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>
-                    {p} 2025
+                    {fiscalLabel(activeYear, p)}
                   </button>
                 );
               })}
@@ -351,8 +367,8 @@ export default function MyPerformance() {
             {/* Score Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
               {([
-                { label: 'H1', title: 'H1 Score', sub: 'First Half 2025',  score: getFinalScore(dataH1), accent: '#155DFC', bg: '#EFF6FF' },
-                { label: 'H2', title: 'H2 Score', sub: 'Second Half 2025', score: getFinalScore(dataH2), accent: '#0092B8', bg: '#E0F7FA' },
+                { label: 'H1', title: 'H1 Score', sub: fiscalLabel(activeYear, 'H1'),  score: getFinalScore(dataH1), accent: '#155DFC', bg: '#EFF6FF' },
+                { label: 'H2', title: 'H2 Score', sub: fiscalLabel(activeYear, 'H2'), score: getFinalScore(dataH2), accent: '#0092B8', bg: '#E0F7FA' },
               ] as const).map(card => {
                 const isActive = card.label === selectedPeriod;
                 return (
@@ -387,7 +403,7 @@ export default function MyPerformance() {
             {/* Chart */}
             <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 24 }}>
               <div style={{ padding: '20px 24px 8px' }}>
-                <h4 style={{ fontSize: 15, fontWeight: 600, color: C.textDark, margin: '0 0 2px' }}>Performance Breakdown — {selectedPeriod} 2025</h4>
+                <h4 style={{ fontSize: 15, fontWeight: 600, color: C.textDark, margin: '0 0 2px' }}>Performance Breakdown — {fiscalLabel(activeYear, selectedPeriod)}</h4>
                 <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>
                   Achievement % for financial & percentage-based KPIs
                   <span style={{ fontSize: 11, color: '#818ea0', marginLeft: 8 }}>(bracket & manual KPIs excluded)</span>
@@ -513,7 +529,7 @@ export default function MyPerformance() {
                     </div>
                   ))}
                   <div style={{ background: '#1E40AF', padding: '10px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#ddecff', fontWeight: 700, fontSize: 15 }}>Grand Total — {selectedPeriod} 2025</span>
+                    <span style={{ color: '#ddecff', fontWeight: 700, fontSize: 15 }}>Grand Total — {fiscalLabel(activeYear, selectedPeriod)}</span>
                     <div>
                       <span style={{ color: '#FFFFFF', fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{getFinalScore(data)?.toFixed(2) ?? '—'}</span>
                       <span style={{ color: '#93C5FD', fontSize: 13, marginLeft: 6 }}>/ 5.00</span>
@@ -528,7 +544,7 @@ export default function MyPerformance() {
               <div style={{ padding: '20px 24px 8px' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 600, color: C.textDark, margin: 0 }}>Supervisor Feedback</h4>
                 <p style={{ fontSize: 12, color: C.textMuted, margin: '4px 0 0' }}>
-                  {selectedPeriod} 2025 — {supervisorFeedback?.evaluator?.name ?? 'Supervisor'} Review
+                  {fiscalLabel(activeYear, selectedPeriod)} — {supervisorFeedback?.evaluator?.name ?? 'Supervisor'} Review
                 </p>
               </div>
               <div style={{ padding: '0 24px 20px' }}>
@@ -548,7 +564,7 @@ export default function MyPerformance() {
                   <h4 style={{ fontSize: 15, fontWeight: 600, color: C.textDark, margin: 0 }}>AI-Powered Recommendations</h4>
                 </div>
                 <p style={{ fontSize: 13, color: C.textMuted, margin: '0 0 16px' }}>
-                  Personalized insights based on your {selectedPeriod} 2025 KPI results
+                  Personalized insights based on your {fiscalLabel(activeYear, selectedPeriod)} KPI results
                 </p>
               </div>
               <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
