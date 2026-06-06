@@ -36,10 +36,14 @@ export type ProfileData = {
   joinedDate: string;
   designation: string;
   email: string;
-  avatarUrl?: string | null; 
+  avatarUrl?: string | null;
   country?: string;
   branch?: string;
   department?: string;
+  performanceScore?: number | null;
+  potentialBlock?: "H" | "M" | "L" | null;
+  cycleYear?: number | null;
+  cyclePeriod?: string | null;
 };
 
 interface ProfileTemplateProps {
@@ -360,55 +364,77 @@ const avatarBg = "#F9BE00";
           </button>
         </div>
 
-        {/* Profile Hero Card */}
-<section className={styles.profileTopCard}>
-  <div className={styles.profileHero}>
+        {/* Profile Hero Card + Score Cards */}
+<div className={styles.scoreRow}>
 
-    {/* Avatar */}
-    <div className={styles.heroAvatar}>
-      <AvatarUpload
-        currentUrl={avatarUrl}
-        initials={initials}
-        employeeId={employeeId}
-        onUpdate={(newUrl) => {
-          setAvatarUrl(newUrl);
-          if (user) {
-            const updatedUser = { ...user, avatar_url: newUrl };
-            setUser(updatedUser);
-            const raw = localStorage.getItem("pms_user");
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              parsed.avatar_url = newUrl;
-              localStorage.setItem("pms_user", JSON.stringify(parsed));
+  {/* ── Hero Card ── */}
+  <section className={styles.profileTopCard} style={{ flex: 1, marginBottom: 0 }}>
+    <div className={styles.profileHero}>
+
+      {/* Avatar */}
+      <div className={styles.heroAvatar}>
+        <AvatarUpload
+          currentUrl={avatarUrl}
+          initials={initials}
+          employeeId={employeeId}
+          onUpdate={(newUrl) => {
+            setAvatarUrl(newUrl);
+            if (user) {
+              const updatedUser = { ...user, avatar_url: newUrl };
+              setUser(updatedUser);
+              const raw = localStorage.getItem("pms_user");
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                parsed.avatar_url = newUrl;
+                localStorage.setItem("pms_user", JSON.stringify(parsed));
+              }
             }
-          }
-        }}
-        avatarBg={avatarBg}
-        viewMode={viewMode}
-      />
-    </div>
-
-    {/* Info */}
-    <div className={styles.heroText}>
-      <div className={styles.heroName}>{profile.fullName}</div>
-      <div className={styles.heroMeta}>
-        <span className={styles.pill}>{profile.designation}</span>
-        {profile.branch  && <><span className={styles.dot}>•</span><span className={styles.muted}>{profile.branch}</span></>}
-        {profile.country && <><span className={styles.dot}>•</span><span className={styles.muted}>{profile.country}</span></>}
+          }}
+          avatarBg={avatarBg}
+          viewMode={viewMode}
+        />
       </div>
-      <div className={styles.heroEmail}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="#9CA3AF" strokeWidth="1.8" style={{ flexShrink: 0 }}>
-          <path d="M4 6h16v12H4V6Z" strokeLinejoin="round"/>
-          <path d="M4.5 7l7.5 6 7.5-6" strokeLinejoin="round"/>
-        </svg>
-        {profile.email}
-      </div>
-    </div>
 
+      {/* Info */}
+      <div className={styles.heroText}>
+        <div className={styles.heroName}>{profile.fullName}</div>
+        <div className={styles.heroMeta}>
+          <span className={styles.pill}>{profile.designation}</span>
+          {profile.branch  && <><span className={styles.dot}>•</span><span className={styles.muted}>{profile.branch}</span></>}
+          {profile.country && <><span className={styles.dot}>•</span><span className={styles.muted}>{profile.country}</span></>}
+        </div>
+        <div className={styles.heroEmail}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="#9CA3AF" strokeWidth="1.8" style={{ flexShrink: 0 }}>
+            <path d="M4 6h16v12H4V6Z" strokeLinejoin="round"/>
+            <path d="M4.5 7l7.5 6 7.5-6" strokeLinejoin="round"/>
+          </svg>
+          {profile.email}
+        </div>
+      </div>
+
+    </div>
+    <div className={styles.heroAccent} />
+  </section>
+
+  {/* ── Performance Score Card ── */}
+  <div className={`${styles.scoreCard} ${styles.scoreCardPerformance}`}>
+    <span className={styles.scoreLabel}>Performance Score</span>
+    <span className={styles.scoreValue}>{profile.performanceScore ?? "—"}</span>
   </div>
-  <div className={styles.heroAccent} />
-</section>
+
+  {/* ── Potential Score Card ── */}
+  <div className={`${styles.scoreCard} ${
+    profile.potentialBlock === "H" ? styles.scoreCardHigh :
+    profile.potentialBlock === "M" ? styles.scoreCardMedium :
+    profile.potentialBlock === "L" ? styles.scoreCardLow :
+    styles.scoreCardEmpty
+  }`}>
+    <span className={styles.scoreLabel}>Potential Score</span>
+    <span className={styles.scoreValue}>{profile.potentialBlock ?? "—"}</span>
+  </div>
+
+</div>
 
         {/* Details + Achievements Grid */}
         <section className={styles.grid}>
@@ -475,6 +501,50 @@ const avatarBg = "#F9BE00";
 
 
             
+
+            {/* Textarea + Button */}
+            <div className={styles.textAreaWrap}>
+              <textarea
+                className={styles.textArea}
+                placeholder={
+                  viewMode === "supervisor"
+                    ? "Add a supervisor comment about this employee's performance..."
+                    : "Write your achievements here (e.g., awards, targets reached, process improvements...)"
+                }
+                value={achievement}
+                onChange={(e) => setAchievement(e.target.value)}
+                maxLength={600}
+              />
+              <div className={styles.textAreaFooter}>
+                <span className={styles.mutedSmall}>{achievement.length}/600</span>
+
+                {/* Own mode buttons */}
+                {viewMode === "own" && (
+                  <button
+                    type="button"
+                    className={styles.saveBtn}
+                    onClick={config.isHQ ? handleSave : openSubmitModal}
+                    disabled={achievement.trim().length === 0 || saving}
+                  >
+                    {saving
+                      ? (config.isHQ ? "Saving..." : "Submitting...")
+                      : (config.isHQ ? "Save" : "Submit for Approval")}
+                  </button>
+                )}
+
+                {/* Supervisor mode button */}
+                {viewMode === "supervisor" && (
+                  <button
+                    type="button"
+                    className={styles.saveBtn}
+                    onClick={handleSupervisorComment}
+                    disabled={achievement.trim().length === 0 || saving}
+                  >
+                    {saving ? "Adding..." : "Add Supervisor Comment"}
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* Table 2: Self Submissions */}
             <div style={{ padding: "14px 20px 0 20px" }}>
@@ -597,50 +667,6 @@ const avatarBg = "#F9BE00";
                     )}
                   </tbody>
                 </table>
-              </div>
-            </div>
-
-            {/* Textarea + Button */}
-            <div className={styles.textAreaWrap}>
-              <textarea
-                className={styles.textArea}
-                placeholder={
-                  viewMode === "supervisor"
-                    ? "Add a supervisor comment about this employee's performance..."
-                    : "Write your achievements here (e.g., awards, targets reached, process improvements...)"
-                }
-                value={achievement}
-                onChange={(e) => setAchievement(e.target.value)}
-                maxLength={600}
-              />
-              <div className={styles.textAreaFooter}>
-                <span className={styles.mutedSmall}>{achievement.length}/600</span>
-
-                {/* Own mode buttons */}
-                {viewMode === "own" && (
-                  <button
-                    type="button"
-                    className={styles.saveBtn}
-                    onClick={config.isHQ ? handleSave : openSubmitModal}
-                    disabled={achievement.trim().length === 0 || saving}
-                  >
-                    {saving
-                      ? (config.isHQ ? "Saving..." : "Submitting...")
-                      : (config.isHQ ? "Save" : "Submit for Approval")}
-                  </button>
-                )}
-
-                {/* Supervisor mode button */}
-                {viewMode === "supervisor" && (
-                  <button
-                    type="button"
-                    className={styles.saveBtn}
-                    onClick={handleSupervisorComment}
-                    disabled={achievement.trim().length === 0 || saving}
-                  >
-                    {saving ? "Adding..." : "Add Supervisor Comment"}
-                  </button>
-                )}
               </div>
             </div>
 

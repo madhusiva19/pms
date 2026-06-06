@@ -445,6 +445,66 @@
   line-height: 18px;
 }
 
+/* ── Score Cards Row ── */
+.scoreRow {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  align-items: stretch;
+}
+
+.scoreCard {
+  border-radius: 100px;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 130px;
+  gap: 8px;
+}
+
+.scoreCardPerformance {
+  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 100%);
+  box-shadow: 0 4px 24px rgba(37,99,235,0.18);
+}
+
+.scoreCardHigh {
+  background: linear-gradient(135deg, #065F46 0%, #10B981 100%);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.scoreCardMedium {
+  background: linear-gradient(135deg, #92400E 0%, #F59E0B 100%);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.scoreCardLow {
+  background: linear-gradient(135deg, #991B1B 0%, #EF4444 100%);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.scoreCardEmpty {
+  background: linear-gradient(135deg, #374151 0%, #6B7280 100%);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.scoreLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+.scoreValue {
+  font-size: 30px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
 /* ── Responsive ── */
 @media (max-width: 1100px){
   .grid{ grid-template-columns: 1fr; }
