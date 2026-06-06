@@ -53,7 +53,9 @@ export default function EmployeeTrainingPage() {
       <Sidebar />
       <main className={styles.main}>
         {(loading || !user) ? (
-          <div style={{ padding: "32px 40px", width: "100%" }}>
+          <div style={{ display: "flex", minHeight: "100vh", background: "#F9FAFB" }}>
+            <div style={{ width: "251px", flexShrink: 0 }} />
+            <div style={{ flex: 1, padding: "32px", boxSizing: "border-box" }}>
             <style>{`
               @keyframes shimmer {
                 0%   { background-position: -600px 0; }
@@ -82,6 +84,7 @@ export default function EmployeeTrainingPage() {
                 <div className="skeleton" style={{ height: 56, width: "100%", borderRadius: 12 }} />
               </div>
             ))}
+            </div>
           </div>
         ) : (
           <TrainingPassport

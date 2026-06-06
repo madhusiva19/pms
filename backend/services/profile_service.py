@@ -5,6 +5,7 @@ from models import supabase, SUPABASE_URL, SUPABASE_KEY, SERVICE_KEY
 
 def get_profile(employee_id):
     try:
+        # ── Fetch user profile ──
         result = supabase.table("users")\
             .select("*, designations!fk_designation(name)")\
             .eq("id", employee_id)\
@@ -16,6 +17,37 @@ def get_profile(employee_id):
         profile = result.data[0]
         if profile.get("designations"):
             profile["designation"] = profile["designations"]["name"]
+
+        # ── Fetch latest performance score ──
+        performance_score = None
+        try:
+            perf_res = supabase.table("performance_summaries")\
+                .select("total_score")\
+                .eq("user_id", employee_id)\
+                .order("created_at", desc=True)\
+                .limit(1)\
+                .execute()
+            if perf_res.data:
+                performance_score = perf_res.data[0]["total_score"]
+        except Exception:
+            pass
+
+        # ── Fetch latest potential block ──
+        potential_block = None
+        try:
+            pot_res = supabase.table("potential_assessments")\
+                .select("talent_block")\
+                .eq("employee_id", employee_id)\
+                .order("created_at", desc=True)\
+                .limit(1)\
+                .execute()
+            if pot_res.data:
+                potential_block = pot_res.data[0]["talent_block"]
+        except Exception:
+            pass
+
+        profile["performance_score"] = performance_score
+        profile["potential_block"]   = potential_block
 
         return {"profile": profile}, 200
     except Exception as e:
