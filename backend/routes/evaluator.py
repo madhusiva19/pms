@@ -210,7 +210,7 @@ def get_evaluator_team(evaluator_id: str):
     try:
         result = (
             supabase.table("users")
-            .select("id, full_name, designation_id, emp_id, designations(name)")
+            .select("id, full_name, designation_id, emp_id, designations!fk_designation(name)")
             .eq("manager_id", evaluator_id)
             .execute()
         )
@@ -274,7 +274,7 @@ def get_evaluator_profile(evaluator_id: str):
             supabase.table("users")
             .select(
                 "id, full_name, role, email, "
-                "designation_id, designations(name), "
+                "designation_id, designations!fk_designation(name), "
                 "branch_id, branches(name), "
                 "department_id, departments(name), "
                 "country_id, countries(name), "
