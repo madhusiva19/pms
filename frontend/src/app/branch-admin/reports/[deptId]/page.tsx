@@ -37,10 +37,10 @@ import {
   branchInsightsApi,
   departmentsApi,
   metricsApi,
+  activeReportYearApi,
 } from '@/services/api';
 import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
-import { REPORT_YEAR } from '@/utils/constants';
 
 import type {
   Branch,
@@ -90,18 +90,25 @@ export default function BranchAdminReportDetailPage() {
     avg_score: number;
     top_performers: number;
   } | null>(null);
+  const [reportYear, setReportYear] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
 
   useEffect(() => {
+    activeReportYearApi.get()
+      .then(data => setReportYear(data.active_report_year))
+      .catch(() => setReportYear(new Date().getFullYear()));
+  }, []);
+
+  useEffect(() => {
     if (!authLoading && (!user || user.role !== 'branch_admin')) router.push('/');
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (user?.iata_branch_code) fetchAllData();
-  }, [user?.iata_branch_code, activeTab]);
+    if (user?.iata_branch_code && reportYear !== null) fetchAllData();
+  }, [user?.iata_branch_code, activeTab, reportYear]);
 
   const fetchAllData = async () => {
     try {
@@ -124,7 +131,7 @@ export default function BranchAdminReportDetailPage() {
       // Fetch dynamic metrics scoped to this department
       const metricsData = await metricsApi.get({
         period_type: activeTab,
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'department',
         scope_id: deptId,
       });
@@ -133,7 +140,7 @@ export default function BranchAdminReportDetailPage() {
       // Bell curve — always fetch, independent of activeReport
       const bellCurve = await bellCurveApi.getLive({
         period_type: activeTab,
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'department',
         scope_id: deptId,
       });
@@ -160,7 +167,7 @@ export default function BranchAdminReportDetailPage() {
 
       // Comparison — always fetch live data for both periods
       const comparison = await comparisonLiveApi.get({
-        year: REPORT_YEAR,
+        year: reportYear!,
         scope: 'department',
         scope_id: deptId,
       });
@@ -189,13 +196,13 @@ export default function BranchAdminReportDetailPage() {
         // intentionally ignored
       }
       setDownloadStatus('generating');
-      const fileName = `${deptName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${REPORT_YEAR}.pdf`;
+      const fileName = `${deptName}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${reportYear!}.pdf`;
       await new Promise(resolve => setTimeout(resolve, 800));
       await downloadReportAsPDF('report-content', fileName, {
         entityType: 'Department',
         entityName: deptName,
         reportPeriod: activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End',
-        reportYear: REPORT_YEAR,
+        reportYear: reportYear!,
         metrics: metrics ? {
           totalEvaluated: metrics.total_evaluated,
           avgScore: metrics.avg_score.toFixed(2),
@@ -381,7 +388,7 @@ export default function BranchAdminReportDetailPage() {
           {bellCurveData.length > 0 && (
             <BellCurveChart
               data={bellCurveData as any}
-              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${REPORT_YEAR}`}
+              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear!}`}
               subtitle={
                 activeTab === 'mid_year'
                   ? 'Performance rating distribution with normalization'
