@@ -41,6 +41,11 @@ interface OrgContext {
   value: string;
 }
 
+function fiscalLabel(year: number, period: string): string {
+  if (period === 'H1') return `H1 ${year}/${String(year + 1).slice(-2)}`;
+  return `H2 ${year - 1}/${String(year).slice(-2)}`;
+}
+
 const API          = 'http://127.0.0.1:5000';
 const EVALUATOR_ID = process.env.NEXT_PUBLIC_LOCKED_ADMIN_UUID ?? 'aaaaaaaa-0001-0001-0001-000000000001';
 
@@ -474,7 +479,7 @@ export default function ManualRatingsPage() {
                   No Manual Objectives Found
                 </div>
                 <div style={{ fontSize: 13 }}>
-                  This team member has no manual KPI objectives assigned for {period} {year}.
+                  This team member has no manual KPI objectives assigned for {fiscalLabel(year, period)}.
                 </div>
               </div>
             ) : (
