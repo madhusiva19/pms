@@ -55,7 +55,7 @@ def mark_notification_read(notification_id: str) -> dict | None:
 
 def get_active_cycle() -> dict | None:
     # limit(1): only one cycle should be active; prevents returning multiple rows on data-integrity issues
-    resp = supabase.table('appraisal_cycles').select('*').eq('status', 'open').limit(1).execute()
+    resp = supabase.table('pms_cycles').select('*').eq('is_active', True).limit(1).execute()
     return resp.data[0] if resp.data else None
 
 
