@@ -38,7 +38,7 @@ export function useAssessmentData(
       .then(async (activeCycle) => {
         if (cancelled) return;
         setCycle(activeCycle);
-        const data = await potentialAssessmentApi.getForEmployee(employeeId, String(activeCycle.cycle_year), requesterId);
+        const data = await potentialAssessmentApi.getForEmployee(employeeId, String(activeCycle.pms_year), requesterId);
         if (cancelled) return;
         if (data.status === 'not_started' || !('id' in data)) {
           setAssessment(null);

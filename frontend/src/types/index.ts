@@ -293,11 +293,15 @@ export interface TeamOverviewSummary {
 
 
 export interface AppraisalCycle {
-  cycle_id: string;
-  cycle_year: number;
-  start_date: string;
-  end_date: string;
-  status: string;
+  id: number;
+  pms_year: number;
+  pms_start: string | null;
+  mid_year_review: string | null;
+  year_end_review: string | null;
+  is_active: boolean;
+  grace_period_end: string | null;
+  objective_setting_start: string | null;
+  objective_setting_end: string | null;
   created_at: string;
 }
 
