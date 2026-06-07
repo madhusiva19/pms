@@ -195,7 +195,7 @@ export default function HQAdminAssessmentComponentsPage() {
         <button
           type="button"
           onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#1E3A8A] text-white text-[13.5px] font-semibold rounded-lg hover:bg-[#1E40AF] transition-colors flex-shrink-0"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#2563EB] text-white text-[13.5px] font-semibold rounded-lg hover:bg-[#2563EB] transition-colors flex-shrink-0"
         >
           <Plus className="w-4 h-4" /> Add Component
         </button>
@@ -214,7 +214,7 @@ export default function HQAdminAssessmentComponentsPage() {
           { label: 'Global (All Roles)', count: components.filter(c => c.scope === 'global').length,  pillCls: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]' },
           { label: 'Role-Specific',      count: components.filter(c => c.scope === 'role').length,    pillCls: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]' },
         ].map(({ label, count, pillCls }) => (
-          <div key={label} className="bg-white rounded-xl border border-[#E5E7EB] border-l-4 border-l-[#1E3A8A] px-5 py-4 flex flex-col gap-3">
+          <div key={label} className="bg-white rounded-xl border border-[#E5E7EB] border-l-4 border-l-[#2563EB] px-5 py-4 flex flex-col gap-3">
             <span className={`inline-flex w-fit items-center px-2.5 py-1 rounded-full text-[12px] font-semibold border ${pillCls}`}>
               {label}
             </span>
@@ -253,7 +253,7 @@ export default function HQAdminAssessmentComponentsPage() {
           <thead>
             <tr className="bg-[#F8FAFC] border-b border-[#E5E7EB]">
               <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Pillar</th>
-              <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-12">Q#</th>
+              <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-12">Question</th>
               <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Description</th>
               <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-40">Assigned To</th>
               <th className="text-right px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide w-32">Actions</th>
