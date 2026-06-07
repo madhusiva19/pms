@@ -24,7 +24,7 @@ export default function BranchAdminTeamReviewPage() {
     if (authLoading || !user) return;
     appraisalCyclesApi.getActive()
       .then(async (activeCycle) => {
-        const subs = await potentialAssessmentApi.getSubordinates(user.id, String(activeCycle.cycle_year), user.role);
+        const subs = await potentialAssessmentApi.getSubordinates(user.id, String(activeCycle.pms_year), user.role);
         setSubordinates(subs);
       })
       .finally(() => setTeamLoading(false));

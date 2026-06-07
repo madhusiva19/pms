@@ -35,8 +35,8 @@ export default function CountryAdminReviewPage() {
 
   const loadData = async (activeCycle: AppraisalCycle) => {
     const [data, subs] = await Promise.all([
-      potentialAssessmentApi.getForEmployee(branchAdminId, String(activeCycle.cycle_year), user!.id),
-      potentialAssessmentApi.getSubordinates(user!.id, String(activeCycle.cycle_year), user!.role),
+      potentialAssessmentApi.getForEmployee(branchAdminId, String(activeCycle.pms_year), user!.id),
+      potentialAssessmentApi.getSubordinates(user!.id, String(activeCycle.pms_year), user!.role),
     ]);
     if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
     const found = subs.find((s) => s.id === branchAdminId);
@@ -65,7 +65,7 @@ export default function CountryAdminReviewPage() {
         { label: appraisee?.full_name ?? 'Review' },
       ]} />
       <div><h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>
-        {cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.cycle_year}</strong></p>}
+        {cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.pms_year}</strong></p>}
       </div>
       <div className="w-full rounded-xl border border-[#BEDBFF] px-4 py-3 flex items-center justify-between"
         style={{ background: 'linear-gradient(90deg, #EFF6FF 0%, #F3F4F6 100%)' }}>
