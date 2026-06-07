@@ -35,8 +35,8 @@ export default function HQAdminReviewPage() {
 
   const loadData = async (activeCycle: AppraisalCycle) => {
     const [data, subs] = await Promise.all([
-      potentialAssessmentApi.getForEmployee(countryAdminId, String(activeCycle.cycle_year), user!.id),
-      potentialAssessmentApi.getSubordinates(user!.id, String(activeCycle.cycle_year), user!.role),
+      potentialAssessmentApi.getForEmployee(countryAdminId, String(activeCycle.pms_year), user!.id),
+      potentialAssessmentApi.getSubordinates(user!.id, String(activeCycle.pms_year), user!.role),
     ]);
     if ('id' in data) { setAssessment(data as any); setStatus((data as any).status); }
     const found = subs.find((s) => s.id === countryAdminId);
@@ -67,7 +67,7 @@ export default function HQAdminReviewPage() {
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>
-        {cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.cycle_year}</strong></p>}
+        {cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.pms_year}</strong></p>}
       </div>
 
       {/* Appraisee banner */}
