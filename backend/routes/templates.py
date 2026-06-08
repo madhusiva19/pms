@@ -29,12 +29,150 @@ templates_bp = Blueprint("templates", __name__)
 # Template listing and detail
 # ---------------------------------------------------------------------------
 
+def _resolve_variant(template_id: int, country_id: str | None, branch_id: str | None,
+                     department_id: str | None, sub_department_id: str | None) -> dict | None:
+    """
+    Find the most specific template_variant for this user's org unit.
+    Priority: sub_department > department > branch > country (most specific wins).
+    Returns the variant row or None if no variant exists.
+    """
+    res = (
+        supabase.table("template_variants")
+        .select("*")
+        .eq("parent_template_id", template_id)
+        .execute()
+    )
+    variants = res.data or []
+    if not variants:
+        return None
+
+    # Score each variant by specificity — higher = more specific match
+    def specificity(v: dict) -> int:
+        if sub_department_id and v.get("sub_department_id") == sub_department_id:
+            return 4
+        if department_id and v.get("department_id") == department_id:
+            return 3
+        if branch_id and v.get("branch_id") == branch_id:
+            return 2
+        if country_id and v.get("country_id") == country_id:
+            return 1
+        return 0
+
+    best = max(variants, key=specificity)
+    return best if specificity(best) > 0 else None
+
+
 @templates_bp.route("/api/templates", methods=["GET"])
 def get_templates():
-    """Return all templates (id, name, description, status, created_by)."""
+    """
+    Return all templates with freeze status and content resolved per requesting user's org unit.
+
+    Freeze logic: derived from pms_cycles dates, NOT templates.status.
+    Templates are 'active' when today falls between objective_setting_start
+    and grace_period_end. Outside that window they are 'frozen'.
+
+    Unfreeze override: if a template_unfreezes row exists for the user's org unit,
+    that template is returned as 'active' regardless of the cycle dates.
+
+    Variant resolution: if a template_variant exists for the user's org unit, its
+    name/description overrides the base template row.
+    Resolution priority: sub_department > department > branch > country.
+    """
     try:
-        result = supabase.table("templates").select("*").execute()
-        return jsonify(result.data)
+        from datetime import date
+        country_id        = request.args.get("country_id")
+        branch_id         = request.args.get("branch_id")
+        department_id     = request.args.get("department_id")
+        sub_department_id = request.args.get("sub_department_id")
+
+        result    = supabase.table("templates").select("*").execute()
+        templates = result.data or []
+
+        # Derive global freeze status from pms_cycles dates, not templates.status.
+        # Templates are active only during the objective setting window.
+        cycle_res = (
+            supabase.table("pms_cycles")
+            .select("objective_setting_start, objective_setting_end, grace_period_end")
+            .eq("is_active", True)
+            .order("pms_year", desc=True)
+            .limit(1)
+            .execute()
+        )
+        cycle = (cycle_res.data or [{}])[0]
+        today = date.today()
+
+        obj_start = cycle.get("objective_setting_start")
+        obj_end   = cycle.get("objective_setting_end")
+        # Templates are active only within the objective setting window.
+        # grace_period_end is only for new template creation by HQ Admin — not for freeze status.
+        cycle_active = (
+            obj_start and obj_end and
+            date.fromisoformat(obj_start) <= today <= date.fromisoformat(obj_end)
+        )
+
+        # Apply global freeze status to all templates
+        for t in templates:
+            t["status"] = "active" if cycle_active else "frozen"
+
+        has_org = any([country_id, branch_id, department_id, sub_department_id])
+
+        if has_org:
+            all_template_ids = [t["id"] for t in templates]
+
+            # Unfreeze override — only relevant when cycle window is closed.
+            # If HQ Admin has unfrozen a template for this user's org unit,
+            # override the frozen status back to active.
+            unfrozen_for_user: set = set()
+            if not cycle_active:
+                uf_res = (
+                    supabase.table("template_unfreezes")
+                    .select("template_id, branch_id, country_id")
+                    .in_("template_id", all_template_ids)
+                    .execute()
+                )
+                for row in (uf_res.data or []):
+                    if branch_id and row.get("branch_id") == branch_id:
+                        unfrozen_for_user.add(row["template_id"])
+                    elif country_id and row.get("country_id") == country_id:
+                        unfrozen_for_user.add(row["template_id"])
+
+            # Variant resolution
+            var_res = (
+                supabase.table("template_variants")
+                .select("*")
+                .in_("parent_template_id", all_template_ids)
+                .execute()
+            )
+            variants_by_template: dict = {}
+            for v in (var_res.data or []):
+                variants_by_template.setdefault(v["parent_template_id"], []).append(v)
+
+            def best_variant(tid: int) -> dict | None:
+                candidates = variants_by_template.get(tid, [])
+                if not candidates:
+                    return None
+                def score(v: dict) -> int:
+                    if sub_department_id and v.get("sub_department_id") == sub_department_id: return 4
+                    if department_id     and v.get("department_id")     == department_id:     return 3
+                    if branch_id         and v.get("branch_id")         == branch_id:         return 2
+                    if country_id        and v.get("country_id")        == country_id:        return 1
+                    return 0
+                best = max(candidates, key=score)
+                return best if score(best) > 0 else None
+
+            # Apply overrides
+            for t in templates:
+                tid = t["id"]
+                if tid in unfrozen_for_user:
+                    t["status"] = "active"
+                variant = best_variant(tid)
+                if variant:
+                    t["name"]        = variant.get("name")        or t["name"]
+                    t["description"] = variant.get("description") or t.get("description")
+                    t["variant_id"]  = variant["id"]
+                    t["has_variant"] = True
+
+        return jsonify(templates)
 
     except Exception as exc:
         print(f"[ERROR] get_templates: {exc}")
@@ -112,9 +250,11 @@ def update_template(template_id: int):
     """
     Persist template edits.
 
-    New objectives (isNew: true) are inserted.
-    Existing objectives only have their weight updated — names and
-    control types are intentionally locked to prevent accidental changes.
+    HQ Admin  → modifies global objectives directly (affects everyone).
+    Other roles → upserts a template_variants row scoped to their org unit
+                  so changes only affect users under their branch/dept/sub-dept.
+
+    Scope priority: sub_department > department > branch > country.
     """
     try:
         body = request.get_json()
@@ -122,23 +262,89 @@ def update_template(template_id: int):
         if not body or "categories" not in body:
             return jsonify({"error": "Invalid payload — 'categories' key required"}), 400
 
-        for cat in body["categories"]:
-            for obj in cat.get("objectives", []):
-                if obj.get("isNew"):
-                    supabase.table("objectives").insert({
-                        "name":         obj["name"],
-                        "weight":       obj["weight"],
-                        "max_score":    obj.get("max_score", 5),
-                        "control_type": obj["control_type"],
-                        "category_id":  obj["category_id"],
-                        "kpi_scale":    obj.get("kpi_scale"),
-                    }).execute()
-                else:
-                    supabase.table("objectives").update(
-                        {"weight": obj["weight"]}
-                    ).eq("id", obj["id"]).execute()
+        editor_role       = body.get("editor_role", "")
+        country_id        = body.get("country_id")
+        branch_id         = body.get("branch_id")
+        department_id     = body.get("department_id")
+        sub_department_id = body.get("sub_department_id")
+        editor_id         = body.get("editor_id")
 
-        return jsonify({"success": True})
+        if editor_role == "hq_admin":
+            # HQ Admin modifies global objectives directly
+            for cat in body["categories"]:
+                for obj in cat.get("objectives", []):
+                    if obj.get("isNew"):
+                        supabase.table("objectives").insert({
+                            "name":         obj["name"],
+                            "weight":       obj["weight"],
+                            "max_score":    obj.get("max_score", 5),
+                            "control_type": obj["control_type"],
+                            "category_id":  obj["category_id"],
+                            "kpi_scale":    obj.get("kpi_scale"),
+                        }).execute()
+                    else:
+                        supabase.table("objectives").update(
+                            {"weight": obj["weight"]}
+                        ).eq("id", obj["id"]).execute()
+            return jsonify({"success": True, "mode": "global"})
+
+        # Non-HQ: upsert a variant scoped to the most specific org unit
+        scope = {
+            "country_id":        None,
+            "branch_id":         None,
+            "department_id":     None,
+            "sub_department_id": None,
+        }
+        if sub_department_id:
+            scope["sub_department_id"] = sub_department_id
+        elif department_id:
+            scope["department_id"] = department_id
+        elif branch_id:
+            scope["branch_id"] = branch_id
+        elif country_id:
+            scope["country_id"] = country_id
+
+        # Check if a variant already exists for this template + scope
+        existing_q = (
+            supabase.table("template_variants")
+            .select("id")
+            .eq("parent_template_id", template_id)
+        )
+        for k, v in scope.items():
+            existing_q = existing_q.eq(k, v) if v else existing_q.is_(k, "null")
+        existing = existing_q.limit(1).execute()
+
+        # Fetch base template metadata for the variant row
+        base = (
+            supabase.table("templates")
+            .select("name, description, max_score, total_weight")
+            .eq("id", template_id)
+            .single()
+            .execute()
+        ).data or {}
+
+        variant_row = {
+            "parent_template_id": template_id,
+            "template_content":   body["categories"],
+            "name":               body.get("name") or base.get("name"),
+            "description":        body.get("description") or base.get("description"),
+            "max_score":          body.get("max_score") or base.get("max_score", 5),
+            "total_weight":       body.get("total_weight") or base.get("total_weight", 100),
+            "created_by":         editor_id,
+            **scope,
+        }
+
+        if existing.data:
+            variant_id = existing.data[0]["id"]
+            supabase.table("template_variants").update({
+                "template_content": body["categories"],
+                "name":             variant_row["name"],
+            }).eq("id", variant_id).execute()
+            return jsonify({"success": True, "mode": "variant_updated", "variant_id": variant_id})
+        else:
+            insert_res = supabase.table("template_variants").insert(variant_row).execute()
+            variant_id = insert_res.data[0]["id"] if insert_res.data else None
+            return jsonify({"success": True, "mode": "variant_created", "variant_id": variant_id})
 
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -254,7 +460,7 @@ def get_assignments(template_id: int):
         # Fetch all assignments for this template
         result = (
             supabase.table("template_assignments")
-            .select("user_id, users(id, full_name, designation_id, designations!fk_designation(name))")
+            .select("user_id, users!template_assignments_user_id_fkey(id, full_name, designation_id, designations!fk_designation(name))")
             .eq("template_id", template_id)
             .execute()
         )
