@@ -168,15 +168,17 @@ function EnterRatingsBtn({ onClick, reenter, ratingIsOpen }: {
   onClick: () => void; reenter?: boolean; ratingIsOpen: boolean;
 }) {
   if (!ratingIsOpen) {
+    // Period closed but allow view-only navigation to see previously entered ratings
     return (
-      <span style={{
+      <button onClick={onClick} style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: '6px 14px', borderRadius: 8,
-        background: '#F3F4F6', color: '#9CA3AF',
-        fontSize: 12.5, fontWeight: 600, border: '1px solid #E5E7EB', cursor: 'not-allowed',
+        background: '#F3F4F6', color: '#6B7280',
+        fontSize: 12.5, fontWeight: 600, border: '1px solid #E5E7EB', cursor: 'pointer',
+        fontFamily: 'inherit',
       }}>
-        <Lock size={11} /> Period Closed
-      </span>
+        <Lock size={11} /> View Ratings
+      </button>
     );
   }
   return (
@@ -1124,7 +1126,7 @@ export default function RatingSettings() {
                             ratingIsOpen={ratingIsOpen}
                             reenter={status?.submitted === true}
                             onClick={() => router.push(
-                              `/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}`
+                              `/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}${!ratingIsOpen ? '&viewOnly=true' : ''}`
                             )}
                           />
                         </td>
