@@ -117,7 +117,7 @@ def evaluator_submit():
                     "rating":         manual_rating,
                     "score":          score,
                     "rating_comment": rating_comment,
-                    "status":         "approved",
+                    "status":         "completed",
                 },
                 on_conflict="user_id,objective_id,period,year",
             ).execute()
