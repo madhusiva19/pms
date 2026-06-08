@@ -301,7 +301,7 @@ def get_user_by_email():
     try:
         result = (
             supabase.table("users")
-            .select("id, email, full_name, role")
+            .select("id, email, full_name, role, branch_id, country_id, department_id, sub_department_id")
             .eq("email", email)
             .limit(1)
             .execute()
