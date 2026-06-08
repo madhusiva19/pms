@@ -83,7 +83,7 @@ def patch_total_score(user_id: str, year: int, period: str) -> float:
 
     Returns
     -------
-    float : The newly calculated total score (rounded to 4 decimal places).
+    float : The newly calculated total score (rounded to 2 decimal places).
     """
     records = (
         supabase.table("performance_records")
@@ -96,7 +96,7 @@ def patch_total_score(user_id: str, year: int, period: str) -> float:
         or []
     )
 
-    total = round(sum(float(r.get("score") or 0) for r in records), 4)
+    total = round(sum(float(r.get("score") or 0) for r in records), 2)
 
     # Persist to the summary table used by dashboards
     supabase.table("performance_summaries").upsert(
