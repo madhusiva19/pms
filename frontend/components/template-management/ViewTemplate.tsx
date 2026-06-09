@@ -520,7 +520,15 @@ export default function ViewTemplatePage() {
       const res = await fetch(`${API}/api/templates/${templateId}/update`, {
         method:  'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categories: editedData }),
+        body: JSON.stringify({
+          categories:        editedData,
+          editor_role:       user?.role,
+          editor_id:         user?.id,
+          country_id:        user?.country_id        ?? null,
+          branch_id:         user?.branch_id         ?? null,
+          department_id:     user?.department_id     ?? null,
+          sub_department_id: user?.sub_department_id ?? null,
+        }),
       });
       if (!res.ok) throw new Error();
       setSaveMsg('success');
