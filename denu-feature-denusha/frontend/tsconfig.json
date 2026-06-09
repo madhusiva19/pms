@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "es2020", //version
-    "lib": [ //JavaScript environments
+    "target": "es2020",
+    "lib": [
       "dom",
       "dom.iterable",
       "esnext"
@@ -18,7 +18,7 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "ignoreDeprecations": "5.0",
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "plugins": [
       {
