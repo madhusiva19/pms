@@ -55,9 +55,10 @@ export default function ManualRatingsPage() {
   const { user }     = useAuth();
 
   // All three values come from the query string set by RatingSettings on navigation
-  const userId = searchParams.get('userId') ?? '';
-  const year   = parseInt(searchParams.get('year') ?? '2026', 10);
-  const period = searchParams.get('period') ?? 'H1';
+  const userId   = searchParams.get('userId') ?? '';
+  const year     = parseInt(searchParams.get('year') ?? '2026', 10);
+  const period   = searchParams.get('period') ?? 'H1';
+  const viewOnly = searchParams.get('viewOnly') === 'true';
 
   // Used to build back-navigation URLs (e.g. "/branch-admin/rating-settings")
   const roleSlug = user?.role?.replace(/_/g, '-') ?? 'branch-admin';
@@ -437,17 +438,31 @@ export default function ManualRatingsPage() {
           </div>
         )}
 
-        {/* Info banner */}
-        <div style={{
-          background: '#FEF9C3', border: '1px solid #FDE047',
-          borderRadius: 8, padding: '12px 16px', marginBottom: 16,
-          fontSize: 13, color: '#854D0E',
-        }}>
-          <strong>Rating Mode</strong> — Enter a rating between <strong>1.00</strong> and{' '}
-          <strong>5.00</strong> for each objective. Ratings below <strong>3.0</strong> require
-          a comment. All objectives must be rated before submitting.
-          You can re-edit and resubmit anytime within the rating window.
-        </div>
+        {/* Info banner -- hidden in view-only mode */}
+        {!viewOnly && (
+          <div style={{
+            background: '#FEF9C3', border: '1px solid #FDE047',
+            borderRadius: 8, padding: '12px 16px', marginBottom: 16,
+            fontSize: 13, color: '#854D0E',
+          }}>
+            <strong>Rating Mode</strong> — Enter a rating between <strong>1.00</strong> and{' '}
+            <strong>5.00</strong> for each objective. Ratings below <strong>3.0</strong> require
+            a comment. All objectives must be rated before submitting.
+            You can re-edit and resubmit anytime within the rating window.
+          </div>
+        )}
+
+        {viewOnly && (
+          <div style={{
+            background: '#FEF9C3', border: '1px solid #FDE047',
+            borderRadius: 8, padding: '10px 16px', marginBottom: 16,
+            fontSize: 13, color: '#854D0E',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <AlertTriangle size={14} />
+            The rating window is closed. These ratings are read-only.
+          </div>
+        )}
 
         {/* ── Table card ── */}
         <div style={{
@@ -573,7 +588,8 @@ export default function ManualRatingsPage() {
                                 min="1"
                                 max="5"
                                 value={ratings[obj.objective_id] ?? ''}
-                                onChange={e => handleRatingChange(obj.objective_id, e.target.value)}
+                                onChange={e => !viewOnly && handleRatingChange(obj.objective_id, e.target.value)}
+                                readOnly={viewOnly}
                                 style={{
                                   width: 80,
                                   padding: '5px 8px',
@@ -607,7 +623,8 @@ export default function ManualRatingsPage() {
                                     : 'Optional comment…'
                                 }
                                 value={comments[obj.objective_id] ?? ''}
-                                onChange={e => handleCommentChange(obj.objective_id, e.target.value)}
+                                onChange={e => !viewOnly && handleCommentChange(obj.objective_id, e.target.value)}
+                                readOnly={viewOnly}
                                 rows={2}
                                 style={{
                                   width: '100%',
@@ -700,47 +717,46 @@ export default function ManualRatingsPage() {
           </div>
         )}
 
-        {/* ── Submit bar: box-shadow only, matching table card style ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '16px 20px', background: '#fff',
-          borderTop: '1px solid #E2E8F0',
-          borderRight: '1px solid #E2E8F0',
-          borderBottom: '1px solid #E2E8F0',
-          borderLeft: '1px solid #E2E8F0',
-          borderRadius: 12,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-          flexWrap: 'wrap',
-        }}>
-          <span style={{
-            fontSize: 13, flex: 1,
-            color: statusColor,
-            display: 'flex', alignItems: 'center', gap: 6,
+        {/* ── Submit bar — hidden in view-only mode ── */}
+        {!viewOnly && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '16px 20px', background: '#fff',
+            border: '1px solid #E2E8F0',
+            borderRadius: 12,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            flexWrap: 'wrap',
           }}>
-            {renderStatusLabel()}
-          </span>
+            <span style={{
+              fontSize: 13, flex: 1,
+              color: statusColor,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              {renderStatusLabel()}
+            </span>
 
-          <button onClick={handleCancel} style={{
-            padding: '10px 20px', borderRadius: 6,
-            background: '#F1F5F9', border: '1px solid #E2E8F0',
-            cursor: 'pointer', fontSize: 13, color: '#1E293B', fontWeight: 600,
-          }}>
-            Cancel
-          </button>
+            <button onClick={handleCancel} style={{
+              padding: '10px 20px', borderRadius: 6,
+              background: '#F1F5F9', border: '1px solid #E2E8F0',
+              cursor: 'pointer', fontSize: 13, color: '#1E293B', fontWeight: 600,
+            }}>
+              Cancel
+            </button>
 
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitDisabled}
-            style={{
-              padding: '10px 24px', borderRadius: 6, border: 'none',
-              background: isSubmitDisabled ? '#93C5FD' : '#16A34A',
-              cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
-              fontSize: 13, color: '#fff', fontWeight: 600,
-            }}
-          >
-            {saving ? 'Submitting…' : submitted ? 'Resubmit Ratings' : 'Submit Ratings'}
-          </button>
-        </div>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitDisabled}
+              style={{
+                padding: '10px 24px', borderRadius: 6, border: 'none',
+                background: isSubmitDisabled ? '#93C5FD' : '#16A34A',
+                cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+                fontSize: 13, color: '#fff', fontWeight: 600,
+              }}
+            >
+              {saving ? 'Submitting…' : submitted ? 'Resubmit Ratings' : 'Submit Ratings'}
+            </button>
+          </div>
+        )}
 
       </div>
     </div>
