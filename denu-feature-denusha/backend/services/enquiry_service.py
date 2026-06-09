@@ -26,9 +26,9 @@ def create_enquiry():
     if request_type not in VALID_ENQUIRY_REQUEST_TYPES:
         return error_response("Request type must be re_evaluation", 400)
 
-    enquiry = {
-        "id": len(enquiries) + 1,
+    enquiry_payload = {
         "employee_id": data.get("employee_id"),
+        "related_evaluation_id": data.get("related_evaluation_id"),
         "employee_name": employee_name,
         "employee_role": clean_text(data.get("employee_role")),
         "evaluator_name": evaluator_name,
@@ -40,7 +40,18 @@ def create_enquiry():
         "status": "pending",
         "created_at": datetime.utcnow().isoformat(),
     }
-    enquiries.append(enquiry)
+
+    enquiry = None
+    if USE_SUPABASE:
+        try:
+            rows = supabase_request("enquiries", method="POST", payload=enquiry_payload)
+            enquiry = rows[0] if rows else enquiry_payload
+        except Exception as error:
+            current_app.logger.warning("Falling back to in-memory enquiry: %s", error)
+
+    if enquiry is None:
+        enquiry = {"id": len(enquiries) + 1, **enquiry_payload}
+        enquiries.append(enquiry)
 
     # Enquiries are surfaced through the notification center for the evaluator's
     # superior or admin reviewer.

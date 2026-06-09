@@ -232,7 +232,7 @@ def get_user_for_member(member, create_if_missing=False):
                 method="POST",
                 payload={
                     "email": safe_email,
-                    "name": safe_name,
+                    "full_name": safe_name,
                     "role": "employee",
                     "department": normalized_member.get("department"),
                     "is_active": True,
@@ -259,10 +259,6 @@ def get_user_name(user_id):
 
 def user_display_name(user):
     """Build the best available display name from a user row."""
-
-    first_name = user.get("first_name") or user.get("firstName")
-    last_name = user.get("last_name") or user.get("lastName")
-    combined_name = " ".join(part for part in [first_name, last_name] if part)
 
     return (
         user.get("full_name")

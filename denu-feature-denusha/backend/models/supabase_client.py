@@ -59,6 +59,7 @@ TABLE_ALIASES = {
     "notifications": ["evaluation_notifications", "evaluation_notificartiion", "notifications"],
     "approvals": ["evaluation_approvals", "evalaution_apporovals", "approvals"],
     "evaluation_stages": ["evaluation_stages"],
+    "enquiries": ["evaluation_enquiries", "enquiries"],
 }
 TABLE_CACHE = {}
 
