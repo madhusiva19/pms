@@ -223,11 +223,26 @@ export default function MyPerformance() {
     setDataH1(null); setDataH2(null); setShowDetail(false); setOpenCats({});
     setLoading(true);
     let cancelled = false;
-    fetch(`${API_BASE}/api/pms-cycle/current`)
+    fetch(`${API_BASE}/api/rating-periods/current?user_id=${employeeId}`)
       .then(r => r.ok ? r.json() : null)
       .then(cycleJson => {
-        const yr = cycleJson?.cycle?.pms_year ?? new Date().getFullYear();
+        // pms_year from rating_periods is driven by the scheduler, not pms_cycles
+        const yr = cycleJson?.pms_year ?? new Date().getFullYear();
         if (!cancelled) setActiveYear(yr);
+
+        // Auto-select the most recently completed period based on rating_end.
+        // Uses the same logic as getMostRecentPastPeriod so the default tab
+        // always shows the period users care about most.
+        const periods = cycleJson?.periods ?? [];
+        const now = new Date();
+        const past = periods.filter((p: {rating_end: string}) => new Date(p.rating_end) < now);
+        if (past.length > 0 && !cancelled) {
+          const mostRecent = past.reduce((a: {period: string; rating_end: string}, b: {period: string; rating_end: string}) =>
+            new Date(b.rating_end) > new Date(a.rating_end) ? b : a
+          );
+          setSelectedPeriod(mostRecent.period as 'H1' | 'H2');
+        }
+
         return Promise.all([fetchPeriod(employeeId, 'H1', yr), fetchPeriod(employeeId, 'H2', yr)]);
       })
       .then(([h1, h2]) => { if (!cancelled) { setDataH1(h1); setDataH2(h2); } })
