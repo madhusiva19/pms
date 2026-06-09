@@ -16,6 +16,7 @@ export interface User {
   email:              string;
   full_name:          string;
   role:               UserRole;
+  branch_id?:         string;
   country_id?:        string;
   iata_branch_code?:  string;
   department_id?:     string;
