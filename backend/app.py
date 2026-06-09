@@ -26,6 +26,7 @@ from routes.org            import org_bp
 from routes.performance    import performance_bp
 from routes.rating_periods import rating_periods_bp
 from routes.templates      import templates_bp
+from routes.workforce_report import workforce_report_bp
 
 from scheduler import init_scheduler
 
@@ -43,6 +44,7 @@ def create_app() -> Flask:
     app.register_blueprint(performance_bp)
     app.register_blueprint(rating_periods_bp)
     app.register_blueprint(templates_bp)
+    app.register_blueprint(workforce_report_bp)
 
     return app
 
