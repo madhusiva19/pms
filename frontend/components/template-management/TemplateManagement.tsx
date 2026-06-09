@@ -28,8 +28,16 @@ export default function TemplatesListPage() {
   useEffect(() => {
     if (authLoading) return;
 
+    // Pass org unit context so backend can resolve per-branch unfreeze exceptions and variants
+    const params = new URLSearchParams();
+    if (user?.branch_id)         params.set('branch_id',         user.branch_id);
+    if (user?.country_id)        params.set('country_id',        user.country_id);
+    if (user?.department_id)     params.set('department_id',     user.department_id);
+    if (user?.sub_department_id) params.set('sub_department_id', user.sub_department_id);
+    const url = `${API}/api/templates${params.toString() ? '?' + params.toString() : ''}`;
+
     // Load all available templates for the list/grid view
-    fetch(`${API}/api/templates`)
+    fetch(url)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -42,7 +50,7 @@ export default function TemplatesListPage() {
         setError(`Network error: ${err.message}`);
       })
       .finally(() => setLoading(false));
-  }, [authLoading]);
+  }, [authLoading, user]);
 
   useEffect(() => {
     // Close the autocomplete dropdown when the user clicks outside the search box
