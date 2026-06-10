@@ -39,7 +39,7 @@ interface PerformanceData {
 // H2 of year Y covers Jan-Jun Y, rated Jul Y     -> "H2 Y-1/YY"
 function fiscalLabel(year: number, period: 'H1' | 'H2'): string {
   if (period === 'H1') return `H1 ${year}/${String(year + 1).slice(-2)}`;
-  return `H2 ${year - 1}/${String(year).slice(-2)}`;
+  return `H2 ${year}/${String(year + 1).slice(-2)}`;
 }
 
 const isChartable = (obj: Objective) =>
