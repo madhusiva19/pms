@@ -2,7 +2,8 @@
 routes/template_routes.py
 
 HTTP endpoints for templates, template variants, unfreeze exceptions,
-and the user-facing /my-templates endpoint.
+the user-facing /my-templates endpoint, and the new HQ Admin
+/template-variants global view.
 """
 
 from flask import Blueprint, jsonify, request
@@ -20,6 +21,8 @@ from services.template_service import (
     create_template,
     update_template,
     delete_template,
+    rollover_cycle,
+    get_cycle_template_count,
     list_template_variants,
     create_template_variant,
     get_template_variant,
@@ -30,6 +33,7 @@ from services.template_service import (
     bulk_delete_unfreeze_exceptions,
     delete_single_unfreeze_exception,
     get_my_templates,
+    get_all_variants_across_templates,
 )
 
 template_bp = Blueprint("template", __name__)
@@ -111,7 +115,52 @@ def delete_template_route(template_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TEMPLATE VARIANT ROUTES
+# CYCLE ROLLOVER & TEMPLATE COUNT
+# ─────────────────────────────────────────────────────────────────────────────
+
+@template_bp.route("/pms-cycles/rollover", methods=["POST"])
+def pms_cycle_rollover_route():
+    """
+    HQ Admin only. Duplicates all templates from the previous cycle into
+    the newly created cycle. Safe to call multiple times — idempotent.
+
+    Body: { "old_cycle_id": <int>, "new_cycle_id": <int> }
+    """
+    try:
+        if get_request_level() != 1:
+            return jsonify({"error": "Only HQ Admin can trigger a cycle rollover."}), 403
+
+        data   = request.get_json() or {}
+        old_id = data.get("old_cycle_id")
+        new_id = data.get("new_cycle_id")
+
+        if not old_id or not new_id:
+            return jsonify({"error": "old_cycle_id and new_cycle_id are required."}), 400
+        if int(old_id) == int(new_id):
+            return jsonify({"error": "old and new cycle IDs must differ."}), 400
+
+        result = rollover_cycle(int(old_id), int(new_id))
+        return jsonify({
+            "message": f"Rolled over {result['copied']} template(s) to new cycle.",
+            **result,
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@template_bp.route("/pms-cycles/<int:cycle_id>/template-count", methods=["GET"])
+def pms_cycle_template_count_route(cycle_id):
+    """Returns how many templates exist for a given PMS cycle."""
+    try:
+        count = get_cycle_template_count(cycle_id)
+        return jsonify({"cycle_id": cycle_id, "count": count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEMPLATE VARIANT ROUTES  (per-template)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @template_bp.route("/templates/<int:template_id>/variants", methods=["GET"])
@@ -220,10 +269,10 @@ def create_unfreeze_exceptions_route(template_id):
             return jsonify({"error": "Template is not frozen — unfreeze is not applicable."}), 400
         result = create_unfreeze_exceptions(template_id, request.get_json() or {})
         return jsonify({
-            "message":           f"Unfrozen {result['unfrozen']} scope(s).",
-            "unfrozen_branches": result["branch_ids"],
+            "message":            f"Unfrozen {result['unfrozen']} scope(s).",
+            "unfrozen_branches":  result["branch_ids"],
             "unfrozen_countries": result["country_ids"],
-            "pms_cycle_id":      result["pms_cycle_id"],
+            "pms_cycle_id":       result["pms_cycle_id"],
         }), 200
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -274,5 +323,80 @@ def get_my_templates_route():
         if not user_id:
             return jsonify({"error": "user_id is required"}), 400
         return jsonify(get_my_templates(user_id)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GLOBAL VARIANTS VIEW  (HQ Admin only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _parse_id_list(param: str | None) -> list[str]:
+    if not param:
+        return []
+    return [x.strip() for x in param.split(",") if x.strip()]
+
+
+@template_bp.route("/template-variants", methods=["GET"])
+def get_all_variants_route():
+    try:
+        if get_request_level() != 1:
+            return jsonify({"error": "Only HQ Admin can access the global variants view."}), 403
+
+        filters = {
+            "template_ids":  _parse_id_list(request.args.get("template_ids")),
+            "branch_ids":    _parse_id_list(request.args.get("branch_ids")),
+            "country_ids":   _parse_id_list(request.args.get("country_ids")),
+            "pms_cycle_ids": _parse_id_list(request.args.get("pms_cycle_ids")),
+        }
+
+        variants = get_all_variants_across_templates(filters)
+        return jsonify(variants), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@template_bp.route("/template-variants/summary", methods=["GET"])
+def get_variants_summary_route():
+    try:
+        if get_request_level() != 1:
+            return jsonify({"error": "Only HQ Admin can access the global variants view."}), 403
+
+        all_variants = get_all_variants_across_templates()
+        summary = {
+            "total":        len(all_variants),
+            "by_branch":    sum(1 for v in all_variants if v.get("branch_id")),
+            "by_country":   sum(1 for v in all_variants if v.get("country_id")),
+            "past_cycle":   sum(1 for v in all_variants if v.get("is_past_cycle")),
+            "active_cycle": sum(1 for v in all_variants if not v.get("is_past_cycle")),
+        }
+        return jsonify(summary), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@template_bp.route("/template-variants/<int:variant_id>", methods=["DELETE"])
+def delete_variant_global_route(variant_id):
+    try:
+        if get_request_level() != 1:
+            return jsonify({"error": "Only HQ Admin can delete variants."}), 403
+
+        data        = request.get_json(silent=True) or {}
+        template_id = request.args.get("template_id") or data.get("template_id")
+
+        if not template_id:
+            return jsonify({"error": "template_id is required (query param or body)."}), 400
+
+        template_id = int(template_id)
+
+        if is_template_from_past_cycle(template_id):
+            return jsonify({"error": "Past-cycle variants cannot be deleted."}), 403
+
+        delete_template_variant(template_id, variant_id)
+        return jsonify({"message": "Variant deleted. Branch/country will use the main template."}), 200
+    except LookupError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 400
