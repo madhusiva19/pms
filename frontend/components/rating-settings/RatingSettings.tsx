@@ -82,7 +82,7 @@ function formatDate(d: string) {
 // whose window closed in Jul 2025.
 function fiscalLabel(year: number, period: string): string {
   if (period === 'H1') return `H1 ${year}/${String(year + 1).slice(-2)}`;
-  return `H2 ${year - 1}/${String(year).slice(-2)}`;
+  return `H2 ${year}/${String(year + 1).slice(-2)}`;
 }
 
 function getMostRecentPastPeriod(periods: RatingPeriod[]): RatingPeriod | null {
