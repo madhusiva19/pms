@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Suspense } from 'react';
-import Sidebar from '@/components/Sidebar';
+import Sidebar from '@/components/sidebar/Sidebar';
 import { AuthProvider } from '@/lib/auth-context';
 import './globals.css';
 
@@ -24,7 +24,7 @@ export default function RootLayout({
           <AuthProvider>
             <div className="flex h-screen bg-[#F8F9FC] overflow-hidden">
               <Sidebar />
-              <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden pt-8 pb-12 px-10">
+              <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden pt-8 pb-12 px-10 ml-[251px]">
                 {children}
               </main>
             </div>
