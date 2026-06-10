@@ -9,6 +9,7 @@ Responsibilities:
     - Enriching templates with assignment rules, user data, and cycle metadata
     - Managing unfreeze exceptions for frozen templates
     - Serving user-facing "my templates" with variant resolution
+    - NEW: get_all_variants_across_templates() — HQ Admin global variant view
 """
 
 from datetime import datetime, timezone
@@ -35,7 +36,6 @@ CREATED_BY_DEFAULT   = "hq_admin"
 def get_variants_for_template(template_id: int, pms_cycle_id: int | None = None) -> list:
     """
     Fetch all variants for a given template, optionally filtered by PMS cycle.
-
     """
     try:
         query = (
@@ -53,7 +53,6 @@ def get_variants_for_template(template_id: int, pms_cycle_id: int | None = None)
 def get_variant_for_branch(template_id: int, branch_id: str, pms_cycle_id: int) -> dict | None:
     """
     Fetch a single template variant scoped to a specific branch.
-
     """
     try:
         result = (
@@ -73,7 +72,6 @@ def get_variant_for_branch(template_id: int, branch_id: str, pms_cycle_id: int) 
 def get_variant_for_country(template_id: int, country_id: str, pms_cycle_id: int) -> dict | None:
     """
     Fetch a single template variant scoped to a specific country.
-
     """
     try:
         result = (
@@ -97,7 +95,6 @@ def get_variant_for_country(template_id: int, country_id: str, pms_cycle_id: int
 def get_unfreeze_exceptions(template_id: int, pms_cycle_id: int | None = None) -> list:
     """
     Fetch unfreeze exceptions for a template, optionally scoped to a PMS cycle.
-
     """
     try:
         query = (
@@ -119,7 +116,6 @@ def get_unfreeze_exceptions(template_id: int, pms_cycle_id: int | None = None) -
 def _build_lookup_maps(designations, departments, sub_departments, branches, countries):
     """
     Build dictionary lookup maps from flat lists for O(1) name resolution.
-
     """
     desig_map   = {str(d["id"]): d["name"] for d in designations}
     dept_map    = {str(d["id"]): d         for d in departments}
@@ -136,7 +132,6 @@ def _build_lookup_maps(designations, departments, sub_departments, branches, cou
 def _collect_assigned_ids(t_rules: list, t_user_rows: list) -> dict:
     """
     Extract unique assigned entity IDs from assignment rules and user rows.
-
     """
     designation_ids  = list(set(r["designation_id"]         for r in t_rules     if r.get("designation_id")))
     dept_ids         = list(set(str(r["department_id"])      for r in t_rules     if r.get("department_id")))
@@ -144,14 +139,12 @@ def _collect_assigned_ids(t_rules: list, t_user_rows: list) -> dict:
     sub_dept_ids     = list(set(str(r["sub_department_id"])  for r in t_rules     if r.get("sub_department_id")))
     user_ids         = list(set(str(m["user_id"])            for m in t_user_rows if m.get("user_id")))
 
-    # Collect country IDs from both logical rules and user-level rows
     country_ids = list(set(str(r["country_id"]) for r in t_rules if r.get("country_id")))
     for row in t_user_rows:
         cid = str(row["country_id"]) if row.get("country_id") else None
         if cid and cid not in country_ids:
             country_ids.append(cid)
 
-    # Direct user assignments: no designation or department filters applied
     direct_user_ids = list(set(
         str(m["user_id"]) for m in t_user_rows
         if m.get("user_id") and not m.get("designation_id") and not m.get("department_id")
@@ -176,7 +169,6 @@ def _build_assigned_rules(t_rules: list, direct_user_ids: list,
                           desig_map, dept_map, subdept_map, branch_map, country_map) -> list:
     """
     Build the enriched assignedRules list combining logical rules and direct user entries.
-
     """
     def _branch_label(branch_id):
         b = branch_map.get(str(branch_id))
@@ -204,7 +196,6 @@ def _build_assigned_rules(t_rules: list, direct_user_ids: list,
         for r in t_rules
     ]
 
-    # Append direct user assignment rules (no logical entity scope)
     for uid in direct_user_ids:
         rules.append({
             "designation_id":      None, "designation_name":    None,
@@ -230,7 +221,6 @@ def _enrich_templates(templates: list) -> list:
         - Freeze status and unfreeze exceptions
         - Template variants for the active PMS cycle
         - Fallback defaults for max_score and lastModified
-
     """
     # ── Load assignment data ──────────────────────────────────────────────────
     try:
@@ -287,7 +277,6 @@ def _enrich_templates(templates: list) -> list:
 
     # ── Enrich each template ──────────────────────────────────────────────────
     for template in templates:
-        # Normalize field name: template_content → categories
         if "template_content" in template:
             template["categories"] = template.pop("template_content")
 
@@ -295,7 +284,6 @@ def _enrich_templates(templates: list) -> list:
         t_rules     = [r for r in all_rules           if r["template_id"] == t_id]
         t_user_rows = [m for m in all_user_assignments if m["template_id"] == t_id]
 
-        # Aggregate all assigned entity IDs
         ids = _collect_assigned_ids(t_rules, t_user_rows)
 
         # ── Resolved name lists ───────────────────────────────────────────────
@@ -341,13 +329,11 @@ def _enrich_templates(templates: list) -> list:
         ]
         template["assignedSubDepartmentIds"] = ids["sub_dept_ids"]
 
-        # ── Enriched assignment rules ─────────────────────────────────────────
         template["assignedRules"] = _build_assigned_rules(
             t_rules, ids["direct_user_ids"],
             desig_map, dept_map, subdept_map, branch_map, country_map,
         )
 
-        # ── Defaults for optional fields ──────────────────────────────────────
         if template.get("max_score") is None:
             template["max_score"] = DEFAULT_MAX_SCORE
 
@@ -356,18 +342,15 @@ def _enrich_templates(templates: list) -> list:
                 template.get("lastmodified") or template.get("created_at")
             )
 
-        # ── Cycle and freeze classification ───────────────────────────────────
         t_cycle_id = template.get("pms_cycle_id")
         is_past    = bool(t_cycle_id and active_cycle_id and int(t_cycle_id) != int(active_cycle_id))
 
         template["is_past_cycle"] = is_past
         template["freeze_status"] = FREEZE_STATUS_FROZEN if is_past else active_freeze_status
 
-        # Past-cycle templates are permanently frozen; skip exceptions and variants
         t_exceptions = [e for e in all_exceptions if e["template_id"] == t_id] if not is_past else []
         t_variants   = [v for v in all_variants   if v["parent_template_id"] == t_id] if not is_past else []
 
-        # ── Unfreeze exception summary ────────────────────────────────────────
         template["unfrozenBranchIds"]  = [str(e["branch_id"])  for e in t_exceptions if e.get("branch_id")]
         template["unfrozenCountryIds"] = [str(e["country_id"]) for e in t_exceptions if e.get("country_id")]
         template["unfreezeExceptions"] = [
@@ -380,7 +363,6 @@ def _enrich_templates(templates: list) -> list:
             for e in t_exceptions
         ]
 
-        # ── Variant summary ───────────────────────────────────────────────────
         template["variants"] = [
             {
                 "id":           v["id"],
@@ -403,7 +385,6 @@ def _enrich_templates(templates: list) -> list:
 def get_all_templates() -> list:
     """
     Fetch all templates ordered by lastModified descending, then enrich them.
-
     """
     try:
         templates = (
@@ -414,7 +395,6 @@ def get_all_templates() -> list:
             .data
         )
     except Exception:
-        # Fallback: fetch without server-side ordering and sort in Python
         templates = supabase.table("templates").select("*").execute().data
         templates.sort(
             key=lambda t: t.get("lastModified") or t.get("lastmodified") or t.get("created_at") or "",
@@ -426,7 +406,6 @@ def get_all_templates() -> list:
 def get_single_template(template_id: int) -> dict:
     """
     Fetch and enrich a single template by ID.
-
     """
     result = supabase.table("templates").select("*").eq("id", template_id).single().execute()
     if not result.data:
@@ -437,7 +416,6 @@ def get_single_template(template_id: int) -> dict:
 def create_template(data: dict) -> dict:
     """
     Insert a new template into the active PMS cycle.
-
     """
     now      = datetime.now().isoformat()
     cycle    = get_active_pms_cycle()
@@ -462,7 +440,6 @@ def create_template(data: dict) -> dict:
 def update_template(template_id: int, data: dict) -> None:
     """
     Update mutable fields of an existing template.
-
     """
     now     = datetime.now().isoformat()
     payload = {"lastModified": now}
@@ -476,14 +453,76 @@ def update_template(template_id: int, data: dict) -> None:
     supabase.table("templates").update(payload).eq("id", template_id).execute()
 
 
+
 def delete_template(template_id: int) -> None:
     """
     Delete a template and all its associated assignment records.
-
     """
     supabase.table("template_assignment_combinations").delete().eq("template_id", template_id).execute()
     supabase.table("template_assignments").delete().eq("template_id", template_id).execute()
     supabase.table("templates").delete().eq("id", template_id).execute()
+
+
+def get_cycle_template_count(cycle_id: int) -> int:
+    """
+    Returns how many templates exist for a given PMS cycle.
+    """
+    rows = (
+        supabase.table("templates")
+        .select("id")
+        .eq("pms_cycle_id", cycle_id)
+        .execute()
+        .data or []
+    )
+    return len(rows)
+
+
+def rollover_cycle(old_cycle_id: int, new_cycle_id: int) -> dict:
+    """
+    Duplicate all templates from old_cycle_id into new_cycle_id.
+    Called once when a new PMS cycle is created and has no templates yet.
+    Returns { "copied": <int>, "template_ids": [...] }
+    """
+    # Guard: don't double-duplicate
+    existing = (
+        supabase.table("templates")
+        .select("id")
+        .eq("pms_cycle_id", new_cycle_id)
+        .execute()
+        .data or []
+    )
+    if existing:
+        return {"copied": 0, "template_ids": [], "skipped": True}
+
+    source_templates = (
+        supabase.table("templates")
+        .select("*")
+        .eq("pms_cycle_id", old_cycle_id)
+        .execute()
+        .data or []
+    )
+
+    now = datetime.now(timezone.utc).isoformat()
+    new_ids = []
+
+    for t in source_templates:
+        result = supabase.table("templates").insert({
+            "name":             t.get("name"),
+            "description":      t.get("description"),
+            "template_content": t.get("template_content"),
+            "max_score":        t.get("max_score", DEFAULT_MAX_SCORE),
+            "total_weight":     t.get("total_weight"),
+            "pms_cycle_id":     new_cycle_id,
+            "status":           "active",
+            "created_at":       now,
+            "lastModified":     now,
+            "created_by":       None,
+        }).execute()
+        if result.data:
+            new_ids.append(result.data[0]["id"])
+
+    return {"copied": len(new_ids), "template_ids": new_ids}
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -493,7 +532,6 @@ def delete_template(template_id: int) -> None:
 def list_template_variants(template_id: int) -> list:
     """
     List all variants for a template in the active PMS cycle, with resolved names.
-
     """
     active = get_active_pms_cycle()
     if not active:
@@ -504,7 +542,6 @@ def list_template_variants(template_id: int) -> list:
     countries = supabase.table("countries").select("id, name, code").execute().data
 
     for variant in variants:
-        # Normalise field name for API consumers
         if variant.get("template_content"):
             variant["categories"] = variant.pop("template_content")
 
@@ -522,7 +559,6 @@ def list_template_variants(template_id: int) -> list:
 def create_template_variant(template_id: int, data: dict) -> dict:
     """
     Create a new branch- or country-scoped variant of a template.
-
     """
     active = get_active_pms_cycle()
     if not active:
@@ -536,13 +572,11 @@ def create_template_variant(template_id: int, data: dict) -> dict:
 
     exceptions = get_unfreeze_exceptions(template_id, active["id"])
 
-    # Validate that the target scope has been explicitly unfrozen
     if branch_id and not any(str(e.get("branch_id")) == str(branch_id) for e in exceptions):
         raise PermissionError("This branch is not unfrozen. Unfreeze it first before creating a variant.")
     if country_id and not any(str(e.get("country_id")) == str(country_id) for e in exceptions):
         raise PermissionError("This country is not unfrozen. Unfreeze it first before creating a variant.")
 
-    # Guard against duplicate variants per scope
     if branch_id:
         existing = get_variant_for_branch(template_id, str(branch_id), active["id"])
         if existing:
@@ -582,7 +616,6 @@ def create_template_variant(template_id: int, data: dict) -> dict:
 def get_template_variant(template_id: int, variant_id: int) -> dict:
     """
     Fetch a single variant by ID, verified to belong to the given template.
-
     """
     result = (
         supabase.table("template_variants")
@@ -607,7 +640,6 @@ def get_template_variant(template_id: int, variant_id: int) -> dict:
 def update_template_variant(template_id: int, variant_id: int, data: dict) -> None:
     """
     Update an existing template variant's mutable fields.
-
     """
     active = get_active_pms_cycle()
     if not active:
@@ -651,7 +683,6 @@ def update_template_variant(template_id: int, variant_id: int, data: dict) -> No
 def delete_template_variant(template_id: int, variant_id: int) -> None:
     """
     Delete a single variant, scoped to the given parent template.
-
     """
     (
         supabase.table("template_variants")
@@ -669,9 +700,7 @@ def delete_template_variant(template_id: int, variant_id: int) -> None:
 def create_unfreeze_exceptions(template_id: int, data: dict) -> dict:
     """
     Create unfreeze exceptions for one or more branches and/or countries.
-
     Existing exceptions for the same scope are replaced (delete-then-insert).
-
     """
     active = get_active_pms_cycle()
     if not active:
@@ -688,12 +717,10 @@ def create_unfreeze_exceptions(template_id: int, data: dict) -> dict:
     rows = []
 
     for bid in branch_ids:
-        # Replace any existing exception for this branch in the current cycle
         supabase.table("template_unfreezes").delete().eq("template_id", template_id).eq("branch_id", str(bid)).eq("pms_cycle_id", cycle_id).execute()
         rows.append({"template_id": template_id, "branch_id": str(bid), "country_id": None, "pms_cycle_id": cycle_id, "unfrozen_at": now})
 
     for cid in country_ids:
-        # Replace any existing exception for this country in the current cycle
         supabase.table("template_unfreezes").delete().eq("template_id", template_id).eq("country_id", str(cid)).eq("pms_cycle_id", cycle_id).execute()
         rows.append({"template_id": template_id, "branch_id": None, "country_id": str(cid), "pms_cycle_id": cycle_id, "unfrozen_at": now})
 
@@ -711,7 +738,6 @@ def create_unfreeze_exceptions(template_id: int, data: dict) -> dict:
 def bulk_delete_unfreeze_exceptions(template_id: int, exception_ids: list) -> int:
     """
     Re-freeze a set of branches/countries by deleting their unfreeze exceptions.
-
     """
     if not exception_ids:
         raise ValueError("Provide exception_ids to re-freeze.")
@@ -723,7 +749,6 @@ def bulk_delete_unfreeze_exceptions(template_id: int, exception_ids: list) -> in
 def delete_single_unfreeze_exception(template_id: int, exception_id: int) -> None:
     """
     Delete a single unfreeze exception record.
-
     """
     (
         supabase.table("template_unfreezes")
@@ -747,15 +772,12 @@ def get_my_templates(user_id: str) -> list:
         1. Branch-level variant (most specific)
         2. Country-level variant
         3. Base template (fallback)
-
     """
-    # Fetch direct template assignments for this user
     assignments  = supabase.table("template_assignments").select("template_id").eq("user_id", user_id).execute().data
     template_ids = list(set(a["template_id"] for a in assignments))
     if not template_ids:
         return []
 
-    # Resolve user's branch and country for variant matching
     user_data       = supabase.table("users").select("branch_id, country_id").eq("id", user_id).single().execute().data
     user_branch_id  = str(user_data["branch_id"])  if user_data and user_data.get("branch_id")  else None
     user_country_id = str(user_data["country_id"]) if user_data and user_data.get("country_id") else None
@@ -767,13 +789,11 @@ def get_my_templates(user_id: str) -> list:
     result    = []
 
     for template in templates:
-        # Normalise field name for API consumers
         if "template_content" in template:
             template["categories"] = template.pop("template_content")
         if template.get("max_score") is None:
             template["max_score"] = DEFAULT_MAX_SCORE
 
-        # Attempt to find an applicable variant, branch first then country
         variant = None
         if cycle_id and user_branch_id:
             variant = get_variant_for_branch(template["id"], user_branch_id, cycle_id)
@@ -781,7 +801,6 @@ def get_my_templates(user_id: str) -> list:
             variant = get_variant_for_country(template["id"], user_country_id, cycle_id)
 
         if variant:
-            # Overlay variant fields onto the base template where provided
             template["categories"]   = variant.get("template_content") or template.get("categories")
             template["description"]  = variant.get("description")      or template.get("description")
             template["max_score"]    = variant.get("max_score")        or template.get("max_score")
@@ -797,3 +816,139 @@ def get_my_templates(user_id: str) -> list:
         result.append(template)
 
     return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ALL VARIANTS — HQ Admin global view  (NEW)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_all_variants_across_templates(filters: dict | None = None) -> list:
+    """
+    Fetch every template variant across ALL templates and ALL PMS cycles
+    for the HQ Admin global variants dashboard.
+
+    Enriches each variant with:
+        - Parent template name, freeze status, and cycle metadata
+        - Resolved branch_name / country_name
+        - categories alias for template_content
+        - is_past_cycle flag
+
+    Optional filters dict keys (all lists of strings):
+        branch_ids, country_ids, pms_cycle_ids, template_ids
+
+    Returns list of enriched variant dicts, sorted by lastModified desc.
+    """
+    filters = filters or {}
+
+    # ── Fetch all variants ────────────────────────────────────────────────────
+    try:
+        query = supabase.table("template_variants").select("*")
+
+        if filters.get("template_ids"):
+            query = query.in_("parent_template_id", filters["template_ids"])
+        if filters.get("pms_cycle_ids"):
+            query = query.in_("pms_cycle_id", filters["pms_cycle_ids"])
+        if filters.get("branch_ids"):
+            query = query.in_("branch_id", filters["branch_ids"])
+        if filters.get("country_ids"):
+            query = query.in_("country_id", filters["country_ids"])
+
+        all_variants = query.order("lastModified", desc=True).execute().data or []
+    except Exception:
+        all_variants = []
+
+    if not all_variants:
+        return []
+
+    # ── Fetch reference data ──────────────────────────────────────────────────
+    try:
+        all_templates_raw = supabase.table("templates").select(
+            "id, name, pms_cycle_id, freeze_status"
+        ).execute().data or []
+    except Exception:
+        all_templates_raw = []
+
+    try:
+        all_cycles = supabase.table("pms_cycles").select("id, pms_year, pms_start").execute().data or []
+    except Exception:
+        all_cycles = []
+
+    try:
+        branches  = supabase.table("branches").select("id, name, code, country_id").execute().data or []
+    except Exception:
+        branches = []
+
+    try:
+        countries = supabase.table("countries").select("id, name, code").execute().data or []
+    except Exception:
+        countries = []
+
+    # ── Build lookup maps ─────────────────────────────────────────────────────
+    template_map = {str(t["id"]): t for t in all_templates_raw}
+    branch_map   = {str(b["id"]): b for b in branches}
+    country_map  = {str(c["id"]): c for c in countries}
+    cycle_map    = {str(c["id"]): c for c in all_cycles}
+
+    # Active cycle ID to compute is_past_cycle
+    active_cycle    = get_active_pms_cycle()
+    active_cycle_id = active_cycle["id"] if active_cycle else None
+    active_freeze   = get_freeze_status()
+
+    # ── Enrich each variant ───────────────────────────────────────────────────
+    enriched = []
+    for v in all_variants:
+        # Normalise content field
+        if "template_content" in v:
+            v["categories"] = v.pop("template_content")
+        if v.get("max_score") is None:
+            v["max_score"] = DEFAULT_MAX_SCORE
+
+        # Parent template info
+        parent = template_map.get(str(v.get("parent_template_id")))
+        v["parent_template_name"] = parent["name"] if parent else "Unknown"
+
+        # Cycle info
+        v_cycle_id = v.get("pms_cycle_id")
+        cycle_rec  = cycle_map.get(str(v_cycle_id)) if v_cycle_id else None
+
+        if cycle_rec:
+            pms_year = cycle_rec.get("pms_year")
+            if not pms_year and cycle_rec.get("pms_start"):
+                y = int(str(cycle_rec["pms_start"])[:4])
+                pms_year = f"{y}/{y + 1}"
+            v["pms_year"] = pms_year
+        else:
+            v["pms_year"] = None
+
+        # is_past_cycle
+        is_past = bool(v_cycle_id and active_cycle_id and int(v_cycle_id) != int(active_cycle_id))
+        v["is_past_cycle"] = is_past
+        v["freeze_status"] = FREEZE_STATUS_FROZEN if is_past else active_freeze
+
+        # Branch / country name resolution
+        if v.get("branch_id"):
+            b = branch_map.get(str(v["branch_id"]))
+            v["branch_name"] = ((b["code"] + " — " + b["name"]) if b else str(v["branch_id"]))
+        else:
+            v["branch_name"] = None
+
+        if v.get("country_id"):
+            c = country_map.get(str(v["country_id"]))
+            v["country_name"] = (((c.get("code") or "") + " — " + c["name"]) if c else str(v["country_id"]))
+        else:
+            v["country_name"] = None
+
+        # Ensure lastModified has a fallback
+        if not v.get("lastModified"):
+            v["lastModified"] = v.get("created_at")
+
+        enriched.append(v)
+
+    # Sort newest-first
+    enriched.sort(
+        key=lambda x: x.get("lastModified") or x.get("created_at") or "",
+        reverse=True,
+    )
+
+    return enriched
+

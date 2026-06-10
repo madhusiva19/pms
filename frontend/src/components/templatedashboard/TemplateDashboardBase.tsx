@@ -904,7 +904,7 @@ function PmsCyclePanel({
         <div className={styles.cyclePanelLeftTop}>
           <div className={styles.cyclePanelYearBadge}>
             <TrendingUp size={13} />
-            <span>Annual PMS Cycle</span>
+            <span>Annual Appraisal Cycle</span>
           </div>
           <div className={styles.cyclePanelYear}>{cycleYearLabel}</div>
           <p className={styles.cyclePanelDesc}>
@@ -2062,42 +2062,40 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
   }, [templates, allCycles, activeCycle]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
+useEffect(() => {
+  async function loadDashboardData(): Promise<void> {
+    try {
+      setIsLoading(true);
 
-  useEffect(() => {
-    async function loadDashboardData(): Promise<void> {
-      try {
-        setIsLoading(true);
+      const [templateRes, cycleRes, allCyclesRes] = await Promise.all([
+        fetch(`${API_BASE}/templates`),
+        fetch(`${API_BASE}/pms-cycles/active`),
+        fetch(`${API_BASE}/pms-cycles`),
+      ]);
 
-        /* Fetch templates, active cycle, and all cycles in parallel */
-        const [templateRes, cycleRes, allCyclesRes] = await Promise.all([
-          fetch(`${API_BASE}/templates`),
-          fetch(`${API_BASE}/pms-cycles/active`),
-          fetch(`${API_BASE}/pms-cycles`),
-        ]);
-
-        if (!templateRes.ok) {
-          throw new Error(`Failed to load templates: ${templateRes.status}`);
-        }
-
-        const rawTemplates: TemplateRecord[] = await templateRes.json();
-        setTemplates(sortByLastModified(rawTemplates));
-
-        if (cycleRes.ok)     setActiveCycle(await cycleRes.json());
-        if (allCyclesRes.ok) setAllCycles(await allCyclesRes.json());
-      } catch {
-        toast.error("Could not load templates. Please refresh and try again.");
-      } finally {
-        setIsLoading(false);
+      if (!templateRes.ok) {
+        throw new Error(`Failed to load templates: ${templateRes.status}`);
       }
-    }
 
-    loadDashboardData();
-  }, []);
+      const rawTemplates: TemplateRecord[] = await templateRes.json();
+      setTemplates(sortByLastModified(rawTemplates));
+
+      if (cycleRes.ok)     setActiveCycle(await cycleRes.json());
+      if (allCyclesRes.ok) setAllCycles(await allCyclesRes.json());
+    } catch {
+      toast.error("Could not load templates. Please refresh and try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  loadDashboardData();
+}, []);
 
   // ── Filtered template list ─────────────────────────────────────────────────
 
   const filteredTemplates = useMemo(() => {
-    let result = templates;
+    let result = templates.filter(t => !t.is_past_cycle);
 
     if (filters.search.trim()) {
       const query = filters.search.toLowerCase().trim();
@@ -2413,6 +2411,24 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         </div>
 <div className={styles.headerActions}>
   <CycleStatusBadge status={permissions.freezeStatus} />
+
+  {/* Navigate to Template Variants */}
+  <button
+    className={styles.actionBtn}
+    onClick={() => router.push(`${rolePrefix}/template-management/template-variants`)}
+    title="View all branch and country template variants"
+  >
+    <GitBranch size={13} /><span>View Variants</span>
+  </button>
+
+<button
+    className={styles.actionBtn}
+    onClick={() => router.push(`${rolePrefix}/template-management/template-history`)}
+    title="View archived templates from past PMS cycles"
+  >
+    <History size={13} /><span>History</span>
+  </button>
+
  {permissions.canCreate && (
   
 <button
@@ -2572,5 +2588,3 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     </div>
   );
 }
-
-
