@@ -109,8 +109,7 @@ def get_workforce_report():
         branch_names  = name_map("branches",        branch_ids)
         dept_names    = name_map("departments",     dept_ids)
         subdept_names = name_map("sub_departments", subdept_ids)
-        print(f"[DEBUG] country_names: {country_names}")
-        print(f"[DEBUG] country_ids: {country_ids[:3]}")
+
 
         # Fetch performance summaries
         perf_rows = fetch_in(
@@ -203,4 +202,125 @@ def get_workforce_report():
 
     except Exception as exc:
         print(f"[ERROR] get_workforce_report: {exc}")
+        return jsonify({"error": str(exc)}), 500
+
+
+@workforce_report_bp.route("/api/workforce-report/all", methods=["GET"])
+def get_workforce_report_all():
+    """
+    Returns all rows in one call — used for PDF generation only.
+    Same logic as paginated endpoint but no pagination.
+    """
+    try:
+        pms_year     = request.args.get("pms_year", type=int)
+        requester_id = request.args.get("requester_id", "").strip()
+
+        if not pms_year or not requester_id:
+            return jsonify({"error": "pms_year and requester_id required"}), 400
+
+        req_res = (
+            supabase.table("users")
+            .select("role, country_id")
+            .eq("id", requester_id)
+            .single()
+            .execute()
+        )
+        if not req_res.data:
+            return jsonify({"error": "Requester not found"}), 404
+
+        requester_role    = req_res.data["role"]
+        requester_country = req_res.data.get("country_id")
+
+        if requester_role not in ("hq_admin", "country_admin"):
+            return jsonify({"error": "Access denied"}), 403
+
+        all_users_raw = fetch_all(
+            "users",
+            "id, full_name, role, emp_id, country_id, branch_id, department_id, sub_department_id",
+        )
+        all_users = [
+            u for u in all_users_raw
+            if u.get("role") != "hq_admin"
+            and (requester_role == "hq_admin" or u.get("country_id") == requester_country)
+        ]
+
+        if not all_users:
+            return jsonify([])
+
+        user_ids = [u["id"] for u in all_users]
+
+        country_ids = list({u["country_id"]       for u in all_users if u.get("country_id")})
+        branch_ids  = list({u["branch_id"]         for u in all_users if u.get("branch_id")})
+        dept_ids    = list({u["department_id"]     for u in all_users if u.get("department_id")})
+        subdept_ids = list({u["sub_department_id"] for u in all_users if u.get("sub_department_id")})
+
+        def name_map(table: str, ids: list) -> dict:
+            rows = fetch_in(table, "id, name", "id", ids)
+            return {r["id"]: r["name"] for r in rows}
+
+        country_names = name_map("countries",       country_ids)
+        branch_names  = name_map("branches",        branch_ids)
+        dept_names    = name_map("departments",     dept_ids)
+        subdept_names = name_map("sub_departments", subdept_ids)
+
+        perf_rows = fetch_in("performance_summaries", "user_id, period, total_score",
+                             "user_id", user_ids, {"year": pms_year})
+        h1_score: dict = {}
+        h2_score: dict = {}
+        for row in perf_rows:
+            uid = row["user_id"]
+            score = round(float(row["total_score"] or 0), 2)
+            if row["period"] == "H1": h1_score[uid] = score
+            else:                     h2_score[uid] = score
+
+        pot_rows = fetch_in("potential_assessments",
+                            "employee_id, talent_block",
+                            "employee_id", user_ids, {"appraisal_cycle": pms_year})
+        potential_by_user = {r["employee_id"]: r for r in pot_rows}
+
+        def org_location(u: dict) -> str:
+            country = country_names.get(u.get("country_id") or "")
+            branch  = branch_names.get(u.get("branch_id") or "")
+            dept    = dept_names.get(u.get("department_id") or "")
+            subdept = subdept_names.get(u.get("sub_department_id") or "")
+            role    = u.get("role", "")
+            if role == "country_admin": return country or "—"
+            if role == "branch_admin":  return f"{branch}, {country}" if branch and country else (branch or country or "—")
+            if role == "dept_admin":    return f"{dept} — {branch}, {country}" if dept else "—"
+            if role == "sub_dept_admin":return f"{subdept} — {dept}, {branch}" if subdept else "—"
+            parts = [p for p in [subdept or dept, branch, country] if p]
+            return " — ".join(parts) if parts else "—"
+
+        rows = []
+        for u in all_users:
+            uid = u["id"]
+            rows.append({
+                "id":           uid,
+                "emp_id":       u.get("emp_id"),
+                "full_name":    u["full_name"],
+                "role":         u["role"],
+                "org_location": org_location(u),
+                "country":      country_names.get(u.get("country_id") or ""),
+                "branch":       branch_names.get(u.get("branch_id") or ""),
+                "department":   dept_names.get(u.get("department_id") or ""),
+                "sub_department": subdept_names.get(u.get("sub_department_id") or ""),
+                "h1_score":     h1_score.get(uid),
+                "h2_score":     h2_score.get(uid),
+                "talent_block": potential_by_user.get(uid, {}).get("talent_block"),
+            })
+
+        role_order = {"country_admin": 1, "branch_admin": 2, "dept_admin": 3, "sub_dept_admin": 4, "employee": 5}
+        rows.sort(key=lambda r: (
+            r.get("country") or "zzz",
+            role_order.get(r["role"], 9),
+            r.get("branch")         or "",
+            r.get("department")     or "",
+            r.get("sub_department") or "",
+            r["full_name"],
+        ))
+
+        return jsonify(rows)
+
+    except Exception as exc:
+        print(f"[ERROR] get_workforce_report_all: {exc}")
         return jsonify({"error": str(exc)}), 500
