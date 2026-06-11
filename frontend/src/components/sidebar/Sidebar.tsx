@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell, LucideFileBarChart, User } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell, LucideFileBarChart, User, CalendarDays } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 import styles from './sidebar.module.css';
@@ -42,9 +42,10 @@ function Badge({ count }: { count: number }) {
 const hqAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/hq-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/hq-admin/template-management',  icon: FileText           },
+  { name: 'Appraisal Cycle',     href: '/hq-admin/appraisal-cycle',      icon: CalendarDays       },
   { name: 'My Team',             href: '/hq-admin/team',                 icon: Users              },
   { name: 'Reports',             href: '/hq-admin/reports',              icon: FileText           },
-  { name: 'Notifications',       href: '/hq-admin/notification',        icon: Bell               },
+  { name: 'Notifications',       href: '/hq-admin/notification',         icon: Bell               },
   { name: 'Training Passport',   href: '/hq-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/hq-admin/profile',              icon: User               },
 ];

@@ -14,8 +14,8 @@ and re-seeded with the new dates. Previous cycle notifications are untouched.
 
 ROLLOVER POLICY:
   Trigger date: year_end_review (not grace_period_end)
-  rollover_cycle is imported locally inside each function
-  to avoid circular import with template_service.
+  next_year    = pms_year + 1 (not extracted from pms_start date)
+  rollover_cycle imported locally to avoid circular imports
 """
 
 from datetime import date, datetime, timedelta
@@ -35,8 +35,7 @@ from services.freeze_service import (
 )
 
 # NOTE: rollover_cycle is NOT imported at module level
-# It is imported locally inside each function that needs it
-# Reason: avoids circular import chain:
+# Imported locally inside each function to avoid circular import:
 #   pms_cycle_service → template_service → freeze_service → pms_cycle_service
 
 
@@ -251,7 +250,6 @@ def create_pms_cycle(data: dict, seed_fn) -> dict:
         new_cycle = result.data[0]
         seed_fn(new_cycle)
 
-        # Find previous cycle to roll templates from
         all_cycles = (
             supabase.table("pms_cycles")
             .select("id")
@@ -320,6 +318,7 @@ def auto_rollover_if_needed(seed_fn) -> dict | None:
     """
     Python backup rollover — mirrors the Supabase SQL function.
     Trigger: year_end_review date passing.
+    next_year = pms_year + 1 (not extracted from pms_start date)
     """
     try:
         cycle = get_active_pms_cycle()
@@ -358,7 +357,8 @@ def auto_rollover_if_needed(seed_fn) -> dict | None:
             print("❌  auto_rollover: could not compute next dates — skipping.")
             return None
 
-        next_year = datetime.fromisoformat(next_pms_start).year
+        # ── pms_year + 1 not extracted from date ─────────────────────────────
+        next_year = int(cycle["pms_year"]) + 1
 
         existing = (
             supabase.table("pms_cycles")
@@ -394,6 +394,7 @@ def auto_rollover_if_needed(seed_fn) -> dict | None:
             new_cycle = result.data[0]
             print(
                 f"✅  auto_rollover: created and activated cycle {next_year}.\n"
+                f"    pms_start             = {next_pms_start}\n"
                 f"    objective_setting_end = {next_obj_end}\n"
                 f"    grace_period_end      = {next_grace_end}\n"
                 f"    year_end_review       = {next_year_end}"
@@ -408,4 +409,4 @@ def auto_rollover_if_needed(seed_fn) -> dict | None:
     except Exception as error:
         print(f"❌  auto_rollover_if_needed failed: {error}")
 
-    return 
+    return None
