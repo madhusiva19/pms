@@ -5,7 +5,7 @@
  * Shows teams/sub-departments as cards for selection
  */
 
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/utils/logger';
 import { useState, useEffect } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -44,7 +44,7 @@ export default function DeptAdminReportsPage() {
     subDepartmentsApi.getByDepartment(user.department_id)
       .then(subdepts => setTeams(subdepts ?? []))
       .catch(err => {
-        Sentry.captureException(err);
+        logger.error('Failed to load sub-departments for dept admin reports', err);
         setError('Failed to load sub-departments. Please try again.');
       })
       .finally(() => setLoading(false));

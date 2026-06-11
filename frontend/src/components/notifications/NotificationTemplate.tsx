@@ -1,6 +1,6 @@
 "use client";
 
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/utils/logger';
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
@@ -263,7 +263,7 @@ export default function Notifications() {
         setPaList(paNotifs);
 
       } catch (err) {
-        Sentry.captureException(err);
+        logger.error('Failed to load notifications', err);
       }
       setLoading(false);
     }
@@ -276,7 +276,7 @@ export default function Notifications() {
     try {
       await fetch(`${API}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" });
     } catch (err) {
-      Sentry.captureException(err);
+      logger.error('Failed to mark notification as read', err);
     }
   };
 
@@ -284,7 +284,7 @@ export default function Notifications() {
     try {
       await fetch(`${API}/api/potential-assessment-notifications/${id}/read`, { method: "PATCH" });
     } catch (err) {
-      Sentry.captureException(err);
+      logger.error('Failed to mark PA notification as read', err);
     }
   };
 

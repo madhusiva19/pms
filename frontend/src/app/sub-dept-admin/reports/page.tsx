@@ -5,7 +5,7 @@
  * Shows direct-report employees as cards for selection
  */
 
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { User } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -44,7 +44,7 @@ export default function SubDeptAdminReportsPage() {
     employeesApi.getBySubDepartment(user.sub_department_id)
       .then(emps => setEmployees(emps ?? []))
       .catch(err => {
-        Sentry.captureException(err);
+        logger.error('Failed to load employees for sub-dept admin reports', err);
         setError('Failed to load employees. Please try again.');
       })
       .finally(() => setLoading(false));

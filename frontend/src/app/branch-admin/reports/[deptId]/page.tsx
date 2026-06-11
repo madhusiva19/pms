@@ -5,7 +5,7 @@
  * Same UI as HQ Admin report detail, branch-level data from DB
  */
 
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -174,7 +174,7 @@ export default function BranchAdminReportDetailPage() {
       setComparisonData(comparison);
     } catch (err) {
       setError('Failed to load report data. Please try again.');
-      Sentry.captureException(err);
+      logger.error('Failed to load department report data', err);
     } finally {
       setLoading(false);
     }
