@@ -6,7 +6,7 @@ import {
   CheckCircle, Globe, Clock, Loader2,
 } from 'lucide-react';
 import { generateSavedReportPDF } from '@/utils/generateSavedReportPDF';
-import { savedReportsApi, countriesApi, dashboardApi, reportsApi } from '@/services/api';
+import { savedReportsApi, countriesApi, dashboardApi, metricsApi } from '@/services/api';
 import type { SavedReport, Country } from '@/types';
 
 //  Types
@@ -86,8 +86,6 @@ export default function CreateReportModal({
   const [reportDescription, setReportDescription] = useState('');
   const [adminComment, setAdminComment] = useState('');
 
-  // Year comparison
-  const [selectedPastYears, setSelectedPastYears] = useState<number[]>([]);
 
   // Trend analysis
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
@@ -110,7 +108,7 @@ export default function CreateReportModal({
       setReportName('');
       setReportDescription('');
       setAdminComment('');
-      setSelectedPastYears([]);
+
       setSelectedPeriods([]);
       setSelectedCountryIds([]);
       setMcPeriod('year_end');
@@ -132,14 +130,6 @@ export default function CreateReportModal({
   }, [mode, countries.length, countriesLoading]);
 
   //  Handlers
-
-  const togglePastYear = (year: number) => {
-    setSelectedPastYears(prev =>
-      prev.includes(year)
-        ? prev.filter(y => y !== year)
-        : prev.length < 3 ? [...prev, year] : prev
-    );
-  };
 
   const toggleCountry = (id: string) => {
     setSelectedCountryIds(prev =>
@@ -169,9 +159,6 @@ export default function CreateReportModal({
     if (mode === 'multi_country' && selectedCountryIds.length < 2) {
       setError('Select at least 2 countries for comparison'); return;
     }
-    if (mode === 'year_comparison' && selectedPastYears.length === 0) {
-      setError('Select at least 1 past year to compare'); return;
-    }
 
     setIsLoading(true);
     setSaveStep('fetching');
@@ -189,34 +176,38 @@ export default function CreateReportModal({
       }
 
       if (mode === 'year_comparison') {
-        const years = [reportYear, ...selectedPastYears].sort((a, b) => b - a);
-        const yearData = await Promise.all(
+        const years = [reportYear, reportYear - 1, reportYear - 2, reportYear - 3];
+        const scope = reportType === 'branch' ? 'branch' : 'country';
+        const scopeId = reportType === 'branch' ? (branchId ?? countryId) : countryId;
+
+        const yearData = (await Promise.all(
           years.map(async (year) => {
             try {
-              const reports = await reportsApi.getByCountry(countryId, {
-                year, report_type: 'year_end',
+              const m = await metricsApi.get({
+                period_type: 'year_end',
+                year,
+                scope,
+                scope_id: scopeId,
               });
-              const r = reports[0];
-              if (r) {
+              if (m && m.total_evaluated > 0) {
                 return {
                   year,
-                  avg_score: r.avg_score,
-                  top_performers: r.top_performers,
-                  total_evaluated: r.total_evaluated,
+                  avg_score: m.avg_score,
+                  top_performers: m.top_performers,
+                  total_evaluated: m.total_evaluated,
                 };
               }
-            } catch { /* fall through to simulated */ }
-            const gap = reportYear - year;
-            return {
-              year,
-              avg_score: parseFloat((3.8 - gap * 0.15 + (Math.random() - 0.5) * 0.2).toFixed(2)),
-              top_performers: Math.round(45 - gap * 3 + (Math.random() - 0.5) * 4),
-              total_evaluated: Math.round(230 - gap * 10),
-            };
+            } catch { /* no data for this year — skip */ }
+            return null;
           })
-        );
+        )).filter(Boolean);
+
+        if (yearData.length === 0) {
+          throw new Error('No performance data found for the selected years. Please ensure records exist in the database.');
+        }
+
         trendMetrics.year_data = yearData;
-        trendMetrics.comparison_years = selectedPastYears;
+        trendMetrics.comparison_years = [reportYear - 1, reportYear - 2, reportYear - 3];
       }
 
       if (mode === 'multi_country') {
@@ -321,8 +312,6 @@ export default function CreateReportModal({
   const periodLabel =
     reportPeriod === 'both' ? 'Mid-Year & Year-End' :
     reportPeriod === 'mid_year' ? 'Mid-Year' : 'Year-End';
-  const pastYearOptions = [reportYear - 1, reportYear - 2, reportYear - 3];
-
   const submitLabel = () => {
     switch (saveStep) {
       case 'fetching':   return <><Loader2 className="w-4 h-4 animate-spin" /> Fetching data…</>;
@@ -471,46 +460,29 @@ export default function CreateReportModal({
 
 
 
-              {/* YEAR COMPARISON: Past year chips */}
+              {/* YEAR COMPARISON: Fixed past 3 years */}
               {mode === 'year_comparison' && (
                 <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
-                  <div className="px-5 py-3.5 bg-[#F9FAFB] border-b border-[#E2E8F0] flex items-center justify-between">
-                    <span className="text-[13px] font-semibold text-[#101828]">
-                      Select Past Years <span className="text-red-500">*</span>
-                    </span>
-                    <span className="text-[12px] text-[#6B7280]">
-                      Compare with {reportYear} (up to 3)
-                    </span>
+                  <div className="px-5 py-3.5 bg-[#F9FAFB] border-b border-[#E2E8F0]">
+                    <span className="text-[13px] font-semibold text-[#101828]">Years to Compare</span>
                   </div>
                   <div className="p-5 flex flex-wrap gap-3">
-                    {pastYearOptions.map(year => {
-                      const selected = selectedPastYears.includes(year);
-                      const maxed    = !selected && selectedPastYears.length >= 3;
-                      return (
-                        <button
-                          key={year}
-                          type="button"
-                          disabled={isLoading || maxed}
-                          onClick={() => togglePastYear(year)}
-                          className={`px-5 py-3 rounded-xl border-2 text-[14px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                            selected
-                              ? 'border-[#0892B8] bg-[#ECFEFF] text-[#0892B8]'
-                              : 'border-[#E2E8F0] bg-white text-[#374151] hover:border-[#0892B8]/50'
-                          }`}
-                        >
-                          {year}
-                        </button>
-                      );
-                    })}
+                    {[reportYear, reportYear - 1, reportYear - 2, reportYear - 3].map(year => (
+                      <div
+                        key={year}
+                        className={`px-5 py-3 rounded-xl border-2 text-[14px] font-semibold ${
+                          year === reportYear
+                            ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
+                            : 'border-[#0892B8] bg-[#ECFEFF] text-[#0892B8]'
+                        }`}
+                      >
+                        {year}{year === reportYear ? ' (current)' : ''}
+                      </div>
+                    ))}
                   </div>
-                  {selectedPastYears.length > 0 && (
-                    <div className="px-5 pb-4 text-[12px] text-[#4A5565]">
-                      Comparing:{' '}
-                      <span className="font-semibold text-[#0892B8]">
-                        {[reportYear, ...selectedPastYears].sort((a, b) => b - a).join(' → ')}
-                      </span>
-                    </div>
-                  )}
+                  <p className="px-5 pb-4 text-[12px] text-[#6B7280]">
+                    Automatically comparing the current year against the past 3 years.
+                  </p>
                 </div>
               )}
 
@@ -664,7 +636,7 @@ export default function CreateReportModal({
                   !reportName.trim() ||
                   (mode === 'trend' && selectedPeriods.length < 2) ||
                   (mode === 'multi_country' && selectedCountryIds.length < 2) ||
-                  (mode === 'year_comparison' && selectedPastYears.length === 0)
+                  false
                 }
                 className={`flex-1 h-11 px-4 text-white rounded-xl transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed font-medium text-[13.5px] flex items-center justify-center gap-2 ${saveStep === 'done' ? 'bg-[#00A63E] hover:bg-[#00913A]' : activeCard.activeBtnBg}`}
               >
