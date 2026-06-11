@@ -20,9 +20,9 @@ from models.constants import (
     PMS_START_DAY,
 )
 from models.supabase_client import supabase
+from typing import Optional
 
-
-def get_active_pms_cycle() -> dict | None:
+def get_active_pms_cycle() -> Optional[dict]:
     try:
         result = (
             supabase.table("pms_cycles")
@@ -39,7 +39,7 @@ def get_active_pms_cycle() -> dict | None:
     return None
 
 
-def compute_freeze_dates_from_cycle(cycle: dict) -> dict:
+def compute_freeze_dates_from_cycle(cycle: Optional[dict]) -> dict:
     """
     Derives freeze milestone dates from a DB cycle record.
     Handles all columns including objective_setting_start.

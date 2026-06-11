@@ -34,7 +34,7 @@ from services.freeze_service import (
     get_active_pms_cycle,
     get_freeze_status,
 )
-
+from typing import Optional, Dict, Callable, Any
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
@@ -65,7 +65,7 @@ def _deactivate_cycle_by_id(cycle_id: int) -> None:
     ).eq("id", cycle_id).execute()
 
 
-def _shift_date_by_one_year(iso_str: str | None) -> str | None:
+def _shift_date_by_one_year(iso_str: Optional[str]) -> Optional[str]:
     if not iso_str:
         return None
     try:
@@ -299,7 +299,7 @@ def open_next_pms_cycle(data: dict, seed_fn) -> dict:
 # AUTO ROLLOVER
 # ─────────────────────────────────────────────────────────────────────────────
 
-def auto_rollover_if_needed(seed_fn) -> dict | None:
+def auto_rollover_if_needed(seed_fn: Optional[Callable[[Dict[str, Any]], None]]) -> Optional[Dict[str, Any]]:
     """
     Python backup rollover — mirrors the Supabase SQL function.
     Trigger: year_end_review date passing.
