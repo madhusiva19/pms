@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/utils/logger';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -158,7 +158,7 @@ export default function CountryReportPage() {
       setComparisonData(comparison);
     } catch (err) {
       setError('Failed to load report data. Please try again.');
-      Sentry.captureException(err);
+      logger.error('Failed to load country report data', err);
     } finally {
       setLoading(false);
     }
@@ -226,7 +226,7 @@ export default function CountryReportPage() {
       setTimeout(() => setDownloadStatus('idle'), 3000);
 
     } catch (err: any) {
-      Sentry.captureException(err);
+      logger.error('Failed to download country report PDF', err);
       const errorMsg = err?.message || 'Download failed. Please check your connection.';
       setError(`Download Error: ${errorMsg}`);
 

@@ -6,7 +6,7 @@
  * UI mirrors HQ Admin (CountryCard layout) via DepartmentCard component.
  */
 
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Briefcase } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -46,7 +46,7 @@ export default function BranchAdminReportsPage() {
       .then(branch => departmentsApi.getByBranch(branch.id))
       .then(depts => setDepartments(depts ?? []))
       .catch((err) => {
-        Sentry.captureException(err);
+        logger.error('Failed to load departments for branch admin reports', err);
         setError('Failed to load departments. Please try again.');
       })
       .finally(() => setLoading(false));

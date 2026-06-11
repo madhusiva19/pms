@@ -1,6 +1,6 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/utils/logger';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .single();
 
         if (profileError) {
-          Sentry.captureException(profileError);
+          logger.error('Failed to fetch user profile from database', profileError);
           // Fallback: create a default hq_admin user with the actual auth user ID
           setUser({
             id: authUser.id,
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(userProfile);
         }
       } catch (err) {
-        Sentry.captureException(err);
+        logger.error('Authentication initialization failed', err);
         setError('Authentication error');
       } finally {
         setLoading(false);

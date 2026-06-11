@@ -3,7 +3,7 @@
  * Handles all HTTP requests to the Flask backend
  */
 
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/utils/logger';
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import type {
   Country,
@@ -33,7 +33,7 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    Sentry.captureException(error);
+    logger.error('API response error', error);
     return Promise.reject(error);
   }
 );
