@@ -325,8 +325,8 @@ export default function BranchReportPage() {
 
             {/* ← NEW Action buttons */}
             <div className="flex items-center gap-3">
-              {/* Create Report button */}
-              {user && (
+              {/* Create Report button — Year-End only */}
+              {user && activeTab === 'year_end' && (
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
                   className="flex items-center gap-2 px-4 py-2.5 text-[#155DFC] text-[13.5px] font-medium rounded-lg border border-[#155DFC] bg-white hover:bg-[#EFF6FF] active:scale-[0.98] transition-all"
