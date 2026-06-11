@@ -146,11 +146,11 @@ def get_workforce_report():
             if role == "branch_admin":
                 return f"{branch}, {country}" if branch and country else (branch or country or "—")
             if role == "dept_admin":
-                return f"{dept} — {branch}, {country}" if dept else "—"
+                return f"{dept}, {branch}, {country}" if dept else "—"
             if role == "sub_dept_admin":
-                return f"{subdept} — {dept}, {branch}" if subdept else "—"
-            parts = [p for p in [subdept or dept, branch, country] if p]
-            return " — ".join(parts) if parts else "—"
+                return f"{subdept}, {dept}, {branch}, {country}" if country else f"{subdept}, {dept}, {branch}" if subdept else "—"
+            parts = [p for p in [subdept, dept, branch, country] if p]
+            return ", ".join(parts) if parts else "—"
 
         # Assemble all rows
         rows = []
@@ -162,7 +162,7 @@ def get_workforce_report():
                 "emp_id":             u.get("emp_id"),
                 "full_name":          u["full_name"],
                 "role":               u["role"],
-                "org_location":       org_location(u),
+                "organisational_unit": org_location(u),
                 "country":            country_names.get(u.get("country_id") or ""),
                 "branch":             branch_names.get(u.get("branch_id") or ""),
                 "department":         dept_names.get(u.get("department_id") or ""),
@@ -192,12 +192,16 @@ def get_workforce_report():
         offset    = (page - 1) * PAGE_SIZE
         paginated = rows[offset: offset + PAGE_SIZE]
 
+        # Resolve requester's country name for display
+        requester_country_name = country_names.get(requester_country or "") if requester_role == "country_admin" else None
+
         return jsonify({
-            "rows":        paginated,
-            "page":        page,
-            "page_size":   PAGE_SIZE,
-            "total":       total,
-            "total_pages": math.ceil(total / PAGE_SIZE),
+            "rows":                 paginated,
+            "page":                 page,
+            "page_size":            PAGE_SIZE,
+            "total":                total,
+            "total_pages":          math.ceil(total / PAGE_SIZE),
+            "requester_country":    requester_country_name,
         })
 
     except Exception as exc:
@@ -286,10 +290,10 @@ def get_workforce_report_all():
             role    = u.get("role", "")
             if role == "country_admin": return country or "—"
             if role == "branch_admin":  return f"{branch}, {country}" if branch and country else (branch or country or "—")
-            if role == "dept_admin":    return f"{dept} — {branch}, {country}" if dept else "—"
-            if role == "sub_dept_admin":return f"{subdept} — {dept}, {branch}" if subdept else "—"
-            parts = [p for p in [subdept or dept, branch, country] if p]
-            return " — ".join(parts) if parts else "—"
+            if role == "dept_admin":    return f"{dept}, {branch}, {country}" if dept else "—"
+            if role == "sub_dept_admin":return f"{subdept}, {dept}, {branch}, {country}" if country else f"{subdept}, {dept}, {branch}" if subdept else "—"
+            parts = [p for p in [subdept, dept, branch, country] if p]
+            return ", ".join(parts) if parts else "—"
 
         rows = []
         for u in all_users:
@@ -299,7 +303,7 @@ def get_workforce_report_all():
                 "emp_id":       u.get("emp_id"),
                 "full_name":    u["full_name"],
                 "role":         u["role"],
-                "org_location": org_location(u),
+                "organisational_unit": org_location(u),
                 "country":      country_names.get(u.get("country_id") or ""),
                 "branch":       branch_names.get(u.get("branch_id") or ""),
                 "department":   dept_names.get(u.get("department_id") or ""),
@@ -319,7 +323,13 @@ def get_workforce_report_all():
             r["full_name"],
         ))
 
-        return jsonify(rows)
+        # Resolve requester's country name
+        requester_country_name = country_names.get(requester_country or "") if requester_role == "country_admin" else None
+
+        return jsonify({
+            "rows":              rows,
+            "requester_country": requester_country_name,
+        })
 
     except Exception as exc:
         print(f"[ERROR] get_workforce_report_all: {exc}")
