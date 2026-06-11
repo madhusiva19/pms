@@ -7,6 +7,7 @@ the user-facing /my-templates endpoint, and the new HQ Admin
 """
 
 from flask import Blueprint, jsonify, request
+from models.supabase_client import supabase
 
 from services.freeze_service import (
     get_request_level,
@@ -23,6 +24,7 @@ from services.template_service import (
     delete_template,
     rollover_cycle,
     get_cycle_template_count,
+    copy_assignments_for_rolled_over_templates,
     list_template_variants,
     create_template_variant,
     get_template_variant,
@@ -160,6 +162,108 @@ def pms_cycle_template_count_route(cycle_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# COPY ASSIGNMENTS FROM PREVIOUS CYCLE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@template_bp.route("/pms-cycles/copy-assignments", methods=["POST"])
+def copy_assignments_route():
+    """
+    HQ Admin only.
+    Copies assignment rules and user assignments from old cycle templates
+    to new cycle templates.
+
+    Idempotent — safe to call multiple times.
+    If already applied → returns skipped=True.
+
+    Body: { "old_cycle_id": <int>, "new_cycle_id": <int> }
+    """
+    try:
+        if get_request_level() != 1:
+            return jsonify({"error": "Only HQ Admin can copy assignments."}), 403
+
+        data         = request.get_json() or {}
+        old_cycle_id = data.get("old_cycle_id")
+        new_cycle_id = data.get("new_cycle_id")
+
+        if not old_cycle_id or not new_cycle_id:
+            return jsonify({"error": "old_cycle_id and new_cycle_id are required."}), 400
+
+        if int(old_cycle_id) == int(new_cycle_id):
+            return jsonify({"error": "old_cycle_id and new_cycle_id must be different."}), 400
+
+        result = copy_assignments_for_rolled_over_templates(
+            int(old_cycle_id),
+            int(new_cycle_id),
+        )
+
+        if result["skipped"]:
+            return jsonify({
+                "message":      "Assignments already applied — no changes made.",
+                "copied_rules": 0,
+                "copied_users": 0,
+                "skipped":      True,
+            }), 200
+
+        return jsonify({
+            "message":      f"Copied {result['copied_rules']} rules and {result['copied_users']} user assignments.",
+            "copied_rules": result["copied_rules"],
+            "copied_users": result["copied_users"],
+            "skipped":      False,
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@template_bp.route("/pms-cycles/<int:cycle_id>/assignments-status", methods=["GET"])
+def get_assignments_status_route(cycle_id):
+    """
+    Check if templates in a given cycle already have assignments.
+    Frontend uses this to decide whether to show button as active or disabled.
+    """
+    try:
+        if get_request_level() != 1:
+            return jsonify({"error": "Only HQ Admin can check assignment status."}), 403
+
+        templates_res = (
+            supabase.table("templates")
+            .select("id")
+            .eq("pms_cycle_id", cycle_id)
+            .execute()
+            .data or []
+        )
+
+        if not templates_res:
+            return jsonify({
+                "cycle_id":           cycle_id,
+                "has_assignments":    False,
+                "assignments_copied": False,
+            }), 200
+
+        template_ids = [str(t["id"]) for t in templates_res]
+
+        existing = (
+            supabase.table("template_assignment_combinations")
+            .select("id")
+            .in_("template_id", template_ids)
+            .limit(1)
+            .execute()
+            .data or []
+        )
+
+        has_assignments = bool(existing)
+
+        return jsonify({
+            "cycle_id":           cycle_id,
+            "has_assignments":    has_assignments,
+            "assignments_copied": has_assignments,
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # TEMPLATE VARIANT ROUTES  (per-template)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -291,7 +395,7 @@ def bulk_delete_unfreeze_exceptions_route(template_id):
             return jsonify({"error": "Past-cycle templates cannot be modified."}), 403
         data          = request.get_json() or {}
         exception_ids = data.get("exception_ids") or []
-        count = bulk_delete_unfreeze_exceptions(template_id, exception_ids)
+        count         = bulk_delete_unfreeze_exceptions(template_id, exception_ids)
         return jsonify({"message": f"Re-frozen {count} scope(s)."}), 200
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
