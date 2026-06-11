@@ -6,9 +6,10 @@ APScheduler-based background job runner.
 Jobs
 ----
 1. auto_open_rating_window   — Runs daily at 00:01.
-   On the first day of a rating window (Jan 1 for H1, Jul 1 for H2),
-   automatically upserts the global rating_periods row so the window
-   opens without manual intervention.
+   Checks pms_cycles table for mid_year_review and year_end_review dates.
+   The day after mid_year_review → H1 rating window opens.
+   The day after year_end_review → H2 rating window opens.
+   Automatically upserts the global rating_periods row.
 
 2. deadline_warning_job      — Runs daily at 08:00.
    3 days before each open window closes, broadcasts deadline_warning
@@ -18,10 +19,13 @@ Jobs
    The day after a window closes, broadcasts period_closed notifications
    to managers of evaluators who still have outstanding ratings.
 
-Business calendar (business year Jul 1 – Jun 30)
--------------------------------------------------
-  H1  Performance: Jul 1  – Dec 31   Rating window: Jan 1  – Jan 15
-  H2  Performance: Jan 1  – Jun 30   Rating window: Jul 1  – Jul 15
+Business calendar (derived from pms_cycles)
+--------------------------------------------
+  H1  Performance: pms_start → mid_year_review
+      Rating window: mid_year_review + 1 day, for WINDOW_DAYS days
+
+  H2  Performance: mid_year_review + 1 day → year_end_review
+      Rating window: year_end_review + 1 day, for WINDOW_DAYS days
 
 These defaults can always be overridden via the Edit Period UI.
 
@@ -124,28 +128,42 @@ def _resolve_window_for_today(today: date) -> tuple[int, str, date, date] | None
     Given today's date, return (pms_year, period, window_start, window_end)
     if today is the first day of a rating window, else None.
 
-    Business calendar:
-      H1 performance ends Dec 31  → window opens Jan 1  next year
-      H2 performance ends Jun 30  → window opens Jul 1  same year
-    """
-    # Jan 1 → H1 window opens for the previous business year
-    # Business year label is the year the Jul-start happened, so:
-    # Jan 1 2026 → H1 for business year that started Jul 2025 → pms_year=2025
-    if today.month == 1 and today.day == 1:
-        pms_year     = today.year - 1   # H1 of prior business year
-        period       = "H1"
-        window_start = today
-        window_end   = today + timedelta(days=WINDOW_DAYS - 1)
-        return pms_year, period, window_start, window_end
+    Derived from pms_cycles table instead of hardcoded Jan 1 / Jul 1:
+      H1 rating window opens the day after mid_year_review
+      H2 rating window opens the day after year_end_review
 
-    # Jul 1 → H2 window opens for the current business year
-    # Jul 1 2026 → H2 for business year that started Jul 2025 → pms_year=2025
-    if today.month == 7 and today.day == 1:
-        pms_year     = today.year - 1   # business year started last Jul
-        period       = "H2"
-        window_start = today
-        window_end   = today + timedelta(days=WINDOW_DAYS - 1)
-        return pms_year, period, window_start, window_end
+    This means if dates shift year to year, rating windows auto-adjust.
+    """
+    try:
+        # Fetch all pms_cycles (active or not) to find whose window opens today
+        cycles_res = (
+            supabase.table("pms_cycles")
+            .select("id, pms_year, mid_year_review, year_end_review")
+            .execute()
+        )
+        cycles = cycles_res.data or []
+
+        for cycle in cycles:
+            pms_year = cycle["pms_year"]
+            mid      = cycle.get("mid_year_review")
+            yr_end   = cycle.get("year_end_review")
+
+            if mid:
+                # H1 window opens day after mid_year_review
+                h1_start = date.fromisoformat(str(mid)[:10]) + timedelta(days=1)
+                if today == h1_start:
+                    h1_end = h1_start + timedelta(days=WINDOW_DAYS - 1)
+                    return pms_year, "H1", h1_start, h1_end
+
+            if yr_end:
+                # H2 window opens day after year_end_review
+                h2_start = date.fromisoformat(str(yr_end)[:10]) + timedelta(days=1)
+                if today == h2_start:
+                    h2_end = h2_start + timedelta(days=WINDOW_DAYS - 1)
+                    return pms_year, "H2", h2_start, h2_end
+
+    except Exception as exc:
+        log.error("[scheduler] _resolve_window_for_today failed: %s", exc)
 
     return None
 
