@@ -1,6 +1,6 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
+import { logger } from '@/utils/logger';
 
 /**
  * Country Admin Branch Report Details Page
@@ -168,7 +168,7 @@ export default function BranchReportPage() {
       });
       setComparisonData(comparison);
     } catch (err: any) {
-      Sentry.captureException(err);
+      logger.error('Failed to load branch report data', err);
       setError(`Failed to load report data: ${err.message}`);
     } finally {
       setLoading(false);
@@ -232,7 +232,7 @@ export default function BranchReportPage() {
       setTimeout(() => setDownloadStatus('idle'), 3000);
 
     } catch (err: any) {
-      Sentry.captureException(err);
+      logger.error('Failed to download branch report PDF', err);
       const errorMsg = err?.message || 'Download failed. Please check your connection.';
       setError(`Download Error: ${errorMsg}`);
 
