@@ -1,0 +1,44 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.105.3",
+    "@tailwindcss/postcss": "^4.3.0",
+    "axios": "^1.15.2",
+    "lucide": "^1.9.0",
+    "lucide-react": "^1.8.0",
+    "next": "^16.1.6",
+    "postcss": "^8.5.10",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.3",
+    "react-select": "^5.10.2",
+    "react-toast": "^1.0.3",
+    "recharts": "^3.7.0",
+    "sonner": "^2.0.7",
+    "tailwindcss": "^4.2.4",
+    "toastify": "^2.0.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.5.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "postcss": "^8.5.10",
+    "ts-jest": "^29.4.9",
+    "typescript": "^5"
+  }
+}
