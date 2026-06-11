@@ -3,38 +3,6 @@ services/notification_service.py
 
 Business logic for the Objective Cut-off Notification System.
 
-SCHEDULE BEHAVIOUR
-──────────────────
-Every key date produces TWO notifications:
-  1. Warning  — fires 10 days before the date
-  2. On-date  — fires on the exact date
-
-Grace period is special — THREE notifications:
-  1. Grace period started   — fires on objective_setting_end (same day window closes)
-  2. Grace period ending    — fires 3 days before grace_period_end
-  3. Grace period ended     — fires on grace_period_end
-
-All trigger dates are derived from pms_cycles fields:
-    objective_setting_end   — hard cutoff
-    grace_period_end        — freeze date
-    cycle_start             — PMS_START_MONTH/PMS_START_DAY of pms_year
-
-CYCLE DATE CHANGE BEHAVIOUR
-────────────────────────────
-When HQ Admin updates dates on the ACTIVE cycle:
-  - All existing notifications for that cycle are DELETED
-  - Fresh notifications are re-seeded with the new dates
-  - Previous cycle notifications are NEVER touched
-
-DEDUPLICATION
-─────────────
-trigger_key format: "YYYY-MM-DD:role:event_slug"
-  e.g. "2026-08-16:all:obj_end_warning"
-       "2026-08-16:all:obj_end"
-       "2026-08-19:hq_admin:grace_warning"
-       "2026-08-22:hq_admin:grace_end"
-
-already_fired() checks pms_cycle_id + trigger_key.
 """
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -49,8 +17,8 @@ from models.supabase_client import supabase
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
 
-WARNING_DAYS_BEFORE     = 10   # warning fires this many days before key date
-GRACE_WARNING_DAYS      = 3    # grace-period ending warning fires this many days before
+WARNING_DAYS_BEFORE     = 10  
+GRACE_WARNING_DAYS      = 3    
 
 
 # ─────────────────────────────────────────────────────────────────────────────
