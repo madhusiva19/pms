@@ -1,0 +1,226 @@
+"use client";
+
+import styles from "./dashboard.module.css";
+import Sidebar from "@/components/sidebar/Sidebar";
+import { useEffect, useState } from "react";
+import { useCurrentUser, CurrentUser } from "@/hooks/useCurrentUser";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  PieChart, Pie, Cell, Legend
+} from "recharts";
+
+interface BarEntry { name: string; score: number; fill: string; }
+interface PieEntry { name: string; value: number; color: string; }
+interface ChartData { bar: BarEntry[]; pie: PieEntry[]; }
+
+const COLORS = [
+  "#2563EB", "#00C49F", "#FFBB28", "#FF8042", "#8884D8",
+  "#4F39F6", "#E11D48", "#0891B2", "#65A30D", "#D97706",
+];
+
+function renderPieLabel(props: any) {
+  const { cx, cy, midAngle, outerRadius, value } = props;
+  const RADIAN = Math.PI / 180;
+  const r = outerRadius + 22;
+  const x = cx + r * Math.cos(-midAngle * RADIAN);
+  const y = cy + r * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#374151"
+      fontSize={12}
+      fontWeight="600"
+      dominantBaseline="central"
+      textAnchor={x > cx ? "start" : "end"}
+    >
+      {`${value}`}
+    </text>
+  );
+}
+
+const ROLE_CONFIG: Record<number, any> = {
+  1: { role: "HQ Admin",       stats: ["Total Countries", "Total Employees", "Total Branches"],    barTitle: "Average Performance by Country",        pieTitle: "Employee Distribution by Country",        showPie: true  },
+  2: { role: "Country Admin",  stats: ["Total Branches", "Total Employees", "Total Departments"],  barTitle: "Average Performance by Branch",         pieTitle: "Employee Distribution by Branch",         showPie: true  },
+  3: { role: "Branch Admin",   stats: ["Total Departments", "Total Employees", "Total Sub-Depts"], barTitle: "Average Performance by Department",     pieTitle: "Employee Distribution by Department",     showPie: true  },
+  4: { role: "Dept Admin",     stats: ["Total Sub-Departments", "Total Employees"],                barTitle: "Average Performance by Sub-Department", pieTitle: "Employee Distribution by Sub-Department", showPie: true  },
+  5: { role: "Sub-Dept Admin", stats: ["Total Employees"],                                         barTitle: "Team Member Performance",           pieTitle: "",                                        showPie: false },
+};
+
+export default function DashboardBase({ level }: { level: number }) {
+  const config = ROLE_CONFIG[level] || ROLE_CONFIG[1];
+  const currentUser = useCurrentUser();
+
+  const [stats,     setStats]     = useState<Record<string, number>>({});
+  const [chartData, setChartData] = useState<ChartData>({ bar: [], pie: [] });
+  const [user,      setUser]      = useState<CurrentUser | null>(null);
+  const [loading,   setLoading]   = useState(true);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setUser(currentUser);
+
+    const CACHE_KEY = `dashboard_cache_${currentUser.employee_id}`;
+    const CACHE_TTL = 0; // Disabled cache to prevent stale data
+
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const { stats: cachedStats, chartData: cachedChart, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < CACHE_TTL) {
+        setStats(cachedStats);
+        setChartData(cachedChart);
+        setLoading(false);
+        return;
+      }
+    }
+
+    const fetchData = async () => {
+      try {
+        const [statsRes, chartRes] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats/${currentUser.employee_id}`),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/charts/${currentUser.employee_id}`),
+        ]);
+
+        const statsJson = await statsRes.json();
+        const chartJson = await chartRes.json();
+
+        const freshStats = statsJson.stats || {};
+        const freshChart = chartJson.data || { bar: [], pie: [] };
+
+        setStats(freshStats);
+        setChartData(freshChart);
+
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          stats: freshStats,
+          chartData: freshChart,
+          timestamp: Date.now(),
+        }));
+
+      } catch (err) {
+        console.error("Failed to fetch dashboard data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const coloredBar = (chartData.bar || []).map((item: any, i: number) => ({
+    ...item,
+    fill: COLORS[i % COLORS.length],
+  }));
+
+  const coloredPie = (chartData.pie || []).map((item: any, i: number) => ({
+    ...item,
+    color: COLORS[i % COLORS.length],
+  }));
+
+  return (
+    <div className={styles.dashShell}>
+      <Sidebar />
+
+      <main className={styles.main}>
+        <div className={styles.breadcrumb}>
+          <span className={styles.crumbLink}>Home</span> › <span className={styles.crumbCurrent}>Dashboard</span>
+        </div>
+
+        <div className={styles.headerRow}>
+          <div>
+            <h1 className={styles.pageTitle}>{config.role} Dashboard</h1>
+            <p className={styles.pageSub}>Performance overview for {config.role} scope.</p>
+          </div>
+        </div>
+
+        {/* ── Stats Cards ── */}
+        <section className={styles.statsRow}>
+          {config.stats.map((label: string, idx: number) => (
+            <div key={idx} className={styles.statCard}>
+              <div className={styles.statLeft}>
+                <p className={styles.statTitle}>{label}</p>
+                <p className={styles.statValue}>
+                  {loading ? "--" : (stats[label] ?? "--")}
+                </p>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        {/* ── Charts ── */}
+        <section className={styles.chartsRow}>
+
+          {/* Bar Chart */}
+          <div className={!config.showPie ? styles.chartBoxFull : styles.chartBox}>
+            <div className={styles.chartHead}>
+              <h3>{config.barTitle}</h3>
+      
+            </div>
+            <div className={styles.chartBody}>
+              {loading ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
+                  Loading...
+                </div>
+              ) : coloredBar.length === 0 ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
+                  No data available
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={coloredBar}>
+                    <CartesianGrid strokeDasharray="4 4" vertical={false} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+                    <YAxis domain={[0, 5]} ticks={[0,1,2,3,4,5]} axisLine={false} tickLine={false} />
+                    <Bar dataKey="score" radius={[10, 10, 0, 0]}>
+                      {coloredBar.map((entry: BarEntry, index: number) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} fillOpacity={0.85} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* Pie Chart */}
+          {config.showPie && (
+            <div className={styles.chartBox}>
+              <div className={styles.chartHead}>
+                <h3>{config.pieTitle}</h3>
+              </div>
+              <div className={styles.chartBody}>
+                {loading ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
+                    Loading...
+                  </div>
+                ) : coloredPie.length === 0 ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
+                    No data available
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={coloredPie}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        label={renderPieLabel}
+                      >
+                        {coloredPie.map((entry: PieEntry, index: number) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+</main>
+</div> ); }
