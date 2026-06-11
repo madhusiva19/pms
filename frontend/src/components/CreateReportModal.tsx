@@ -2,15 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  X, TrendingUp, Brain, Download,
+  X, Brain, Download,
   CheckCircle, Globe, Clock, Loader2,
 } from 'lucide-react';
 import { generateSavedReportPDF } from '@/utils/generateSavedReportPDF';
 import { savedReportsApi, countriesApi, dashboardApi, metricsApi } from '@/services/api';
 import type { SavedReport, Country } from '@/types';
 
-//  Types
-type ReportMode = 'year_comparison' | 'trend' | 'multi_country';
+type ReportMode = 'year_comparison' | 'multi_country';
+type PeriodType = 'mid_year' | 'year_end' | 'both';
 type SaveStep = 'idle' | 'fetching' | 'saving' | 'downloading' | 'done';
 
 interface CreateReportModalProps {
@@ -26,9 +26,6 @@ interface CreateReportModalProps {
   userEmail?: string;
 }
 
-//  Constants 
-
-
 const MODE_CARDS = [
   {
     id: 'year_comparison' as ReportMode,
@@ -39,16 +36,6 @@ const MODE_CARDS = [
     activeBtnBg: 'bg-[#2563EB] hover:bg-[#1D4ED8]',
     title: 'Compare Past Years',
     desc: 'Track trends across multiple years',
-  },
-  {
-    id: 'trend' as ReportMode,
-    Icon: TrendingUp,
-    activeBorder: 'border-[#2563EB]',
-    activeBg: 'bg-[#EFF6FF]',
-    activeIconBg: 'bg-[#2563EB]',
-    activeBtnBg: 'bg-[#2563EB] hover:bg-[#1D4ED8]',
-    title: 'Trend Analysis',
-    desc: 'Mid-year vs year-end across periods',
   },
   {
     id: 'multi_country' as ReportMode,
@@ -62,7 +49,11 @@ const MODE_CARDS = [
   },
 ];
 
-//  Component 
+const PERIOD_OPTIONS: { value: PeriodType; label: string }[] = [
+  { value: 'mid_year', label: 'Mid-Year' },
+  { value: 'year_end', label: 'Year-End' },
+  { value: 'both',     label: 'Both' },
+];
 
 export default function CreateReportModal({
   isOpen, onClose, onSuccess,
@@ -71,14 +62,6 @@ export default function CreateReportModal({
   userId, userEmail,
 }: CreateReportModalProps) {
 
-  const availablePeriods = [
-    { value: `mid_year_${reportYear - 1}`, label: `Mid-Year ${reportYear - 1}` },
-    { value: `year_end_${reportYear - 1}`, label: `Year-End ${reportYear - 1}` },
-    { value: `mid_year_${reportYear}`, label: `Mid-Year ${reportYear}` },
-    { value: `year_end_${reportYear}`, label: `Year-End ${reportYear}` },
-  ];
-
-  // Mode
   const [mode, setMode] = useState<ReportMode>('year_comparison');
 
   // Common fields
@@ -88,32 +71,28 @@ export default function CreateReportModal({
 
   // Year comparison
   const [selectedPastYears, setSelectedPastYears] = useState<number[]>([]);
-
-
-  // Trend analysis
-  const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
+  const [ycPeriod, setYcPeriod] = useState<PeriodType>('year_end');
 
   // Multi-country
   const [countries, setCountries] = useState<Country[]>([]);
   const [countriesLoading, setCountriesLoading] = useState(false);
   const [selectedCountryIds, setSelectedCountryIds] = useState<string[]>([]);
-  const [mcPeriod, setMcPeriod] = useState<'mid_year' | 'year_end'>('year_end');
+  const [mcPeriod, setMcPeriod] = useState<PeriodType>('year_end');
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveStep, setSaveStep] = useState<SaveStep>('idle');
 
-  //Reset on open 
+  // Reset on open
   useEffect(() => {
     if (isOpen) {
       setMode('year_comparison');
       setReportName('');
       setReportDescription('');
       setAdminComment('');
-
       setSelectedPastYears([]);
-      setSelectedPeriods([]);
+      setYcPeriod('year_end');
       setSelectedCountryIds([]);
       setMcPeriod('year_end');
       setIsLoading(false);
@@ -133,8 +112,7 @@ export default function CreateReportModal({
     }
   }, [mode, countries.length, countriesLoading]);
 
-  //  Handlers
-
+  // Handlers
   const togglePastYear = (year: number) => {
     setSelectedPastYears(prev =>
       prev.includes(year)
@@ -151,23 +129,17 @@ export default function CreateReportModal({
     );
   };
 
-  const togglePeriod = (period: string) => {
-    setSelectedPeriods(prev =>
-      prev.includes(period) ? prev.filter(p => p !== period) : [...prev, period]
-    );
+  const fetchMetrics = async (periodType: 'mid_year' | 'year_end', year: number, scope: string, scopeId: string) => {
+    const m = await metricsApi.get({ period_type: periodType, year, scope: scope as any, scope_id: scopeId });
+    return m && m.total_evaluated > 0 ? m : null;
   };
 
   // Submit
-
   const handleSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Validate
     if (!reportName.trim()) { setError('Report name is required'); return; }
-    if (mode === 'trend' && selectedPeriods.length < 2) {
-      setError('Select at least 2 periods for trend analysis'); return;
-    }
     if (mode === 'multi_country' && selectedCountryIds.length < 2) {
       setError('Select at least 2 countries for comparison'); return;
     }
@@ -179,41 +151,35 @@ export default function CreateReportModal({
     setSaveStep('fetching');
 
     try {
-      // Step 1: Build trend_metrics based on mode
       let trendMetrics: Record<string, any> = { type: mode };
       if (adminComment.trim()) trendMetrics.admin_comment = adminComment.trim();
-
-      if (mode === 'trend') {
-        const avgScores = selectedPeriods.map((_, i) =>
-          parseFloat((3.5 + i * 0.15 + Math.random() * 0.3).toFixed(2))
-        );
-        trendMetrics.avg_scores = avgScores;
-      }
 
       if (mode === 'year_comparison') {
         const years = [reportYear, ...selectedPastYears].sort((a, b) => b - a);
         const scope = reportType === 'branch' ? 'branch' : 'country';
         const scopeId = reportType === 'branch' ? (branchId ?? countryId) : countryId;
+        const periods: ('mid_year' | 'year_end')[] = ycPeriod === 'both'
+          ? ['mid_year', 'year_end']
+          : [ycPeriod];
 
         const yearData = (await Promise.all(
           years.map(async (year) => {
-            try {
-              const m = await metricsApi.get({
-                period_type: 'year_end',
-                year,
-                scope,
-                scope_id: scopeId,
-              });
-              if (m && m.total_evaluated > 0) {
-                return {
-                  year,
-                  avg_score: m.avg_score,
-                  top_performers: m.top_performers,
-                  total_evaluated: m.total_evaluated,
-                };
-              }
-            } catch { /* no data for this year — skip */ }
-            return null;
+            const entry: Record<string, any> = { year };
+            let hasData = false;
+            for (const p of periods) {
+              try {
+                const m = await fetchMetrics(p, year, scope, scopeId);
+                if (m) {
+                  entry[p] = {
+                    avg_score: m.avg_score,
+                    top_performers: m.top_performers,
+                    total_evaluated: m.total_evaluated,
+                  };
+                  hasData = true;
+                }
+              } catch { /* skip */ }
+            }
+            return hasData ? entry : null;
           })
         )).filter(Boolean);
 
@@ -223,42 +189,50 @@ export default function CreateReportModal({
 
         trendMetrics.year_data = yearData;
         trendMetrics.comparison_years = selectedPastYears;
+        trendMetrics.period = ycPeriod;
       }
 
       if (mode === 'multi_country') {
-        const countryData = await Promise.all(
+        const periods: ('mid_year' | 'year_end')[] = mcPeriod === 'both'
+          ? ['mid_year', 'year_end']
+          : [mcPeriod];
+
+        const countryData = (await Promise.all(
           selectedCountryIds.map(async (cId) => {
             const country = countries.find(c => c.id === cId);
-            try {
-              const summary = await dashboardApi.getSummary(cId);
-              const r = mcPeriod === 'mid_year' ? summary.mid_year : summary.year_end;
-              if (r) {
-                return {
-                  country_id: cId,
-                  country_name: country?.name ?? cId,
-                  avg_score: r.avg_score,
-                  top_performers: r.top_performers,
-                  total_evaluated: r.total_evaluated,
-                };
-              }
-            } catch { /* fall through to simulated */ }
-            return {
+            const entry: Record<string, any> = {
               country_id: cId,
               country_name: country?.name ?? cId,
-              avg_score: parseFloat((3.2 + Math.random() * 1.2).toFixed(2)),
-              top_performers: Math.round(25 + Math.random() * 30),
-              total_evaluated: Math.round(100 + Math.random() * 200),
             };
+            let hasData = false;
+            try {
+              const summary = await dashboardApi.getSummary(cId);
+              for (const p of periods) {
+                const r = p === 'mid_year' ? summary.mid_year : summary.year_end;
+                if (r) {
+                  entry[p] = {
+                    avg_score: r.avg_score,
+                    top_performers: r.top_performers,
+                    total_evaluated: r.total_evaluated,
+                  };
+                  hasData = true;
+                }
+              }
+            } catch { /* skip */ }
+            return hasData ? entry : null;
           })
-        );
+        )).filter(Boolean);
+
+        if (countryData.length === 0) {
+          throw new Error('No performance data found for the selected countries.');
+        }
+
         trendMetrics.country_data = countryData;
         trendMetrics.comparison_period = mcPeriod;
       }
 
-      //  Step 2: Save to DB 
+      // Save to DB
       setSaveStep('saving');
-      const isTrendMode  = mode === 'trend';
-
       const dbPayload = {
         user_id: userId,
         report_name: reportName.trim(),
@@ -268,15 +242,15 @@ export default function CreateReportModal({
           ? (selectedCountryIds[0] ?? countryId)
           : countryId,
         ...(branchId && { branch_id: branchId }),
-        report_period: mode === 'multi_country' ? mcPeriod : reportPeriod,
+        report_period: mode === 'multi_country' ? mcPeriod : ycPeriod,
         report_year: reportYear,
         metrics_included: [],
         charts_included: [],
         include_ai_insights: false,
         include_comparison: false,
         created_by_email: userEmail,
-        is_trend_report: isTrendMode,
-        selected_periods: isTrendMode ? selectedPeriods : [],
+        is_trend_report: true,
+        selected_periods: [],
         trend_metrics: trendMetrics,
         is_shared: false,
         shared_with_emails: [],
@@ -285,8 +259,7 @@ export default function CreateReportModal({
       let savedReport: SavedReport;
       try {
         savedReport = await savedReportsApi.create(dbPayload);
-      } catch (saveErr) {
-        // intentionally ignored
+      } catch {
         savedReport = {
           ...dbPayload,
           id: `local-${Date.now()}`,
@@ -295,15 +268,9 @@ export default function CreateReportModal({
         } as SavedReport;
       }
 
-      //  Step 3: Generate + Download PDF
+      // Generate + Download PDF
       setSaveStep('downloading');
-      const pdfReport = {
-        ...savedReport,
-        trend_metrics: trendMetrics,
-        is_trend_report: isTrendMode,
-        selected_periods: isTrendMode ? selectedPeriods : (savedReport.selected_periods ?? []),
-      };
-      await generateSavedReportPDF(pdfReport as any);
+      await generateSavedReportPDF({ ...savedReport, trend_metrics: trendMetrics, is_trend_report: true } as any);
 
       setSaveStep('done');
       setTimeout(() => {
@@ -321,31 +288,23 @@ export default function CreateReportModal({
 
   if (!isOpen) return null;
 
-  // Derived UI values 
   const activeCard = MODE_CARDS.find(c => c.id === mode)!;
   const ActiveIcon = activeCard.Icon;
-  const periodLabel =
-    reportPeriod === 'both' ? 'Mid-Year & Year-End' :
-    reportPeriod === 'mid_year' ? 'Mid-Year' : 'Year-End';
+
   const submitLabel = () => {
     switch (saveStep) {
-      case 'fetching':   return <><Loader2 className="w-4 h-4 animate-spin" /> Fetching data…</>;
-      case 'saving':     return <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>;
+      case 'fetching':    return <><Loader2 className="w-4 h-4 animate-spin" /> Fetching data…</>;
+      case 'saving':      return <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>;
       case 'downloading': return <><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF…</>;
-      case 'done':       return <><CheckCircle className="w-4 h-4" /> Saved!</>;
-      default:           return <><Download className="w-4 h-4" /> Save &amp; Download</>;
+      case 'done':        return <><CheckCircle className="w-4 h-4" /> Saved!</>;
+      default:            return <><Download className="w-4 h-4" /> Save &amp; Download</>;
     }
   };
-
-  //  Render 
 
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40" onClick={onClose} />
 
       {/* Modal shell */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
@@ -356,9 +315,7 @@ export default function CreateReportModal({
           {/* Header */}
           <div className="flex items-start justify-between px-8 py-6 border-b border-[#E2E8F0] bg-gradient-to-r from-[#EFF6FF] to-[#F8FAFF]">
             <div className="flex items-center gap-4">
-              <div
-                className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm ${activeCard.activeIconBg}`}
-              >
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm ${activeCard.activeIconBg}`}>
                 <ActiveIcon className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -385,8 +342,8 @@ export default function CreateReportModal({
                 </div>
               )}
 
-              {/* ── Mode selector (2×2 grid) ── */}
-              <div className="grid grid-cols-3 gap-3">
+              {/* Mode selector — 2 cards */}
+              <div className="grid grid-cols-2 gap-3">
                 {MODE_CARDS.map(card => {
                   const isActive = mode === card.id;
                   const CardIcon = card.Icon;
@@ -403,12 +360,8 @@ export default function CreateReportModal({
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isActive ? card.activeIconBg : 'bg-[#E2E8F0]'}`}
-                        >
-                          <CardIcon
-                            className={`w-4 h-4 ${isActive ? 'text-white' : 'text-[#6B7280]'}`}
-                          />
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isActive ? card.activeIconBg : 'bg-[#E2E8F0]'}`}>
+                          <CardIcon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-[#6B7280]'}`} />
                         </div>
                         <div>
                           <p className="text-[13px] font-semibold text-[#101828]">{card.title}</p>
@@ -420,7 +373,7 @@ export default function CreateReportModal({
                 })}
               </div>
 
-              {/* ── Report Name ── */}
+              {/* Report Name */}
               <div className="space-y-1.5">
                 <label className="block text-[13px] font-semibold text-[#374151]">
                   Report Name <span className="text-red-500">*</span>
@@ -430,17 +383,15 @@ export default function CreateReportModal({
                   value={reportName}
                   onChange={e => setReportName(e.target.value)}
                   placeholder={
-                    mode === 'multi_country'    ? 'e.g., Global Country Comparison 2026' :
-                    mode === 'year_comparison'  ? 'e.g., India 3-Year Performance Trend' :
-                    mode === 'trend'            ? 'e.g., India 2025–2026 Trend Analysis' :
-                                                  'e.g., Q1 2026 India Report'
+                    mode === 'multi_country'   ? 'e.g., Global Country Comparison 2026' :
+                                                 'e.g., India 3-Year Performance Trend'
                   }
                   className="w-full h-11 px-4 bg-white border border-[#E2E8F0] rounded-xl text-[14px] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/15 focus:border-[#2563EB] transition-all"
                   disabled={isLoading}
                 />
               </div>
 
-              {/* Description  */}
+              {/* Description */}
               <div className="space-y-1.5">
                 <label className="block text-[13px] font-semibold text-[#374151]">
                   Description{' '}
@@ -456,7 +407,7 @@ export default function CreateReportModal({
                 />
               </div>
 
-              {/*  HQ Admin Remarks  */}
+              {/* HQ Admin Remarks */}
               <div className="space-y-1.5">
                 <label className="flex items-center gap-1.5 text-[13px] font-semibold text-[#374151]">
                   <Brain className="w-3.5 h-3.5 text-[#8B5CF6]" />
@@ -473,115 +424,100 @@ export default function CreateReportModal({
                 />
               </div>
 
-
-
-              {/* YEAR COMPARISON: Past year chips */}
+              {/* YEAR COMPARISON */}
               {mode === 'year_comparison' && (
-                <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
-                  <div className="px-5 py-3.5 bg-[#F9FAFB] border-b border-[#E2E8F0] flex items-center justify-between">
-                    <span className="text-[13px] font-semibold text-[#101828]">
-                      Select Past Years <span className="text-red-500">*</span>
-                    </span>
-                    <span className="text-[12px] text-[#6B7280]">
-                      Compare with {reportYear} (up to 3)
-                    </span>
-                  </div>
-                  <div className="p-5 flex flex-wrap gap-3">
-                    {[reportYear - 1, reportYear - 2, reportYear - 3].map(year => {
-                      const selected = selectedPastYears.includes(year);
-                      const maxed = !selected && selectedPastYears.length >= 3;
-                      return (
-                        <button
-                          key={year}
-                          type="button"
-                          disabled={isLoading || maxed}
-                          onClick={() => togglePastYear(year)}
-                          className={`px-5 py-3 rounded-xl border-2 text-[14px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                            selected
-                              ? 'border-[#0892B8] bg-[#ECFEFF] text-[#0892B8]'
-                              : 'border-[#E2E8F0] bg-white text-[#374151] hover:border-[#0892B8]/50'
-                          }`}
-                        >
-                          {year}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {selectedPastYears.length > 0 && (
-                    <div className="px-5 pb-4 text-[12px] text-[#4A5565]">
-                      Comparing:{' '}
-                      <span className="font-semibold text-[#0892B8]">
-                        {[reportYear, ...selectedPastYears].sort((a, b) => b - a).join(' → ')}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/*  TREND ANALYSIS: Period selector  */}
-              {mode === 'trend' && (
-                <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
-                  <div className="px-5 py-3.5 bg-[#F9FAFB] border-b border-[#E2E8F0] flex items-center justify-between">
-                    <span className="text-[13px] font-semibold text-[#101828]">
-                      Select Periods <span className="text-red-500">*</span>
-                    </span>
-                    <span className="text-[12px] text-[#6B7280]">
-                      {selectedPeriods.length > 0
-                        ? `${selectedPeriods.length} selected (min. 2)`
-                        : 'Select at least 2'}
-                    </span>
-                  </div>
-                  <div className="divide-y divide-[#F3F4F6]">
-                    {availablePeriods.map(({ value, label }) => {
-                      const checked = selectedPeriods.includes(value);
-                      return (
-                        <label
-                          key={value}
-                          className={`flex items-center gap-3 px-5 py-3.5 cursor-pointer transition-colors ${
-                            checked ? 'bg-[#EFF6FF]' : 'bg-white hover:bg-[#F9FAFB]'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => togglePeriod(value)}
-                            disabled={isLoading}
-                            className="w-4 h-4 accent-[#2563EB]"
-                          />
-                          <span className="text-[13.5px] font-medium text-[#374151]">{label}</span>
-                          {checked && (
-                            <span className="ml-auto text-[11px] font-semibold text-[#2563EB] bg-[#DBEAFE] px-2 py-0.5 rounded-full">
-                              Selected
-                            </span>
-                          )}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/*  MULTI-COUNTRY: Period + country selector  */}
-              {mode === 'multi_country' && (
                 <>
-                  {/* Period toggle */}
+                  {/* Trend period toggle */}
                   <div className="flex items-center gap-3">
                     <span className="text-[13px] font-semibold text-[#374151] shrink-0">
-                      Compare period:
+                      Trend period:
                     </span>
-                    {(['mid_year', 'year_end'] as const).map(p => (
+                    {PERIOD_OPTIONS.map(({ value, label }) => (
                       <button
-                        key={p}
+                        key={value}
                         type="button"
                         disabled={isLoading}
-                        onClick={() => setMcPeriod(p)}
+                        onClick={() => setYcPeriod(value)}
                         className={`px-4 py-2 rounded-lg border text-[13px] font-medium transition-all ${
-                          mcPeriod === p
+                          ycPeriod === value
                             ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
                             : 'border-[#E2E8F0] text-[#6B7280] hover:border-[#2563EB]/50'
                         }`}
                       >
-                        {p === 'mid_year' ? 'Mid-Year' : 'Year-End'} {reportYear}
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Past year chips */}
+                  <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
+                    <div className="px-5 py-3.5 bg-[#F9FAFB] border-b border-[#E2E8F0] flex items-center justify-between">
+                      <span className="text-[13px] font-semibold text-[#101828]">
+                        Select Past Years <span className="text-red-500">*</span>
+                      </span>
+                      <span className="text-[12px] text-[#6B7280]">
+                        Compare with {reportYear} (up to 3)
+                      </span>
+                    </div>
+                    <div className="p-5 flex flex-wrap gap-3">
+                      {[reportYear - 1, reportYear - 2, reportYear - 3].map(year => {
+                        const selected = selectedPastYears.includes(year);
+                        const maxed = !selected && selectedPastYears.length >= 3;
+                        return (
+                          <button
+                            key={year}
+                            type="button"
+                            disabled={isLoading || maxed}
+                            onClick={() => togglePastYear(year)}
+                            className={`px-5 py-3 rounded-xl border-2 text-[14px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                              selected
+                                ? 'border-[#0892B8] bg-[#ECFEFF] text-[#0892B8]'
+                                : 'border-[#E2E8F0] bg-white text-[#374151] hover:border-[#0892B8]/50'
+                            }`}
+                          >
+                            {year}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedPastYears.length > 0 && (
+                      <div className="px-5 pb-4 text-[12px] text-[#4A5565]">
+                        Comparing:{' '}
+                        <span className="font-semibold text-[#0892B8]">
+                          {[reportYear, ...selectedPastYears].sort((a, b) => b - a).join(' → ')}
+                        </span>
+                        {ycPeriod !== 'year_end' && (
+                          <span className="ml-2 text-[#2563EB] font-semibold">
+                            · {ycPeriod === 'both' ? 'Mid-Year & Year-End' : 'Mid-Year'}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* MULTI-COUNTRY */}
+              {mode === 'multi_country' && (
+                <>
+                  {/* Trend period toggle */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-[13px] font-semibold text-[#374151] shrink-0">
+                      Trend period:
+                    </span>
+                    {PERIOD_OPTIONS.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => setMcPeriod(value)}
+                        className={`px-4 py-2 rounded-lg border text-[13px] font-medium transition-all ${
+                          mcPeriod === value
+                            ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
+                            : 'border-[#E2E8F0] text-[#6B7280] hover:border-[#2563EB]/50'
+                        }`}
+                      >
+                        {label} {value !== 'both' ? reportYear : ''}
                       </button>
                     ))}
                   </div>
@@ -650,7 +586,7 @@ export default function CreateReportModal({
 
             </div>
 
-            {/* Footer (sticky inside form)  */}
+            {/* Footer */}
             <div className="px-8 py-5 border-t border-[#E2E8F0] bg-white flex items-center gap-3 shrink-0">
               <button
                 type="button"
@@ -666,7 +602,6 @@ export default function CreateReportModal({
                   isLoading ||
                   saveStep !== 'idle' ||
                   !reportName.trim() ||
-                  (mode === 'trend' && selectedPeriods.length < 2) ||
                   (mode === 'multi_country' && selectedCountryIds.length < 2) ||
                   (mode === 'year_comparison' && selectedPastYears.length === 0)
                 }
