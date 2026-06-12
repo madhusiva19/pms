@@ -587,7 +587,7 @@ def get_batch_rating_status():
     """
     try:
         raw_ids = request.args.get("user_ids", "").strip()
-        year    = request.args.get("year", type=int)
+        year    = request.args.get("pms_year", type=int)
         period  = request.args.get("period", "")
 
         if not raw_ids or not year or not period:
@@ -688,7 +688,7 @@ def get_rating_overview(evaluator_id: str):
     try:
         active_year, active_period_str = get_active_period_params()
         period   = request.args.get("period", active_period_str)
-        pms_year = request.args.get("year", active_year, type=int)
+        pms_year = request.args.get("pms_year", active_year, type=int)
 
         # Get direct reports of this evaluator
         team = (
