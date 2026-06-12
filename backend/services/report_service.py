@@ -80,18 +80,15 @@ def get_branch_ai_insights(report_id: str) -> list:
 
 
 def get_report_metrics(period_type: str, year: int, scope: str, scope_id: str, employee_id: str | None = None) -> dict:
-    # year is the display/report year (e.g. 2026).
-    # Mid-year maps to year-1 H1; year-end maps to year H2 — same cycle logic as bell curve.
-    if period_type == 'mid_year':
-        db_year, db_period = year - 1, 'H1'
-    else:
-        db_year, db_period = year, 'H2'
+    # year is the active report year (e.g. 2026).
+    # Both H1 (mid-year) and H2 (year-end) use the same pms_year — no year offset.
+    db_period = 'H1' if period_type == 'mid_year' else 'H2'
 
     emp_ids = resolve_emp_ids_by_scope(scope, scope_id)
     if not emp_ids:
         return {'total_evaluated': 0, 'avg_score': 0.0, 'top_performers': 0, 'employee_score': None}
 
-    summaries = supabase.table('performance_summaries').select('user_id, total_score').eq('year', db_year).eq('period', db_period).in_('user_id', emp_ids).execute()
+    summaries = supabase.table('performance_summaries').select('user_id, total_score').eq('pms_year', year).eq('period', db_period).in_('user_id', emp_ids).execute()
     scores = [float(r['total_score']) for r in summaries.data if r.get('total_score') is not None]
 
     # 8 equal-width buckets across the 1.0–5.0 range; midpoint used for weighted average
@@ -111,7 +108,7 @@ def get_report_metrics(period_type: str, year: int, scope: str, scope_id: str, e
 
     employee_score = None
     if employee_id:
-        emp_summary = supabase.table('performance_summaries').select('total_score').eq('user_id', employee_id).eq('year', db_year).eq('period', db_period).limit(1).execute()
+        emp_summary = supabase.table('performance_summaries').select('total_score').eq('user_id', employee_id).eq('pms_year', year).eq('period', db_period).limit(1).execute()
         if emp_summary.data:
             ts = emp_summary.data[0].get('total_score')
             employee_score = float(ts) if ts is not None else None
