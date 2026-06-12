@@ -213,17 +213,17 @@ function drawYearComparisonSection(
 
   if (hasMid) {
     const data = sorted.map(d =>
-      typeof d.mid_year === 'object' ? d.mid_year?.avg_score :
-      (period === 'mid_year' ? d.avg_score : null)
-    ).filter((v): v is number => v != null);
-    if (data.length) series.push({ label: 'Mid-Year Avg Score', color: C.teal, data });
+      typeof d.mid_year === 'object' ? (d.mid_year?.avg_score ?? 0) :
+      (period === 'mid_year' ? (d.avg_score ?? 0) : 0)
+    );
+    series.push({ label: 'Mid-Year Avg Score', color: C.teal, data });
   }
   if (hasEnd) {
     const data = sorted.map(d =>
-      typeof d.year_end === 'object' ? d.year_end?.avg_score :
-      (period === 'year_end' || !period ? d.avg_score : null)
-    ).filter((v): v is number => v != null);
-    if (data.length) series.push({ label: 'Year-End Avg Score', color: C.blue, data });
+      typeof d.year_end === 'object' ? (d.year_end?.avg_score ?? 0) :
+      (period === 'year_end' || !period ? (d.avg_score ?? 0) : 0)
+    );
+    series.push({ label: 'Year-End Avg Score', color: C.blue, data });
   }
 
   if (series.length === 0) return y;
@@ -232,9 +232,8 @@ function drawYearComparisonSection(
   y += 6;
 
   const chartH = 52;
-  const allVals = series.flatMap(s => s.data);
-  const yMin = Math.max(0, Math.floor(Math.min(...allVals) * 2) / 2 - 0.5);
-  const yMax = Math.min(5, Math.ceil(Math.max(...allVals)  * 2) / 2 + 0.5);
+  const yMin = 0;
+  const yMax = 5;
 
   drawMultiLineChart(pdf, 14, y, pageW - 28, chartH, series, xLabels, yMin, yMax);
   y += chartH + 14; // extra for legend row
@@ -322,10 +321,7 @@ function drawMultiCountrySection(
     if (series.length > 0) {
       y = sectionHeader(pdf, `Country Comparison — ${reportYear}`, y, pageW);
       y += 6;
-      const allVals = series.flatMap(s => s.data);
-      const yMin = Math.max(0, Math.floor(Math.min(...allVals) * 2) / 2 - 0.5);
-      const yMax = Math.min(5, Math.ceil(Math.max(...allVals)  * 2) / 2 + 0.5);
-      drawMultiLineChart(pdf, 14, y, pageW - 28, 52, series, xLabels, yMin, yMax);
+      drawMultiLineChart(pdf, 14, y, pageW - 28, 52, series, xLabels, 0, 5);
       y += 70;
     }
   }
