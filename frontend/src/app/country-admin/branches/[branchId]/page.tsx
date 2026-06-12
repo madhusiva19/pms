@@ -10,8 +10,8 @@ import { logger } from '@/utils/logger';
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import {
-  ChevronRight,
   ChevronLeft,
   Users,
   TrendingUp,
@@ -304,13 +304,11 @@ export default function BranchReportPage() {
         <div className="flex flex-col gap-4">
 
           {/* Breadcrumb */}
-          <nav className="flex flex-wrap items-center gap-0 text-[13px] text-[#64748B]">
-            <a href="/country-admin" className="hover:text-[#1E293B] transition-colors">Home</a>
-            <ChevronRight className="w-3.5 h-3.5 mx-1.5" />
-            <a href="/country-admin/reports" className="hover:text-[#1E293B] transition-colors">Reports</a>
-            <ChevronRight className="w-3.5 h-3.5 mx-1.5" />
-            <span className="text-[#1E293B]">{branch.name}</span>
-          </nav>
+          <Breadcrumb items={[
+            { label: 'Home', href: '/country-admin' },
+            { label: 'Branches', href: '/country-admin/branches' },
+            { label: branch.name },
+          ]} />
 
           {/* Title Row with Download button */}
           <div className="flex items-start justify-between">
