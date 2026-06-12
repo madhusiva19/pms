@@ -127,9 +127,8 @@
   margin-bottom:   24px;
   gap:             12px;
 }
-
-.pageTitle        { font-size: 30px; font-weight: 700; color: var(--tdb-text-primary); letter-spacing: -0.3px; margin: 10px 0 6px; }
-.pageSubtitleMain { font-size: 14px; color: var(--tdb-text-muted); font-weight: 400; margin: 0 0 10px; }
+.pageTitle        { font-size: 30px; font-weight: 700; color: var(--tdb-text-primary); letter-spacing: -0.3px; margin: 10px 0 14px; }
+.pageSubtitleMain { font-size: 13.5px; color: var(--tdb-text-muted); font-weight: 400; margin: 0 0 12px; }
 
 .pageSubtitle {
   display:     flex;
@@ -544,7 +543,7 @@
   display:      inline-flex;
   align-items:  center;
   gap:          5px;
-  padding:      6px 12px;
+  padding:      6px 10px;
   border-radius: var(--tdb-radius-sm);
   background:   #f8fafc;
   border:       1px solid var(--tdb-border);
@@ -1708,4 +1707,125 @@
   .cyclePanelRight {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+/* ─────────────────────────────────────────────────────────────────────────────
+   ASSIGN PREVIOUS COMBINATIONS BUTTON
+───────────────────────────────────────────────────────────────────────────── */
+
+.assignPrevBtn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           7px;
+  padding:       8px 16px;
+  border-radius: 8px;
+  font-size:     13px;
+  font-weight:   700;
+  cursor:        pointer;
+  transition:    all 0.2s;
+  border:        1.5px solid #bfdbfe;
+  background:    #eff6ff;
+  color:         #1d4ed8;
+  white-space:   nowrap;
+}
+
+.assignPrevBtn:hover {
+  background:   #dbeafe;
+  border-color: #93c5fd;
+}
+
+.assignPrevBtnDone {
+  border:     1.5px solid #bbf7d0;
+  background: #f0fdf4;
+  color:      #16a34a;
+  cursor:     not-allowed;
+  opacity:    0.75;
+}
+
+.assignPrevBtnDone:hover {
+  background:   #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.assignPrevBtnLoading {
+  opacity:    0.7;
+  cursor:     not-allowed;
+  background: #eff6ff;
+  border:     1.5px solid #bfdbfe;
+  color:      #1d4ed8;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PARTIALLY UNFROZEN CORNER BADGE
+───────────────────────────────────────────────────────────────────────────── */
+
+.partialUnfreezeCorner {
+  position:      absolute;
+  top:           -12px;
+  right:         12px;
+  display:       flex;
+  align-items:   center;
+  gap:           5px;
+  background:    #f0fdf4;
+  border:        1.5px solid #bbf7d0;
+  border-radius: 20px;
+  padding:       4px 10px 4px 7px;
+  font-size:     11px;
+  font-weight:   700;
+  color:         #166534;
+  box-shadow:    0 2px 8px rgba(22, 163, 74, 0.12);
+  z-index:       10;
+  pointer-events: none;
+}
+
+.partialUnfreezeCount {
+  border-radius: 10px;
+  padding:       1px 6px;
+  font-size:     10px;
+  font-weight:   800;
+}
+
+.partialUnfreezeCountBranch {
+  background: #dcfce7;
+  color:      #15803d;
+}
+
+.partialUnfreezeCountCountry {
+  background: #cffafe;
+  color:      #0e7490;
+}
+
+.partialUnfreezeCountVariant {
+  background: #eff6ff;
+  color:      #1d4ed8;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HEADER NAV BUTTONS (Variants / History)
+───────────────────────────────────────────────────────────────────────────── */
+
+.headerNavBtn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       8px 12px;
+  border-radius: var(--tdb-radius-sm);
+  background:    #f8fafc;
+  border:        1px solid var(--tdb-border);
+  color:         #475569;
+  font-size:     12px;
+  font-weight:   600;
+  cursor:        pointer;
+  transition:    all 0.15s;
+  white-space:   nowrap;
+}
+
+.headerNavBtn:hover {
+  background:   var(--tdb-blue-tint);
+  border-color: var(--tdb-blue-border);
+  color:        var(--tdb-blue);
+}
+.card > *:last-child {
+  border-bottom-left-radius:  var(--tdb-radius-xl);
+  border-bottom-right-radius: var(--tdb-radius-xl);
 }
