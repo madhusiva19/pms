@@ -102,11 +102,11 @@ def patch_total_score(user_id: str, year: int, period: str) -> float:
     supabase.table("performance_summaries").upsert(
         {
             "user_id":     user_id,
-            "year":        year,
+            "pms_year":    year,
             "period":      period,
             "total_score": total,
         },
-        on_conflict="user_id,year,period",
+        on_conflict="user_id,pms_year,period",
     ).execute()
 
     # Mark the evaluation record as completed with the overall score
