@@ -62,7 +62,7 @@ export default function DeptAdminReportsPage() {
       <div className="max-w-[1225px] mx-auto w-full flex flex-col gap-8">
 
         {/* Breadcrumb */}
-        <Breadcrumb items={[{ label: 'Home', href: '/dept-admin/dashboard' }, { label: 'Reports' }]} />
+        <Breadcrumb />
 
         {/* Title */}
         <div>

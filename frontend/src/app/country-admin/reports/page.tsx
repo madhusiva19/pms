@@ -66,7 +66,7 @@ export default function CountryAdminReportsPage() {
       <div className="max-w-[1225px] mx-auto w-full flex flex-col gap-8">
 
         {/* Breadcrumb */}
-        <Breadcrumb items={[{ label: 'Home', href: '/country-admin' }, { label: 'Reports' }]} />
+        <Breadcrumb />
 
         {/* Title & Stats Overview */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">

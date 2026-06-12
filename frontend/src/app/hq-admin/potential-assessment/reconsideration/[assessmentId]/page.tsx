@@ -172,7 +172,7 @@ export default function HQAdminReconsiderationReviewPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
-      <Breadcrumb items={[{ label: 'Potential Assessment', href: BACK_PATH }, { label: 'Reconsideration Review' }]} />
+      <Breadcrumb />
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Reconsideration Review</h1>

@@ -35,11 +35,7 @@ export default function BranchAdminTeamReviewPage() {
 
   return (
     <div className="flex flex-col gap-10 max-w-[1225px] mx-auto w-full">
-      <Breadcrumb items={[
-        { label: 'Home', href: '/branch-admin/dashboard' },
-        { label: 'Potential Assessment' },
-        { label: 'Team Review' },
-      ]} />
+      <Breadcrumb />
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Team Review</h1>
