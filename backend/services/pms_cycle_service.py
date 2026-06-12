@@ -26,7 +26,12 @@ from models.constants import (
     OBJECTIVE_SETTING_MONTHS,
     PMS_START_DAY,
     PMS_START_MONTH,
+    MID_YEAR_REVIEW_MONTH,
+    MID_YEAR_REVIEW_DAY,
+    YEAR_END_REVIEW_MONTH,
+    YEAR_END_REVIEW_DAY,
 )
+
 from models.supabase_client import supabase
 from services.freeze_service import (
     compute_freeze_dates_from_cycle,
@@ -221,16 +226,20 @@ def _refresh_notifications_for_updated_cycle(cycle_id: int) -> None:
 
 
 def create_pms_cycle(data: dict, seed_fn) -> dict:
-    """HQ Admin explicitly creates a new cycle."""
-    year = data.get("pms_year")
-    if not year:
-        raise ValueError("pms_year is required")
-
-    year          = int(year)
-    pms_start     = date(year, PMS_START_MONTH, PMS_START_DAY)
+    year      = int(data.get("pms_year"))
+    pms_start = date(year - 1, PMS_START_MONTH, PMS_START_DAY)  # July 1 prior year
     obj_start     = pms_start
     objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
     grace_end     = objective_end + timedelta(days=GRACE_PERIOD_DAYS)
+
+    # ── NEW: fallback to constants if not provided ─────────────────────────
+    mid_year_review = data.get("mid_year_review") or date(
+        pms_start.year, MID_YEAR_REVIEW_MONTH, MID_YEAR_REVIEW_DAY
+    ).isoformat()
+
+    year_end_review = data.get("year_end_review") or date(
+        year, YEAR_END_REVIEW_MONTH, YEAR_END_REVIEW_DAY
+    ).isoformat()
 
     _deactivate_current_cycle()
 
@@ -240,11 +249,12 @@ def create_pms_cycle(data: dict, seed_fn) -> dict:
         "objective_setting_start": obj_start.isoformat(),
         "objective_setting_end":   objective_end.isoformat(),
         "grace_period_end":        grace_end.isoformat(),
-        "mid_year_review":         data.get("mid_year_review"),
-        "year_end_review":         data.get("year_end_review"),
+        "mid_year_review":         mid_year_review,   
+        "year_end_review":         year_end_review,   
         "is_active":               STATUS_ACTIVE,
         "created_at":              datetime.now().isoformat(),
     }).execute()
+    ...
 
     if result.data:
         new_cycle = result.data[0]
@@ -283,10 +293,21 @@ def open_next_pms_cycle(data: dict, seed_fn) -> dict:
     if current:
         _deactivate_cycle_by_id(current["id"])
 
-    pms_start     = date(next_year, PMS_START_MONTH, PMS_START_DAY)
+    pms_start     = date(next_year - 1, PMS_START_MONTH, PMS_START_DAY)  # e.g. 2026-07-01
     obj_start     = pms_start
     objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
     grace_end     = objective_end + timedelta(days=GRACE_PERIOD_DAYS)
+
+    # pms_start.year = next_year-1  (e.g. 2026)
+    # mid_year_review → Dec 31 of pms_start year → 2026-12-31
+    # year_end_review → Jun 30 of next_year       → 2027-06-30
+    mid_year_review = data.get("mid_year_review") or date(
+        pms_start.year, MID_YEAR_REVIEW_MONTH, MID_YEAR_REVIEW_DAY
+    ).isoformat()
+
+    year_end_review = data.get("year_end_review") or date(
+        next_year, YEAR_END_REVIEW_MONTH, YEAR_END_REVIEW_DAY
+    ).isoformat()
 
     result = supabase.table("pms_cycles").insert({
         "pms_year":                next_year,
@@ -294,8 +315,8 @@ def open_next_pms_cycle(data: dict, seed_fn) -> dict:
         "objective_setting_start": obj_start.isoformat(),
         "objective_setting_end":   objective_end.isoformat(),
         "grace_period_end":        grace_end.isoformat(),
-        "mid_year_review":         data.get("mid_year_review"),
-        "year_end_review":         data.get("year_end_review"),
+        "mid_year_review":         mid_year_review,
+        "year_end_review":         year_end_review,
         "is_active":               STATUS_ACTIVE,
         "created_at":              datetime.now().isoformat(),
     }).execute()

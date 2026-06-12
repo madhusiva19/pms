@@ -14,14 +14,17 @@ POLICY:
     Backup:   APScheduler     → auto_rollover_if_needed()  daily at 00:05
 """
 
-from datetime import timedelta
-from datetime import datetime
+from datetime import date, timedelta, datetime
 from dateutil.relativedelta import relativedelta
 
 from models.supabase_client import supabase
 from models.constants import (
     OBJECTIVE_SETTING_MONTHS,
     GRACE_PERIOD_DAYS,
+    MID_YEAR_REVIEW_MONTH,
+    MID_YEAR_REVIEW_DAY,
+    YEAR_END_REVIEW_MONTH,
+    YEAR_END_REVIEW_DAY,
 )
 
 
@@ -66,7 +69,6 @@ def fix_duplicate_active_cycles() -> None:
     except Exception as error:
         print(f"❌ fix_duplicate_active_cycles failed: {error}")
 
-
 def sync_cycle_dates_from_constants(seed_fn=None) -> None:
     """
     Backfill ONLY missing date fields on the existing active cycle.
@@ -106,7 +108,12 @@ def sync_cycle_dates_from_constants(seed_fn=None) -> None:
         cycle = result.data[0]
 
         # ── All date fields already populated ────────────────────────────────
-        if cycle.get("objective_setting_end") and cycle.get("grace_period_end"):
+        if (
+            cycle.get("objective_setting_end")
+            and cycle.get("grace_period_end")
+            and cycle.get("mid_year_review")
+            and cycle.get("year_end_review")
+        ):
             print(
                 f"✅ sync: cycle {cycle['pms_year']} already has all dates — "
                 "no changes needed."
@@ -128,6 +135,19 @@ def sync_cycle_dates_from_constants(seed_fn=None) -> None:
 
         if not cycle.get("grace_period_end"):
             update_payload["grace_period_end"] = grace_end.isoformat()
+
+        # pms_start.year = pms_year - 1  (e.g. 2025)
+        # mid_year_review → Dec 31 of pms_start year → 2025-12-31
+        # year_end_review → Jun 30 of pms_year        → 2026-06-30
+        if not cycle.get("mid_year_review"):
+            update_payload["mid_year_review"] = date(
+                pms_start.year, MID_YEAR_REVIEW_MONTH, MID_YEAR_REVIEW_DAY
+            ).isoformat()
+
+        if not cycle.get("year_end_review"):
+            update_payload["year_end_review"] = date(
+                pms_start.year + 1, YEAR_END_REVIEW_MONTH, YEAR_END_REVIEW_DAY
+            ).isoformat()
 
         if update_payload:
             supabase.table("pms_cycles").update(
