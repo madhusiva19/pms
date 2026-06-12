@@ -189,35 +189,29 @@ export default function CreateReportModal({
           ? ['mid_year', 'year_end']
           : [mcPeriod];
 
-        const countryData = (await Promise.all(
+        const countryData = await Promise.all(
           selectedCountryIds.map(async (cId) => {
             const country = countries.find(c => c.id === cId);
             const entry: Record<string, any> = {
               country_id: cId,
               country_name: country?.name ?? cId,
             };
-            let hasData = false;
             try {
               const summary = await dashboardApi.getSummary(cId);
               for (const p of periods) {
                 const r = p === 'mid_year' ? summary.mid_year : summary.year_end;
-                if (r) {
-                  entry[p] = {
-                    avg_score: r.avg_score,
-                    top_performers: r.top_performers,
-                    total_evaluated: r.total_evaluated,
-                  };
-                  hasData = true;
-                }
+                entry[p] = r
+                  ? { avg_score: r.avg_score, top_performers: r.top_performers, total_evaluated: r.total_evaluated }
+                  : { avg_score: 0, top_performers: 0, total_evaluated: 0 };
               }
-            } catch { /* skip */ }
-            return hasData ? entry : null;
+            } catch {
+              for (const p of periods) {
+                entry[p] = { avg_score: 0, top_performers: 0, total_evaluated: 0 };
+              }
+            }
+            return entry;
           })
-        )).filter(Boolean);
-
-        if (countryData.length === 0) {
-          throw new Error('No performance data found for the selected countries.');
-        }
+        );
 
         trendMetrics.country_data = countryData;
         trendMetrics.comparison_period = mcPeriod;
