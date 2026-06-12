@@ -22,6 +22,8 @@ import {
   CheckCircle,
   XCircle,
   BarChart2,
+  Calendar,
+  Info,
 } from 'lucide-react';
 
 import MetricCard from '@/components/shared/MetricCard';
@@ -287,6 +289,8 @@ export default function CountryReportPage() {
     );
   }
 
+  const isYearEndEmpty = activeTab === 'year_end' && (!metrics || metrics.total_evaluated === 0);
+
   return (
     <main className="flex-1 p-2 bg-[#F9FAFB] min-h-screen overflow-y-auto">
       <div className="flex flex-col gap-8 max-w-[1225px]">
@@ -435,7 +439,15 @@ export default function CountryReportPage() {
         <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
 
           {/* ── Bell Curve Chart ── */}
-          {bellCurveData.length > 0 && (
+          {isYearEndEmpty ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-14 rounded-xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB]">
+              <Calendar className="w-10 h-10 text-[#CBD5E1]" />
+              <div className="text-center">
+                <p className="text-[15px] font-semibold text-[#64748B]">Year-End Data Not Yet Available</p>
+                <p className="text-[13px] text-[#94A3B8] mt-1">Year-End appraisal results will be available once the H2 cycle is completed.</p>
+              </div>
+            </div>
+          ) : bellCurveData.length > 0 ? (
             <BellCurveChart
               data={bellCurveData}
               title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear! - 1}/${String(reportYear!).slice(-2)}`}
@@ -445,7 +457,7 @@ export default function CountryReportPage() {
                   : 'Final performance rating distribution with normalization'
               }
             />
-          )}
+          ) : null}
 
           {/* ── AI Insight strip ── */}
           {insights.length > 0 && (
@@ -467,11 +479,19 @@ export default function CountryReportPage() {
 
           {/* Comparison chart — always shown when data available */}
           {activeTab === 'year_end' && comparisonData.length > 0 && (
-            <ComparisonChart
-              data={comparisonData as any}
-              title="Mid-Year vs Year-End Comparison"
-              subtitle="Performance progression across categories"
-            />
+            <div>
+              {isYearEndEmpty && (
+                <div className="flex items-center gap-2 px-4 py-2.5 mb-4 bg-[#F0F9FF] border border-[#BAE6FD] rounded-lg text-[12.5px] text-[#0369A1]">
+                  <Info className="w-4 h-4 shrink-0" />
+                  <span>Showing Mid-Year data only. Year-End appraisals for this cycle are not yet completed.</span>
+                </div>
+              )}
+              <ComparisonChart
+                data={comparisonData as any}
+                title="Mid-Year vs Year-End Comparison"
+                subtitle="Performance progression across categories"
+              />
+            </div>
           )}
           
 
