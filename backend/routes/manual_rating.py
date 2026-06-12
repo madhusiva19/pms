@@ -30,7 +30,7 @@ def get_manual_objectives(user_id: str):
     """
     try:
         active_year, active_period = get_active_period_params()
-        year   = request.args.get("year",   active_year, type=int)
+        year   = request.args.get("pms_year",   active_year, type=int)
         period = request.args.get("period", active_period)
 
         # Resolve which template this user is assigned to
@@ -140,7 +140,7 @@ def get_supervisor_feedback(user_id: str, year: int, period: str):
                 "users!evaluations_evaluator_id_fkey(full_name, designation_id, designations!fk_designation(name))"
             )
             .eq("user_id", user_id)
-            .eq("year", year)
+            .eq("pms_year", year)
             .eq("period", period)
             .limit(1)
             .execute()
@@ -192,7 +192,7 @@ def get_recommendations(user_id: str, year: int, period: str):
             supabase.table("performance_ai_recommendations")
             .select("insight_text, insight_type, sort_order")
             .eq("user_id", user_id)
-            .eq("year", year)
+            .eq("pms_year", year)
             .eq("period", period)
             .order("sort_order")
             .execute()
