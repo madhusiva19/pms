@@ -206,7 +206,9 @@ function drawMultiLineChart(
     pdf.text(label, lx, plotY + plotH + PAD_BOTTOM - 2, { align: 'center' });
   });
 
-  // Draw each series
+  // Draw each series — collect marker positions, defer labels to after all series
+  const allMarkers: Array<{ px: number; py: number; v: number; xIdx: number }> = [];
+
   series.forEach(({ color, data }) => {
     if (data.length === 0) return;
 
@@ -218,26 +220,39 @@ function drawMultiLineChart(
       pdf.line(toPlotX(i), toPlotY(data[i]), toPlotX(i + 1), toPlotY(data[i + 1]));
     }
 
-    // Dots + value labels
+    // Circle markers only (labels drawn below, after all series)
     data.forEach((v, i) => {
       const px = toPlotX(i);
       const py = toPlotY(v);
+      allMarkers.push({ px, py, v, xIdx: i });
 
-      // White halo square so marker stands out on grid lines
+      // White halo so circle stands out on grid lines
       pdf.setFillColor(...C.white);
-      pdf.rect(px - 2.5, py - 2.5, 5, 5, 'F');
+      pdf.circle(px, py, 2, 'F');
 
-      // Coloured square marker
+      // Coloured circle
       pdf.setFillColor(...color);
-      pdf.rect(px - 1.5, py - 1.5, 3, 3, 'F');
+      pdf.circle(px, py, 1.4, 'F');
+    });
+  });
 
-      // Value label above the dot (with enough clearance)
+  // Value labels — drawn after all series so we can handle same-x collisions
+  for (let xi = 0; xi < xLabels.length; xi++) {
+    const pts = allMarkers.filter(m => m.xIdx === xi);
+    if (pts.length === 0) continue;
+
+    // Sort by y position: lowest py (= highest on chart) first
+    pts.sort((a, b) => a.py - b.py);
+
+    pts.forEach(({ px, py, v }, idx) => {
+      // First / topmost point: label above; any close second point: label below
+      const labelY = idx === 0 ? py - 3.5 : py + 6.5;
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(6.5);
       pdf.setTextColor(...C.text);
-      pdf.text(v.toFixed(2), px, py - 3, { align: 'center' });
+      pdf.text(v.toFixed(2), px, labelY, { align: 'center' });
     });
-  });
+  }
 
   // Legend (below chart, left-aligned)
   const legendY = y + h + 4;
