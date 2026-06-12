@@ -101,12 +101,12 @@ def get_latest_completed_year() -> int:
     """
     try:
         # Get distinct years that have H1 data
-        h1_res = supabase.table("performance_summaries")            .select("year")            .eq("period", "H1")            .execute()
-        h1_years = {r["year"] for r in (h1_res.data or [])}
+        h1_res = supabase.table("performance_summaries")            .select("pms_year")            .eq("period", "H1")            .execute()
+        h1_years = {r["pms_year"] for r in (h1_res.data or [])}
 
         # Get distinct years that have H2 data
-        h2_res = supabase.table("performance_summaries")            .select("year")            .eq("period", "H2")            .execute()
-        h2_years = {r["year"] for r in (h2_res.data or [])}
+        h2_res = supabase.table("performance_summaries")            .select("pms_year")            .eq("period", "H2")            .execute()
+        h2_years = {r["pms_year"] for r in (h2_res.data or [])}
 
         # Years where BOTH H1 and H2 exist = fully completed fiscal years
         complete_years = h1_years & h2_years
@@ -198,9 +198,9 @@ def get_workforce_report():
 
         # Fetch scores only for this page's users
         h1_rows = fetch_in("performance_summaries", "user_id, total_score",
-                           "user_id", page_ids, {"year": pms_year, "period": "H1"})
+                           "user_id", page_ids, {"pms_year": pms_year, "period": "H1"})
         h2_rows = fetch_in("performance_summaries", "user_id, total_score",
-                           "user_id", page_ids, {"year": pms_year - 1, "period": "H2"})
+                           "user_id", page_ids, {"pms_year": pms_year, "period": "H2"})
         h1_score = {r["user_id"]: round(float(r["total_score"] or 0), 2) for r in h1_rows}
         h2_score = {r["user_id"]: round(float(r["total_score"] or 0), 2) for r in h2_rows}
 
@@ -271,9 +271,9 @@ def get_workforce_report_all():
         s_names = name_map("sub_departments", {u["sub_department_id"] for u in all_users if u.get("sub_department_id")})
 
         h1_rows = fetch_in("performance_summaries", "user_id, total_score",
-                           "user_id", user_ids, {"year": pms_year, "period": "H1"})
+                           "user_id", user_ids, {"pms_year": pms_year, "period": "H1"})
         h2_rows = fetch_in("performance_summaries", "user_id, total_score",
-                           "user_id", user_ids, {"year": pms_year - 1, "period": "H2"})
+                           "user_id", user_ids, {"pms_year": pms_year, "period": "H2"})
         h1_score = {r["user_id"]: round(float(r["total_score"] or 0), 2) for r in h1_rows}
         h2_score = {r["user_id"]: round(float(r["total_score"] or 0), 2) for r in h2_rows}
 
