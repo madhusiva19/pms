@@ -46,12 +46,12 @@ def get_periods(user_id: str):
         periods: list[dict] = []
 
         for r in result.data:
-            key = (r["year"], r["period"])
+            key = (r["pms_year"], r["period"])
             if key not in seen:
                 seen.add(key)
-                periods.append({"year": r["year"], "period": r["period"]})
+                periods.append({"pms_year": r["pms_year"], "period": r["period"]})
 
-        periods.sort(key=lambda x: (x["year"], x["period"]))
+        periods.sort(key=lambda x: (x["pms_year"], x["period"]))
         return jsonify(periods)
 
     except Exception as exc:
@@ -206,7 +206,7 @@ def get_performance(user_id: str, year: int, period: str):
         return jsonify({
             "employee":    emp_data,
             "period":      period,
-            "year":        year,
+            "pms_year":        year,
             "final_score": final_score,
             "max_score":   max_score,
             "categories":  category_list,
@@ -226,7 +226,7 @@ def get_performance_summary(user_id: str):
     """Return aggregated period scores for a given year (defaults to active year)."""
     try:
         active_year, _ = get_active_period_params()
-        year = int(request.args.get("year", active_year))
+        year = int(request.args.get("pms_year", active_year))
 
         records = (
             supabase.table("performance_records")
@@ -242,7 +242,7 @@ def get_performance_summary(user_id: str):
             periods_map.setdefault(p, 0.0)
             periods_map[p] = round(periods_map[p] + float(r.get("score") or 0), 4)
 
-        return jsonify({"year": year, "scores": periods_map})
+        return jsonify({"pms_year": year, "scores": periods_map})
 
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -261,7 +261,7 @@ def sync_actuals():
     try:
         body       = request.get_json()
         user_id    = body.get("user_id")
-        year       = body.get("year")
+        year       = body.get("pms_year")
         period     = body.get("period")
         records_in = body.get("records", [])
 
@@ -299,7 +299,7 @@ def sync_actuals():
                     "user_id":       user_id,
                     "objective_id":  obj_id,
                     "period":        period,
-                    "year":          year,
+                    "year":              year,
                     "target":        target,
                     "actual":        actual,
                     "manual_rating": None,
