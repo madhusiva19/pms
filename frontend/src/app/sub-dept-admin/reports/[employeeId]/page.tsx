@@ -226,7 +226,7 @@ export default function SubDeptAdminReportDetailPage() {
                 Performance Reports
               </h1>
               <p className="text-[15px] text-[#4A5565]">
-                {empName} — Mid-Year & Year-End {reportYear! - 1}/{String(reportYear!).slice(-2)} Analytics
+                {empName} — Mid-Year & Year-End {reportYear!} Analytics
               </p>
             </div>
 
@@ -316,7 +316,7 @@ export default function SubDeptAdminReportDetailPage() {
               data={teamScores}
               currentEmployeeId={employeeId}
               title="Team Performance Scores"
-              subtitle={`Mid-Year & Year-End ${reportYear! - 1}/${String(reportYear!).slice(-2)} — selected employee highlighted`}
+              subtitle={`Mid-Year & Year-End ${reportYear!} — selected employee highlighted`}
             />
           )}
 
