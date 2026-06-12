@@ -170,11 +170,7 @@ export default function HQAdminAssessmentComponentsPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
-      <Breadcrumb items={[
-        { label: 'Home', href: '/hq-admin/dashboard' },
-        { label: 'Potential Assessment', href: '/hq-admin/potential-assessment' },
-        { label: 'Assessment Components' },
-      ]} />
+      <Breadcrumb />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">

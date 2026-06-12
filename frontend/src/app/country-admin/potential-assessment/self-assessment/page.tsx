@@ -58,11 +58,7 @@ export default function CountryAdminSelfAssessmentPage() {
 
   return (
     <div className="flex flex-col gap-10 max-w-[1225px] mx-auto w-full">
-      <Breadcrumb items={[
-        { label: 'Home', href: '/country-admin/dashboard' },
-        { label: 'Potential Assessment' },
-        { label: 'Self Assessment' },
-      ]} />
+      <Breadcrumb />
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Self Assessment</h1>
