@@ -39,7 +39,7 @@ def evaluator_submit():
         body         = request.get_json()
         user_id      = body.get("user_id")
         evaluator_id = body.get("evaluator_id")
-        year         = body.get("year")
+        year         = body.get("pms_year")
         period       = body.get("period")
         ratings      = body.get("ratings", [])
 
@@ -110,7 +110,7 @@ def evaluator_submit():
                     "user_id":        user_id,
                     "objective_id":   obj_id,
                     "period":         period,
-                    "year":           year,
+                    "year":              year,
                     "target":         None,
                     "actual":         None,
                     "manual_rating":  manual_rating,
@@ -151,7 +151,7 @@ def get_pending_evaluations():
     try:
         user_id = request.args.get("user_id")
         active_year, active_period = get_active_period_params()
-        year   = request.args.get("year",   active_year)
+        year   = request.args.get("pms_year",   active_year)
         period = request.args.get("period", active_period)
 
         if not user_id:
