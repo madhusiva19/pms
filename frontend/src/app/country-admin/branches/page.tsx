@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 /**
  * Country Admin Branches Listing Page
@@ -10,7 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { Building } from 'lucide-react';
 import BranchCard from '@/components/BranchCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/SearchInput';
 import EmptyState from '@/components/EmptyState';
 import { branchesApi } from '@/services/api';

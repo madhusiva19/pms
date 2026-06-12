@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import SelfAssessmentForm from '@/components/potential-assessment/SelfAssessmentForm';
 import CompletedSummary from '@/components/potential-assessment/CompletedSummary';

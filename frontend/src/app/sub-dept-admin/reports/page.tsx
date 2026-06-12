@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 /**
- * Sub Dept Admin — Reports Landing Page
+ * Sub Dept Admin â€” Reports Landing Page
  * Shows direct-report employees as cards for selection
  */
 
@@ -12,13 +12,13 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import EmployeeCard from '@/components/EmployeeCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/SearchInput';
 import EmptyState from '@/components/EmptyState';
 import { employeesApi } from '@/services/api';
 import type { Employee } from '@/types';
 
-// ── Page ──────────────────────────────────────────────────────
+// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function SubDeptAdminReportsPage() {
   const router = useRouter();
@@ -72,7 +72,7 @@ export default function SubDeptAdminReportsPage() {
         </div>
 
         {/* Search */}
-        <SearchInput value={search} onChange={setSearch} placeholder="Search employee…" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search employeeâ€¦" />
 
         {/* Error state */}
         {error && (

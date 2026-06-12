@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 /**
- * Dept Admin — Reports Landing Page
+ * Dept Admin â€” Reports Landing Page
  * Shows teams/sub-departments as cards for selection
  */
 
@@ -12,13 +12,13 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import SubDepartmentCard from '@/components/SubDepartmentCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/SearchInput';
 import EmptyState from '@/components/EmptyState';
 import { subDepartmentsApi } from '@/services/api';
 import type { SubDepartment } from '@/types';
 
-// ── Page ──────────────────────────────────────────────────────
+// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function DeptAdminReportsPage() {
   const router = useRouter();
@@ -71,7 +71,7 @@ export default function DeptAdminReportsPage() {
         </div>
 
         {/* Search */}
-        <SearchInput value={search} onChange={setSearch} placeholder="Search sub department…" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search sub departmentâ€¦" />
 
         {/* Error state */}
         {error && (
