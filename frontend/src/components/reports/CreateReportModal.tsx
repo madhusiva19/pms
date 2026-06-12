@@ -162,30 +162,22 @@ export default function CreateReportModal({
           ? ['mid_year', 'year_end']
           : [ycPeriod];
 
-        const yearData = (await Promise.all(
+        const yearData = await Promise.all(
           years.map(async (year) => {
             const entry: Record<string, any> = { year };
-            let hasData = false;
             for (const p of periods) {
               try {
                 const m = await fetchMetrics(p, year, scope, scopeId);
-                if (m) {
-                  entry[p] = {
-                    avg_score: m.avg_score,
-                    top_performers: m.top_performers,
-                    total_evaluated: m.total_evaluated,
-                  };
-                  hasData = true;
-                }
-              } catch { /* skip */ }
+                entry[p] = m
+                  ? { avg_score: m.avg_score, top_performers: m.top_performers, total_evaluated: m.total_evaluated }
+                  : { avg_score: 0, top_performers: 0, total_evaluated: 0 };
+              } catch {
+                entry[p] = { avg_score: 0, top_performers: 0, total_evaluated: 0 };
+              }
             }
-            return hasData ? entry : null;
+            return entry;
           })
-        )).filter(Boolean);
-
-        if (yearData.length === 0) {
-          throw new Error('No performance data found for the selected years. Please ensure records exist in the database.');
-        }
+        );
 
         trendMetrics.year_data = yearData;
         trendMetrics.comparison_years = selectedPastYears;
