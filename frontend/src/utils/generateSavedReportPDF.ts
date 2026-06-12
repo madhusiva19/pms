@@ -80,6 +80,15 @@ function sectionHeader(pdf: jsPDF, text: string, y: number, pageW: number): numb
   return y + 10;
 }
 
+// Adds a new page and returns the top-of-page y when content would overflow the footer margin
+function ensureSpace(pdf: jsPDF, y: number, pageH: number, needed: number): number {
+  if (y + needed > pageH - 18) {
+    pdf.addPage();
+    return 15;
+  }
+  return y;
+}
+
 // Converts "hq.admin@company.com" → "Hq Admin" (local part, title-cased)
 function formatDisplayName(email: string | undefined): string {
   if (!email) return 'N/A';
@@ -262,14 +271,13 @@ function drawMultiLineChart(
 
 // ─── Year-over-year section ───────────────────────────────────────────────────
 function drawYearComparisonSection(
-  pdf: jsPDF, y: number, pageW: number,
+  pdf: jsPDF, y: number, pageW: number, pageH: number,
   yearData: Array<Record<string, any>>,
   period: string,
 ): number {
   const sorted = [...yearData].sort((a, b) => a.year - b.year);
   const xLabels = sorted.map(d => String(d.year));
 
-  // Build series from nested or flat structure
   const hasMid  = period === 'mid_year' || period === 'both';
   const hasEnd  = period === 'year_end'  || period === 'both';
   const series: Array<{ label: string; color: [number, number, number]; data: number[] }> = [];
@@ -291,37 +299,39 @@ function drawYearComparisonSection(
 
   if (series.length === 0) return y;
 
+  // Chart block needs ~90mm; start a new page if it won't fit
+  y = ensureSpace(pdf, y, pageH, 90);
   y = sectionHeader(pdf, 'Year-Over-Year Performance Trend', y, pageW);
   y += 6;
 
   const chartH = 52;
-  const yMin = 0;
-  const yMax = 5;
-
-  drawMultiLineChart(pdf, 14, y, pageW - 28, chartH, series, xLabels, yMin, yMax);
-  y += chartH + 14; // extra for legend row
+  drawMultiLineChart(pdf, 14, y, pageW - 28, chartH, series, xLabels, 0, 5);
+  y += chartH + 14;
 
   y = drawScaleLegend(pdf, 14, y, pageW - 28);
   y += 6;
 
   // Summary table
+  y = ensureSpace(pdf, y, pageH, 30);
   y = sectionHeader(pdf, 'Year-by-Year Breakdown', y, pageW);
   y += 4;
 
   const periods = [...(hasMid ? ['mid_year'] : []), ...(hasEnd ? ['year_end'] : [])];
-
-  // Header row
   const colX = { year: 22, period: 60, avg: 100, top: 135, total: pageW - 18 };
-  drawRect(pdf, 14, y, pageW - 28, 8, C.navy, 3);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(...C.white);
-  pdf.text('Year',            colX.year,  y + 5.5);
-  pdf.text('Period',          colX.period, y + 5.5);
-  pdf.text('Avg Score',       colX.avg,   y + 5.5, { align: 'center' });
-  pdf.text('Top Performers',  colX.top,   y + 5.5, { align: 'center' });
-  pdf.text('Total Evaluated', colX.total, y + 5.5, { align: 'right' });
-  y += 10;
+
+  const drawYearTableHeader = () => {
+    drawRect(pdf, 14, y, pageW - 28, 8, C.navy, 3);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(...C.white);
+    pdf.text('Year',            colX.year,   y + 5.5);
+    pdf.text('Period',          colX.period, y + 5.5);
+    pdf.text('Avg Score',       colX.avg,    y + 5.5, { align: 'center' });
+    pdf.text('Top Performers',  colX.top,    y + 5.5, { align: 'center' });
+    pdf.text('Total Evaluated', colX.total,  y + 5.5, { align: 'right' });
+    y += 10;
+  };
+  drawYearTableHeader();
 
   let rowIdx = 0;
   sorted.forEach(entry => {
@@ -331,6 +341,15 @@ function drawYearComparisonSection(
       if (!d) return;
 
       const rowH = 11;
+
+      // Page break before this row if needed; re-draw column headers on new page
+      if (y + rowH + 2 > pageH - 18) {
+        pdf.addPage();
+        y = 15;
+        drawYearTableHeader();
+        rowIdx = 0;
+      }
+
       drawRect(pdf, 14, y, pageW - 28, rowH, rowIdx++ % 2 === 0 ? C.white : C.bg, 2);
 
       pdf.setFont('helvetica', 'bold');
@@ -365,7 +384,7 @@ function drawYearComparisonSection(
 
 // ─── Multi-country section ────────────────────────────────────────────────────
 function drawMultiCountrySection(
-  pdf: jsPDF, y: number, pageW: number,
+  pdf: jsPDF, y: number, pageW: number, pageH: number,
   countryData: Array<Record<string, any>>,
   period: string,
   reportYear: number,
@@ -374,7 +393,7 @@ function drawMultiCountrySection(
   const hasEnd = period === 'year_end'  || period === 'both';
   const periods = [...(hasMid ? ['mid_year'] : []), ...(hasEnd ? ['year_end'] : [])];
 
-  // Always draw a trend line chart — one line per selected period, x = countries
+  // Always draw a trend line chart; start a new page if the chart block won't fit
   {
     const xLabels = countryData.map(d => d.country_name as string);
     const series: Array<{ label: string; color: [number, number, number]; data: number[] }> = [];
@@ -389,6 +408,7 @@ function drawMultiCountrySection(
     }
 
     if (series.length > 0) {
+      y = ensureSpace(pdf, y, pageH, 90);
       y = sectionHeader(pdf, `Country Trend Analysis — ${reportYear}`, y, pageW);
       y += 6;
       drawMultiLineChart(pdf, 14, y, pageW - 28, 52, series, xLabels, 0, 5);
@@ -411,33 +431,43 @@ function drawMultiCountrySection(
     if (rows.length === 0) return;
 
     const label = p === 'mid_year' ? 'Mid-Year Breakdown' : 'Year-End Breakdown';
-
-    y = sectionHeader(pdf, label, y, pageW);
-    y += 4;
-
     const maxScore = Math.max(...rows.map(r => r.avg_score), 5);
     const rowH = 13;
 
-    // Column headers
-    drawRect(pdf, 14, y, pageW - 28, 8, C.navy, 3);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(7.5);
-    pdf.setTextColor(...C.white);
-    pdf.text('Country',         20,          y + 5.5);
-    pdf.text('Avg Score',       pageW - 92,  y + 5.5, { align: 'center' });
-    pdf.text('Top Performers',  pageW - 56,  y + 5.5, { align: 'center' });
-    pdf.text('Evaluated',       pageW - 18,  y + 5.5, { align: 'right' });
-    y += 10;
+    const drawCountryTableHeader = () => {
+      drawRect(pdf, 14, y, pageW - 28, 8, C.navy, 3);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(...C.white);
+      pdf.text('Country',        20,         y + 5.5);
+      pdf.text('Avg Score',      pageW - 92, y + 5.5, { align: 'center' });
+      pdf.text('Top Performers', pageW - 56, y + 5.5, { align: 'center' });
+      pdf.text('Evaluated',      pageW - 18, y + 5.5, { align: 'right' });
+      y += 10;
+    };
 
-    rows.forEach((row, i) => {
-      drawRect(pdf, 14, y, pageW - 28, rowH, i % 2 === 0 ? C.white : C.bg, 2);
+    y = ensureSpace(pdf, y, pageH, 30);
+    y = sectionHeader(pdf, label, y, pageW);
+    y += 4;
+    drawCountryTableHeader();
+
+    let rowIdx = 0;
+    rows.forEach(row => {
+      // Page break before this row if needed; re-draw column headers on new page
+      if (y + rowH + 2 > pageH - 18) {
+        pdf.addPage();
+        y = 15;
+        drawCountryTableHeader();
+        rowIdx = 0;
+      }
+
+      drawRect(pdf, 14, y, pageW - 28, rowH, rowIdx++ % 2 === 0 ? C.white : C.bg, 2);
 
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(8.5);
       pdf.setTextColor(...C.text);
       pdf.text(row.name, 20, y + rowH / 2 + 1.5);
 
-      // Score bar
       const barMaxW = 44;
       const barW    = (row.avg_score / maxScore) * barMaxW;
       const barX    = pageW - 120;
@@ -456,7 +486,7 @@ function drawMultiCountrySection(
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(8);
       pdf.setTextColor(...C.muted);
-      pdf.text(String(row.top_performers), pageW - 56, y + rowH / 2 + 1.5, { align: 'center' });
+      pdf.text(String(row.top_performers),  pageW - 56, y + rowH / 2 + 1.5, { align: 'center' });
       pdf.text(String(row.total_evaluated), pageW - 18, y + rowH / 2 + 1.5, { align: 'right' });
       y += rowH + 1.5;
     });
@@ -590,15 +620,16 @@ export async function generateSavedReportPDF(
 
   // ── Year comparison ─────────────────────────────────────────────────────────
   if (isYearComp && Array.isArray(tm.year_data) && tm.year_data.length > 0) {
-    y = drawYearComparisonSection(pdf, y, pageW, tm.year_data, period);
+    y = drawYearComparisonSection(pdf, y, pageW, pageH, tm.year_data, period);
   }
 
   // ── Multi-country ───────────────────────────────────────────────────────────
   if (isMultiCountry && Array.isArray(tm.country_data) && tm.country_data.length > 0) {
-    y = drawMultiCountrySection(pdf, y, pageW, tm.country_data, period, report.report_year);
+    y = drawMultiCountrySection(pdf, y, pageW, pageH, tm.country_data, period, report.report_year);
   }
 
   // ── Scoring methodology note ────────────────────────────────────────────────
+  y = ensureSpace(pdf, y, pageH, 30);
   y = sectionHeader(pdf, 'Scoring Methodology', y, pageW);
   const methodNote =
     'Scores are derived from H1 (Mid-Year) and H2 (Year-End) appraisal cycle completions. ' +
