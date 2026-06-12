@@ -236,40 +236,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   // ── Banner ────────────────────────────────────────────────────────────────
-  const renderBanner = () => {
-    if (!cycle) return null;
-    const objEnd   = cycle.objective_setting_end;
-    const graceEnd = cycle.grace_period_end;
-
-    if (freezeStatus === "frozen") return (
-      <div className={`${styles.banner} ${styles.bannerFrozen}`}>
-        <span className={styles.bannerIcon}>🔒</span>
-        <span>
-          PMS templates are fully frozen · Grace period ended{" "}
-          <strong>{formatDate(graceEnd)}</strong>
-        </span>
-      </div>
-    );
-    if (freezeStatus === "grace") return (
-      <div className={`${styles.banner} ${styles.bannerGrace}`}>
-        <span className={styles.bannerIcon}>⚠️</span>
-        <span>
-          Grace period active · ends <strong>{formatDate(graceEnd)}</strong>{" "}
-          ({daysRemaining(graceEnd)} days remaining)
-        </span>
-      </div>
-    );
-    return (
-      <div className={`${styles.banner} ${styles.bannerOpen}`}>
-        <span className={styles.bannerIcon}>🕐</span>
-        <span>
-          Objective-setting window open · closes{" "}
-          <strong>{formatDate(objEnd)}</strong>{" "}
-          ({daysRemaining(objEnd)} days remaining)
-        </span>
-      </div>
-    );
-  };
+  const renderBanner = () => null;
 
   // ─────────────────────────────────────────────────────────────────────────
   return (

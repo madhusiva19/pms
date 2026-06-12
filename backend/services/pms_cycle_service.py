@@ -12,11 +12,10 @@ When HQ Admin updates any of these date fields on the ACTIVE cycle:
 ...all existing objective_cutoff notifications for that cycle are deleted
 and re-seeded with the new dates. Previous cycle notifications are untouched.
 
-This is handled by calling refresh_notifications_for_cycle() inside
-update_pms_cycle() whenever a notification-relevant date changes.
-
 ROLLOVER POLICY:
   Trigger date: year_end_review (not grace_period_end)
+  next_year    = pms_year + 1 (not extracted from pms_start date)
+  rollover_cycle imported locally to avoid circular imports
 """
 
 from datetime import date, datetime, timedelta
@@ -27,25 +26,33 @@ from models.constants import (
     OBJECTIVE_SETTING_MONTHS,
     PMS_START_DAY,
     PMS_START_MONTH,
+    MID_YEAR_REVIEW_MONTH,
+    MID_YEAR_REVIEW_DAY,
+    YEAR_END_REVIEW_MONTH,
+    YEAR_END_REVIEW_DAY,
 )
+
 from models.supabase_client import supabase
 from services.freeze_service import (
     compute_freeze_dates_from_cycle,
     get_active_pms_cycle,
     get_freeze_status,
 )
+
+# NOTE: rollover_cycle is NOT imported at module level
+# Imported locally inside each function to avoid circular import:
+#   pms_cycle_service → template_service → freeze_service → pms_cycle_service
+
 from typing import Optional, Dict, Callable, Any
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
 
-SOURCE_NONE     = "none"
-SOURCE_DATABASE = "database"
-STATUS_ACTIVE   = True
-STATUS_INACTIVE = False
-
-# Fields whose change should trigger a notification refresh
+SOURCE_NONE              = "none"
+SOURCE_DATABASE          = "database"
+STATUS_ACTIVE            = True
+STATUS_INACTIVE          = False
 NOTIFICATION_DATE_FIELDS = {"objective_setting_end", "grace_period_end"}
 
 
@@ -73,6 +80,19 @@ def _shift_date_by_one_year(iso_str: Optional[str]) -> Optional[str]:
         return date(d.year + 1, d.month, d.day).isoformat()
     except Exception:
         return None
+
+
+def _do_template_rollover(old_cycle_id: int, new_cycle_id: int, caller: str) -> None:
+    """
+    Local-import wrapper for rollover_cycle.
+    Avoids circular import — called after new cycle is inserted.
+    """
+    try:
+        from services.template_service import rollover_cycle
+        result = rollover_cycle(old_cycle_id, new_cycle_id)
+        print(f"✅  {caller}: rolled over {result['copied']} template(s).")
+    except Exception as e:
+        print(f"⚠️  {caller}: template rollover failed — {e}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -141,17 +161,17 @@ def get_debug_freeze_info() -> dict:
 
     dates = compute_freeze_dates_from_cycle(cycle)
     return {
-        "today":                    str(today),
-        "source":                   SOURCE_DATABASE,
-        "active_cycle_id":          cycle["id"],
-        "active_cycle_year":        cycle["pms_year"],
-        "pms_start":                str(cycle.get("pms_start")),
-        "objective_setting_start":  str(cycle.get("objective_setting_start")),
-        "objective_setting_end":    str(dates["objective_end"]),
-        "grace_period_end":         str(dates["grace_end"]),
-        "year_end_review":          str(cycle.get("year_end_review")),
-        "freeze_status":            get_freeze_status(),
-        "rollover_triggers_on":     str(cycle.get("year_end_review")) + " (year_end_review)",
+        "today":                   str(today),
+        "source":                  SOURCE_DATABASE,
+        "active_cycle_id":         cycle["id"],
+        "active_cycle_year":       cycle["pms_year"],
+        "pms_start":               str(cycle.get("pms_start")),
+        "objective_setting_start": str(cycle.get("objective_setting_start")),
+        "objective_setting_end":   str(dates["objective_end"]),
+        "grace_period_end":        str(dates["grace_end"]),
+        "year_end_review":         str(cycle.get("year_end_review")),
+        "freeze_status":           get_freeze_status(),
+        "rollover_triggers_on":    str(cycle.get("year_end_review")) + " (year_end_review)",
     }
 
 
@@ -160,16 +180,6 @@ def get_debug_freeze_info() -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def update_pms_cycle(cycle_id: int, data: dict, seed_fn=None) -> None:
-    """
-    Update cycle dates. 
-
-    If any notification-relevant date (objective_setting_end, grace_period_end)
-    changed on the ACTIVE cycle, purge all existing notifications for that cycle
-    and re-seed them with the new dates so users see fresh notifications
-    reflecting the updated schedule.
-
-    Previous cycle notifications are never affected.
-    """
     updatable_fields = [
         "objective_setting_start",
         "objective_setting_end",
@@ -182,31 +192,23 @@ def update_pms_cycle(cycle_id: int, data: dict, seed_fn=None) -> None:
     if payload:
         supabase.table("pms_cycles").update(payload).eq("id", cycle_id).execute()
 
-    # ── Refresh notifications if a date that affects the schedule changed ─────
     notification_dates_changed = bool(
         NOTIFICATION_DATE_FIELDS & set(payload.keys())
     )
     if notification_dates_changed:
         _refresh_notifications_for_updated_cycle(cycle_id)
 
-    # ── Immediately check if rollover is needed ───────────────────────────────
     if seed_fn:
         auto_rollover_if_needed(seed_fn)
 
 
 def _refresh_notifications_for_updated_cycle(cycle_id: int) -> None:
-    """
-    Internal: re-fetch the updated cycle row and call
-    refresh_notifications_for_cycle so the service always uses the latest
-    DB values (not stale in-memory data from before the update).
-    """
     try:
-        # Import here to avoid circular imports at module level
         from services.notification_service import refresh_notifications_for_cycle
 
         result = (
             supabase.table("pms_cycles")
-            .select("id, pms_year, is_active, objective_setting_end, grace_period_end")
+            .select("id, pms_year, is_active, pms_start, objective_setting_end, grace_period_end")
             .eq("id", cycle_id)
             .limit(1)
             .execute()
@@ -225,16 +227,20 @@ def _refresh_notifications_for_updated_cycle(cycle_id: int) -> None:
 
 
 def create_pms_cycle(data: dict, seed_fn) -> dict:
-    """HQ Admin explicitly creates a new cycle."""
-    year = data.get("pms_year")
-    if not year:
-        raise ValueError("pms_year is required")
-
-    year          = int(year)
-    pms_start     = date(year, PMS_START_MONTH, PMS_START_DAY)
+    year      = int(data.get("pms_year"))
+    pms_start = date(year - 1, PMS_START_MONTH, PMS_START_DAY)  # July 1 prior year
     obj_start     = pms_start
     objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
     grace_end     = objective_end + timedelta(days=GRACE_PERIOD_DAYS)
+
+    # ── NEW: fallback to constants if not provided ─────────────────────────
+    mid_year_review = data.get("mid_year_review") or date(
+        pms_start.year, MID_YEAR_REVIEW_MONTH, MID_YEAR_REVIEW_DAY
+    ).isoformat()
+
+    year_end_review = data.get("year_end_review") or date(
+        year, YEAR_END_REVIEW_MONTH, YEAR_END_REVIEW_DAY
+    ).isoformat()
 
     _deactivate_current_cycle()
 
@@ -244,14 +250,29 @@ def create_pms_cycle(data: dict, seed_fn) -> dict:
         "objective_setting_start": obj_start.isoformat(),
         "objective_setting_end":   objective_end.isoformat(),
         "grace_period_end":        grace_end.isoformat(),
-        "mid_year_review":         data.get("mid_year_review"),
-        "year_end_review":         data.get("year_end_review"),
+        "mid_year_review":         mid_year_review,   
+        "year_end_review":         year_end_review,   
         "is_active":               STATUS_ACTIVE,
         "created_at":              datetime.now().isoformat(),
     }).execute()
+    ...
 
     if result.data:
-        seed_fn(result.data[0])
+        new_cycle = result.data[0]
+        seed_fn(new_cycle)
+
+        all_cycles = (
+            supabase.table("pms_cycles")
+            .select("id")
+            .order("id", desc=True)
+            .execute()
+            .data or []
+        )
+        previous = next(
+            (c for c in all_cycles if c["id"] != new_cycle["id"]), None
+        )
+        if previous:
+            _do_template_rollover(previous["id"], new_cycle["id"], "create_pms_cycle")
 
     return result.data[0]
 
@@ -266,16 +287,28 @@ def close_active_pms_cycle() -> dict:
 
 def open_next_pms_cycle(data: dict, seed_fn) -> dict:
     """HQ Admin explicitly opens next year's cycle."""
-    current   = get_active_pms_cycle()
-    next_year = int(current["pms_year"]) + 1 if current else date.today().year
+    current      = get_active_pms_cycle()
+    next_year    = int(current["pms_year"]) + 1 if current else date.today().year
+    old_cycle_id = current["id"] if current else None
 
     if current:
         _deactivate_cycle_by_id(current["id"])
 
-    pms_start     = date(next_year, PMS_START_MONTH, PMS_START_DAY)
+    pms_start     = date(next_year - 1, PMS_START_MONTH, PMS_START_DAY)  # e.g. 2026-07-01
     obj_start     = pms_start
     objective_end = pms_start + relativedelta(months=OBJECTIVE_SETTING_MONTHS)
     grace_end     = objective_end + timedelta(days=GRACE_PERIOD_DAYS)
+
+    # pms_start.year = next_year-1  (e.g. 2026)
+    # mid_year_review → Dec 31 of pms_start year → 2026-12-31
+    # year_end_review → Jun 30 of next_year       → 2027-06-30
+    mid_year_review = data.get("mid_year_review") or date(
+        pms_start.year, MID_YEAR_REVIEW_MONTH, MID_YEAR_REVIEW_DAY
+    ).isoformat()
+
+    year_end_review = data.get("year_end_review") or date(
+        next_year, YEAR_END_REVIEW_MONTH, YEAR_END_REVIEW_DAY
+    ).isoformat()
 
     result = supabase.table("pms_cycles").insert({
         "pms_year":                next_year,
@@ -283,14 +316,18 @@ def open_next_pms_cycle(data: dict, seed_fn) -> dict:
         "objective_setting_start": obj_start.isoformat(),
         "objective_setting_end":   objective_end.isoformat(),
         "grace_period_end":        grace_end.isoformat(),
-        "mid_year_review":         data.get("mid_year_review"),
-        "year_end_review":         data.get("year_end_review"),
+        "mid_year_review":         mid_year_review,
+        "year_end_review":         year_end_review,
         "is_active":               STATUS_ACTIVE,
         "created_at":              datetime.now().isoformat(),
     }).execute()
 
     if result.data:
-        seed_fn(result.data[0])
+        new_cycle = result.data[0]
+        seed_fn(new_cycle)
+
+        if old_cycle_id:
+            _do_template_rollover(old_cycle_id, new_cycle["id"], "open_next_pms_cycle")
 
     return result.data[0]
 
@@ -303,6 +340,7 @@ def auto_rollover_if_needed(seed_fn: Optional[Callable[[Dict[str, Any]], None]])
     """
     Python backup rollover — mirrors the Supabase SQL function.
     Trigger: year_end_review date passing.
+    next_year = pms_year + 1 (not extracted from pms_start date)
     """
     try:
         cycle = get_active_pms_cycle()
@@ -341,7 +379,8 @@ def auto_rollover_if_needed(seed_fn: Optional[Callable[[Dict[str, Any]], None]])
             print("❌  auto_rollover: could not compute next dates — skipping.")
             return None
 
-        next_year = datetime.fromisoformat(next_pms_start).year
+        # ── pms_year + 1 not extracted from date ─────────────────────────────
+        next_year = int(cycle["pms_year"]) + 1
 
         existing = (
             supabase.table("pms_cycles")
@@ -377,12 +416,16 @@ def auto_rollover_if_needed(seed_fn: Optional[Callable[[Dict[str, Any]], None]])
             new_cycle = result.data[0]
             print(
                 f"✅  auto_rollover: created and activated cycle {next_year}.\n"
+                f"    pms_start             = {next_pms_start}\n"
                 f"    objective_setting_end = {next_obj_end}\n"
                 f"    grace_period_end      = {next_grace_end}\n"
                 f"    year_end_review       = {next_year_end}"
             )
             if seed_fn:
                 seed_fn(new_cycle)
+
+            _do_template_rollover(cycle["id"], new_cycle["id"], "auto_rollover")
+
             return new_cycle
 
     except Exception as error:
