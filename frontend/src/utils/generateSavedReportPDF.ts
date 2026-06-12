@@ -106,12 +106,13 @@ function drawScaleLegend(pdf: jsPDF, x: number, y: number, w: number): number {
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7);
   pdf.setTextColor(...C.muted);
-  pdf.text('Scale: 0 – 5', x + 4, y + 5.5);
+  pdf.text('Scale: 0-5', x + 4, y + 5.5);
 
+  // Use plain ASCII only — jsPDF's built-in Helvetica has no Unicode coverage
   const bands: Array<{ label: string; color: [number, number, number] }> = [
-    { label: '≥ 4.0  High Performer',      color: C.green },
-    { label: '3.0 – 3.9  Satisfactory',    color: C.blue  },
-    { label: '< 3.0  Needs Improvement',   color: C.red   },
+    { label: '>= 4.0  High Performer',    color: C.green },
+    { label: '3.0-3.9  Satisfactory',     color: C.blue  },
+    { label: '< 3.0  Needs Improvement',  color: C.red   },
   ];
   let bx = x + 32;
   bands.forEach(({ label, color }) => {
@@ -120,8 +121,9 @@ function drawScaleLegend(pdf: jsPDF, x: number, y: number, w: number): number {
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7);
     pdf.setTextColor(...C.text);
-    pdf.text(label, bx + 5, y + 5.5);
-    bx += pdf.getTextWidth(label) + 16;
+    // Start text 7 mm from dot centre so it doesn't overlap the circle
+    pdf.text(label, bx + 7, y + 5.5);
+    bx += pdf.getTextWidth(label) + 20;
   });
   return y + 13;
 }
@@ -202,10 +204,11 @@ function drawMultiLineChart(
       pdf.line(cx, refY, Math.min(cx + dashLen, plotX + plotW), refY);
       cx += dashLen + gapLen;
     }
+    // Label on the right side to avoid colliding with the Y-axis "3.0" tick
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(5.5);
     pdf.setTextColor(...C.amber);
-    pdf.text('3.0 min', plotX - 2, refY + 1, { align: 'right' });
+    pdf.text('Min 3.0', plotX + plotW - 2, refY - 1.5, { align: 'right' });
   }
 
   // X-axis labels
@@ -631,10 +634,11 @@ export async function generateSavedReportPDF(
   // ── Scoring methodology note ────────────────────────────────────────────────
   y = ensureSpace(pdf, y, pageH, 30);
   y = sectionHeader(pdf, 'Scoring Methodology', y, pageW);
+  // Plain ASCII only — no Unicode dashes, ≥, or – in jsPDF built-in fonts
   const methodNote =
     'Scores are derived from H1 (Mid-Year) and H2 (Year-End) appraisal cycle completions. ' +
-    'Rating scale: 0 – 5  |  ≥ 4.0 High Performer  |  3.0 – 3.9 Satisfactory  |  < 3.0 Needs Improvement. ' +
-    'Top Performers are employees rated ≥ 4.5.';
+    'Rating scale: 0-5  |  >= 4.0 High Performer  |  3.0-3.9 Satisfactory  |  < 3.0 Needs Improvement. ' +
+    'Top Performers are employees rated >= 4.5.';
   const methodLines = pdf.splitTextToSize(methodNote, pageW - 40);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(7.5);
