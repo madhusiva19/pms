@@ -80,6 +80,43 @@ function sectionHeader(pdf: jsPDF, text: string, y: number, pageW: number): numb
   return y + 10;
 }
 
+// Converts "hq.admin@company.com" → "Hq Admin" (local part, title-cased)
+function formatDisplayName(email: string | undefined): string {
+  if (!email) return 'N/A';
+  const local = email.split('@')[0];
+  return local
+    .split(/[._\-]/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+// Draws a compact rating-scale legend pill with coloured band indicators
+function drawScaleLegend(pdf: jsPDF, x: number, y: number, w: number): number {
+  drawRect(pdf, x, y, w, 9, C.bg, 3);
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(7);
+  pdf.setTextColor(...C.muted);
+  pdf.text('Scale: 0 – 5', x + 4, y + 5.5);
+
+  const bands: Array<{ label: string; color: [number, number, number] }> = [
+    { label: '≥ 4.0  High Performer',      color: C.green },
+    { label: '3.0 – 3.9  Satisfactory',    color: C.blue  },
+    { label: '< 3.0  Needs Improvement',   color: C.red   },
+  ];
+  let bx = x + 32;
+  bands.forEach(({ label, color }) => {
+    pdf.setFillColor(...color);
+    pdf.circle(bx + 1.5, y + 4.5, 1.5, 'F');
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7);
+    pdf.setTextColor(...C.text);
+    pdf.text(label, bx + 5, y + 5.5);
+    bx += pdf.getTextWidth(label) + 16;
+  });
+  return y + 13;
+}
+
 // ─── Professional multi-series line chart ────────────────────────────────────
 /**
  * Draws a clean line chart with grid lines, labelled axes, dots, value labels,
@@ -123,8 +160,8 @@ function drawMultiLineChart(
 
   // Horizontal grid lines + y-axis labels
   for (let t = 0; t <= Y_TICKS; t++) {
-    const val    = yMin + (yRange * t) / Y_TICKS;
-    const lineY  = toPlotY(val);
+    const val   = yMin + (yRange * t) / Y_TICKS;
+    const lineY = toPlotY(val);
 
     pdf.setDrawColor(...C.light);
     pdf.setLineWidth(0.15);
@@ -134,6 +171,32 @@ function drawMultiLineChart(
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(...C.muted);
     pdf.text(val.toFixed(1), plotX - 2, lineY + 1, { align: 'right' });
+  }
+
+  // Vertical grid lines at each x data point (inner points only)
+  xLabels.forEach((_, i) => {
+    if (i === 0 || i === n - 1) return;
+    pdf.setDrawColor(...C.light);
+    pdf.setLineWidth(0.1);
+    pdf.line(toPlotX(i), plotY, toPlotX(i), plotY + plotH);
+  });
+
+  // Dashed threshold reference line at 3.0 (satisfactory minimum)
+  if (yMin <= 3.0 && 3.0 <= yMax) {
+    const refY    = toPlotY(3.0);
+    const dashLen = 2.5;
+    const gapLen  = 1.5;
+    pdf.setDrawColor(...C.amber);
+    pdf.setLineWidth(0.35);
+    let cx = plotX;
+    while (cx < plotX + plotW) {
+      pdf.line(cx, refY, Math.min(cx + dashLen, plotX + plotW), refY);
+      cx += dashLen + gapLen;
+    }
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(5.5);
+    pdf.setTextColor(...C.amber);
+    pdf.text('3.0 min', plotX - 2, refY + 1, { align: 'right' });
   }
 
   // X-axis labels
@@ -238,6 +301,9 @@ function drawYearComparisonSection(
   drawMultiLineChart(pdf, 14, y, pageW - 28, chartH, series, xLabels, yMin, yMax);
   y += chartH + 14; // extra for legend row
 
+  y = drawScaleLegend(pdf, 14, y, pageW - 28);
+  y += 6;
+
   // Summary table
   y = sectionHeader(pdf, 'Year-by-Year Breakdown', y, pageW);
   y += 4;
@@ -322,7 +388,9 @@ function drawMultiCountrySection(
       y = sectionHeader(pdf, `Country Comparison — ${reportYear}`, y, pageW);
       y += 6;
       drawMultiLineChart(pdf, 14, y, pageW - 28, 52, series, xLabels, 0, 5);
-      y += 70;
+      y += 66;
+      y = drawScaleLegend(pdf, 14, y, pageW - 28);
+      y += 6;
     }
   }
 
@@ -490,7 +558,7 @@ export async function generateSavedReportPDF(
   const meta: [string, string][] = [
     ['Report Type',   isMultiCountry ? 'Multi-Country Comparison' : isYearComp ? 'Year-Over-Year Comparison' : 'Performance Report'],
     ['Period / Scope', modeLine],
-    ['Created By',    report.created_by_email ?? 'N/A'],
+    ['Prepared By',   formatDisplayName(report.created_by_email)],
   ];
   if (report.report_description) meta.unshift(['Description', report.report_description]);
 
@@ -527,6 +595,19 @@ export async function generateSavedReportPDF(
   if (isMultiCountry && Array.isArray(tm.country_data) && tm.country_data.length > 0) {
     y = drawMultiCountrySection(pdf, y, pageW, tm.country_data, period, report.report_year);
   }
+
+  // ── Scoring methodology note ────────────────────────────────────────────────
+  y = sectionHeader(pdf, 'Scoring Methodology', y, pageW);
+  const methodNote =
+    'Scores are derived from H1 (Mid-Year) and H2 (Year-End) appraisal cycle completions. ' +
+    'Rating scale: 0 – 5  |  ≥ 4.0 High Performer  |  3.0 – 3.9 Satisfactory  |  < 3.0 Needs Improvement. ' +
+    'Top Performers are employees rated ≥ 4.5.';
+  const methodLines = pdf.splitTextToSize(methodNote, pageW - 40);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(...C.muted);
+  pdf.text(methodLines, 14, y + 4);
+  y += methodLines.length * 4.5 + 10;
 
   // ── Footer on every page ────────────────────────────────────────────────────
   const totalPages = pdf.getNumberOfPages();
