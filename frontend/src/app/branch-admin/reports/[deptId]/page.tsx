@@ -10,7 +10,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import {
-  ChevronRight,
   ChevronLeft,
   Users,
   TrendingUp,
@@ -22,6 +21,7 @@ import {
   XCircle,
 } from 'lucide-react';
 
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import MetricCard from '@/components/shared/MetricCard';
 import BellCurveChart from '@/components/bell-curve/BellCurveChart';
 import ComparisonChart from '@/components/comparison/ComparisonChart';
@@ -272,13 +272,11 @@ export default function BranchAdminReportDetailPage() {
         <div className="flex flex-col gap-4">
 
           {/* Breadcrumb */}
-          <nav className="flex flex-wrap items-center gap-0 text-[13px] text-[#64748B]">
-            <a href="/branch-admin" className="hover:text-[#1E293B] transition-colors">Home</a>
-            <ChevronRight className="w-3.5 h-3.5 mx-1.5" />
-            <a href="/branch-admin/reports" className="hover:text-[#1E293B] transition-colors">Reports</a>
-            <ChevronRight className="w-3.5 h-3.5 mx-1.5" />
-            <span className="text-[#1E293B]">{deptName}</span>
-          </nav>
+          <Breadcrumb items={[
+            { label: 'Home', href: '/branch-admin' },
+            { label: 'Reports', href: '/branch-admin/reports' },
+            { label: deptName },
+          ]} />
 
           {/* Title Row */}
           <div className="flex items-start justify-between">
