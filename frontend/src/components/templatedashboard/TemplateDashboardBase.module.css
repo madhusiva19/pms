@@ -127,9 +127,8 @@
   margin-bottom:   24px;
   gap:             12px;
 }
-
-.pageTitle        { font-size: 30px; font-weight: 700; color: var(--tdb-text-primary); letter-spacing: -0.3px; margin: 10px 0 6px; }
-.pageSubtitleMain { font-size: 14px; color: var(--tdb-text-muted); font-weight: 400; margin: 0 0 10px; }
+.pageTitle        { font-size: 30px; font-weight: 700; color: var(--tdb-text-primary); letter-spacing: -0.3px; margin: 10px 0 14px; }
+.pageSubtitleMain { font-size: 14px; color: var(--tdb-text-muted); font-weight: 400; margin: 0 0 14px; }
 
 .pageSubtitle {
   display:     flex;
@@ -1809,7 +1808,7 @@
   display:       inline-flex;
   align-items:   center;
   gap:           5px;
-  padding:       8px 12px;
+  padding:       10px 14px;
   border-radius: var(--tdb-radius-sm);
   background:    #f8fafc;
   border:        1px solid var(--tdb-border);

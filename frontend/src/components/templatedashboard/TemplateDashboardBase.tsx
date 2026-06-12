@@ -177,15 +177,10 @@ interface FilterState {
 
 // ─── Pure Utility Functions ───────────────────────────────────────────────────
 
-/** Returns the role-based URL prefix for navigation. */
 function getRolePrefix(level: number): string {
   return ROLE_PREFIXES[level] ?? DEFAULT_ROLE_PREFIX;
 }
 
-/**
- * Sorts templates so the most recently modified / created ones appear first.
- * Falls back to `created_at` when `lastModified` is absent.
- */
 function sortByLastModified<T extends { lastModified?: string; created_at?: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => {
     const dateA = a.lastModified ?? a.created_at;
@@ -197,12 +192,10 @@ function sortByLastModified<T extends { lastModified?: string; created_at?: stri
   });
 }
 
-/** Builds freeze-window date boundaries from the active PMS cycle data. */
 function buildFreezeDates(activeCycle: any): DynamicFreezeDates {
   const now          = new Date();
   const fallbackYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
 
-  // No active cycle — treat everything as frozen
   if (!activeCycle?.id && activeCycle?.source === "none") {
     const pastDate = new Date(2000, 0, 1);
     return {
@@ -237,7 +230,6 @@ function buildFreezeDates(activeCycle: any): DynamicFreezeDates {
   };
 }
 
-/** Derives edit/create/delete permission flags from the current role + freeze state. */
 function computePermissions(level: number, freezeDates: DynamicFreezeDates): TemplatePermissions {
   const now = new Date();
 
@@ -265,7 +257,6 @@ function computePermissions(level: number, freezeDates: DynamicFreezeDates): Tem
   };
 }
 
-/** Resolves a human-readable PMS year label for a given template. */
 function resolvePmsYearLabel(template: TemplateRecord, allCycles: any[], activeCycle: any): string {
   if (template.pms_year) return template.pms_year;
   if (template.pms_cycle_id) {
@@ -295,8 +286,8 @@ function FilterDropdown({
   selected: string[];
   onChange: (selected: string[]) => void;
 }) {
-  const [isOpen, setIsOpen]     = useState(false);
-  const containerRef            = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef        = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent): void {
@@ -452,7 +443,6 @@ function HorizontalFilterBar({
     <div className={styles.filterBar}>
       <div className={styles.filterRow}>
 
-        {/* Search input */}
         <div className={styles.searchWrapper}>
           <Search size={15} className={styles.searchIcon} />
           <input
@@ -480,7 +470,6 @@ function HorizontalFilterBar({
           <span>Filter by:</span>
         </div>
 
-        {/* Dropdown filters */}
         <FilterDropdown label="Designation" icon={<Users        size={13} />} options={allDesignations} selected={filters.designations} onChange={v => onFilterChange({ ...filters, designations: v })} />
         <FilterDropdown label="Department"  icon={<Building2    size={13} />} options={allDepartments}  selected={filters.departments}  onChange={v => onFilterChange({ ...filters, departments: v })} />
         <FilterDropdown label="Branch"      icon={<GitBranch    size={13} />} options={allBranches}     selected={filters.branches}     onChange={v => onFilterChange({ ...filters, branches: v })} />
@@ -518,19 +507,19 @@ function HorizontalFilterBar({
         <div className={styles.chipsRow}>
           <span className={styles.chipsRowLabel}>Active:</span>
           {filters.designations.map(d => (
-            <ActiveFilterChip key={`d-${d}`}   label={d} category="Designation" colorClass={styles.chipDesignation} onRemove={() => onFilterChange({ ...filters, designations: filters.designations.filter(x => x !== d) })} />
+            <ActiveFilterChip key={`d-${d}`}  label={d} category="Designation" colorClass={styles.chipDesignation} onRemove={() => onFilterChange({ ...filters, designations: filters.designations.filter(x => x !== d) })} />
           ))}
           {filters.departments.map(d => (
-            <ActiveFilterChip key={`dp-${d}`}  label={d} category="Department"  colorClass={styles.chipDepartment}  onRemove={() => onFilterChange({ ...filters, departments:  filters.departments.filter(x => x !== d) })} />
+            <ActiveFilterChip key={`dp-${d}`} label={d} category="Department"  colorClass={styles.chipDepartment}  onRemove={() => onFilterChange({ ...filters, departments:  filters.departments.filter(x => x !== d) })} />
           ))}
           {filters.branches.map(b => (
-            <ActiveFilterChip key={`b-${b}`}   label={b} category="Branch"      colorClass={styles.chipBranch}      onRemove={() => onFilterChange({ ...filters, branches:     filters.branches.filter(x => x !== b) })} />
+            <ActiveFilterChip key={`b-${b}`}  label={b} category="Branch"      colorClass={styles.chipBranch}      onRemove={() => onFilterChange({ ...filters, branches:     filters.branches.filter(x => x !== b) })} />
           ))}
           {filters.countries.map(c => (
-            <ActiveFilterChip key={`c-${c}`}   label={c} category="Country"     colorClass={styles.chipCountry}     onRemove={() => onFilterChange({ ...filters, countries:    filters.countries.filter(x => x !== c) })} />
+            <ActiveFilterChip key={`c-${c}`}  label={c} category="Country"     colorClass={styles.chipCountry}     onRemove={() => onFilterChange({ ...filters, countries:    filters.countries.filter(x => x !== c) })} />
           ))}
           {filters.years.map(y => (
-            <ActiveFilterChip key={`y-${y}`}   label={y} category="PMS Year"    colorClass={styles.chipYear ?? styles.chipBranch} onRemove={() => onFilterChange({ ...filters, years: filters.years.filter(x => x !== y) })} />
+            <ActiveFilterChip key={`y-${y}`}  label={y} category="PMS Year"    colorClass={styles.chipYear ?? styles.chipBranch} onRemove={() => onFilterChange({ ...filters, years: filters.years.filter(x => x !== y) })} />
           ))}
         </div>
       )}
@@ -793,14 +782,9 @@ function StatusBanner({ permissions, freezeDates, level }: {
 }
 
 // ─── BulkDeleteBar ────────────────────────────────────────────────────────────
-/**
- * Sticky action bar at the bottom of the viewport when templates are selected.
- */
+
 function BulkDeleteBar({
-  selectedCount,
-  onDelete,
-  onClear,
-  isDeleting,
+  selectedCount, onDelete, onClear, isDeleting,
 }: {
   selectedCount: number;
   onDelete:      () => void;
@@ -810,32 +794,29 @@ function BulkDeleteBar({
   if (selectedCount === 0) return null;
 
   return (
-    <div
-      style={{
-        position:       "fixed",
-        bottom:         "24px",
-        left:           "50%",
-        transform:      "translateX(-50%)",
-        zIndex:         200,
-        display:        "flex",
-        alignItems:     "center",
-        gap:            "12px",
-        padding:        "12px 20px",
-        background:     "#1e293b",
-        borderRadius:   "12px",
-        boxShadow:      "0 8px 32px rgba(0,0,0,0.28)",
-        border:         "1px solid #334155",
-        minWidth:       "320px",
-        justifyContent: "space-between",
-      }}
-    >
+    <div style={{
+      position:       "fixed",
+      bottom:         "24px",
+      left:           "50%",
+      transform:      "translateX(-50%)",
+      zIndex:         200,
+      display:        "flex",
+      alignItems:     "center",
+      gap:            "12px",
+      padding:        "12px 20px",
+      background:     "#1e293b",
+      borderRadius:   "12px",
+      boxShadow:      "0 8px 32px rgba(0,0,0,0.28)",
+      border:         "1px solid #334155",
+      minWidth:       "320px",
+      justifyContent: "space-between",
+    }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <CheckSquare size={16} color="#60a5fa" />
         <span style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0" }}>
           {selectedCount} template{selectedCount !== 1 ? "s" : ""} selected
         </span>
       </div>
-
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <button
           onClick={onClear}
@@ -855,7 +836,6 @@ function BulkDeleteBar({
         >
           <X size={12} /> Clear
         </button>
-
         <button
           onClick={onDelete}
           disabled={isDeleting}
@@ -898,7 +878,6 @@ function TemplateCard({
   isAssignExpanded:       boolean;
   isDuplicating:          boolean;
   isSelected:             boolean;
-  /** Whether the global "select multiple" mode is active */
   isSelectionMode:        boolean;
   onSelect:               (checked: boolean) => void;
   onToggleCategoryExpand: () => void;
@@ -932,9 +911,7 @@ function TemplateCard({
   const canDeleteThisCard       = !isPastCycle && isHqAdmin && permissions.canDelete;
   const canCopyThisCard         = isHqAdmin && permissions.canCreate;
   const canManageFreezeThisCard = isHqAdmin && !isPastCycle && (isFrozen || isGrace);
-
-  // Whether this card is selectable for bulk delete
-  const isSelectable = isHqAdmin && !isPastCycle && !isFrozen && permissions.canDelete;
+  const isSelectable            = isHqAdmin && !isPastCycle && !isFrozen && permissions.canDelete;
 
   function getEditDisabledReason(): string | null {
     if (isPastCycle) return "This template belongs to a past PMS cycle and is permanently frozen.";
@@ -1008,14 +985,13 @@ function TemplateCard({
       style={{
         ...(isPastCycle ? { opacity: 0.85, borderLeft: "3px solid #94a3b8" } : {}),
         ...(isSelected  ? { outline: "2px solid #3b82f6", outlineOffset: "2px" } : {}),
-        // When in selection mode and selectable, clicking the card body toggles selection
         ...(isSelectionMode && isSelectable ? { cursor: "pointer" } : {}),
         position: "relative",
         overflow: "visible",
       }}
       onClick={isSelectionMode && isSelectable ? () => onSelect(!isSelected) : undefined}
     >
-      {/* ── Past-cycle banner ─────────────────────────────────────────────── */}
+      {/* Past-cycle banner */}
       {isPastCycle && (
         <div style={{
           display: "flex", alignItems: "center", gap: 6, padding: "6px 14px",
@@ -1027,7 +1003,7 @@ function TemplateCard({
         </div>
       )}
 
-      {/* ── Partial-unfreeze corner badge ─────────────────────────────────── */}
+      {/* Partial-unfreeze corner badge */}
       {hasUnfreezeExceptions && !isPastCycle && (
         <div className={styles.partialUnfreezeCorner}>
           <Unlock size={10} color="#16a34a" />
@@ -1038,26 +1014,13 @@ function TemplateCard({
         </div>
       )}
 
-      {/* ── Card top section ──────────────────────────────────────────────── */}
+      {/* Card top */}
       <div className={styles.cardTop}>
         <div className={styles.cardTopInner}>
 
-          {/*
-           * Checkbox — only visible when:
-           *   (a) the HQ Admin has clicked "Select Multiple" (isSelectionMode), AND
-           *   (b) this card is actually deletable (isSelectable).
-           * Clicking the checkbox stops event propagation so it doesn't also
-           * trigger the card-level onClick above.
-           */}
           {isSelectionMode && isSelectable && (
             <div
-              style={{
-                display:    "flex",
-                alignItems: "flex-start",
-                paddingTop: "2px",
-                marginRight: "8px",
-                flexShrink: 0,
-              }}
+              style={{ display: "flex", alignItems: "flex-start", paddingTop: "2px", marginRight: "8px", flexShrink: 0 }}
               title={isSelected ? "Deselect template" : "Select for bulk delete"}
             >
               <input
@@ -1065,14 +1028,7 @@ function TemplateCard({
                 checked={isSelected}
                 onChange={e => onSelect(e.target.checked)}
                 onClick={e => e.stopPropagation()}
-                style={{
-                  width:       "17px",
-                  height:      "17px",
-                  accentColor: "#3b82f6",
-                  cursor:      "pointer",
-                  flexShrink:  0,
-                  marginTop:   "3px",
-                }}
+                style={{ width: "17px", height: "17px", accentColor: "#3b82f6", cursor: "pointer", flexShrink: 0, marginTop: "3px" }}
                 aria-label={`Select template "${template.name}" for bulk delete`}
               />
             </div>
@@ -1084,32 +1040,19 @@ function TemplateCard({
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className={styles.cardTitleRow}>
-                <h3
-                  className={styles.cardTitle}
-                  style={isPastCycle ? { color: "#64748b" } : undefined}
-                >
+                <h3 className={styles.cardTitle} style={isPastCycle ? { color: "#64748b" } : undefined}>
                   {template.name}
                 </h3>
                 <CycleStatusBadge status={effectiveStatus} />
                 {hasVariants && !isPastCycle && (
                   <button
                     onClick={e => { e.stopPropagation(); canManageFreezeThisCard && onManageFreeze(); }}
-                    title={canManageFreezeThisCard
-                      ? "Open Manage Freeze to view or edit variants"
-                      : `${variantCount} branch variant${variantCount !== 1 ? "s" : ""}`}
+                    title={canManageFreezeThisCard ? "Open Manage Freeze to view or edit variants" : `${variantCount} branch variant${variantCount !== 1 ? "s" : ""}`}
                     style={{
-                      display:      "inline-flex",
-                      alignItems:   "center",
-                      gap:          "4px",
-                      padding:      "2px 8px",
-                      borderRadius: "20px",
-                      fontSize:     "10px",
-                      fontWeight:   "700",
-                      background:   "#eff6ff",
-                      color:        "#1e40af",
-                      border:       "1px solid #bfdbfe",
-                      cursor:       canManageFreezeThisCard ? "pointer" : "default",
-                      transition:   "all 0.15s",
+                      display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px",
+                      borderRadius: "20px", fontSize: "10px", fontWeight: "700",
+                      background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe",
+                      cursor: canManageFreezeThisCard ? "pointer" : "default", transition: "all 0.15s",
                     }}
                   >
                     <GitBranch size={9} />
@@ -1129,11 +1072,7 @@ function TemplateCard({
             </div>
           </div>
 
-          {/* Action buttons — wrapped in stopPropagation so card-click doesn't fire */}
-          <div
-            className={styles.cardActions}
-            onClick={e => e.stopPropagation()}
-          >
+          <div className={styles.cardActions} onClick={e => e.stopPropagation()}>
             <button className={styles.actionBtn} onClick={onView}>
               <Eye size={13} /><span>View</span>
             </button>
@@ -1149,15 +1088,9 @@ function TemplateCard({
                 className={`${styles.actionBtn} ${!canCopyThisCard ? styles.actionBtnDisabled : ""}`}
                 onClick={handleCopyClick}
                 disabled={isDuplicating}
-                title={isPastCycle
-                  ? "Duplicate into current cycle"
-                  : !canCopyThisCard
-                    ? (getCopyDisabledReason() ?? undefined)
-                    : "Duplicate template"}
+                title={isPastCycle ? "Duplicate into current cycle" : !canCopyThisCard ? (getCopyDisabledReason() ?? undefined) : "Duplicate template"}
               >
-                {isDuplicating
-                  ? <Loader2 size={13} className={styles.spinner} />
-                  : <Copy    size={13} />}
+                {isDuplicating ? <Loader2 size={13} className={styles.spinner} /> : <Copy size={13} />}
                 <span>Copy</span>
               </button>
             )}
@@ -1166,19 +1099,12 @@ function TemplateCard({
                 onClick={onManageFreeze}
                 title="Navigate to Template Freeze Management page"
                 style={{
-                  display:      "inline-flex",
-                  alignItems:   "center",
-                  gap:          "5px",
-                  padding:      "6px 12px",
+                  display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 12px",
                   borderRadius: "6px",
-                  background:   hasUnfreezeExceptions ? "#fff7ed" : "#f0f5ff",
-                  border:       `1px solid ${hasUnfreezeExceptions ? "#fed7aa" : "#c7d5f0"}`,
-                  color:        hasUnfreezeExceptions ? "#ea580c" : "#1e3a8a",
-                  fontSize:     "12px",
-                  fontWeight:   "700",
-                  cursor:       "pointer",
-                  transition:   "all 0.15s",
-                  whiteSpace:   "nowrap",
+                  background: hasUnfreezeExceptions ? "#fff7ed" : "#f0f5ff",
+                  border: `1px solid ${hasUnfreezeExceptions ? "#fed7aa" : "#c7d5f0"}`,
+                  color: hasUnfreezeExceptions ? "#ea580c" : "#1e3a8a",
+                  fontSize: "12px", fontWeight: "700", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap",
                 }}
               >
                 <ShieldCheck size={13} />
@@ -1199,7 +1125,7 @@ function TemplateCard({
         </div>
       </div>
 
-      {/* ── Stats row ─────────────────────────────────────────────────────── */}
+      {/* Stats row */}
       <div className={styles.statsRow} onClick={e => e.stopPropagation()}>
         {statCells.map((stat, index) => (
           <div
@@ -1213,7 +1139,7 @@ function TemplateCard({
         ))}
       </div>
 
-      {/* ── Card meta / AI badges ─────────────────────────────────────────── */}
+      {/* Card meta */}
       <div className={styles.cardMeta} onClick={e => e.stopPropagation()}>
         <div className={styles.cardMetaLeft}>
           <BookOpen size={12} color="#8b5cf6" /><span className={styles.cardMetaLabel}>AI Suggested Insights</span>
@@ -1223,16 +1149,11 @@ function TemplateCard({
         <span className={styles.cardMetaTimestamp}>Updated: {lastUpdatedDisplay}</span>
       </div>
 
-      {/* ── Category expand toggle ────────────────────────────────────────── */}
-      <button
-        className={styles.expandToggle}
-        onClick={e => { e.stopPropagation(); onToggleCategoryExpand(); }}
-      >
+      {/* Category expand toggle */}
+      <button className={styles.expandToggle} onClick={e => { e.stopPropagation(); onToggleCategoryExpand(); }}>
         <Layers size={14} color="#3b82f6" />
         <span>{isCategoryExpanded ? "Hide" : "Show"} Category Details</span>
-        {isCategoryExpanded
-          ? <ChevronUp   size={14} color="#3b82f6" />
-          : <ChevronDown size={14} color="#3b82f6" />}
+        {isCategoryExpanded ? <ChevronUp size={14} color="#3b82f6" /> : <ChevronDown size={14} color="#3b82f6" />}
       </button>
 
       {isCategoryExpanded && (
@@ -1248,11 +1169,7 @@ function TemplateCard({
                   const catWeight   = cat.weight ?? (cat.objectives ?? []).reduce((sum: number, obj: any) => sum + (Number(obj.weight) || 0), 0);
                   const lockedInCat = (cat.objectives ?? []).filter((obj: any) => obj.control === "Locked").length;
                   return (
-                    <div
-                      key={index}
-                      className={styles.categoryDetailCard}
-                      style={{ background: palette.bg, borderColor: `${palette.fill}33` }}
-                    >
+                    <div key={index} className={styles.categoryDetailCard} style={{ background: palette.bg, borderColor: `${palette.fill}33` }}>
                       <div className={styles.categoryDetailHeader}>
                         <span style={{ fontWeight: 700, fontSize: "12px", color: palette.text }}>{cat.name}</span>
                         <span style={{ fontWeight: 800, fontSize: "13px", color: palette.fill }}>{catWeight}%</span>
@@ -1271,29 +1188,16 @@ function TemplateCard({
         </div>
       )}
 
-      {/* ── Assignments expand toggle ─────────────────────────────────────── */}
-      <button
-        className={styles.expandToggle}
-        onClick={e => { e.stopPropagation(); onToggleAssignExpand(); }}
-      >
+      {/* Assignments expand toggle */}
+      <button className={styles.expandToggle} onClick={e => { e.stopPropagation(); onToggleAssignExpand(); }}>
         <Users size={14} color="#3b82f6" />
         <span>{isAssignExpanded ? "Hide" : "Show"} Assignments</span>
         {!isAssignExpanded && totalRules > 0 && (
-          <span style={{
-            marginLeft:   "auto",
-            fontSize:     "11px",
-            fontWeight:   "600",
-            color:        "#64748b",
-            background:   "#f1f5f9",
-            padding:      "2px 8px",
-            borderRadius: "10px",
-          }}>
+          <span style={{ marginLeft: "auto", fontSize: "11px", fontWeight: "600", color: "#64748b", background: "#f1f5f9", padding: "2px 8px", borderRadius: "10px" }}>
             {assignmentSummary}
           </span>
         )}
-        {isAssignExpanded
-          ? <ChevronUp   size={14} color="#3b82f6" />
-          : <ChevronDown size={14} color="#3b82f6" />}
+        {isAssignExpanded ? <ChevronUp size={14} color="#3b82f6" /> : <ChevronDown size={14} color="#3b82f6" />}
       </button>
 
       {isAssignExpanded && (
@@ -1439,8 +1343,10 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
   const [isBulkDeleting,      setIsBulkDeleting]      = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isSelectionMode,     setIsSelectionMode]     = useState(false);
+
+  // ── Refs ───────────────────────────────────────────────────────────────────
   const skipNextFocusRefetch = useRef(false);
-  const mainContentRef = useRef<HTMLElement>(null);
+  const mainContentRef       = useRef<HTMLElement>(null);
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const freezeDates = useMemo(() => buildFreezeDates(activeCycle),           [activeCycle]);
@@ -1496,10 +1402,10 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const loadDashboardData = useCallback(async (isFromFocus = false): Promise<void> => {
-  if (isFromFocus && skipNextFocusRefetch.current) {
-    skipNextFocusRefetch.current = false;
-    return;
-  }
+    if (isFromFocus && skipNextFocusRefetch.current) {
+      skipNextFocusRefetch.current = false;
+      return;
+    }
     try {
       setIsLoading(true);
 
@@ -1511,7 +1417,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
 
       if (!templateRes.ok) throw new Error(`Failed to load templates: ${templateRes.status}`);
 
-      // Sort so newly created / recently modified templates appear first
       setTemplates(sortByLastModified(await templateRes.json()));
 
       if (cycleRes.ok) {
@@ -1555,7 +1460,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
 
   // ── Filtered & sorted templates ────────────────────────────────────────────
   const filteredTemplates = useMemo(() => {
-    // Exclude past-cycle templates from the main view
     let result = templates.filter(t => !t.is_past_cycle);
 
     if (filters.search.trim()) {
@@ -1573,16 +1477,21 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
     if (filters.years.length        > 0)
       result = result.filter(t => filters.years.includes(resolvePmsYearLabel(t, allCycles, activeCycle)));
 
-    // Always keep newest-first after any filter change
     return sortByLastModified(result);
   }, [templates, filters, allCycles, activeCycle]);
 
+  // ── Scroll helper ──────────────────────────────────────────────────────────
+  function scrollToTop(): void {
+    setTimeout(() => {
+      mainContentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      document.documentElement.scrollTo({ top: 0, behavior: "smooth" });
+      document.body.scrollTo({ top: 0, behavior: "smooth" });
+    }, 100);
+  }
+
   // ── Single-template handlers ───────────────────────────────────────────────
 
-  /**
-   * Stamps a template with "now" so it bubbles to the very top of the
-   * sorted list the moment the user edits or duplicates it.
-   */
   function bumpTemplateToTop(id: number): void {
     setTemplates(prev =>
       sortByLastModified(prev.map(t =>
@@ -1636,27 +1545,25 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
-          name:          `${template.name} (Copy)`,
-          description:   template.description ?? "",
-          max_score:     template.max_score    ?? 5,
-          categories:    template.categories   ?? [],
-          totalWeight:   template.total_weight ?? 0,
-          lastModified:  new Date().toISOString(),
+          name:         `${template.name} (Copy)`,
+          description:  template.description ?? "",
+          max_score:    template.max_score    ?? 5,
+          categories:   template.categories   ?? [],
+          totalWeight:  template.total_weight ?? 0,
+          lastModified: new Date().toISOString(),
         }),
       });
 
       if (!response.ok) throw new Error("Duplicate failed");
 
-     const refreshRes = await fetch(`${API_BASE}/templates`);
-if (refreshRes.ok) {
-  const fresh: TemplateRecord[] = await refreshRes.json();
-  const now = new Date().toISOString();
-  // Stamp every template that was touched by the copy so they sort to the top
-  const stamped = fresh.map(t =>
-    !t.is_past_cycle ? { ...t, lastModified: now } : t
-  );
-  setTemplates(sortByLastModified(stamped));
-}
+      const refreshRes = await fetch(`${API_BASE}/templates`);
+      if (refreshRes.ok) {
+        const fresh: TemplateRecord[] = await refreshRes.json();
+        const copyName = `${template.name} (Copy)`;
+        const copy     = [...fresh].filter(t => t.name === copyName).sort((a, b) => b.id - a.id)[0];
+        if (copy) copy.lastModified = new Date().toISOString();
+        setTemplates(sortByLastModified(fresh));
+      }
 
       toast.success(`"${template.name}" duplicated into the current cycle.`);
     } catch (err: any) {
@@ -1711,10 +1618,10 @@ if (refreshRes.ok) {
   }
 
   function handleSelectAll(): void {
-    const deletable    = filteredTemplates.filter(
+    const deletable   = filteredTemplates.filter(
       t => !t.is_past_cycle && (t.freeze_status ?? permissions.freezeStatus) !== "frozen",
     );
-    const allSelected  = deletable.every(t => selectedIds.has(t.id));
+    const allSelected = deletable.every(t => selectedIds.has(t.id));
 
     if (allSelected) {
       setSelectedIds(prev => {
@@ -1735,47 +1642,62 @@ if (refreshRes.ok) {
     setSelectedIds(new Set());
   }
 
-  /** Exit selection mode and clear all selections. */
   function handleExitSelectionMode(): void {
     setIsSelectionMode(false);
     setSelectedIds(new Set());
   }
 
   async function handleBulkDelete(): Promise<void> {
-    if (selectedIds.size === 0) return;
+  if (selectedIds.size === 0) return;
 
-    setIsBulkDeleting(true);
-    setShowBulkDeleteModal(false);
+  setIsBulkDeleting(true);
+  setShowBulkDeleteModal(false);
 
-    const idsToDelete = [...selectedIds];
-    const prev        = [...templates];
+  const idsToDelete = [...selectedIds];
+  const prev        = [...templates];
 
-    setTemplates(p => p.filter(t => !selectedIds.has(t.id)));
-    setSelectedIds(new Set());
-    setIsSelectionMode(false);
+  setTemplates(p => p.filter(t => !selectedIds.has(t.id)));
+  setSelectedIds(new Set());
+  setIsSelectionMode(false);
 
-    try {
-      const results = await Promise.allSettled(
-        idsToDelete.map(id =>
-          fetch(`${API_BASE}/templates/${id}`, { method: "DELETE" }),
-        ),
-      );
+  try {
+    const results = await Promise.allSettled(
+      idsToDelete.map(id => fetch(`${API_BASE}/templates/${id}`, { method: "DELETE" })),
+    );
 
-      const failedCount = results.filter(r => r.status === "rejected").length;
+    const failedIds: number[] = [];
 
-      if (failedCount === 0) {
-        toast.success(`${idsToDelete.length} template${idsToDelete.length !== 1 ? "s" : ""} deleted successfully.`);
-      } else {
-        setTemplates(prev);
-        toast.error(`${failedCount} of ${idsToDelete.length} deletions failed. Please try again.`);
+    results.forEach((r, i) => {
+      const id = idsToDelete[i];
+      if (r.status === "rejected") {
+        failedIds.push(id);
+      } else if (!r.value.ok) {
+        failedIds.push(id);
       }
-    } catch {
-      setTemplates(prev);
-      toast.error("Bulk delete failed. Please try again.");
-    } finally {
-      setIsBulkDeleting(false);
+    });
+
+    if (failedIds.length === 0) {
+      toast.success(`${idsToDelete.length} template${idsToDelete.length !== 1 ? "s" : ""} deleted successfully.`);
+    } else {
+      const failedSet = new Set(failedIds);
+      // Restore only the templates that actually failed to delete
+      const restored = prev.filter(t => failedSet.has(t.id));
+      setTemplates(p => sortByLastModified([...p, ...restored]));
+
+      const succeededCount = idsToDelete.length - failedIds.length;
+      if (succeededCount > 0) {
+        toast.error(`${succeededCount} template${succeededCount !== 1 ? "s" : ""} deleted, ${failedIds.length} failed.`);
+      } else {
+        toast.error(`${failedIds.length} of ${idsToDelete.length} deletions failed. Please try again.`);
+      }
     }
+  } catch {
+    setTemplates(prev);
+    toast.error("Bulk delete failed. Please try again.");
+  } finally {
+    setIsBulkDeleting(false);
   }
+}
 
   // ── Copy-previous-assignments handler ──────────────────────────────────────
   async function handleCopyPreviousAssignments(): Promise<void> {
@@ -1810,22 +1732,21 @@ if (refreshRes.ok) {
 
       toast.success(`Assignments applied! ${data.copied_rules} rules and ${data.copied_users} users copied.`);
 
-    const refreshRes = await fetch(`${API_BASE}/templates`);
-if (refreshRes.ok) {
-  const fresh: TemplateRecord[] = await refreshRes.json();
-  const assigned   = fresh.filter(t => !t.is_past_cycle && (t.assignedRules?.length ?? 0) > 0);
-  const unassigned = fresh.filter(t =>  t.is_past_cycle || (t.assignedRules?.length ?? 0) === 0);
-  skipNextFocusRefetch.current = true;
-  setTemplates([
-    ...sortByLastModified(assigned),
-    ...sortByLastModified(unassigned),
-  ]);
-  setTimeout(() => {
-    mainContentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    document.documentElement.scrollTo({ top: 0, behavior: "smooth" });
-  }, 100);
-}
+      const refreshRes = await fetch(`${API_BASE}/templates`);
+      if (refreshRes.ok) {
+        const fresh: TemplateRecord[] = await refreshRes.json();
+        const assigned   = fresh.filter(t => !t.is_past_cycle && (t.assignedRules?.length ?? 0) > 0);
+        const unassigned = fresh.filter(t =>  t.is_past_cycle || (t.assignedRules?.length ?? 0) === 0);
+        skipNextFocusRefetch.current = true;
+        setTemplates([
+          ...sortByLastModified(assigned),
+          ...sortByLastModified(unassigned),
+        ]);
+        // Scroll to top after React re-renders the new order
+        scrollToTop();
+      }
+
+      setAssignmentsCopied(true);
     } catch (err: any) {
       toast.error(err.message ?? "Could not copy assignments.");
     } finally {
@@ -1854,7 +1775,7 @@ if (refreshRes.ok) {
         <Breadcrumb />
         <div className={styles.wrapper}>
 
-          {/* ── Single-delete confirmation modal ──────────────────────────── */}
+          {/* Single-delete confirmation modal */}
           {confirmDeleteId !== null && (
             <div className={styles.modalOverlay}>
               <div className={styles.modalCard}>
@@ -1890,7 +1811,7 @@ if (refreshRes.ok) {
             </div>
           )}
 
-          {/* ── Bulk-delete confirmation modal ────────────────────────────── */}
+          {/* Bulk-delete confirmation modal */}
           {showBulkDeleteModal && (
             <div className={styles.modalOverlay}>
               <div className={styles.modalCard}>
@@ -1906,10 +1827,7 @@ if (refreshRes.ok) {
                   All associated assignments will also be removed. This action cannot be undone.
                 </p>
                 <div className={styles.modalActions}>
-                  <button
-                    className={styles.modalCancelBtn}
-                    onClick={() => setShowBulkDeleteModal(false)}
-                  >
+                  <button className={styles.modalCancelBtn} onClick={() => setShowBulkDeleteModal(false)}>
                     Cancel
                   </button>
                   <button className={styles.modalDeleteBtn} onClick={handleBulkDelete}>
@@ -1920,7 +1838,7 @@ if (refreshRes.ok) {
             </div>
           )}
 
-          {/* ── Page header ───────────────────────────────────────────────── */}
+          {/* Page header */}
           <div className={styles.pageHeader}>
             <div>
               <h1 className={styles.pageTitle}>Template Management</h1>
@@ -2002,21 +1920,15 @@ if (refreshRes.ok) {
             </div>
           </div>
 
-          {/* ── Status banner ─────────────────────────────────────────────── */}
+          {/* Status banner */}
           <StatusBanner permissions={permissions} freezeDates={freezeDates} level={level} />
 
-          {/* ── Assignment-copy yellow prompt banner ──────────────────────── */}
+          {/* Assignment-copy yellow prompt banner */}
           {level === 1 && showAssignmentsBanner && previousCycle && !assignmentsCopied && !isLoading && (
             <div style={{
-              display:        "flex",
-              alignItems:     "center",
-              justifyContent: "space-between",
-              gap:            "12px",
-              padding:        "12px 16px",
-              background:     "#fffbeb",
-              border:         "1px solid #fde68a",
-              borderRadius:   "10px",
-              marginBottom:   "16px",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: "12px", padding: "12px 16px", background: "#fffbeb",
+              border: "1px solid #fde68a", borderRadius: "10px", marginBottom: "16px",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <Users size={16} color="#d97706" />
@@ -2036,27 +1948,19 @@ if (refreshRes.ok) {
             </div>
           )}
 
-          {/* ── Assignments-applied green confirmation bar ─────────────────── */}
+          {/* Assignments-applied green confirmation bar */}
           {level === 1 && showAssignmentsBanner && previousCycle && assignmentsCopied && !isLoading && (
             <div style={{
-              display:      "flex",
-              alignItems:   "center",
-              gap:          "10px",
-              padding:      "12px 16px",
-              background:   "#f0fdf4",
-              border:       "1px solid #bbf7d0",
-              borderRadius: "10px",
-              marginBottom: "16px",
-              fontSize:     "13px",
-              fontWeight:   "600",
-              color:        "#166534",
+              display: "flex", alignItems: "center", gap: "10px", padding: "12px 16px",
+              background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px",
+              marginBottom: "16px", fontSize: "13px", fontWeight: "600", color: "#166534",
             }}>
               <CheckCircle2 size={16} color="#16a34a" />
               Assignments applied from previous cycle
             </div>
           )}
 
-          {/* ── PMS cycle timeline panel ───────────────────────────────────── */}
+          {/* PMS cycle timeline panel */}
           {!isLoading && (
             <PmsCyclePanel
               freezeDates={freezeDates}
@@ -2067,9 +1971,10 @@ if (refreshRes.ok) {
             />
           )}
 
-          {/* ── Filter bar ────────────────────────────────────────────────── */}
+          {/* Filter bar */}
           <HorizontalFilterBar
-            filters={filters}           onFilterChange={setFilters}
+            filters={filters}
+            onFilterChange={setFilters}
             allDesignations={filterOptions.designations}
             allDepartments={filterOptions.departments}
             allBranches={filterOptions.branches}
@@ -2080,15 +1985,7 @@ if (refreshRes.ok) {
             isLoading={isLoading}
           />
 
-          {/*
-           * ── Bulk-select toolbar ──────────────────────────────────────────
-           *
-           * Only shown to HQ Admins who have delete permission and when there
-           * are templates to show. Contains:
-           *   • A "Select Multiple" toggle button (when NOT in selection mode)
-           *   • A select-all checkbox + count + delete trigger (when IN selection mode)
-           *   • An "Exit" / cancel button (when IN selection mode)
-           */}
+          {/* Bulk-select toolbar */}
           {isHqAdmin && permissions.canDelete && !isLoading && filteredTemplates.length > 0 && (
             <div style={{
               display:      "flex",
@@ -2103,7 +2000,6 @@ if (refreshRes.ok) {
             }}>
 
               {!isSelectionMode ? (
-                /* ── Collapsed state: single "Delete Multiple Templates" button ── */
                 <button
                   onClick={() => setIsSelectionMode(true)}
                   style={{
@@ -2126,9 +2022,7 @@ if (refreshRes.ok) {
                   Delete Multiple Templates
                 </button>
               ) : (
-                /* ── Expanded / selection mode ─────────────────────────────── */
                 <>
-                  {/* Select-all checkbox */}
                   <input
                     type="checkbox"
                     checked={allVisibleSelected}
@@ -2144,7 +2038,6 @@ if (refreshRes.ok) {
                       : `Select templates to delete (${deletableInView.length} available)`}
                   </span>
 
-                  {/* Bulk-delete trigger — only when something is selected */}
                   {selectedIds.size > 0 && (
                     <button
                       onClick={() => setShowBulkDeleteModal(true)}
@@ -2167,7 +2060,6 @@ if (refreshRes.ok) {
                     </button>
                   )}
 
-                  {/* Exit selection mode */}
                   <button
                     onClick={handleExitSelectionMode}
                     style={{
@@ -2193,7 +2085,7 @@ if (refreshRes.ok) {
             </div>
           )}
 
-          {/* ── Template card list ────────────────────────────────────────── */}
+          {/* Template card list */}
           <div className={`${styles.periodWrapper} ${periodWrapperClass}`}>
             {isLoading ? (
               <div className={styles.loadingWrapper}>
@@ -2228,9 +2120,9 @@ if (refreshRes.ok) {
                     template={template}
                     level={level}
                     permissions={permissions}
-                    isCategoryExpanded={expandedCardId  === template.id}
-                    isAssignExpanded={expandedAssignId  === template.id}
-                    isDuplicating={isDuplicatingId      === template.id}
+                    isCategoryExpanded={expandedCardId   === template.id}
+                    isAssignExpanded={expandedAssignId   === template.id}
+                    isDuplicating={isDuplicatingId       === template.id}
                     isSelected={selectedIds.has(template.id)}
                     isSelectionMode={isSelectionMode}
                     onSelect={checked => handleToggleSelect(template.id, checked)}
@@ -2249,7 +2141,7 @@ if (refreshRes.ok) {
         </div>
       </main>
 
-      {/* ── Sticky bulk-delete bar (bottom of viewport) ──────────────────── */}
+      {/* Sticky bulk-delete bar */}
       <BulkDeleteBar
         selectedCount={selectedIds.size}
         onDelete={() => setShowBulkDeleteModal(true)}

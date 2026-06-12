@@ -282,7 +282,7 @@ def get_active_cycle() -> dict | None:
     try:
         result = (
             supabase.table("pms_cycles")
-            .select("id, pms_year, is_active, objective_setting_end, grace_period_end")
+            .select("id, pms_year, is_active, pms_start, objective_setting_end, grace_period_end")
             .eq("is_active", True)
             .order("pms_year", desc=True)
             .limit(1)
@@ -292,7 +292,6 @@ def get_active_cycle() -> dict | None:
     except Exception as e:
         print(f"❌ get_active_cycle: {e}")
         return None
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DEDUPLICATION
@@ -394,10 +393,10 @@ def fire_notification(cycle: dict, entry: dict) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 # SEED — fire all past-due notifications for a cycle
 # ─────────────────────────────────────────────────────────────────────────────
-
 def seed_notifications_for_cycle(cycle: dict) -> None:
     """
     Fire all notifications whose trigger_date <= today.
+    cycle_start is always fired immediately on creation regardless of date.
     Skips already-inserted rows (idempotent).
     Called on new cycle creation AND after a date change (after purge).
     """
@@ -405,7 +404,7 @@ def seed_notifications_for_cycle(cycle: dict) -> None:
     seeded = 0
 
     for entry in get_schedule_for_cycle(cycle):
-        if today >= entry["trigger_date"]:
+        if entry["event_type"] == "cycle_start" or today >= entry["trigger_date"]:
             if fire_notification(cycle, entry):
                 seeded += 1
 

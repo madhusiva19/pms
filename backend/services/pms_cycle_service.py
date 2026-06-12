@@ -202,7 +202,7 @@ def _refresh_notifications_for_updated_cycle(cycle_id: int) -> None:
 
         result = (
             supabase.table("pms_cycles")
-            .select("id, pms_year, is_active, objective_setting_end, grace_period_end")
+            .select("id, pms_year, is_active, pms_start, objective_setting_end, grace_period_end")
             .eq("id", cycle_id)
             .limit(1)
             .execute()
