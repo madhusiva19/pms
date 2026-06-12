@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/shared/breadcrumb/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { assessmentComponentsApi } from '@/services/potentialAssessmentApi';
 import type { AssessmentComponent, PillarType, AppraiseeRole } from '@/types';
