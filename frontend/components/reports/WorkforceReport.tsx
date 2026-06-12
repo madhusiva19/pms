@@ -16,6 +16,7 @@ const PAGE_SIZE = 50;
 interface PaginatedResponse {
   rows: ReportRow[]; page: number; page_size: number; total: number; total_pages: number;
   requester_country?: string | null;
+  report_year?: number;
 }
 
 interface ReportRow {
@@ -50,7 +51,7 @@ function Score({ value }: { value: number | null }) {
 }
 
 async function handlePdfDownload(userId: string, year: number, countryName: string | null) {
-  const res = await fetch(`${API}/api/workforce-report/all?pms_year=${year}&requester_id=${userId}`);
+  const res = await fetch(`${API}/api/workforce-report/all?requester_id=${userId}`);
   if (!res.ok) throw new Error('Failed to fetch report data');
   const data = await res.json();
   const allRows: ReportRow[] = data.rows ?? data;
@@ -179,7 +180,6 @@ async function handlePdfDownload(userId: string, year: number, countryName: stri
 
 export default function WorkforceReport() {
   const { user, loading: authLoading } = useAuth();
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear() - 1);
   const [rows,         setRows]         = useState<ReportRow[]>([]);
   const [loading,      setLoading]      = useState(false);
   const [pdfLoading,   setPdfLoading]   = useState(false);
@@ -188,27 +188,21 @@ export default function WorkforceReport() {
   const [totalPages,   setTotalPages]   = useState(0);
   const [total,        setTotal]        = useState(0);
   const [requesterCountry, setRequesterCountry] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    fetch(`${API}/api/rating-periods/current?user_id=${user.id}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.pms_year) setSelectedYear(d.pms_year); })
-      .catch(() => {});
-  }, [user?.id]);
+  const [reportYear,       setReportYear]       = useState<number>(new Date().getFullYear() - 1);
 
   const fetchReport = useCallback(async (pageNum = 1) => {
     if (!user?.id) return;
     setLoading(true); setError('');
     try {
-      const res = await fetch(`${API}/api/workforce-report?pms_year=${selectedYear}&requester_id=${user.id}&page=${pageNum}`);
+      const res = await fetch(`${API}/api/workforce-report?requester_id=${user.id}&page=${pageNum}`);
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error((b as {error?:string}).error ?? `HTTP ${res.status}`); }
       const data: PaginatedResponse = await res.json();
       setRows(data.rows); setPage(data.page); setTotalPages(data.total_pages); setTotal(data.total);
       if (data.requester_country) setRequesterCountry(data.requester_country);
+      if (data.report_year) setReportYear(data.report_year);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to load.'); }
     setLoading(false);
-  }, [user?.id, selectedYear]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!authLoading && user) { setPage(1); fetchReport(1); }
@@ -217,7 +211,7 @@ export default function WorkforceReport() {
   const onPdf = async () => {
     if (!user?.id) return;
     setPdfLoading(true);
-    try { await handlePdfDownload(user.id, selectedYear, requesterCountry); }
+    try { await handlePdfDownload(user.id, reportYear, requesterCountry); }
     catch { setError('PDF generation failed.'); }
     setPdfLoading(false);
   };
@@ -242,7 +236,7 @@ export default function WorkforceReport() {
           <div>
             <h1 style={{fontSize:26,fontWeight:600,color:C.textMain,margin:'0 0 4px'}}>Workforce Performance Report</h1>
             <p style={{fontSize:14,color:C.textSub,margin:0}}>
-              {fiscalYear(selectedYear)} · {user?.role === 'country_admin' ? (requesterCountry ?? 'Your country') : 'All countries'}
+              {fiscalYear(reportYear)} · {user?.role === 'country_admin' ? (requesterCountry ?? 'Your country') : 'All countries'}
             </p>
           </div>
           {total > 0 && (
@@ -259,7 +253,7 @@ export default function WorkforceReport() {
 
         <div style={{background:'#fff',border:`1px solid ${C.border}`,borderRadius:8,overflow:'hidden',boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
           <div style={{padding:'16px 20px',borderBottom:`1px solid ${C.border}`,borderLeft:'4px solid #2563EB'}}>
-            <h3 style={{margin:0,fontSize:14,fontWeight:600,color:C.textMain}}>{fiscalYear(selectedYear)} Annual Report</h3>
+            <h3 style={{margin:0,fontSize:14,fontWeight:600,color:C.textMain}}>{fiscalYear(reportYear)} Annual Report</h3>
             <p style={{margin:'2px 0 0',fontSize:12,color:C.textMuted}}>
               {loading ? 'Loading…' : `${total} employees · sorted by country, branch, department`}
             </p>
@@ -267,7 +261,7 @@ export default function WorkforceReport() {
 
           {loading && <div style={{padding:'60px 24px',textAlign:'center',color:C.textMuted,fontSize:14}}>Loading…</div>}
           {!loading && error && <div style={{padding:'32px',textAlign:'center',color:'#DC2626',fontSize:13}}>{error}</div>}
-          {!loading && !error && rows.length === 0 && <div style={{padding:'60px 24px',textAlign:'center',color:C.textMuted,fontSize:14}}>No data found for {fiscalYear(selectedYear)}.</div>}
+          {!loading && !error && rows.length === 0 && <div style={{padding:'60px 24px',textAlign:'center',color:C.textMuted,fontSize:14}}>No data found for {fiscalYear(reportYear)}.</div>}
 
           {!loading && !error && rows.length > 0 && (
             <div style={{overflowX:'auto'}}>
@@ -282,8 +276,8 @@ export default function WorkforceReport() {
                     <th style={th}>Emp ID</th>
                     <th style={th}>Name</th>
                     <th style={th}>Organisational Unit</th>
-                    <th style={{...th,textAlign:'center'}}>{fiscalH1(selectedYear)}</th>
-                    <th style={{...th,textAlign:'center'}}>{fiscalH2(selectedYear - 1)}</th>
+                    <th style={{...th,textAlign:'center'}}>{fiscalH1(reportYear)}</th>
+                    <th style={{...th,textAlign:'center'}}>{fiscalH2(reportYear)}</th>
                     <th style={{...th,textAlign:'center'}}>Talent Block</th>
                   </tr>
                 </thead>
