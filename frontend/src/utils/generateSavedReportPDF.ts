@@ -192,25 +192,6 @@ function drawMultiLineChart(
     pdf.line(toPlotX(i), plotY, toPlotX(i), plotY + plotH);
   });
 
-  // Dashed threshold reference line at 3.0 (satisfactory minimum)
-  if (yMin <= 3.0 && 3.0 <= yMax) {
-    const refY    = toPlotY(3.0);
-    const dashLen = 2.5;
-    const gapLen  = 1.5;
-    pdf.setDrawColor(...C.amber);
-    pdf.setLineWidth(0.35);
-    let cx = plotX;
-    while (cx < plotX + plotW) {
-      pdf.line(cx, refY, Math.min(cx + dashLen, plotX + plotW), refY);
-      cx += dashLen + gapLen;
-    }
-    // Label on the right side to avoid colliding with the Y-axis "3.0" tick
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(5.5);
-    pdf.setTextColor(...C.amber);
-    pdf.text('Min 3.0', plotX + plotW - 2, refY - 1.5, { align: 'right' });
-  }
-
   // X-axis labels
   xLabels.forEach((label, i) => {
     const lx = toPlotX(i);
@@ -242,13 +223,13 @@ function drawMultiLineChart(
       const px = toPlotX(i);
       const py = toPlotY(v);
 
-      // White halo so dots stand out on grid lines
+      // White halo square so marker stands out on grid lines
       pdf.setFillColor(...C.white);
-      pdf.circle(px, py, 2, 'F');
+      pdf.rect(px - 2.5, py - 2.5, 5, 5, 'F');
 
-      // Coloured dot
+      // Coloured square marker
       pdf.setFillColor(...color);
-      pdf.circle(px, py, 1.4, 'F');
+      pdf.rect(px - 1.5, py - 1.5, 3, 3, 'F');
 
       // Value label above the dot (with enough clearance)
       pdf.setFont('helvetica', 'bold');
