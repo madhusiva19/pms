@@ -9,8 +9,8 @@ import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import {
-  ChevronRight,
   ChevronLeft,
   Users,
   TrendingUp,
@@ -264,13 +264,11 @@ export default function DeptAdminReportDetailPage() {
         <div className="flex flex-col gap-4">
 
           {/* Breadcrumb */}
-          <nav className="flex flex-wrap items-center gap-0 text-[13px] text-[#64748B]">
-            <a href="/dept-admin" className="hover:text-[#1E293B] transition-colors">Home</a>
-            <ChevronRight className="w-3.5 h-3.5 mx-1.5" />
-            <a href="/dept-admin/reports" className="hover:text-[#1E293B] transition-colors">Reports</a>
-            <ChevronRight className="w-3.5 h-3.5 mx-1.5" />
-            <span className="text-[#1E293B]">{teamName}</span>
-          </nav>
+          <Breadcrumb items={[
+            { label: 'Home', href: '/dept-admin' },
+            { label: 'Reports', href: '/dept-admin/reports' },
+            { label: teamName },
+          ]} />
 
           {/* Title Row */}
           <div className="flex items-start justify-between">
