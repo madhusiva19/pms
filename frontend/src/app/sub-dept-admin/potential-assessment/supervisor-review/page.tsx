@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
 import { User, ChevronRight } from 'lucide-react';
@@ -50,7 +50,7 @@ export default function SubDeptAdminTeamReviewPage() {
           <h2 className="text-[18px] font-semibold text-[#101828]">Employee Assessments</h2>
           <p className="text-[13.5px] text-[#64748B]">Review potential assessments for your direct report employees.</p>
         </div>
-        {teamLoading ? <div className="text-[#94A3B8] text-[14px] py-4">Loading team data…</div> : (
+        {teamLoading ? <div className="text-[#94A3B8] text-[14px] py-4">Loading team dataâ€¦</div> : (
           <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
             <table className="w-full border-collapse">
               <thead>
@@ -71,7 +71,7 @@ export default function SubDeptAdminTeamReviewPage() {
                     <tr key={sub.id} className="border-b border-[#F1F5F9] hover:bg-[#FAFAFA] transition-colors">
                       <td className="px-5 py-4"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-[#DBEAFE] flex items-center justify-center"><User className="w-4 h-4 text-[#1D4ED8]" /></div><span className="text-[13.5px] font-medium text-[#101828]">{sub.full_name}</span></div></td>
                       <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{sub.emp_id ?? sub.id.slice(0, 8)}</td>
-                      <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{'—'}</td>
+                      <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{'â€”'}</td>
                       <td className="px-5 py-4"><span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium border ${badge.cls}`}>{badge.label}</span></td>
                       <td className="px-5 py-4">
                         <button disabled={!canReview} onClick={() => router.push(`/sub-dept-admin/potential-assessment/${sub.id}`)}

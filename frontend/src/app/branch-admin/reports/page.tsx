@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 /**
- * Branch Admin — Reports Landing Page
+ * Branch Admin â€” Reports Landing Page
  * Shows departments as cards for selection.
  * UI mirrors HQ Admin (CountryCard layout) via DepartmentCard component.
  */
@@ -13,13 +13,13 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import DepartmentCard from '@/components/DepartmentCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/SearchInput';
 import EmptyState from '@/components/EmptyState';
 import { branchByCodeApi, departmentsApi } from '@/services/api';
 import type { Department } from '@/types';
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function BranchAdminReportsPage() {
   const router = useRouter();
@@ -77,7 +77,7 @@ export default function BranchAdminReportsPage() {
         </div>
 
         {/* Search */}
-        <SearchInput value={search} onChange={setSearch} placeholder="Search department…" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search departmentâ€¦" />
 
         {/* Error state */}
         {error && (

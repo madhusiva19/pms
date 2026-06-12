@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
 import { User, ChevronRight } from 'lucide-react';
@@ -50,7 +50,7 @@ export default function BranchAdminTeamReviewPage() {
           <h2 className="text-[18px] font-semibold text-[#101828]">Department Admin Assessments</h2>
           <p className="text-[13.5px] text-[#64748B]">Review potential assessments for Dept Admins under your branch.</p>
         </div>
-        {teamLoading ? <div className="text-[#94A3B8] text-[14px] py-4">Loading team data…</div> : (() => {
+        {teamLoading ? <div className="text-[#94A3B8] text-[14px] py-4">Loading team dataâ€¦</div> : (() => {
           const reconSubs = subordinates.filter(s => s.assessment_status === 'reconsideration_requested');
           return (
             <>
