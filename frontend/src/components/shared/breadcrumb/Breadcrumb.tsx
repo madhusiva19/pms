@@ -1,10 +1,5 @@
 'use client';
 
-/**
- * Breadcrumb Component
- * Renders a navigation breadcrumb trail from an array of items
- */
-
 import { ChevronRight } from 'lucide-react';
 
 interface BreadcrumbItem {
