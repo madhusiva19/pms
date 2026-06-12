@@ -8,27 +8,20 @@ report_cycle_bp = Blueprint('report_cycle', __name__)
 @report_cycle_bp.route('/api/active-report-year', methods=['GET'])
 def get_active_report_year():
     """
-    Derives the active report year from the latest H1 data in performance_summaries.
-    Active report year N means:
-      - Mid-Year tab shows data from year N-1, period H1
-      - Year-End tab shows data from year N, period H2
-    When H1 data for year Y is added, active_report_year becomes Y+1.
+    Returns the active report year from pms_cycles WHERE is_active=true.
+    Both H1 (mid-year) and H2 (year-end) for that year share the same pms_year value.
+    When the cycle advances (e.g. 2027 becomes active), pms_cycles is updated accordingly.
     """
     try:
-        result = supabase.table('performance_summaries').select('year').eq('period', 'H1').execute()
-        h1_years = [r['year'] for r in result.data if r.get('year') is not None]
-        if h1_years:
-            latest_h1_year = max(h1_years)
+        result = supabase.table('pms_cycles').select('pms_year').eq('is_active', True).limit(1).execute()
+        if result.data:
+            active_report_year = result.data[0]['pms_year']
         else:
-            # No H1 data yet; fall back so active_report_year equals the current calendar year
-            latest_h1_year = datetime.now().year - 1
-        active_report_year = latest_h1_year + 1
+            active_report_year = datetime.now().year
         return jsonify({
             'success': True,
             'data': {
                 'active_report_year': active_report_year,
-                'mid_year_data_year': latest_h1_year,
-                'year_end_data_year': active_report_year,
             },
         }), 200
     except Exception as e:
