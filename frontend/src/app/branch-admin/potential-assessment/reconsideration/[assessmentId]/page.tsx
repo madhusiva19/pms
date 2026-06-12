@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import Breadcrumb from '@/components/shared/breadcrumb/Breadcrumb';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { reconsiderationApi, assessmentComponentsApi } from '@/services/potentialAssessmentApi';
 import { ChevronLeft, ChevronDown } from 'lucide-react';
 import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey } from '@/utils/assessmentContent';

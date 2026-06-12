@@ -24,12 +24,12 @@ import {
   BarChart2,
 } from 'lucide-react';
 
-import MetricCard from '@/components/MetricCard';
-import BellCurveChart from '@/components/BellCurveChart';
-import ComparisonChart from '@/components/ComparisonChart';
-import AIInsightCard from '@/components/AIInsightCard';
-import AIRecommendationsList from '@/components/AIRecommendationsList';
-import CreateReportModal from '@/components/CreateReportModal';
+import MetricCard from '@/components/shared/MetricCard';
+import BellCurveChart from '@/components/bell-curve/BellCurveChart';
+import ComparisonChart from '@/components/comparison/ComparisonChart';
+import AIInsightCard from '@/components/ai/AIInsightCard';
+import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
+import CreateReportModal from '@/components/reports/CreateReportModal';
 
 import {
   dashboardApi,
@@ -440,7 +440,7 @@ export default function CountryReportPage() {
           {bellCurveData.length > 0 && (
             <BellCurveChart
               data={bellCurveData}
-              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear!}`}
+              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear! - 1}/${String(reportYear!).slice(-2)}`}
               subtitle={
                 activeTab === 'mid_year'
                   ? 'Performance rating distribution with normalization'

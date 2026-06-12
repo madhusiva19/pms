@@ -10,11 +10,11 @@ import React, { useState, useEffect } from 'react';
 import { User } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import EmployeeCard from '@/components/EmployeeCard';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
-import SearchInput from '@/components/SearchInput';
-import EmptyState from '@/components/EmptyState';
+import EmployeeCard from '@/components/shared/EmployeeCard';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import Breadcrumb from '@/components/shared/breadcrumb/Breadcrumb';
+import SearchInput from '@/components/shared/SearchInput';
+import EmptyState from '@/components/shared/EmptyState';
 import { employeesApi } from '@/services/api';
 import type { Employee } from '@/types';
 
