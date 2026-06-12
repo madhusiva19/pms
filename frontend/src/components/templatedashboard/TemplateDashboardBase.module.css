@@ -1825,3 +1825,7 @@
   border-color: var(--tdb-blue-border);
   color:        var(--tdb-blue);
 }
+.card > *:last-child {
+  border-bottom-left-radius:  var(--tdb-radius-xl);
+  border-bottom-right-radius: var(--tdb-radius-xl);
+}
