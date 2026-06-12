@@ -159,7 +159,7 @@ async function handlePdfDownload(userId: string, year: number, countryName: stri
         '<th style="width:19%">Name</th>' +
         '<th style="width:35%">Organisational Unit</th>' +
         '<th class="r" style="width:12%">' + fiscalH1(year) + '</th>' +
-        '<th class="r" style="width:12%">' + fiscalH2(year - 1) + '</th>' +
+        '<th class="r" style="width:12%">' + fiscalH2(year) + '</th>' +
         '<th class="r" style="width:10%">Potential</th>' +
       '</tr></thead>' +
       '<tbody>' + tableRows + '</tbody>' +
