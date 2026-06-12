@@ -1843,7 +1843,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
             <div>
               <h1 className={styles.pageTitle}>Template Management</h1>
               <p className={styles.pageSubtitleMain}>
-                Manage and deploy evaluation structures across your organisation
+                Manage and deploy evaluation templates across org
               </p>
               <p className={styles.pageSubtitle}>
                 <span className={styles.rolePill}>{permissions.roleLabel}</span>

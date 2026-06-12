@@ -25,9 +25,9 @@ from models.constants import (
 )
 
 from models.supabase_client import supabase
+from typing import Optional
 
-
-def get_active_pms_cycle() -> dict | None:
+def get_active_pms_cycle() -> Optional[dict]:
     try:
         result = (
             supabase.table("pms_cycles")
