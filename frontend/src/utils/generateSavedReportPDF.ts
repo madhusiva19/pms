@@ -374,18 +374,22 @@ function drawMultiCountrySection(
   const hasEnd = period === 'year_end'  || period === 'both';
   const periods = [...(hasMid ? ['mid_year'] : []), ...(hasEnd ? ['year_end'] : [])];
 
-  // If 'both', draw a grouped line chart (one line per period, x = countries)
-  if (period === 'both') {
+  // Always draw a trend line chart — one line per selected period, x = countries
+  {
     const xLabels = countryData.map(d => d.country_name as string);
     const series: Array<{ label: string; color: [number, number, number]; data: number[] }> = [];
 
-    const midData = countryData.map(d => d.mid_year?.avg_score).filter((v): v is number => v != null);
-    const endData = countryData.map(d => d.year_end?.avg_score).filter((v): v is number => v != null);
-    if (midData.length) series.push({ label: 'Mid-Year Avg Score', color: C.teal, data: midData });
-    if (endData.length) series.push({ label: 'Year-End Avg Score', color: C.blue, data: endData });
+    if (hasMid) {
+      const midData = countryData.map(d => (d.mid_year?.avg_score ?? 0) as number);
+      series.push({ label: 'Mid-Year Avg Score', color: C.teal, data: midData });
+    }
+    if (hasEnd) {
+      const endData = countryData.map(d => (d.year_end?.avg_score ?? 0) as number);
+      series.push({ label: 'Year-End Avg Score', color: C.blue, data: endData });
+    }
 
     if (series.length > 0) {
-      y = sectionHeader(pdf, `Country Comparison — ${reportYear}`, y, pageW);
+      y = sectionHeader(pdf, `Country Trend Analysis — ${reportYear}`, y, pageW);
       y += 6;
       drawMultiLineChart(pdf, 14, y, pageW - 28, 52, series, xLabels, 0, 5);
       y += 66;
@@ -406,9 +410,7 @@ function drawMultiCountrySection(
 
     if (rows.length === 0) return;
 
-    const label = period === 'both'
-      ? (p === 'mid_year' ? 'Mid-Year Breakdown' : 'Year-End Breakdown')
-      : `Country Comparison — ${periodLabel(p)} ${reportYear}`;
+    const label = p === 'mid_year' ? 'Mid-Year Breakdown' : 'Year-End Breakdown';
 
     y = sectionHeader(pdf, label, y, pageW);
     y += 4;
