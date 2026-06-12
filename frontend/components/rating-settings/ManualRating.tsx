@@ -42,8 +42,9 @@ interface OrgContext {
 }
 
 function fiscalLabel(year: number, period: string): string {
-  if (period === 'H1') return `H1 ${year}/${String(year + 1).slice(-2)}`;
-  return `H2 ${year}/${String(year + 1).slice(-2)}`;
+  // pms_year is the end year (e.g. 2026 = FY 2025/26)
+  if (period === 'H1') return `H1 ${year - 1}/${String(year).slice(-2)}`;
+  return `H2 ${year - 1}/${String(year).slice(-2)}`;
 }
 
 const API          = 'http://127.0.0.1:5000';
