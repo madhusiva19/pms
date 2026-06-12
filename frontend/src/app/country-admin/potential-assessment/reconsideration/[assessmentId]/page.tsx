@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { reconsiderationApi, assessmentComponentsApi } from '@/services/potentialAssessmentApi';
 import { ChevronLeft, ChevronDown } from 'lucide-react';

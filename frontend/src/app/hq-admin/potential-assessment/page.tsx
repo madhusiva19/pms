@@ -1,14 +1,14 @@
-'use client';
+﻿'use client';
 
 /**
- * HQ Admin — Potential Assessment listing page
+ * HQ Admin â€” Potential Assessment listing page
  * Shows all Country Admins with their assessment status for the active cycle.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
 import type { AppraisalCycle, SubordinateAssessmentSummary } from '@/types';
@@ -90,7 +90,7 @@ export default function HQAdminPotentialAssessmentPage() {
                           </div>
                         </td>
                         <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{sub.emp_id ?? sub.id.slice(0, 8)}</td>
-                        <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{(sub as any).country_name ?? sub.country_id ?? '—'}</td>
+                        <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{(sub as any).country_name ?? sub.country_id ?? 'â€”'}</td>
                         <td className="px-5 py-4"><span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium border ${badge.cls}`}>{badge.label}</span></td>
                         <td className="px-5 py-4">
                           <button type="button" disabled={!canReview}
@@ -132,7 +132,7 @@ export default function HQAdminPotentialAssessmentPage() {
                             </div>
                           </td>
                           <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{sub.emp_id ?? sub.id.slice(0, 8)}</td>
-                          <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{(sub as any).country_name ?? sub.country_id ?? '—'}</td>
+                          <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{(sub as any).country_name ?? sub.country_id ?? 'â€”'}</td>
                           <td className="px-5 py-4">
                             <button type="button"
                               onClick={() => router.push(`/hq-admin/potential-assessment/reconsideration/${sub.assessment_id}`)}

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 /**
  * Reports Listing Page
@@ -10,7 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { MapPin } from 'lucide-react';
 import CountryCard from '@/components/CountryCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import Breadcrumb from '@/components/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/SearchInput';
 import EmptyState from '@/components/EmptyState';
 import { countriesApi } from '@/services/api';
