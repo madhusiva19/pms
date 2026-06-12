@@ -7,8 +7,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import Breadcrumb from '@/components/shared/breadcrumb/Breadcrumb';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import SupervisorReviewForm from '@/components/potential-assessment/SupervisorReviewForm';
 import CompletedSummary from '@/components/potential-assessment/CompletedSummary';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';

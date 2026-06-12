@@ -8,8 +8,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import Breadcrumb from '@/components/shared/breadcrumb/Breadcrumb';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
 import type { AppraisalCycle, SubordinateAssessmentSummary } from '@/types';
 import { statusBadge } from '@/lib/assessmentStatusBadge';

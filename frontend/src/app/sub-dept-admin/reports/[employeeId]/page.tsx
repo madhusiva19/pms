@@ -21,11 +21,11 @@ import {
   XCircle,
 } from 'lucide-react';
 
-import MetricCard from '@/components/MetricCard';
-import AIInsightCard from '@/components/AIInsightCard';
-import AIRecommendationsList from '@/components/AIRecommendationsList';
-import SubDeptScoreBarChart from '@/components/SubDeptScoreBarChart';
-import type { TeamScoreEntry } from '@/components/SubDeptScoreBarChart';
+import MetricCard from '@/components/shared/MetricCard';
+import AIInsightCard from '@/components/ai/AIInsightCard';
+import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
+import SubDeptScoreBarChart from '@/components/reports/SubDeptScoreBarChart';
+import type { TeamScoreEntry } from '@/components/reports/SubDeptScoreBarChart';
 
 import {
   employeesApi,
@@ -226,7 +226,7 @@ export default function SubDeptAdminReportDetailPage() {
                 Performance Reports
               </h1>
               <p className="text-[15px] text-[#4A5565]">
-                {empName} — Mid-Year & Year-End {reportYear!} Analytics
+                {empName} — Mid-Year & Year-End {reportYear! - 1}/{String(reportYear!).slice(-2)} Analytics
               </p>
             </div>
 
@@ -316,7 +316,7 @@ export default function SubDeptAdminReportDetailPage() {
               data={teamScores}
               currentEmployeeId={employeeId}
               title="Team Performance Scores"
-              subtitle={`Mid-Year & Year-End ${reportYear!} — selected employee highlighted`}
+              subtitle={`Mid-Year & Year-End ${reportYear! - 1}/${String(reportYear!).slice(-2)} — selected employee highlighted`}
             />
           )}
 
