@@ -57,6 +57,7 @@
   border-radius: 10px;
   color: #ffffff;
   cursor: pointer;
+  -webkit-user-select: none;
   user-select: none;
   background: transparent;
   border: none;
