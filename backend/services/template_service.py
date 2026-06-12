@@ -13,7 +13,7 @@ Responsibilities:
     - get_all_variants_across_templates() — HQ Admin global variant view
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from models.constants import DEFAULT_MAX_SCORE
 from models.supabase_client import supabase
@@ -116,11 +116,11 @@ def _build_lookup_maps(designations, departments, sub_departments, branches, cou
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _collect_assigned_ids(t_rules: list, t_user_rows: list) -> dict:
-    designation_ids  = list(set(r["designation_id"]         for r in t_rules     if r.get("designation_id")))
-    dept_ids         = list(set(str(r["department_id"])      for r in t_rules     if r.get("department_id")))
-    branch_ids       = list(set(str(r["branch_id"])          for r in t_rules     if r.get("branch_id")))
-    sub_dept_ids     = list(set(str(r["sub_department_id"])  for r in t_rules     if r.get("sub_department_id")))
-    user_ids         = list(set(str(m["user_id"])            for m in t_user_rows if m.get("user_id")))
+    designation_ids = list(set(r["designation_id"]        for r in t_rules     if r.get("designation_id")))
+    dept_ids        = list(set(str(r["department_id"])     for r in t_rules     if r.get("department_id")))
+    branch_ids      = list(set(str(r["branch_id"])         for r in t_rules     if r.get("branch_id")))
+    sub_dept_ids    = list(set(str(r["sub_department_id"]) for r in t_rules     if r.get("sub_department_id")))
+    user_ids        = list(set(str(m["user_id"])           for m in t_user_rows if m.get("user_id")))
 
     country_ids = list(set(str(r["country_id"]) for r in t_rules if r.get("country_id")))
     for row in t_user_rows:
@@ -264,7 +264,10 @@ def _enrich_templates(templates: list) -> list:
         template["assignedDirectUserIds"]    = ids["direct_user_ids"]
         template["assignedSubDepartments"]   = [{"id": str(s["id"]), "name": s["name"], "code": s.get("code")} for s in sub_departments if str(s["id"]) in ids["sub_dept_ids"]]
         template["assignedSubDepartmentIds"] = ids["sub_dept_ids"]
-        template["assignedRules"] = _build_assigned_rules(t_rules, ids["direct_user_ids"], desig_map, dept_map, subdept_map, branch_map, country_map)
+        template["assignedRules"]            = _build_assigned_rules(
+            t_rules, ids["direct_user_ids"],
+            desig_map, dept_map, subdept_map, branch_map, country_map,
+        )
 
         if template.get("max_score") is None:
             template["max_score"] = DEFAULT_MAX_SCORE
@@ -283,8 +286,25 @@ def _enrich_templates(templates: list) -> list:
 
         template["unfrozenBranchIds"]  = [str(e["branch_id"])  for e in t_exceptions if e.get("branch_id")]
         template["unfrozenCountryIds"] = [str(e["country_id"]) for e in t_exceptions if e.get("country_id")]
-        template["unfreezeExceptions"] = [{"id": e["id"], "branch_id": str(e["branch_id"]) if e.get("branch_id") else None, "country_id": str(e["country_id"]) if e.get("country_id") else None, "unfrozen_at": e.get("unfrozen_at")} for e in t_exceptions]
-        template["variants"]    = [{"id": v["id"], "branch_id": str(v["branch_id"]) if v.get("branch_id") else None, "country_id": str(v["country_id"]) if v.get("country_id") else None, "name": v.get("name"), "lastModified": v.get("lastModified")} for v in t_variants]
+        template["unfreezeExceptions"] = [
+            {
+                "id":          e["id"],
+                "branch_id":   str(e["branch_id"])  if e.get("branch_id")  else None,
+                "country_id":  str(e["country_id"]) if e.get("country_id") else None,
+                "unfrozen_at": e.get("unfrozen_at"),
+            }
+            for e in t_exceptions
+        ]
+        template["variants"] = [
+            {
+                "id":           v["id"],
+                "branch_id":    str(v["branch_id"])  if v.get("branch_id")  else None,
+                "country_id":   str(v["country_id"]) if v.get("country_id") else None,
+                "name":         v.get("name"),
+                "lastModified": v.get("lastModified"),
+            }
+            for v in t_variants
+        ]
         template["hasVariants"] = len(t_variants) > 0
 
     return templates
@@ -296,10 +316,19 @@ def _enrich_templates(templates: list) -> list:
 
 def get_all_templates() -> list:
     try:
-        templates = supabase.table("templates").select("*").order("lastModified", desc=True).execute().data
+        templates = (
+            supabase.table("templates")
+            .select("*")
+            .order("lastModified", desc=True)
+            .execute()
+            .data
+        )
     except Exception:
         templates = supabase.table("templates").select("*").execute().data
-        templates.sort(key=lambda t: t.get("lastModified") or t.get("lastmodified") or t.get("created_at") or "", reverse=True)
+        templates.sort(
+            key=lambda t: t.get("lastModified") or t.get("lastmodified") or t.get("created_at") or "",
+            reverse=True,
+        )
     return _enrich_templates(templates)
 
 
@@ -351,7 +380,13 @@ def delete_template(template_id: int) -> None:
 
 
 def get_cycle_template_count(cycle_id: int) -> int:
-    rows = supabase.table("templates").select("id").eq("pms_cycle_id", cycle_id).execute().data or []
+    rows = (
+        supabase.table("templates")
+        .select("id")
+        .eq("pms_cycle_id", cycle_id)
+        .execute()
+        .data or []
+    )
     return len(rows)
 
 
@@ -360,18 +395,35 @@ def rollover_cycle(old_cycle_id: int, new_cycle_id: int) -> dict:
     Duplicate all templates from old_cycle_id into new_cycle_id.
     Idempotent — skips if new cycle already has templates.
     Never copies id — lets DB auto-generate.
+
+    Each template gets a unique timestamp (1 second apart) so sort
+    order is deterministic after rollover.
     """
-    existing = supabase.table("templates").select("id").eq("pms_cycle_id", new_cycle_id).execute().data or []
+    existing = (
+        supabase.table("templates")
+        .select("id")
+        .eq("pms_cycle_id", new_cycle_id)
+        .execute()
+        .data or []
+    )
     if existing:
         return {"copied": 0, "template_ids": [], "skipped": True}
 
-    source_templates = supabase.table("templates").select("*").eq("pms_cycle_id", old_cycle_id).execute().data or []
+    source_templates = (
+        supabase.table("templates")
+        .select("*")
+        .eq("pms_cycle_id", old_cycle_id)
+        .order("lastModified", desc=True)
+        .execute()
+        .data or []
+    )
 
-    now     = datetime.now(timezone.utc).isoformat()
-    new_ids = []
+    base_time = datetime.now(timezone.utc)
+    new_ids   = []
 
-    for t in source_templates:
-        # Explicitly build payload — never include id
+    for i, t in enumerate(source_templates):
+        # Each template gets a 1-second offset so newest-first order is preserved
+        now = (base_time + timedelta(seconds=i)).isoformat()
         payload = {
             "name":             t.get("name"),
             "description":      t.get("description"),
@@ -417,8 +469,20 @@ def copy_assignments_for_rolled_over_templates(
       { copied_rules, copied_users, skipped }
     """
     # ── Fetch old and new templates ───────────────────────────────────────────
-    old_templates = supabase.table("templates").select("id, name").eq("pms_cycle_id", old_cycle_id).execute().data or []
-    new_templates = supabase.table("templates").select("id, name").eq("pms_cycle_id", new_cycle_id).execute().data or []
+    old_templates = (
+        supabase.table("templates")
+        .select("id, name")
+        .eq("pms_cycle_id", old_cycle_id)
+        .execute()
+        .data or []
+    )
+    new_templates = (
+        supabase.table("templates")
+        .select("id, name")
+        .eq("pms_cycle_id", new_cycle_id)
+        .execute()
+        .data or []
+    )
 
     if not old_templates or not new_templates:
         return {"copied_rules": 0, "copied_users": 0, "skipped": False}
@@ -454,8 +518,20 @@ def copy_assignments_for_rolled_over_templates(
     old_ids_str = [str(i) for i in id_map.keys()]
 
     # ── Fetch old rules and user rows ─────────────────────────────────────────
-    old_rules     = supabase.table("template_assignment_combinations").select("*").in_("template_id", old_ids_str).execute().data or []
-    old_user_rows = supabase.table("template_assignments").select("*").in_("template_id", old_ids_str).execute().data or []
+    old_rules     = (
+        supabase.table("template_assignment_combinations")
+        .select("*")
+        .in_("template_id", old_ids_str)
+        .execute()
+        .data or []
+    )
+    old_user_rows = (
+        supabase.table("template_assignments")
+        .select("*")
+        .in_("template_id", old_ids_str)
+        .execute()
+        .data or []
+    )
 
     copied_rules = 0
     copied_users = 0
@@ -471,13 +547,17 @@ def copy_assignments_for_rolled_over_templates(
             new_rule = {k: v for k, v in rule.items() if k != "id"}
             new_rule["template_id"] = new_tid
             new_rules_payload.append(new_rule)
-    if new_rules_payload:
-        supabase.table("template_assignment_combinations").insert(new_rules_payload).execute()
-        copied_rules = len(new_rules_payload)
-        # Bump lastModified on all new-cycle templates so they sort to top
-        now_iso = datetime.now(timezone.utc).isoformat()
-        for new_tid in id_map.values():
-            supabase.table("templates").update({"lastModified": now_iso}).eq("id", new_tid).execute()
+
+        if new_rules_payload:
+            supabase.table("template_assignment_combinations").insert(new_rules_payload).execute()
+            copied_rules = len(new_rules_payload)
+
+            # Bump lastModified on all new-cycle templates so they sort correctly
+            now_iso = datetime.now(timezone.utc).isoformat()
+            for new_tid in id_map.values():
+                supabase.table("templates").update(
+                    {"lastModified": now_iso}
+                ).eq("id", new_tid).execute()
 
     # ── Copy user assignment rows ─────────────────────────────────────────────
     if old_user_rows:
@@ -495,7 +575,10 @@ def copy_assignments_for_rolled_over_templates(
             supabase.table("template_assignments").insert(new_users_payload).execute()
             copied_users = len(new_users_payload)
 
-    print(f"✅  copy_assignments: copied {copied_rules} rules and {copied_users} user rows from cycle {old_cycle_id} to {new_cycle_id}.")
+    print(
+        f"✅  copy_assignments: copied {copied_rules} rules and "
+        f"{copied_users} user rows from cycle {old_cycle_id} to {new_cycle_id}."
+    )
 
     return {"copied_rules": copied_rules, "copied_users": copied_users, "skipped": False}
 
@@ -681,7 +764,12 @@ def create_unfreeze_exceptions(template_id: int, data: dict) -> dict:
     if rows:
         supabase.table("template_unfreezes").insert(rows).execute()
 
-    return {"unfrozen": len(rows), "branch_ids": branch_ids, "country_ids": country_ids, "pms_cycle_id": cycle_id}
+    return {
+        "unfrozen":    len(rows),
+        "branch_ids":  branch_ids,
+        "country_ids": country_ids,
+        "pms_cycle_id": cycle_id,
+    }
 
 
 def bulk_delete_unfreeze_exceptions(template_id: int, exception_ids: list) -> int:
@@ -692,7 +780,13 @@ def bulk_delete_unfreeze_exceptions(template_id: int, exception_ids: list) -> in
 
 
 def delete_single_unfreeze_exception(template_id: int, exception_id: int) -> None:
-    supabase.table("template_unfreezes").delete().eq("id", exception_id).eq("template_id", template_id).execute()
+    (
+        supabase.table("template_unfreezes")
+        .delete()
+        .eq("id", exception_id)
+        .eq("template_id", template_id)
+        .execute()
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -836,6 +930,9 @@ def get_all_variants_across_templates(filters: dict | None = None) -> list:
 
         enriched.append(v)
 
-    enriched.sort(key=lambda x: x.get("lastModified") or x.get("created_at") or "", reverse=True)
+    enriched.sort(
+        key=lambda x: x.get("lastModified") or x.get("created_at") or "",
+        reverse=True,
+    )
 
     return enriched
