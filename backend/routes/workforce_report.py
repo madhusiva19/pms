@@ -87,6 +87,43 @@ def sort_rows(rows: list) -> list:
     return rows
 
 
+def get_latest_completed_year() -> int:
+    """
+    Returns the latest pms_year where BOTH H1 and H2 performance summaries exist.
+    This is the last fully completed fiscal year.
+
+    Example:
+      Today = Jun 12 2026 → H2 2025/26 not yet calculated
+      → returns 2025 (FY 2024/25 is fully complete)
+
+      After Jul 16 2026 → H2 2025/26 calculated
+      → returns 2026 (FY 2025/26 is fully complete)
+    """
+    try:
+        # Get distinct years that have H1 data
+        h1_res = supabase.table("performance_summaries")            .select("year")            .eq("period", "H1")            .execute()
+        h1_years = {r["year"] for r in (h1_res.data or [])}
+
+        # Get distinct years that have H2 data
+        h2_res = supabase.table("performance_summaries")            .select("year")            .eq("period", "H2")            .execute()
+        h2_years = {r["year"] for r in (h2_res.data or [])}
+
+        # Years where BOTH H1 and H2 exist = fully completed fiscal years
+        complete_years = h1_years & h2_years
+        if complete_years:
+            return max(complete_years)
+        # No fully complete year yet — fall back to latest year with H2 data
+        # (H2 is the closing half so it's more "complete" than H1-only)
+        if h2_years:
+            return max(h2_years)
+        # Last resort — latest year with any data
+        return max(h1_years | h2_years, default=2025)
+
+    except Exception as exc:
+        print(f"[ERROR] get_latest_completed_year: {exc}")
+        return 2025
+
+
 def fetch_users_for_role(requester_role: str, requester_country: str | None) -> list:
     """Fetch all users in two batches of 500 to avoid timeout."""
     results = []
@@ -111,12 +148,14 @@ def fetch_users_for_role(requester_role: str, requester_country: str | None) -> 
 @workforce_report_bp.route("/api/workforce-report", methods=["GET"])
 def get_workforce_report():
     try:
-        pms_year     = request.args.get("pms_year", type=int)
         requester_id = request.args.get("requester_id", "").strip()
         page         = max(1, request.args.get("page", 1, type=int))
 
-        if not pms_year or not requester_id:
-            return jsonify({"error": "pms_year and requester_id required"}), 400
+        if not requester_id:
+            return jsonify({"error": "requester_id required"}), 400
+
+        # Auto-detect latest completed fiscal year (both H1 and H2 exist)
+        pms_year = get_latest_completed_year()
 
         req_res = (
             supabase.table("users")
@@ -184,6 +223,7 @@ def get_workforce_report():
             "total":             total,
             "total_pages":       math.ceil(total / PAGE_SIZE),
             "requester_country": requester_country_name,
+            "report_year":       pms_year,
         })
 
     except Exception as exc:
@@ -195,11 +235,13 @@ def get_workforce_report():
 def get_workforce_report_all():
     """Returns all rows in one call — used for PDF generation only."""
     try:
-        pms_year     = request.args.get("pms_year", type=int)
         requester_id = request.args.get("requester_id", "").strip()
 
-        if not pms_year or not requester_id:
-            return jsonify({"error": "pms_year and requester_id required"}), 400
+        if not requester_id:
+            return jsonify({"error": "requester_id required"}), 400
+
+        # Auto-detect latest completed fiscal year (both H1 and H2 exist)
+        pms_year = get_latest_completed_year()
 
         req_res = (
             supabase.table("users")
@@ -245,7 +287,7 @@ def get_workforce_report_all():
 
         requester_country_name = c_names.get(requester_country or "") if requester_role == "country_admin" else None
 
-        return jsonify({"rows": rows, "requester_country": requester_country_name})
+        return jsonify({"rows": rows, "requester_country": requester_country_name, "report_year": pms_year})
 
     except Exception as exc:
         print(f"[ERROR] get_workforce_report_all: {exc}")
