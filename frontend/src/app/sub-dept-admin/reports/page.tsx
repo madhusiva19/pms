@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import EmployeeCard from '@/components/shared/EmployeeCard';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import Breadcrumb from '@/components/shared/breadcrumb/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { employeesApi } from '@/services/api';
