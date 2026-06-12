@@ -3,14 +3,10 @@ from utils.helpers import resolve_emp_ids_by_scope, calculate_bell_curve_from_sc
 
 
 def get_bell_curve_live(period_type: str, year: int, scope: str, scope_id: str) -> dict:
-    # year is the display/report year (e.g. 2026).
-    # Mid-year maps to the previous year's H1; year-end maps to the current report year's H2.
-    # This matches the performance cycle: report year N covers N-1 H1 (mid) and N H2 (year-end).
-    if period_type == 'mid_year':
-        db_year, db_period = year - 1, 'H1'
-    else:
-        db_year, db_period = year, 'H2'
-    start_date, end_date = get_period_dates(period_type, db_year)
+    # year is the active report year (e.g. 2026).
+    # Both H1 (mid-year) and H2 (year-end) are stored with pms_year=year — same year, different period.
+    db_period = 'H1' if period_type == 'mid_year' else 'H2'
+    start_date, end_date = get_period_dates(period_type, year)
 
     emp_ids = resolve_emp_ids_by_scope(scope, scope_id)
     if not emp_ids:
@@ -22,8 +18,8 @@ def get_bell_curve_live(period_type: str, year: int, scope: str, scope_id: str) 
 
     records = (
         supabase.table('performance_summaries')
-        .select('user_id, total_score, period, year')
-        .eq('year', db_year)
+        .select('user_id, total_score, period, pms_year')
+        .eq('pms_year', year)
         .eq('period', db_period)
         .in_('user_id', emp_ids)
         .execute()
