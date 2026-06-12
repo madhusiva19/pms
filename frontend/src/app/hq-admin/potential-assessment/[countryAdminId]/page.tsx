@@ -59,11 +59,7 @@ export default function HQAdminReviewPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
-      <Breadcrumb items={[
-        { label: 'Home', href: '/hq-admin/dashboard' },
-        { label: 'Potential Assessment', href: '/hq-admin/potential-assessment' },
-        { label: appraisee?.full_name ?? 'Review' },
-      ]} />
+      <Breadcrumb />
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>

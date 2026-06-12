@@ -59,11 +59,7 @@ export default function CountryAdminReviewPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
-      <Breadcrumb items={[
-        { label: 'Home', href: '/country-admin/dashboard' },
-        { label: 'Potential Assessment', href: '/country-admin/potential-assessment' },
-        { label: appraisee?.full_name ?? 'Review' },
-      ]} />
+      <Breadcrumb />
       <div><h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>
         {cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.pms_year}</strong></p>}
       </div>

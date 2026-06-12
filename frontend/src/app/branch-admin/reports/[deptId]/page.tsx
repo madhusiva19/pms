@@ -272,11 +272,7 @@ export default function BranchAdminReportDetailPage() {
         <div className="flex flex-col gap-4">
 
           {/* Breadcrumb */}
-          <Breadcrumb items={[
-            { label: 'Home', href: '/branch-admin' },
-            { label: 'Reports', href: '/branch-admin/reports' },
-            { label: deptName },
-          ]} />
+          <Breadcrumb />
 
           {/* Title Row */}
           <div className="flex items-start justify-between">

@@ -1,28 +1,35 @@
 'use client';
 
-import { ChevronRight } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { ChevronRight, Home } from 'lucide-react';
+import styles from './breadcrumb.module.css';
 
-interface BreadcrumbItem {
-  label: string;
-  href?: string;
-}
+export default function Breadcrumb() {
+  const pathname = usePathname();
 
-interface BreadcrumbProps {
-  items: BreadcrumbItem[];
-}
+  const segments = pathname
+    .split('/')
+    .filter(Boolean)
+    .map((seg, i, arr) => ({
+      label: seg.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      href: '/' + arr.slice(0, i + 1).join('/'),
+      isLast: i === arr.length - 1,
+    }));
 
-export default function Breadcrumb({ items }: BreadcrumbProps) {
   return (
-    <nav className="flex flex-wrap items-center gap-0 text-[13px] text-[#64748B]">
-      {items.map((item, index) => (
-        <span key={index} className="flex items-center">
-          {index > 0 && <ChevronRight className="w-3.5 h-3.5 mx-1.5" />}
-          {item.href ? (
-            <a href={item.href} className="hover:text-[#1E293B] transition-colors">
-              {item.label}
-            </a>
+    <nav className={styles.breadcrumb}>
+      <Link href="/" className={styles.homeLink}>
+        <Home size={14} />
+      </Link>
+
+      {segments.map((seg) => (
+        <span key={seg.href} className={styles.segment}>
+          <ChevronRight size={14} className={styles.separator} />
+          {seg.isLast ? (
+            <span className={styles.current}>{seg.label}</span>
           ) : (
-            <span className="text-[#1E293B] font-medium">{item.label}</span>
+            <Link href={seg.href} className={styles.link}>{seg.label}</Link>
           )}
         </span>
       ))}
