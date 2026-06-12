@@ -18,6 +18,13 @@ from routes.pms_cycle_routes  import pms_cycle_bp, init_pms_cycle_routes
 from routes.template_routes   import template_bp
 from routes.assignment_routes import assignment_bp
 from routes.org_routes        import org_bp
+from routes.approval_routes import approval_bp
+from routes.enquiry_routes import enquiry_bp
+from routes.evaluation_routes import evaluation_bp
+from routes.evaluation_status_routes import evaluation_status_bp
+from routes.evaluation_notification_routes import evaluation_notification_bp
+from routes.performance_routes import performance_bp
+from routes.team_member_routes import team_member_bp
 
 # ── Dev-final's blueprints ────────────────────────────────────────────────────
 from routes import auth_bp, profile_bp, diary_bp, notification_bp, training_bp, dashboard_bp
@@ -46,6 +53,13 @@ app.register_blueprint(pms_cycle_bp)
 app.register_blueprint(template_bp)
 app.register_blueprint(assignment_bp)
 app.register_blueprint(org_bp)
+app.register_blueprint(team_member_bp)
+app.register_blueprint(approval_bp)
+app.register_blueprint(evaluation_notification_bp)
+app.register_blueprint(enquiry_bp)
+app.register_blueprint(evaluation_status_bp)
+app.register_blueprint(performance_bp)
+app.register_blueprint(evaluation_bp)
 
 # Register dev-final's blueprints
 app.register_blueprint(auth_bp)
@@ -80,6 +94,5 @@ if __name__ == "__main__":
         rollover_fn=lambda: auto_rollover_if_needed(seed_notifications_for_cycle)
     )
     app.run(host="127.0.0.1", port=5000, debug=True)
-
 
 
