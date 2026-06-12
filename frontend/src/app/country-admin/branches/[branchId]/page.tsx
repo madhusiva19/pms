@@ -21,8 +21,6 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  Calendar,
-  Info,
 } from 'lucide-react';
 
 import MetricCard from '@/components/shared/MetricCard';
@@ -31,6 +29,7 @@ import ComparisonChart from '@/components/comparison/ComparisonChart';
 import AIInsightCard from '@/components/ai/AIInsightCard';
 import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
 import CreateReportModal from '@/components/reports/CreateReportModal';
+import YearEndEmptyState from '@/components/reports/YearEndEmptyState';
 
 import {
   branchDashboardApi,
@@ -437,13 +436,7 @@ export default function BranchReportPage() {
 
           {/* ── Bell Curve Chart ── */}
           {isYearEndEmpty ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-14 rounded-xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB]">
-              <Calendar className="w-10 h-10 text-[#CBD5E1]" />
-              <div className="text-center">
-                <p className="text-[15px] font-semibold text-[#64748B]">Year-End Data Not Yet Available</p>
-                <p className="text-[13px] text-[#94A3B8] mt-1">Year-End appraisal results will be available once the H2 cycle is completed.</p>
-              </div>
-            </div>
+            <YearEndEmptyState />
           ) : bellCurveData.length > 0 ? (
             <BellCurveChart
               data={bellCurveData}
@@ -474,22 +467,23 @@ export default function BranchReportPage() {
             <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
           )}
 
-
            {/* Comparison chart — always shown when data available */}
-          {activeTab === 'year_end' && comparisonData.length > 0 && (
-            <div>
-              {isYearEndEmpty && (
-                <div className="flex items-center gap-2 px-4 py-2.5 mb-4 bg-[#F0F9FF] border border-[#BAE6FD] rounded-lg text-[12.5px] text-[#0369A1]">
-                  <Info className="w-4 h-4 shrink-0" />
-                  <span>Showing Mid-Year data only. Year-End appraisals for this cycle are not yet completed.</span>
+          {activeTab === 'year_end' && (
+            isYearEndEmpty ? (
+              <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-6">
+                <div className="mb-6">
+                  <h4 className="text-[15px] font-semibold text-[#1E293B] mb-1.5">Mid-Year vs Year-End Comparison</h4>
+                  <p className="text-[14px] text-[#64748B]">Performance progression across categories</p>
                 </div>
-              )}
+                <YearEndEmptyState description="The Mid-Year vs Year-End comparison will be available once the H2 appraisal cycle is completed." />
+              </div>
+            ) : comparisonData.length > 0 ? (
               <ComparisonChart
                 data={comparisonData as any}
                 title="Mid-Year vs Year-End Comparison"
                 subtitle="Performance progression across categories"
               />
-            </div>
+            ) : null
           )}
 
         </div>
