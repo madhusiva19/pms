@@ -23,9 +23,10 @@ interface ReportRow {
   organisational_unit: string; h1_score: number | null; h2_score: number | null; talent_block: string | null;
 }
 
-function fiscalYear(y: number) { return `${y}/${String(y + 1).slice(-2)}`; }
-function fiscalH1(y: number)   { return `H1 ${y}/${String(y + 1).slice(-2)}`; }
-function fiscalH2(y: number)   { return `H2 ${y}/${String(y + 1).slice(-2)}`; }
+// pms_year is the end year (e.g. 2026 = FY 2025/26)
+function fiscalYear(y: number) { return `${y - 1}/${String(y).slice(-2)}`; }
+function fiscalH1(y: number)   { return `H1 ${y - 1}/${String(y).slice(-2)}`; }
+function fiscalH2(y: number)   { return `H2 ${y - 1}/${String(y).slice(-2)}`; }
 
 function formatRole(role: string) {
   return ({ country_admin:'Country Admin', branch_admin:'Branch Admin', dept_admin:'Dept Admin',
@@ -157,7 +158,7 @@ async function handlePdfDownload(userId: string, year: number, countryName: stri
         '<th style="width:19%">Name</th>' +
         '<th style="width:35%">Organisational Unit</th>' +
         '<th class="r" style="width:12%">' + fiscalH1(year) + '</th>' +
-        '<th class="r" style="width:12%">' + fiscalH2(year) + '</th>' +
+        '<th class="r" style="width:12%">' + fiscalH2(year - 1) + '</th>' +
         '<th class="r" style="width:10%">Potential</th>' +
       '</tr></thead>' +
       '<tbody>' + tableRows + '</tbody>' +
@@ -282,7 +283,7 @@ export default function WorkforceReport() {
                     <th style={th}>Name</th>
                     <th style={th}>Organisational Unit</th>
                     <th style={{...th,textAlign:'center'}}>{fiscalH1(selectedYear)}</th>
-                    <th style={{...th,textAlign:'center'}}>{fiscalH2(selectedYear)}</th>
+                    <th style={{...th,textAlign:'center'}}>{fiscalH2(selectedYear - 1)}</th>
                     <th style={{...th,textAlign:'center'}}>Talent Block</th>
                   </tr>
                 </thead>
