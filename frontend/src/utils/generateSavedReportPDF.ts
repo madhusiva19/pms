@@ -425,7 +425,7 @@ export async function generateSavedReportPDF(
     isMultiCountry
       ? `Multi-Country  ·  ${(tm.country_data ?? []).length} Countries  ·  ${periodLabel(period)}`
       : isYearComp
-      ? `Year-Over-Year  ·  ${[report.report_year, ...(tm.comparison_years ?? [])].sort((a: number, b: number) => b - a).join(', ')}  ·  ${periodLabel(period)}`
+      ? `${[report.report_year, ...(tm.comparison_years ?? [])].sort((a: number, b: number) => b - a).join(', ')}  ·  ${periodLabel(period)}`
       : `Snapshot  ·  ${periodLabel(period)} ${report.report_year}`;
 
   // ── Header bar ──────────────────────────────────────────────────────────────
