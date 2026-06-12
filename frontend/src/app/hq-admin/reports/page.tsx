@@ -10,7 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { MapPin } from 'lucide-react';
 import CountryCard from '@/components/shared/CountryCard';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import Breadcrumb from '@/components/shared/breadcrumb/Breadcrumb';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { countriesApi } from '@/services/api';
