@@ -23,6 +23,7 @@ import styles     from "./CycleDatesPage.module.css";
 
 const API_BASE             = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
 const TEMPLATE_DASHBOARD_PATH = "/hq-admin/template-management";
+const TEMPLATE_CYCLE_PATH =  "/hq-admin/appraisal-cycle";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ function CycleInfoCard({ activeCycle }: { activeCycle: any }) {
         <Flag size={20} color="#6366f1" />
       </div>
       <div className={styles.infoCardBody}>
-        <div className={styles.infoCardTitle}>PMS Year {pmsYear}</div>
+        <div className={styles.infoCardTitle}>Appraisal Year {pmsYear}</div>
         <div className={styles.infoCardMeta}>
           Cycle starts <strong>{startDate}</strong>
           <span className={styles.infoCardDot} />
@@ -436,7 +437,7 @@ function CycleDatesInner() {
       }
 
       toast.success("PMS cycle dates updated successfully.");
-      setTimeout(() => router.push(TEMPLATE_DASHBOARD_PATH), 800);
+      setTimeout(() => router.push(TEMPLATE_CYCLE_PATH), 800);
     } catch (err: any) {
       console.error("[CycleDatesPage] Save error:", err);
       toast.error(err.message ?? "Could not update cycle dates.");
@@ -472,7 +473,7 @@ function CycleDatesInner() {
                 <Settings size={22} color="#3b82f6" />
               </div>
               <div>
-                <h1 className={styles.pageTitle}>Edit Appraisal Cycle Dates</h1>
+                <h1 className={styles.pageTitle}>Manage Appraisal Cycle Dates</h1>
                 <p className={styles.pageSubtitle}>
                   Adjust milestone dates for the active performance management cycle.
                   These dates will be used to auto-create next year's cycle.
@@ -571,7 +572,7 @@ function CycleDatesInner() {
           <div className={styles.actionsRow}>
             <button
               className={styles.cancelBtn}
-              onClick={() => router.push(TEMPLATE_DASHBOARD_PATH)}
+              onClick={() => router.push(TEMPLATE_CYCLE_PATH)}
               disabled={isSaving}
             >
               Cancel

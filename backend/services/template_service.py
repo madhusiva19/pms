@@ -9,9 +9,11 @@ Responsibilities:
     - Enriching templates with assignment rules, user data, and cycle metadata
     - Managing unfreeze exceptions for frozen templates
     - Serving user-facing "my templates" with variant resolution
+    - copy_assignments_for_rolled_over_templates() — copies assignments to new cycle
+    - get_all_variants_across_templates() — HQ Admin global variant view
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from models.constants import DEFAULT_MAX_SCORE
 from models.supabase_client import supabase
@@ -33,10 +35,6 @@ CREATED_BY_DEFAULT   = "hq_admin"
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_variants_for_template(template_id: int, pms_cycle_id: int | None = None) -> list:
-    """
-    Fetch all variants for a given template, optionally filtered by PMS cycle.
-
-    """
     try:
         query = (
             supabase.table("template_variants")
@@ -51,10 +49,6 @@ def get_variants_for_template(template_id: int, pms_cycle_id: int | None = None)
 
 
 def get_variant_for_branch(template_id: int, branch_id: str, pms_cycle_id: int) -> dict | None:
-    """
-    Fetch a single template variant scoped to a specific branch.
-
-    """
     try:
         result = (
             supabase.table("template_variants")
@@ -71,10 +65,6 @@ def get_variant_for_branch(template_id: int, branch_id: str, pms_cycle_id: int) 
 
 
 def get_variant_for_country(template_id: int, country_id: str, pms_cycle_id: int) -> dict | None:
-    """
-    Fetch a single template variant scoped to a specific country.
-
-    """
     try:
         result = (
             supabase.table("template_variants")
@@ -95,10 +85,6 @@ def get_variant_for_country(template_id: int, country_id: str, pms_cycle_id: int
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_unfreeze_exceptions(template_id: int, pms_cycle_id: int | None = None) -> list:
-    """
-    Fetch unfreeze exceptions for a template, optionally scoped to a PMS cycle.
-
-    """
     try:
         query = (
             supabase.table("template_unfreezes")
@@ -117,10 +103,6 @@ def get_unfreeze_exceptions(template_id: int, pms_cycle_id: int | None = None) -
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _build_lookup_maps(designations, departments, sub_departments, branches, countries):
-    """
-    Build dictionary lookup maps from flat lists for O(1) name resolution.
-
-    """
     desig_map   = {str(d["id"]): d["name"] for d in designations}
     dept_map    = {str(d["id"]): d         for d in departments}
     subdept_map = {str(s["id"]): s         for s in sub_departments}
@@ -134,24 +116,18 @@ def _build_lookup_maps(designations, departments, sub_departments, branches, cou
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _collect_assigned_ids(t_rules: list, t_user_rows: list) -> dict:
-    """
-    Extract unique assigned entity IDs from assignment rules and user rows.
+    designation_ids = list(set(r["designation_id"]        for r in t_rules     if r.get("designation_id")))
+    dept_ids        = list(set(str(r["department_id"])     for r in t_rules     if r.get("department_id")))
+    branch_ids      = list(set(str(r["branch_id"])         for r in t_rules     if r.get("branch_id")))
+    sub_dept_ids    = list(set(str(r["sub_department_id"]) for r in t_rules     if r.get("sub_department_id")))
+    user_ids        = list(set(str(m["user_id"])           for m in t_user_rows if m.get("user_id")))
 
-    """
-    designation_ids  = list(set(r["designation_id"]         for r in t_rules     if r.get("designation_id")))
-    dept_ids         = list(set(str(r["department_id"])      for r in t_rules     if r.get("department_id")))
-    branch_ids       = list(set(str(r["branch_id"])          for r in t_rules     if r.get("branch_id")))
-    sub_dept_ids     = list(set(str(r["sub_department_id"])  for r in t_rules     if r.get("sub_department_id")))
-    user_ids         = list(set(str(m["user_id"])            for m in t_user_rows if m.get("user_id")))
-
-    # Collect country IDs from both logical rules and user-level rows
     country_ids = list(set(str(r["country_id"]) for r in t_rules if r.get("country_id")))
     for row in t_user_rows:
         cid = str(row["country_id"]) if row.get("country_id") else None
         if cid and cid not in country_ids:
             country_ids.append(cid)
 
-    # Direct user assignments: no designation or department filters applied
     direct_user_ids = list(set(
         str(m["user_id"]) for m in t_user_rows
         if m.get("user_id") and not m.get("designation_id") and not m.get("department_id")
@@ -172,12 +148,7 @@ def _collect_assigned_ids(t_rules: list, t_user_rows: list) -> dict:
 # INTERNAL: ASSIGNED RULES BUILDER
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _build_assigned_rules(t_rules: list, direct_user_ids: list,
-                          desig_map, dept_map, subdept_map, branch_map, country_map) -> list:
-    """
-    Build the enriched assignedRules list combining logical rules and direct user entries.
-
-    """
+def _build_assigned_rules(t_rules, direct_user_ids, desig_map, dept_map, subdept_map, branch_map, country_map):
     def _branch_label(branch_id):
         b = branch_map.get(str(branch_id))
         return (b["code"] + " — " + b["name"]) if b else None
@@ -204,15 +175,14 @@ def _build_assigned_rules(t_rules: list, direct_user_ids: list,
         for r in t_rules
     ]
 
-    # Append direct user assignment rules (no logical entity scope)
     for uid in direct_user_ids:
         rules.append({
-            "designation_id":      None, "designation_name":    None,
-            "department_id":       None, "department_name":     None,
-            "branch_id":           None, "branch_name":         None,
-            "country_id":          None, "country_name":        None,
-            "sub_department_id":   None, "sub_department_name": None,
-            "user_id":             uid,  "scope":               None,
+            "designation_id": None, "designation_name": None,
+            "department_id":  None, "department_name":  None,
+            "branch_id":      None, "branch_name":      None,
+            "country_id":     None, "country_name":     None,
+            "sub_department_id": None, "sub_department_name": None,
+            "user_id": uid, "scope": None,
         })
 
     return rules
@@ -223,16 +193,6 @@ def _build_assigned_rules(t_rules: list, direct_user_ids: list,
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _enrich_templates(templates: list) -> list:
-    """
-    Enrich a list of raw template records with:
-        - Resolved assignment names (designations, departments, branches, etc.)
-        - Direct and rule-based user assignments
-        - Freeze status and unfreeze exceptions
-        - Template variants for the active PMS cycle
-        - Fallback defaults for max_score and lastModified
-
-    """
-    # ── Load assignment data ──────────────────────────────────────────────────
     try:
         all_rules = supabase.table("template_assignment_combinations").select("*").execute().data or []
     except Exception:
@@ -243,7 +203,6 @@ def _enrich_templates(templates: list) -> list:
     except Exception:
         all_user_assignments = []
 
-    # ── Load reference data ───────────────────────────────────────────────────
     designations    = supabase.table("designations").select("*").execute().data
     departments     = supabase.table("departments").select("*").execute().data
     sub_departments = supabase.table("sub_departments").select("id, name, code, department_id").execute().data
@@ -251,12 +210,10 @@ def _enrich_templates(templates: list) -> list:
     countries       = supabase.table("countries").select("id, name, code").execute().data
     users           = supabase.table("users").select("id, full_name").execute().data
 
-    # ── Cycle and freeze state ────────────────────────────────────────────────
     active_cycle         = get_active_pms_cycle()
     active_cycle_id      = active_cycle["id"] if active_cycle else None
     active_freeze_status = get_freeze_status()
 
-    # ── Unfreeze exceptions for active cycle ──────────────────────────────────
     try:
         all_exceptions = (
             supabase.table("template_unfreezes")
@@ -268,7 +225,6 @@ def _enrich_templates(templates: list) -> list:
     except Exception:
         all_exceptions = []
 
-    # ── Variants for active cycle ─────────────────────────────────────────────
     try:
         all_variants = (
             supabase.table("template_variants")
@@ -280,14 +236,11 @@ def _enrich_templates(templates: list) -> list:
     except Exception:
         all_variants = []
 
-    # ── Build lookup maps ─────────────────────────────────────────────────────
     desig_map, dept_map, subdept_map, branch_map, country_map = _build_lookup_maps(
         designations, departments, sub_departments, branches, countries
     )
 
-    # ── Enrich each template ──────────────────────────────────────────────────
     for template in templates:
-        # Normalize field name: template_content → categories
         if "template_content" in template:
             template["categories"] = template.pop("template_content")
 
@@ -295,79 +248,42 @@ def _enrich_templates(templates: list) -> list:
         t_rules     = [r for r in all_rules           if r["template_id"] == t_id]
         t_user_rows = [m for m in all_user_assignments if m["template_id"] == t_id]
 
-        # Aggregate all assigned entity IDs
         ids = _collect_assigned_ids(t_rules, t_user_rows)
 
-        # ── Resolved name lists ───────────────────────────────────────────────
         template["assignedDesignations"]     = [desig_map.get(str(did), str(did)) for did in ids["designation_ids"]]
         template["assignedDesignationIds"]   = ids["designation_ids"]
-
-        template["assignedDepartments"]      = [
-            {
-                "id":        str(d["id"]),
-                "name":      d["name"],
-                "code":      d.get("code"),
-                "branch_id": str(d["branch_id"]) if d.get("branch_id") else None,
-            }
-            for d in departments if str(d["id"]) in ids["dept_ids"]
-        ]
+        template["assignedDepartments"]      = [{"id": str(d["id"]), "name": d["name"], "code": d.get("code"), "branch_id": str(d["branch_id"]) if d.get("branch_id") else None} for d in departments if str(d["id"]) in ids["dept_ids"]]
         template["assignedDepartmentNames"]  = [dept_map[did]["name"] for did in ids["dept_ids"] if did in dept_map]
         template["assignedDepartmentsIds"]   = ids["dept_ids"]
-
-        template["assignedBranches"]         = [
-            {
-                "id":         str(b["id"]),
-                "name":       b["name"],
-                "code":       b.get("code"),
-                "country_id": str(b["country_id"]) if b.get("country_id") else None,
-            }
-            for b in branches if str(b["id"]) in ids["branch_ids"]
-        ]
+        template["assignedBranches"]         = [{"id": str(b["id"]), "name": b["name"], "code": b.get("code"), "country_id": str(b["country_id"]) if b.get("country_id") else None} for b in branches if str(b["id"]) in ids["branch_ids"]]
         template["assignedBranchIds"]        = ids["branch_ids"]
-
-        template["assignedCountries"]        = [
-            {"id": str(c["id"]), "name": c["name"], "code": c.get("code")}
-            for c in countries if str(c["id"]) in ids["country_ids"]
-        ]
+        template["assignedCountries"]        = [{"id": str(c["id"]), "name": c["name"], "code": c.get("code")} for c in countries if str(c["id"]) in ids["country_ids"]]
         template["assignedCountryIds"]       = ids["country_ids"]
-
         template["assignedEmployees"]        = [u["full_name"] for u in users if str(u["id"]) in ids["user_ids"]]
         template["assignedEmployeeIds"]      = ids["user_ids"]
         template["assignedDirectUserIds"]    = ids["direct_user_ids"]
-
-        template["assignedSubDepartments"]   = [
-            {"id": str(s["id"]), "name": s["name"], "code": s.get("code")}
-            for s in sub_departments if str(s["id"]) in ids["sub_dept_ids"]
-        ]
+        template["assignedSubDepartments"]   = [{"id": str(s["id"]), "name": s["name"], "code": s.get("code")} for s in sub_departments if str(s["id"]) in ids["sub_dept_ids"]]
         template["assignedSubDepartmentIds"] = ids["sub_dept_ids"]
-
-        # ── Enriched assignment rules ─────────────────────────────────────────
-        template["assignedRules"] = _build_assigned_rules(
+        template["assignedRules"]            = _build_assigned_rules(
             t_rules, ids["direct_user_ids"],
             desig_map, dept_map, subdept_map, branch_map, country_map,
         )
 
-        # ── Defaults for optional fields ──────────────────────────────────────
         if template.get("max_score") is None:
             template["max_score"] = DEFAULT_MAX_SCORE
 
         if not template.get("lastModified"):
-            template["lastModified"] = (
-                template.get("lastmodified") or template.get("created_at")
-            )
+            template["lastModified"] = template.get("lastmodified") or template.get("created_at")
 
-        # ── Cycle and freeze classification ───────────────────────────────────
         t_cycle_id = template.get("pms_cycle_id")
         is_past    = bool(t_cycle_id and active_cycle_id and int(t_cycle_id) != int(active_cycle_id))
 
         template["is_past_cycle"] = is_past
         template["freeze_status"] = FREEZE_STATUS_FROZEN if is_past else active_freeze_status
 
-        # Past-cycle templates are permanently frozen; skip exceptions and variants
         t_exceptions = [e for e in all_exceptions if e["template_id"] == t_id] if not is_past else []
         t_variants   = [v for v in all_variants   if v["parent_template_id"] == t_id] if not is_past else []
 
-        # ── Unfreeze exception summary ────────────────────────────────────────
         template["unfrozenBranchIds"]  = [str(e["branch_id"])  for e in t_exceptions if e.get("branch_id")]
         template["unfrozenCountryIds"] = [str(e["country_id"]) for e in t_exceptions if e.get("country_id")]
         template["unfreezeExceptions"] = [
@@ -379,8 +295,6 @@ def _enrich_templates(templates: list) -> list:
             }
             for e in t_exceptions
         ]
-
-        # ── Variant summary ───────────────────────────────────────────────────
         template["variants"] = [
             {
                 "id":           v["id"],
@@ -401,10 +315,6 @@ def _enrich_templates(templates: list) -> list:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_all_templates() -> list:
-    """
-    Fetch all templates ordered by lastModified descending, then enrich them.
-
-    """
     try:
         templates = (
             supabase.table("templates")
@@ -414,7 +324,6 @@ def get_all_templates() -> list:
             .data
         )
     except Exception:
-        # Fallback: fetch without server-side ordering and sort in Python
         templates = supabase.table("templates").select("*").execute().data
         templates.sort(
             key=lambda t: t.get("lastModified") or t.get("lastmodified") or t.get("created_at") or "",
@@ -424,10 +333,6 @@ def get_all_templates() -> list:
 
 
 def get_single_template(template_id: int) -> dict:
-    """
-    Fetch and enrich a single template by ID.
-
-    """
     result = supabase.table("templates").select("*").eq("id", template_id).single().execute()
     if not result.data:
         raise LookupError("Template not found")
@@ -435,10 +340,6 @@ def get_single_template(template_id: int) -> dict:
 
 
 def create_template(data: dict) -> dict:
-    """
-    Insert a new template into the active PMS cycle.
-
-    """
     now      = datetime.now().isoformat()
     cycle    = get_active_pms_cycle()
     cycle_id = cycle["id"] if cycle else None
@@ -460,10 +361,6 @@ def create_template(data: dict) -> dict:
 
 
 def update_template(template_id: int, data: dict) -> None:
-    """
-    Update mutable fields of an existing template.
-
-    """
     now     = datetime.now().isoformat()
     payload = {"lastModified": now}
 
@@ -477,13 +374,213 @@ def update_template(template_id: int, data: dict) -> None:
 
 
 def delete_template(template_id: int) -> None:
-    """
-    Delete a template and all its associated assignment records.
-
-    """
     supabase.table("template_assignment_combinations").delete().eq("template_id", template_id).execute()
     supabase.table("template_assignments").delete().eq("template_id", template_id).execute()
     supabase.table("templates").delete().eq("id", template_id).execute()
+
+
+def get_cycle_template_count(cycle_id: int) -> int:
+    rows = (
+        supabase.table("templates")
+        .select("id")
+        .eq("pms_cycle_id", cycle_id)
+        .execute()
+        .data or []
+    )
+    return len(rows)
+
+
+def rollover_cycle(old_cycle_id: int, new_cycle_id: int) -> dict:
+    """
+    Duplicate all templates from old_cycle_id into new_cycle_id.
+    Idempotent — skips if new cycle already has templates.
+    Never copies id — lets DB auto-generate.
+
+    Each template gets a unique timestamp (1 second apart) so sort
+    order is deterministic after rollover.
+    """
+    existing = (
+        supabase.table("templates")
+        .select("id")
+        .eq("pms_cycle_id", new_cycle_id)
+        .execute()
+        .data or []
+    )
+    if existing:
+        return {"copied": 0, "template_ids": [], "skipped": True}
+
+    source_templates = (
+        supabase.table("templates")
+        .select("*")
+        .eq("pms_cycle_id", old_cycle_id)
+        .order("lastModified", desc=True)
+        .execute()
+        .data or []
+    )
+
+    base_time = datetime.now(timezone.utc)
+    new_ids   = []
+
+    for i, t in enumerate(source_templates):
+        # Each template gets a 1-second offset so newest-first order is preserved
+        now = (base_time + timedelta(seconds=i)).isoformat()
+        payload = {
+            "name":             t.get("name"),
+            "description":      t.get("description"),
+            "template_content": t.get("template_content"),
+            "max_score":        t.get("max_score", DEFAULT_MAX_SCORE),
+            "total_weight":     t.get("total_weight"),
+            "pms_cycle_id":     new_cycle_id,
+            "status":           "active",
+            "created_at":       now,
+            "lastModified":     now,
+            "created_by":       None,
+        }
+        result = supabase.table("templates").insert(payload).execute()
+        if result.data:
+            new_ids.append(result.data[0]["id"])
+
+    return {"copied": len(new_ids), "template_ids": new_ids}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COPY ASSIGNMENTS FOR ROLLED OVER TEMPLATES
+# ─────────────────────────────────────────────────────────────────────────────
+
+def copy_assignments_for_rolled_over_templates(
+    old_cycle_id: int,
+    new_cycle_id: int,
+) -> dict:
+    """
+    Copy assignment rules and user assignments from old cycle templates
+    into the matching new cycle templates.
+
+    Copies both tables:
+      template_assignment_combinations → designation/dept/branch/scope rules
+      template_assignments             → matched user rows
+
+    Matching:
+      Old template ↔ New template matched by NAME (case-insensitive)
+
+    Idempotent:
+      If new cycle templates already have assignments → skips entirely
+
+    Returns:
+      { copied_rules, copied_users, skipped }
+    """
+    # ── Fetch old and new templates ───────────────────────────────────────────
+    old_templates = (
+        supabase.table("templates")
+        .select("id, name")
+        .eq("pms_cycle_id", old_cycle_id)
+        .execute()
+        .data or []
+    )
+    new_templates = (
+        supabase.table("templates")
+        .select("id, name")
+        .eq("pms_cycle_id", new_cycle_id)
+        .execute()
+        .data or []
+    )
+
+    if not old_templates or not new_templates:
+        return {"copied_rules": 0, "copied_users": 0, "skipped": False}
+
+    # ── Idempotent guard ──────────────────────────────────────────────────────
+    new_template_ids = [str(t["id"]) for t in new_templates]
+    existing = (
+        supabase.table("template_assignment_combinations")
+        .select("id")
+        .in_("template_id", new_template_ids)
+        .limit(1)
+        .execute()
+        .data or []
+    )
+    if existing:
+        print(f"⚠️  copy_assignments: cycle {new_cycle_id} templates already have assignments — skipping.")
+        return {"copied_rules": 0, "copied_users": 0, "skipped": True}
+
+    # ── Build name → new_id map ───────────────────────────────────────────────
+    new_name_map = {t["name"].strip().lower(): t["id"] for t in new_templates}
+
+    # ── Build old_id → new_id map by name ────────────────────────────────────
+    id_map: dict[int, int] = {}
+    for old_t in old_templates:
+        name_key = old_t["name"].strip().lower()
+        if name_key in new_name_map:
+            id_map[old_t["id"]] = new_name_map[name_key]
+
+    if not id_map:
+        print(f"⚠️  copy_assignments: no matching names between cycle {old_cycle_id} and {new_cycle_id}.")
+        return {"copied_rules": 0, "copied_users": 0, "skipped": False}
+
+    old_ids_str = [str(i) for i in id_map.keys()]
+
+    # ── Fetch old rules and user rows ─────────────────────────────────────────
+    old_rules     = (
+        supabase.table("template_assignment_combinations")
+        .select("*")
+        .in_("template_id", old_ids_str)
+        .execute()
+        .data or []
+    )
+    old_user_rows = (
+        supabase.table("template_assignments")
+        .select("*")
+        .in_("template_id", old_ids_str)
+        .execute()
+        .data or []
+    )
+
+    copied_rules = 0
+    copied_users = 0
+
+    # ── Copy combination rules ────────────────────────────────────────────────
+    if old_rules:
+        new_rules_payload = []
+        for rule in old_rules:
+            old_tid = rule.get("template_id")
+            new_tid = id_map.get(int(old_tid)) if old_tid else None
+            if not new_tid:
+                continue
+            new_rule = {k: v for k, v in rule.items() if k != "id"}
+            new_rule["template_id"] = new_tid
+            new_rules_payload.append(new_rule)
+
+        if new_rules_payload:
+            supabase.table("template_assignment_combinations").insert(new_rules_payload).execute()
+            copied_rules = len(new_rules_payload)
+
+            # Bump lastModified on all new-cycle templates so they sort correctly
+            now_iso = datetime.now(timezone.utc).isoformat()
+            for new_tid in id_map.values():
+                supabase.table("templates").update(
+                    {"lastModified": now_iso}
+                ).eq("id", new_tid).execute()
+
+    # ── Copy user assignment rows ─────────────────────────────────────────────
+    if old_user_rows:
+        new_users_payload = []
+        for row in old_user_rows:
+            old_tid = row.get("template_id")
+            new_tid = id_map.get(int(old_tid)) if old_tid else None
+            if not new_tid:
+                continue
+            new_row = {k: v for k, v in row.items() if k != "id"}
+            new_row["template_id"] = new_tid
+            new_users_payload.append(new_row)
+
+        if new_users_payload:
+            supabase.table("template_assignments").insert(new_users_payload).execute()
+            copied_users = len(new_users_payload)
+
+    print(
+        f"✅  copy_assignments: copied {copied_rules} rules and "
+        f"{copied_users} user rows from cycle {old_cycle_id} to {new_cycle_id}."
+    )
+
+    return {"copied_rules": copied_rules, "copied_users": copied_users, "skipped": False}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -491,10 +588,6 @@ def delete_template(template_id: int) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def list_template_variants(template_id: int) -> list:
-    """
-    List all variants for a template in the active PMS cycle, with resolved names.
-
-    """
     active = get_active_pms_cycle()
     if not active:
         return []
@@ -504,14 +597,11 @@ def list_template_variants(template_id: int) -> list:
     countries = supabase.table("countries").select("id, name, code").execute().data
 
     for variant in variants:
-        # Normalise field name for API consumers
         if variant.get("template_content"):
             variant["categories"] = variant.pop("template_content")
-
         if variant.get("branch_id"):
             branch = next((b for b in branches if str(b["id"]) == str(variant["branch_id"])), None)
             variant["branch_name"] = (branch["code"] + " — " + branch["name"]) if branch else str(variant["branch_id"])
-
         if variant.get("country_id"):
             country = next((c for c in countries if str(c["id"]) == str(variant["country_id"])), None)
             variant["country_name"] = (country["code"] + " — " + country["name"]) if country else str(variant["country_id"])
@@ -520,10 +610,6 @@ def list_template_variants(template_id: int) -> list:
 
 
 def create_template_variant(template_id: int, data: dict) -> dict:
-    """
-    Create a new branch- or country-scoped variant of a template.
-
-    """
     active = get_active_pms_cycle()
     if not active:
         raise ValueError("No active PMS cycle.")
@@ -536,13 +622,11 @@ def create_template_variant(template_id: int, data: dict) -> dict:
 
     exceptions = get_unfreeze_exceptions(template_id, active["id"])
 
-    # Validate that the target scope has been explicitly unfrozen
     if branch_id and not any(str(e.get("branch_id")) == str(branch_id) for e in exceptions):
         raise PermissionError("This branch is not unfrozen. Unfreeze it first before creating a variant.")
     if country_id and not any(str(e.get("country_id")) == str(country_id) for e in exceptions):
         raise PermissionError("This country is not unfrozen. Unfreeze it first before creating a variant.")
 
-    # Guard against duplicate variants per scope
     if branch_id:
         existing = get_variant_for_branch(template_id, str(branch_id), active["id"])
         if existing:
@@ -580,10 +664,6 @@ def create_template_variant(template_id: int, data: dict) -> dict:
 
 
 def get_template_variant(template_id: int, variant_id: int) -> dict:
-    """
-    Fetch a single variant by ID, verified to belong to the given template.
-
-    """
     result = (
         supabase.table("template_variants")
         .select("*")
@@ -605,10 +685,6 @@ def get_template_variant(template_id: int, variant_id: int) -> dict:
 
 
 def update_template_variant(template_id: int, variant_id: int, data: dict) -> None:
-    """
-    Update an existing template variant's mutable fields.
-
-    """
     active = get_active_pms_cycle()
     if not active:
         raise ValueError("No active PMS cycle.")
@@ -649,10 +725,6 @@ def update_template_variant(template_id: int, variant_id: int, data: dict) -> No
 
 
 def delete_template_variant(template_id: int, variant_id: int) -> None:
-    """
-    Delete a single variant, scoped to the given parent template.
-
-    """
     (
         supabase.table("template_variants")
         .delete()
@@ -667,12 +739,6 @@ def delete_template_variant(template_id: int, variant_id: int) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def create_unfreeze_exceptions(template_id: int, data: dict) -> dict:
-    """
-    Create unfreeze exceptions for one or more branches and/or countries.
-
-    Existing exceptions for the same scope are replaced (delete-then-insert).
-
-    """
     active = get_active_pms_cycle()
     if not active:
         raise LookupError("No active PMS cycle found.")
@@ -688,12 +754,10 @@ def create_unfreeze_exceptions(template_id: int, data: dict) -> dict:
     rows = []
 
     for bid in branch_ids:
-        # Replace any existing exception for this branch in the current cycle
         supabase.table("template_unfreezes").delete().eq("template_id", template_id).eq("branch_id", str(bid)).eq("pms_cycle_id", cycle_id).execute()
         rows.append({"template_id": template_id, "branch_id": str(bid), "country_id": None, "pms_cycle_id": cycle_id, "unfrozen_at": now})
 
     for cid in country_ids:
-        # Replace any existing exception for this country in the current cycle
         supabase.table("template_unfreezes").delete().eq("template_id", template_id).eq("country_id", str(cid)).eq("pms_cycle_id", cycle_id).execute()
         rows.append({"template_id": template_id, "branch_id": None, "country_id": str(cid), "pms_cycle_id": cycle_id, "unfrozen_at": now})
 
@@ -709,22 +773,13 @@ def create_unfreeze_exceptions(template_id: int, data: dict) -> dict:
 
 
 def bulk_delete_unfreeze_exceptions(template_id: int, exception_ids: list) -> int:
-    """
-    Re-freeze a set of branches/countries by deleting their unfreeze exceptions.
-
-    """
     if not exception_ids:
         raise ValueError("Provide exception_ids to re-freeze.")
-
     supabase.table("template_unfreezes").delete().in_("id", exception_ids).eq("template_id", template_id).execute()
     return len(exception_ids)
 
 
 def delete_single_unfreeze_exception(template_id: int, exception_id: int) -> None:
-    """
-    Delete a single unfreeze exception record.
-
-    """
     (
         supabase.table("template_unfreezes")
         .delete()
@@ -739,23 +794,11 @@ def delete_single_unfreeze_exception(template_id: int, exception_id: int) -> Non
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_my_templates(user_id: str) -> list:
-    """
-    Return the templates assigned to a specific user, overlaid with any
-    branch- or country-scoped variant relevant to that user.
-
-    Variant resolution order:
-        1. Branch-level variant (most specific)
-        2. Country-level variant
-        3. Base template (fallback)
-
-    """
-    # Fetch direct template assignments for this user
     assignments  = supabase.table("template_assignments").select("template_id").eq("user_id", user_id).execute().data
     template_ids = list(set(a["template_id"] for a in assignments))
     if not template_ids:
         return []
 
-    # Resolve user's branch and country for variant matching
     user_data       = supabase.table("users").select("branch_id, country_id").eq("id", user_id).single().execute().data
     user_branch_id  = str(user_data["branch_id"])  if user_data and user_data.get("branch_id")  else None
     user_country_id = str(user_data["country_id"]) if user_data and user_data.get("country_id") else None
@@ -767,13 +810,11 @@ def get_my_templates(user_id: str) -> list:
     result    = []
 
     for template in templates:
-        # Normalise field name for API consumers
         if "template_content" in template:
             template["categories"] = template.pop("template_content")
         if template.get("max_score") is None:
             template["max_score"] = DEFAULT_MAX_SCORE
 
-        # Attempt to find an applicable variant, branch first then country
         variant = None
         if cycle_id and user_branch_id:
             variant = get_variant_for_branch(template["id"], user_branch_id, cycle_id)
@@ -781,13 +822,12 @@ def get_my_templates(user_id: str) -> list:
             variant = get_variant_for_country(template["id"], user_country_id, cycle_id)
 
         if variant:
-            # Overlay variant fields onto the base template where provided
-            template["categories"]   = variant.get("template_content") or template.get("categories")
-            template["description"]  = variant.get("description")      or template.get("description")
-            template["max_score"]    = variant.get("max_score")        or template.get("max_score")
-            template["total_weight"] = variant.get("total_weight")     or template.get("total_weight")
-            template["has_variant"]  = True
-            template["variant_id"]   = variant["id"]
+            template["categories"]    = variant.get("template_content") or template.get("categories")
+            template["description"]   = variant.get("description")      or template.get("description")
+            template["max_score"]     = variant.get("max_score")        or template.get("max_score")
+            template["total_weight"]  = variant.get("total_weight")     or template.get("total_weight")
+            template["has_variant"]   = True
+            template["variant_id"]    = variant["id"]
             template["variant_scope"] = SCOPE_BRANCH if variant.get("branch_id") else SCOPE_COUNTRY
         else:
             template["has_variant"]   = False
@@ -797,3 +837,102 @@ def get_my_templates(user_id: str) -> list:
         result.append(template)
 
     return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ALL VARIANTS — HQ Admin global view
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_all_variants_across_templates(filters: dict | None = None) -> list:
+    filters = filters or {}
+
+    try:
+        query = supabase.table("template_variants").select("*")
+        if filters.get("template_ids"):  query = query.in_("parent_template_id", filters["template_ids"])
+        if filters.get("pms_cycle_ids"): query = query.in_("pms_cycle_id",        filters["pms_cycle_ids"])
+        if filters.get("branch_ids"):    query = query.in_("branch_id",            filters["branch_ids"])
+        if filters.get("country_ids"):   query = query.in_("country_id",           filters["country_ids"])
+        all_variants = query.order("lastModified", desc=True).execute().data or []
+    except Exception:
+        all_variants = []
+
+    if not all_variants:
+        return []
+
+    try:
+        all_templates_raw = supabase.table("templates").select("id, name, pms_cycle_id, freeze_status").execute().data or []
+    except Exception:
+        all_templates_raw = []
+
+    try:
+        all_cycles = supabase.table("pms_cycles").select("id, pms_year, pms_start").execute().data or []
+    except Exception:
+        all_cycles = []
+
+    try:
+        branches  = supabase.table("branches").select("id, name, code, country_id").execute().data or []
+    except Exception:
+        branches = []
+
+    try:
+        countries = supabase.table("countries").select("id, name, code").execute().data or []
+    except Exception:
+        countries = []
+
+    template_map    = {str(t["id"]): t for t in all_templates_raw}
+    branch_map      = {str(b["id"]): b for b in branches}
+    country_map     = {str(c["id"]): c for c in countries}
+    cycle_map       = {str(c["id"]): c for c in all_cycles}
+    active_cycle    = get_active_pms_cycle()
+    active_cycle_id = active_cycle["id"] if active_cycle else None
+    active_freeze   = get_freeze_status()
+
+    enriched = []
+    for v in all_variants:
+        if "template_content" in v:
+            v["categories"] = v.pop("template_content")
+        if v.get("max_score") is None:
+            v["max_score"] = DEFAULT_MAX_SCORE
+
+        parent = template_map.get(str(v.get("parent_template_id")))
+        v["parent_template_name"] = parent["name"] if parent else "Unknown"
+
+        v_cycle_id = v.get("pms_cycle_id")
+        cycle_rec  = cycle_map.get(str(v_cycle_id)) if v_cycle_id else None
+
+        if cycle_rec:
+            pms_year = cycle_rec.get("pms_year")
+            if not pms_year and cycle_rec.get("pms_start"):
+                y = int(str(cycle_rec["pms_start"])[:4])
+                pms_year = f"{y}/{y + 1}"
+            v["pms_year"] = pms_year
+        else:
+            v["pms_year"] = None
+
+        is_past            = bool(v_cycle_id and active_cycle_id and int(v_cycle_id) != int(active_cycle_id))
+        v["is_past_cycle"] = is_past
+        v["freeze_status"] = FREEZE_STATUS_FROZEN if is_past else active_freeze
+
+        if v.get("branch_id"):
+            b = branch_map.get(str(v["branch_id"]))
+            v["branch_name"] = ((b["code"] + " — " + b["name"]) if b else str(v["branch_id"]))
+        else:
+            v["branch_name"] = None
+
+        if v.get("country_id"):
+            c = country_map.get(str(v["country_id"]))
+            v["country_name"] = (((c.get("code") or "") + " — " + c["name"]) if c else str(v["country_id"]))
+        else:
+            v["country_name"] = None
+
+        if not v.get("lastModified"):
+            v["lastModified"] = v.get("created_at")
+
+        enriched.append(v)
+
+    enriched.sort(
+        key=lambda x: x.get("lastModified") or x.get("created_at") or "",
+        reverse=True,
+    )
+
+    return enriched
