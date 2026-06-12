@@ -90,19 +90,19 @@ class TestGetPeriods:
 
     def test_returns_unique_sorted_periods(self, client, sb):
         _set_sb(sb, returns=_chain([
-            {"year": 2025, "period": "H2"},
-            {"year": 2025, "period": "H1"},
-            {"year": 2025, "period": "H1"},
-            {"year": 2024, "period": "H2"},
+            {"pms_year": 2025, "period": "H2"},
+            {"pms_year": 2025, "period": "H1"},
+            {"pms_year": 2025, "period": "H1"},
+            {"pms_year": 2024, "period": "H2"},
         ]))
         response = client.get("/api/performance/user-1/periods")
 
         assert response.status_code == 200
         body = json.loads(response.data)
         assert len(body) == 3
-        assert body[0] == {"year": 2024, "period": "H2"}
-        assert body[1] == {"year": 2025, "period": "H1"}
-        assert body[2] == {"year": 2025, "period": "H2"}
+        assert body[0] == {"pms_year": 2024, "period": "H2"}
+        assert body[1] == {"pms_year": 2025, "period": "H1"}
+        assert body[2] == {"pms_year": 2025, "period": "H2"}
 
     def test_returns_empty_list_when_no_records(self, client, sb):
         _set_sb(sb, returns=_chain([]))
@@ -137,7 +137,7 @@ class TestGetPerformance:
         body = json.loads(response.data)
         assert body["employee"]["name"] == "Rajiv Mehta"
         assert body["period"]           == "H1"
-        assert body["year"]             == 2025
+        assert body["pms_year"]             == 2025
         assert "final_score" in body
         assert "categories"  in body
 
@@ -206,7 +206,7 @@ class TestGetPerformanceSummary:
 
         assert response.status_code == 200
         body = json.loads(response.data)
-        assert body["year"]         == 2025
+        assert body["pms_year"]         == 2025
         assert body["scores"]["H1"] == 2.0
         assert body["scores"]["H2"] == 2.1
 
@@ -225,7 +225,7 @@ class TestGetPerformanceSummary:
                    return_value=(2025, "H1")):
             response = client.get("/api/performance/user-1/summary")
 
-        assert json.loads(response.data)["year"] == 2025
+        assert json.loads(response.data)["pms_year"] == 2025
 
     def test_handles_null_score_gracefully(self, client, sb):
         _set_sb(sb, returns=_chain([
@@ -246,7 +246,7 @@ class TestGetPerformanceSummary:
 class TestSyncActuals:
 
     def test_returns_400_when_missing_required_fields(self, client, sb):
-        payload = {"user_id": "user-1", "year": 2025}
+        payload = {"user_id": "user-1", "pms_year": 2025}
         response = client.post(
             "/api/sync/actuals",
             data=json.dumps(payload),
@@ -257,7 +257,7 @@ class TestSyncActuals:
     def test_syncs_non_manual_records_successfully(self, client, sb):
         _set_sb(sb, returns=_chain([]))
         payload = {
-            "user_id": "user-1", "year": 2025, "period": "H1",
+            "user_id": "user-1", "pms_year": 2025, "period": "H1",
             "records": [{"objective_id": 1, "target": 100.0, "actual": 105.0}],
         }
         fake_meta = (
@@ -283,7 +283,7 @@ class TestSyncActuals:
     def test_skips_manual_kpi_records(self, client, sb):
         _set_sb(sb, returns=_chain([]))
         payload = {
-            "user_id": "user-1", "year": 2025, "period": "H1",
+            "user_id": "user-1", "pms_year": 2025, "period": "H1",
             "records": [{"objective_id": 99, "target": None, "actual": None}],
         }
         fake_meta = (
@@ -304,7 +304,7 @@ class TestSyncActuals:
     def test_returns_500_on_error(self, client, sb):
         sb.table.side_effect = Exception("Unexpected error")
         payload = {
-            "user_id": "user-1", "year": 2025, "period": "H1",
+            "user_id": "user-1", "pms_year": 2025, "period": "H1",
             "records": [{"objective_id": 1}],
         }
         with patch("routes.performance.load_scale_meta",
@@ -327,10 +327,10 @@ class TestBackfillScores:
     def test_backfill_updates_all_records(self, client, sb):
         _set_sb(sb, returns=_chain([
             {"id": 1, "user_id": "u1", "objective_id": 101,
-             "year": 2025, "period": "H1",
+             "pms_year": 2025, "period": "H1",
              "actual": 105.0, "target": 100.0, "manual_rating": None},
             {"id": 2, "user_id": "u1", "objective_id": 102,
-             "year": 2025, "period": "H1",
+             "pms_year": 2025, "period": "H1",
              "actual": None, "target": None, "manual_rating": 4.0},
         ]))
         fake_meta = (
