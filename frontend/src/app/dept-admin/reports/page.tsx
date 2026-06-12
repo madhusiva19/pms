@@ -10,11 +10,11 @@ import { useState, useEffect } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import SubDepartmentCard from '@/components/SubDepartmentCard';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
-import SearchInput from '@/components/SearchInput';
-import EmptyState from '@/components/EmptyState';
+import SubDepartmentCard from '@/components/shared/SubDepartmentCard';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import Breadcrumb from '@/components/shared/breadcrumb/Breadcrumb';
+import SearchInput from '@/components/shared/SearchInput';
+import EmptyState from '@/components/shared/EmptyState';
 import { subDepartmentsApi } from '@/services/api';
 import type { SubDepartment } from '@/types';
 

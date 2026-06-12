@@ -8,11 +8,11 @@
 import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Building } from 'lucide-react';
-import BranchCard from '@/components/BranchCard';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
-import SearchInput from '@/components/SearchInput';
-import EmptyState from '@/components/EmptyState';
+import BranchCard from '@/components/shared/BranchCard';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import Breadcrumb from '@/components/shared/breadcrumb/Breadcrumb';
+import SearchInput from '@/components/shared/SearchInput';
+import EmptyState from '@/components/shared/EmptyState';
 import { branchesApi } from '@/services/api';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
