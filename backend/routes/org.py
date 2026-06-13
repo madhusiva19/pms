@@ -229,16 +229,15 @@ def get_current_pms_cycle():
         obj_start = cycle.get("objective_setting_start")
         obj_end   = cycle.get("objective_setting_end")
 
-        # Use grace period end when available; fall back to the regular end date
-        grace_end = cycle.get("grace_period_end") or obj_end
-
+        # Grace period end is only for HQ Admin template creation — not for editing window
+        # Editing window is strictly objective_setting_start → objective_setting_end
         def _parse(d: str | None):
             if not d:
                 return None
             return date.fromisoformat(str(d)[:10])
 
         start = _parse(obj_start)
-        end   = _parse(grace_end)
+        end   = _parse(obj_end)
 
         if not start or not end:
             return jsonify({
