@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 import services.assessment_service as assessment_service
-from lib.supabase_client import supabase
+from models.supabase_client import supabase
 
 potential_assessment_bp = Blueprint('potential_assessment', __name__)
 

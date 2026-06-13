@@ -37,7 +37,7 @@ app.register_blueprint(report_cycle_bp)
 
 with app.app_context():
     try:
-        from lib.supabase_client import supabase
+        from models.supabase_client import supabase
         supabase.table('users').select('id').limit(1).execute()
     except Exception:
         pass
