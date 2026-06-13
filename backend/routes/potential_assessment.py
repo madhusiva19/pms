@@ -388,7 +388,7 @@ def get_reconsiderations_for_review(reviewer_id: str):
         # Get all pending reconsiderations
         recon_resp = supabase.table('potential_assessment_reconsiderations').select(
             'id, assessment_id, employee_id, comment, requested_at'
-        ).eq('action', None).order('requested_at', desc=True).execute()
+        ).is_('action', 'null').order('requested_at', desc=True).execute()
 
         pending_reconsiderations = []
         for recon in recon_resp.data or []:
