@@ -3,7 +3,7 @@ Shared helper functions used across services and routes.
 """
 
 import time
-from lib.supabase_client import supabase
+from models.supabase_client import supabase
 
 
 def execute_with_retry(fn, retries: int = 2, delay: float = 0.6):

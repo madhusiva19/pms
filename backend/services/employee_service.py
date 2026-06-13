@@ -1,4 +1,4 @@
-from lib.supabase_client import supabase
+from models.supabase_client import supabase
 
 
 def get_employees_by_sub_dept(sub_dept_id: str) -> list:

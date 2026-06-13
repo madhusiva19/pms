@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from lib.supabase_client import supabase
+from models.supabase_client import supabase
 from datetime import datetime
 
 report_cycle_bp = Blueprint('report_cycle', __name__)
