@@ -18,7 +18,7 @@ import EmptyState from '@/components/shared/EmptyState';
 import { employeesApi } from '@/services/api';
 import type { Employee } from '@/types';
 
-// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
 
 export default function SubDeptAdminReportsPage() {
   const router = useRouter();
@@ -72,7 +72,7 @@ export default function SubDeptAdminReportsPage() {
         </div>
 
         {/* Search */}
-        <SearchInput value={search} onChange={setSearch} placeholder="Search employeeâ€¦" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search employee" />
 
         {/* Error state */}
         {error && (
