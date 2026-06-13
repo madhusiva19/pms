@@ -43,38 +43,27 @@ function getInitials(fullName?: string): string {
     .slice(0, 2);
 }
 
-const roleRoutePrefixes: Record<string, string> = {
-  hq_admin: 'hq-admin',
-  country_admin: 'country-admin',
-  branch_admin: 'branch-admin',
-  dept_admin: 'dept-admin',
-  sub_dept_admin: 'sub-dept-admin',
-  employee: 'employee',
-};
+const navItems: NavItem[] = [
+  { name: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
+  { name: 'Template Management', href: '/template-management', icon: 'file' },
+  { name: 'My Team', href: ROUTES.myTeam, icon: 'users' },
+  { name: 'My Performance', href: '/performance', icon: 'trending' },
+  { name: 'Reports', href: '/reports', icon: 'chart' },
+  { name: 'Notifications', href: ROUTES.notifications, icon: 'bell' },
+  { name: 'Training Passport', href: '/training-passport', icon: 'passport' },
+  { name: 'My Profile', href: '/profile', icon: 'user' },
+];
 
-function getRoutePrefix(role?: string): string {
-  return roleRoutePrefixes[role || ''] || 'hq-admin';
-}
-
-function getNavItems(role?: string): NavItem[] {
-  const prefix = getRoutePrefix(role);
-  const hasTemplateManagement = role !== 'employee';
-
-  return [
-    ...(role === 'employee'
-      ? []
-      : [{ name: 'Dashboard', href: `/${prefix}/dashboard`, icon: 'dashboard' as IconName }]),
-    ...(hasTemplateManagement
-      ? [{ name: 'Template Management', href: '/hq-admin/template-management', icon: 'file' as IconName }]
-      : []),
-    { name: 'My Team', href: ROUTES.myTeam, icon: 'users' },
-    { name: 'My Performance', href: `/${prefix}/performance`, icon: 'trending' },
-    { name: 'Reports', href: `/${prefix}/reports`, icon: 'chart' },
-    { name: 'Notifications', href: `/${prefix}/notification`, icon: 'bell' },
-    { name: 'Training Passport', href: `/${prefix}/training-passport`, icon: 'passport' },
-    { name: 'My Profile', href: `/${prefix}/profile`, icon: 'user' },
-  ];
-}
+const branchAdminNavItems: NavItem[] = [
+  { name: 'Dashboard', href: '/branch-admin/dashboard', icon: 'dashboard' },
+  { name: 'Template Management', href: '/branch-admin/template-management', icon: 'file' },
+  { name: 'My Team', href: '/branch-admin/team', icon: 'users' },
+  { name: 'My Performance', href: '/branch-admin/performance', icon: 'trending' },
+  { name: 'Reports', href: '/branch-admin/reports', icon: 'chart' },
+  { name: 'Notifications', href: '/branch-admin/notifications', icon: 'bell' },
+  { name: 'Training Passport', href: '/branch-admin/training-passport', icon: 'passport' },
+  { name: 'My Profile', href: '/branch-admin/profile', icon: 'user' },
+];
 
 // Renders one SVG icon from the icon path map above.
 function SidebarIcon({ name }: { name: IconName }) {
@@ -102,7 +91,6 @@ export default function Sidebar() {
   const pathname = router.pathname || '';
   // Memo keeps localStorage parsing from running again on every render.
   const user = useMemo(() => getStoredUser(), []);
-  const navItems = useMemo(() => getNavItems(user?.role), [user?.role]);
 
   // Profile display values fall back to Group Admin when no stored user exists.
   const userName = user?.full_name || SIDEBAR_DEFAULT_USER.name;
