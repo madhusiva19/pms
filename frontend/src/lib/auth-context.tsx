@@ -37,66 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // --- DEMO MODE SUPPORT ---
-        const urlParams = new URLSearchParams(window.location.search);
-        const demoRole = urlParams.get('demo-role');
-
-        const validRoles: UserRole[] = ['hq_admin', 'country_admin', 'branch_admin', 'dept_admin', 'sub_dept_admin', 'employee'];
-        if (validRoles.includes(demoRole as UserRole)) {
-          sessionStorage.setItem('demo-role', demoRole!);
-        }
-
-        const activeDemoRole = demoRole || sessionStorage.getItem('demo-role');
-
-        // ?demo-email= targets a specific user (bypasses role-based lookup)
-        const demoEmail = urlParams.get('demo-email');
-        if (demoEmail) {
-          sessionStorage.setItem('demo-email', demoEmail);
-        }
-        const activeDemoEmail = demoEmail || sessionStorage.getItem('demo-email');
-
-        if (activeDemoEmail) {
-          const { data: demoUser } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', activeDemoEmail)
-            .single();
-          if (demoUser) {
-            setUser(demoUser);
-            setLoading(false);
-            return;
-          }
-        }
-
-        if (activeDemoRole) {
-          const { data: demoUser } = await supabase
-            .from('users')
-            .select('*')
-            .eq('role', activeDemoRole)
-            .limit(1)
-            .single();
-
-          if (demoUser) {
-            setUser(demoUser);
-            setLoading(false);
-            return;
-          }
-        }
-        // --- END DEMO MODE ---
-
         // Get Supabase auth user
         const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !authUser) {
-          // No Supabase session — use saved demo role or default to hq_admin for development
-          const savedRole = (sessionStorage.getItem('demo-role') as UserRole) || 'hq_admin';
-          sessionStorage.setItem('demo-role', savedRole);
-          setUser({
-            id: `demo-${savedRole}`,
-            email: 'demo@pms.local',
-            full_name: savedRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            role: savedRole,
-          });
           setLoading(false);
           return;
         }
