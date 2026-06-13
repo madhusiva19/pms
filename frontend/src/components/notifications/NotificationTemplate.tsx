@@ -58,7 +58,9 @@ type PaNotificationType =
   | "reconsideration_request"
   | "reconsideration_fyi"
   | "reconsideration_approved"
-  | "reconsideration_rejected";
+  | "reconsideration_rejected"
+  | "reconsideration_approved_supervisor"
+  | "reconsideration_rejected_supervisor";
 
 type PaNotification = {
   id: string;
@@ -68,25 +70,52 @@ type PaNotification = {
   isRead: boolean;
   createdAt: string;
   actionUrl: string;
+  assessmentId?: string; // For reconsideration notifications
+  canReview?: boolean; // Whether this user can actually review (only for reconsideration_request)
 };
 
-// Types where the recipient is the appraisee viewing their OWN result.
-// Everything else is supervisor-facing (reviewing someone else).
+// Types where the recipient is the appraisee viewing their OWN result
 const PA_APPRAISEE_FACING: PaNotificationType[] = [
   "supervisor_completed",
   "reconsideration_approved",
   "reconsideration_rejected",
 ];
 
-// Resolve the correct destination per notification type + role.
-function resolvePaActionUrl(type: PaNotificationType, roleSlug: string): string {
+// Types where the initial supervisor is receiving an outcome notification (view only, no review)
+const PA_SUPERVISOR_OUTCOME_FACING: PaNotificationType[] = [
+  "reconsideration_approved_supervisor",
+  "reconsideration_rejected_supervisor",
+];
+
+// Resolve the correct destination per notification type + role
+function resolvePaActionUrl(type: PaNotificationType, roleSlug: string, assessmentId?: string): string {
+  // Appraisee views their own assessment
   if (PA_APPRAISEE_FACING.includes(type)) {
-    // Appraisee views their own assessment; the employee route has no /self-assessment segment
     return roleSlug === "employee"
       ? "/employee/potential-assessment"
       : `/${roleSlug}/potential-assessment/self-assessment`;
   }
-  // Supervisor-facing — hq-admin's review list lives at the root, others use /supervisor-review
+
+  // Initial supervisor viewing outcome (no review capability)
+  if (PA_SUPERVISOR_OUTCOME_FACING.includes(type)) {
+    return roleSlug === "hq-admin"
+      ? "/hq-admin/potential-assessment"
+      : `/${roleSlug}/potential-assessment/supervisor-review`;
+  }
+
+  // reconsideration_fyi — FYI only, goes to supervisor-review but button will be disabled
+  if (type === "reconsideration_fyi") {
+    return roleSlug === "hq-admin"
+      ? "/hq-admin/potential-assessment"
+      : `/${roleSlug}/potential-assessment/supervisor-review`;
+  }
+
+  // reconsideration_request — senior supervisor with review capability
+  if (type === "reconsideration_request" && assessmentId) {
+    return `/${roleSlug}/potential-assessment/reconsideration/${assessmentId}`;
+  }
+
+  // self_submitted and others — supervisor review page
   return roleSlug === "hq-admin"
     ? "/hq-admin/potential-assessment"
     : `/${roleSlug}/potential-assessment/supervisor-review`;
@@ -121,10 +150,12 @@ const PA_STYLES: Record<
 > = {
   self_submitted: { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: " Self Submitted", borderColor: "#BFDBFE", bg: "#F0F7FF" },
   supervisor_completed: { badge: "#DCFCE7", badgeColor: "#166534", badgeText: " Review Completed", borderColor: "#BFDBFE", bg: "#F0F7FF" },
-  reconsideration_request: { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "Reconsideration Requested", borderColor: "#FDE047", bg: "#FFFBEB" },
-  reconsideration_fyi: { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Reconsideration (FYI)", borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  reconsideration_request: { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "Requires Your Review", borderColor: "#FDE047", bg: "#FFFBEB" },
+  reconsideration_fyi: { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Reconsideration Requested (FYI)", borderColor: "#BFDBFE", bg: "#F0F7FF" },
   reconsideration_approved: { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "Reconsideration Approved", borderColor: "#86EFAC", bg: "#F0FDF4" },
   reconsideration_rejected: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "Reconsideration Rejected", borderColor: "#FECACA", bg: "#FEF2F2" },
+  reconsideration_approved_supervisor: { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "Reconsideration Approved", borderColor: "#86EFAC", bg: "#F0FDF4" },
+  reconsideration_rejected_supervisor: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "Reconsideration Rejected", borderColor: "#FECACA", bg: "#FEF2F2" },
 };
 
 function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
@@ -247,6 +278,7 @@ export default function Notifications() {
             message: string;
             is_read: boolean;
             created_at: string;
+            assessment_id?: string;
           }) => ({
             id: n.id,
             type: n.type,
@@ -256,8 +288,9 @@ export default function Notifications() {
             createdAt: n.created_at
               ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
               : "",
+            assessmentId: n.assessment_id,
             // Route based on whether the recipient is the appraisee or a supervisor
-            actionUrl: resolvePaActionUrl(n.type, roleSlug),
+            actionUrl: resolvePaActionUrl(n.type, roleSlug, n.assessment_id),
           })
         );
         setPaList(paNotifs);
@@ -478,16 +511,23 @@ export default function Notifications() {
                   </div>
                   <p className={styles.notifBody}>{n.message}</p>
                   <div className={styles.notifActions}>
-                    <button
-                      type="button"
-                      className={styles.actionBtn}
-                      onClick={() => {
-                        markPaRead(n.id);
-                        router.push(n.actionUrl);
-                      }}
-                    >
-                      {PA_APPRAISEE_FACING.includes(n.type) ? "View My Assessment →" : "Review Assessment →"}
-                    </button>
+                    {n.type === 'reconsideration_fyi' ? (
+                      <span style={{ fontSize: '13px', color: '#64748B' }}>ℹ️ Informational only — awaiting senior supervisor review</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.actionBtn}
+                        onClick={() => {
+                          markPaRead(n.id);
+                          router.push(n.actionUrl);
+                        }}
+                      >
+                        {n.type === 'reconsideration_request' && "Review Reconsideration →"}
+                        {PA_APPRAISEE_FACING.includes(n.type) && "View My Assessment →"}
+                        {PA_SUPERVISOR_OUTCOME_FACING.includes(n.type) && "View Assessment →"}
+                        {!n.type.includes('reconsideration') && !PA_APPRAISEE_FACING.includes(n.type) && "Review Assessment →"}
+                      </button>
+                    )}
                     {!n.isRead && (
                       <button type="button" className={styles.readBtn} onClick={() => markPaRead(n.id)}>
                         Mark as read
