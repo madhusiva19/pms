@@ -382,68 +382,52 @@ def review_reconsideration(assessment_id: str):
 def get_reconsiderations_for_review(reviewer_id: str):
     """
     Get pending reconsiderations that the given reviewer (senior supervisor) needs to review.
-    This includes escalated reconsiderations from subordinates at any level below them.
+    Uses resolve_senior_supervisor_id to match escalation hierarchy.
     """
     try:
-        # Get the reviewer's role to determine what they can review
-        reviewer_resp = supabase.table('users').select('role').eq('id', reviewer_id).single().execute()
-        if not reviewer_resp.data:
-            return jsonify({'success': False, 'error': 'Reviewer not found'}), 404
+        # Get all pending reconsiderations
+        recon_resp = supabase.table('potential_assessment_reconsiderations').select(
+            'id, assessment_id, employee_id, comment, requested_at'
+        ).eq('action', None).order('requested_at', desc=True).execute()
 
-        reviewer_role = reviewer_resp.data.get('role')
+        pending_reconsiderations = []
+        for recon in recon_resp.data or []:
+            # Get the assessment to find the direct supervisor
+            assess_resp = supabase.table('potential_assessments').select(
+                'employee_id, supervisor_id, appraisee_role, status, appraisal_cycle'
+            ).eq('id', recon['assessment_id']).single().execute()
 
-        # HQ Admin can review reconsiderations from Country Admins
-        # (and indirectly from Branch Admins, Dept Admins, etc. that escalate up)
-        if reviewer_role == 'hq_admin':
-            # Get all pending reconsiderations where the direct supervisor is a country_admin
-            # (since HQ reviews escalations from country admins)
-            recon_resp = supabase.table('potential_assessment_reconsiderations').select(
-                'id, assessment_id, employee_id, comment, requested_at'
-            ).eq('action', None).order('requested_at', desc=True).execute()
+            if assess_resp.data:
+                assess = assess_resp.data
+                # Resolve who the senior supervisor should be for this direct supervisor
+                senior_supervisor_id, _ = assessment_service.resolve_senior_supervisor_id(assess['supervisor_id'])
 
-            pending_reconsiderations = []
-            for recon in recon_resp.data or []:
-                # Get the assessment to find who directly supervised them
-                assess_resp = supabase.table('potential_assessments').select(
-                    'employee_id, supervisor_id, appraisee_role, status, appraisal_cycle'
-                ).eq('id', recon['assessment_id']).single().execute()
+                # If this reviewer matches the senior supervisor, include it
+                if senior_supervisor_id == reviewer_id:
+                    # Get employee and supervisor names
+                    try:
+                        emp_resp = supabase.table('users').select('full_name').eq('id', assess['employee_id']).single().execute()
+                        emp_name = emp_resp.data.get('full_name') if emp_resp.data else 'Unknown'
+                    except:
+                        emp_name = 'Unknown'
 
-                if assess_resp.data:
-                    assess = assess_resp.data
-                    # Get supervisor's role to see if they're a country admin
-                    sup_resp = supabase.table('users').select('role').eq('id', assess['supervisor_id']).single().execute()
-                    sup_role = sup_resp.data.get('role') if sup_resp.data else None
+                    try:
+                        sup_resp = supabase.table('users').select('full_name').eq('id', assess['supervisor_id']).single().execute()
+                        sup_name = sup_resp.data.get('full_name') if sup_resp.data else 'Unknown'
+                    except:
+                        sup_name = 'Unknown'
 
-                    # HQ Admin reviews reconsiderations from Country Admins
-                    if sup_role == 'country_admin':
-                        # Get supervisor and employee names
-                        try:
-                            emp_resp = supabase.table('users').select('full_name').eq('id', assess['employee_id']).single().execute()
-                            emp_name = emp_resp.data.get('full_name') if emp_resp.data else 'Unknown'
-                        except:
-                            emp_name = 'Unknown'
+                    pending_reconsiderations.append({
+                        'id': assess['employee_id'],
+                        'full_name': emp_name,
+                        'assessment_id': recon['assessment_id'],
+                        'assessment_status': assess['status'],
+                        'appraisee_role': assess['appraisee_role'],
+                        'appraisal_cycle': assess['appraisal_cycle'],
+                        'supervisor_name': sup_name,
+                    })
 
-                        try:
-                            sup_resp = supabase.table('users').select('full_name').eq('id', assess['supervisor_id']).single().execute()
-                            sup_name = sup_resp.data.get('full_name') if sup_resp.data else 'Unknown'
-                        except:
-                            sup_name = 'Unknown'
-
-                        pending_reconsiderations.append({
-                            'id': assess['employee_id'],
-                            'full_name': emp_name,
-                            'assessment_id': recon['assessment_id'],
-                            'assessment_status': assess['status'],
-                            'appraisee_role': assess['appraisee_role'],
-                            'appraisal_cycle': assess['appraisal_cycle'],
-                            'supervisor_name': sup_name,
-                        })
-
-            return jsonify({'success': True, 'data': pending_reconsiderations}), 200
-
-        # Other roles can review reconsiderations from their direct subordinates
-        # (handled by the main getSubordinates query in frontend)
-        return jsonify({'success': True, 'data': []}), 200
+        return jsonify({'success': True, 'data': pending_reconsiderations}), 200
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
