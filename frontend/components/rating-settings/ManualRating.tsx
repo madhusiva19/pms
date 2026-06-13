@@ -321,16 +321,17 @@ export default function ManualRatingsPage() {
   );
 
   // Reusable table cell style helpers to keep the JSX DRY
-  const P = '10px 14px';
+  const P = '16px 20px';
 
   const thStyle = (align: 'left' | 'center' = 'left'): React.CSSProperties => ({
-    padding: P, textAlign: align, color: '#475569',
-    fontWeight: 700, fontSize: 11,
-    textTransform: 'uppercase', letterSpacing: '0.05em',
+    padding: '12px 20px', textAlign: align, color: '#64748B',
+    fontWeight: 600, fontSize: 11,
+    textTransform: 'uppercase', letterSpacing: '0.07em',
+    borderBottom: '1px solid #E2E8F0',
   });
 
   const tdBase = (align: 'left' | 'center' = 'left', extra?: React.CSSProperties): React.CSSProperties => ({
-    padding: P, textAlign: align, verticalAlign: 'top', ...extra,
+    padding: P, textAlign: align, verticalAlign: 'middle', ...extra,
   });
 
   const hasNoObjectives  = objectives.length === 0;
@@ -469,10 +470,10 @@ export default function ManualRatingsPage() {
         <div style={{
           background: '#fff',
           border: '1px solid #E2E8F0',
-          borderRadius: 12,
+          borderRadius: 14,
           overflow: 'hidden',
-          marginBottom: 16,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+          marginBottom: 20,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03)',
         }}>
           {/* ── Full blue header bar, white text, no subtitle ── */}
           <div style={{
@@ -509,7 +510,7 @@ export default function ManualRatingsPage() {
                   <col style={{ width: '32%' }} />
                 </colgroup>
                 <thead>
-                  <tr style={{ background: '#F1F5F9', borderBottom: '2px solid #E2E8F0' }}>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
                     <th style={thStyle('left')}>Category</th>
                     <th style={thStyle('left')}>Objective</th>
                     <th style={thStyle('left')}>KPI Scale</th>
@@ -540,18 +541,20 @@ export default function ManualRatingsPage() {
 
                         return (
                           <tr key={obj.objective_id} style={{
-                            borderTop:    oi === 0 && gi > 0 ? '2px solid #CBD5E1' : 'none',
-                            borderBottom: '1px solid #E8EDF5',
+                            borderTop:    oi === 0 && gi > 0 ? '2px solid #E2E8F0' : '1px solid #F1F5F9',
+                            borderBottom: 'none',
                             background:   rowBg,
+                            transition:   'background 0.15s',
                           }}>
 
                             {/* Category */}
                             <td style={tdBase('left', {
-                              color:      '#1E293B',
+                              color:      '#0F172A',
                               fontWeight: oi === 0 ? 700 : 400,
                               fontSize:   13,
-                              borderLeft: oi === 0 ? '3px solid #2563EB' : '3px solid transparent',
+                              borderLeft: oi === 0 ? '4px solid #2563EB' : '4px solid transparent',
                               background: rowBg,
+                              paddingLeft: 16,
                             })}>
                               {oi === 0 ? catName : ''}
                             </td>
@@ -592,15 +595,17 @@ export default function ManualRatingsPage() {
                                 onChange={e => !viewOnly && handleRatingChange(obj.objective_id, e.target.value)}
                                 readOnly={viewOnly}
                                 style={{
-                                  width: 80,
-                                  padding: '5px 8px',
+                                  width: 88,
+                                  padding: '9px 10px',
                                   textAlign: 'center',
-                                  border: `1px solid ${hasRatingError ? '#F87171' : '#D1D5DC'}`,
-                                  borderRadius: 6,
-                                  fontSize: 13,
+                                  border: `1.5px solid ${hasRatingError ? '#F87171' : '#CBD5E1'}`,
+                                  borderRadius: 8,
+                                  fontSize: 15,
+                                  fontWeight: 600,
                                   color: '#1E293B',
-                                  background: hasRatingError ? '#FFF5F5' : '#fff',
+                                  background: hasRatingError ? '#FFF5F5' : viewOnly ? '#F8F9FC' : '#fff',
                                   outline: 'none',
+                                  boxShadow: hasRatingError ? 'none' : '0 1px 2px rgba(0,0,0,0.04)',
                                 }}
                               />
                               {hasRatingError && (
@@ -629,23 +634,24 @@ export default function ManualRatingsPage() {
                                 rows={2}
                                 style={{
                                   width: '100%',
-                                  padding: '6px 10px',
-                                  border: `1px solid ${
+                                  padding: '9px 12px',
+                                  border: `1.5px solid ${
                                     hasCommentError
                                       ? '#F87171'
                                       : isBelowThree
                                         ? '#FCD34D'
-                                        : '#D1D5DC'
+                                        : '#CBD5E1'
                                   }`,
-                                  borderRadius: 6,
-                                  fontSize: 12,
+                                  borderRadius: 8,
+                                  fontSize: 13,
                                   color: '#1E293B',
-                                  background: hasCommentError ? '#FFF5F5' : isBelowThree ? '#FFFBEB' : '#fff',
+                                  background: hasCommentError ? '#FFF5F5' : isBelowThree ? '#FFFBEB' : viewOnly ? '#F8F9FC' : '#fff',
                                   outline: 'none',
                                   resize: 'none',
                                   fontFamily: 'Inter, sans-serif',
-                                  lineHeight: '1.4',
+                                  lineHeight: '1.5',
                                   boxSizing: 'border-box',
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
                                 }}
                               />
                               {hasCommentError && (
@@ -722,10 +728,10 @@ export default function ManualRatingsPage() {
         {!viewOnly && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 12,
-            padding: '16px 20px', background: '#fff',
+            padding: '18px 24px', background: '#fff',
             border: '1px solid #E2E8F0',
-            borderRadius: 12,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            borderRadius: 14,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
             flexWrap: 'wrap',
           }}>
             <span style={{
@@ -748,10 +754,11 @@ export default function ManualRatingsPage() {
               onClick={handleSubmit}
               disabled={isSubmitDisabled}
               style={{
-                padding: '10px 24px', borderRadius: 6, border: 'none',
+                padding: '11px 28px', borderRadius: 8, border: 'none',
                 background: isSubmitDisabled ? '#93C5FD' : '#16A34A',
                 cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
-                fontSize: 13, color: '#fff', fontWeight: 600,
+                fontSize: 14, color: '#fff', fontWeight: 600,
+                boxShadow: isSubmitDisabled ? 'none' : '0 2px 4px rgba(22,163,74,0.3)',
               }}
             >
               {saving ? 'Submitting…' : submitted ? 'Resubmit Ratings' : 'Submit Ratings'}
