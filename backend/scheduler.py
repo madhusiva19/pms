@@ -325,6 +325,102 @@ def auto_close_rating_window() -> None:
 # Scheduler setup
 # ══════════════════════════════════════════════════════════════════
 
+def catchup_rating_window() -> None:
+    """
+    Runs once on Flask startup to catch up any missed rating window triggers.
+
+    Checks pms_cycles for any window that should currently be open
+    (mid_year_review + 1 day <= today <= mid_year_review + WINDOW_DAYS)
+    or (year_end_review + 1 day <= today <= year_end_review + WINDOW_DAYS)
+    but has no open rating_periods row yet — and opens it.
+
+    This handles cases where the server was down or the daily trigger was missed.
+    """
+    try:
+        today = date.today()
+        log.info("[scheduler] catchup_rating_window: checking for missed triggers on %s", today)
+
+        cycles_res = (
+            supabase.table("pms_cycles")
+            .select("id, pms_year, mid_year_review, year_end_review")
+            .execute()
+        )
+        cycles = cycles_res.data or []
+
+        for cycle in cycles:
+            pms_year = cycle["pms_year"]
+            mid      = cycle.get("mid_year_review")
+            yr_end   = cycle.get("year_end_review")
+
+            # Check H1 window — always sync dates from pms_cycles
+            if mid:
+                h1_start = date.fromisoformat(str(mid)[:10]) + timedelta(days=1)
+                h1_end   = h1_start + timedelta(days=WINDOW_DAYS - 1)
+                # Open if today is within window OR update existing row to match new dates
+                if h1_start <= today <= h1_end:
+                    log.info("[scheduler] catchup: syncing H1 window for pms_year=%s (%s→%s)", pms_year, h1_start, h1_end)
+                    _upsert_global_period(pms_year, "H1", h1_start, h1_end)
+                else:
+                    # Outside window — update dates but keep closed if already closed
+                    try:
+                        existing = (
+                            supabase.table("rating_periods")
+                            .select("id, is_active, rating_start, rating_end")
+                            .eq("pms_year", pms_year)
+                            .eq("period", "H1")
+                            .is_("country_id", "null")
+                            .is_("branch_id", "null")
+                            .limit(1)
+                            .execute()
+                        )
+                        if existing.data:
+                            row = existing.data[0]
+                            # Only update dates if they don't match pms_cycles
+                            if (str(row.get("rating_start", ""))[:10] != str(h1_start) or
+                                str(row.get("rating_end", ""))[:10] != str(h1_end)):
+                                supabase.table("rating_periods").update({
+                                    "rating_start": h1_start.isoformat(),
+                                    "rating_end":   h1_end.isoformat(),
+                                }).eq("id", row["id"]).execute()
+                                log.info("[scheduler] catchup: updated H1 dates for pms_year=%s", pms_year)
+                    except Exception as e:
+                        log.error("[scheduler] catchup H1 date sync failed: %s", e)
+
+            # Check H2 window — always sync dates from pms_cycles
+            if yr_end:
+                h2_start = date.fromisoformat(str(yr_end)[:10]) + timedelta(days=1)
+                h2_end   = h2_start + timedelta(days=WINDOW_DAYS - 1)
+                if h2_start <= today <= h2_end:
+                    log.info("[scheduler] catchup: syncing H2 window for pms_year=%s (%s→%s)", pms_year, h2_start, h2_end)
+                    _upsert_global_period(pms_year, "H2", h2_start, h2_end)
+                else:
+                    try:
+                        existing = (
+                            supabase.table("rating_periods")
+                            .select("id, is_active, rating_start, rating_end")
+                            .eq("pms_year", pms_year)
+                            .eq("period", "H2")
+                            .is_("country_id", "null")
+                            .is_("branch_id", "null")
+                            .limit(1)
+                            .execute()
+                        )
+                        if existing.data:
+                            row = existing.data[0]
+                            if (str(row.get("rating_start", ""))[:10] != str(h2_start) or
+                                str(row.get("rating_end", ""))[:10] != str(h2_end)):
+                                supabase.table("rating_periods").update({
+                                    "rating_start": h2_start.isoformat(),
+                                    "rating_end":   h2_end.isoformat(),
+                                }).eq("id", row["id"]).execute()
+                                log.info("[scheduler] catchup: updated H2 dates for pms_year=%s", pms_year)
+                    except Exception as e:
+                        log.error("[scheduler] catchup H2 date sync failed: %s", e)
+
+    except Exception as exc:
+        log.error("[scheduler] catchup_rating_window failed: %s", exc)
+
+
 def init_scheduler() -> BackgroundScheduler:
     """
     Create, configure, and start the APScheduler instance.
@@ -363,4 +459,8 @@ def init_scheduler() -> BackgroundScheduler:
 
     scheduler.start()
     log.info("[scheduler] APScheduler started — 3 jobs registered.")
+
+    # Catch-up check — opens any missed rating windows on startup
+    catchup_rating_window()
+
     return scheduler
