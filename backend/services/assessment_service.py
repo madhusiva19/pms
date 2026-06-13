@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 def send_pa_notification(recipient_id: str, notif_type: str, title: str, message: str, assessment_id: str = None):
     # try/except: a notification failure must never block the main assessment workflow
     try:
+        if not recipient_id:
+            print(f'[NOTIFICATION SKIPPED] recipient_id is empty for type={notif_type}')
+            return
         payload = {
             'recipient_id': recipient_id,
             'type': notif_type,
@@ -18,8 +21,8 @@ def send_pa_notification(recipient_id: str, notif_type: str, title: str, message
         if assessment_id:
             payload['assessment_id'] = assessment_id
         supabase.table('potential_assessment_notifications').insert(payload).execute()
-    except Exception:
-        pass  # intentionally ignored — notification failure should not block assessment flow
+    except Exception as e:
+        print(f'[NOTIFICATION ERROR] type={notif_type} recipient={recipient_id}: {e}')
 
 
 def log_assessment_action(assessment_id: str, actor_id: str, actor_role: str, action: str, cycle: str):
