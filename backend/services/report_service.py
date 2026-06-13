@@ -1,4 +1,4 @@
-from lib.supabase_client import supabase
+from models.supabase_client import supabase
 from utils.helpers import resolve_emp_ids_by_scope
 from datetime import datetime
 

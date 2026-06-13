@@ -1,4 +1,4 @@
-from lib.supabase_client import supabase
+from models.supabase_client import supabase
 
 
 def get_branches_by_country(country_id: str, search: str | None = None) -> list:

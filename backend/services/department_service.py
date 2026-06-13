@@ -1,4 +1,4 @@
-from lib.supabase_client import supabase
+from models.supabase_client import supabase
 
 
 def get_departments_by_branch(branch_id: str) -> list:
