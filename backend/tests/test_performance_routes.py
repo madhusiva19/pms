@@ -41,7 +41,7 @@ def reset_mock():
 @pytest.fixture
 def app():
     from flask import Flask
-    from routes.performance import performance_bp
+    from routes.performance_routes import performance_bp
     flask_app = Flask(__name__)
     flask_app.config["TESTING"] = True
     flask_app.register_blueprint(performance_bp)
@@ -53,7 +53,7 @@ def client(app):
 
 @pytest.fixture
 def sb():
-    import routes.performance as rp
+    import routes.performance_routes as rp
     sb = utils.db.supabase
     rp.supabase = sb
     return sb
@@ -129,7 +129,7 @@ class TestGetPerformance:
             _chain(_FAKE_USER),
             _chain(_FAKE_RECORDS),
         ])
-        with patch("routes.performance.load_scale_meta",
+        with patch("routes.performance_routes.load_scale_meta",
                    return_value=FAKE_SCALE_META):
             response = client.get("/api/performance/user-1/2025/H1")
 
@@ -137,7 +137,7 @@ class TestGetPerformance:
         body = json.loads(response.data)
         assert body["employee"]["name"] == "Rajiv Mehta"
         assert body["period"]           == "H1"
-        assert body["pms_year"]             == 2025
+        assert body["pms_year"]         == 2025
         assert "final_score" in body
         assert "categories"  in body
 
@@ -149,7 +149,7 @@ class TestGetPerformance:
         for m in ("select","eq","single"):
             getattr(chain, m).return_value = chain
         _set_sb(sb, returns=chain)
-        with patch("routes.performance.load_scale_meta",
+        with patch("routes.performance_routes.load_scale_meta",
                    return_value=FAKE_SCALE_META):
             response = client.get("/api/performance/no-user/2025/H1")
 
@@ -160,7 +160,7 @@ class TestGetPerformance:
             _chain(_FAKE_USER),
             _chain([]),
         ])
-        with patch("routes.performance.load_scale_meta",
+        with patch("routes.performance_routes.load_scale_meta",
                    return_value=FAKE_SCALE_META):
             response = client.get("/api/performance/user-1/2025/H1")
 
@@ -171,7 +171,7 @@ class TestGetPerformance:
             _chain(_FAKE_USER),
             _chain(_FAKE_RECORDS),
         ])
-        with patch("routes.performance.load_scale_meta",
+        with patch("routes.performance_routes.load_scale_meta",
                    return_value=FAKE_SCALE_META):
             response = client.get("/api/performance/user-1/2025/H1")
 
@@ -181,7 +181,7 @@ class TestGetPerformance:
 
     def test_returns_500_on_error(self, client, sb):
         sb.table.side_effect = Exception("Timeout")
-        with patch("routes.performance.load_scale_meta",
+        with patch("routes.performance_routes.load_scale_meta",
                    return_value=FAKE_SCALE_META):
             response = client.get("/api/performance/user-1/2025/H1")
 
@@ -200,19 +200,19 @@ class TestGetPerformanceSummary:
             {"period": "H1", "score": 0.8},
             {"period": "H2", "score": 2.1},
         ]))
-        with patch("routes.performance.get_active_period_params",
+        with patch("routes.performance_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/performance/user-1/summary?year=2025")
 
         assert response.status_code == 200
         body = json.loads(response.data)
-        assert body["pms_year"]         == 2025
+        assert body["pms_year"]     == 2025
         assert body["scores"]["H1"] == 2.0
         assert body["scores"]["H2"] == 2.1
 
     def test_returns_empty_scores_when_no_records(self, client, sb):
         _set_sb(sb, returns=_chain([]))
-        with patch("routes.performance.get_active_period_params",
+        with patch("routes.performance_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/performance/user-1/summary")
 
@@ -221,7 +221,7 @@ class TestGetPerformanceSummary:
 
     def test_uses_active_year_when_no_param(self, client, sb):
         _set_sb(sb, returns=_chain([]))
-        with patch("routes.performance.get_active_period_params",
+        with patch("routes.performance_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/performance/user-1/summary")
 
@@ -232,7 +232,7 @@ class TestGetPerformanceSummary:
             {"period": "H1", "score": None},
             {"period": "H1", "score": 1.5},
         ]))
-        with patch("routes.performance.get_active_period_params",
+        with patch("routes.performance_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/performance/user-1/summary?year=2025")
 
@@ -266,8 +266,8 @@ class TestSyncActuals:
                  "ll": 90.0, "ul": 110.0, "inverse": False}},
             {}, {1: {"weight": 10.0, "category_id": 1}}, {},
         )
-        with patch("routes.performance.load_scale_meta", return_value=fake_meta), \
-             patch("routes.performance.patch_total_score", return_value=3.5):
+        with patch("routes.performance_routes.load_scale_meta", return_value=fake_meta), \
+             patch("routes.performance_routes.patch_total_score", return_value=3.5):
             response = client.post(
                 "/api/sync/actuals",
                 data=json.dumps(payload),
@@ -290,8 +290,8 @@ class TestSyncActuals:
             {99: {"id": 20, "scale_type": "manual"}},
             {}, {99: {"weight": 5.0}}, {},
         )
-        with patch("routes.performance.load_scale_meta", return_value=fake_meta), \
-             patch("routes.performance.patch_total_score", return_value=0.0):
+        with patch("routes.performance_routes.load_scale_meta", return_value=fake_meta), \
+             patch("routes.performance_routes.patch_total_score", return_value=0.0):
             response = client.post(
                 "/api/sync/actuals",
                 data=json.dumps(payload),
@@ -307,7 +307,7 @@ class TestSyncActuals:
             "user_id": "user-1", "pms_year": 2025, "period": "H1",
             "records": [{"objective_id": 1}],
         }
-        with patch("routes.performance.load_scale_meta",
+        with patch("routes.performance_routes.load_scale_meta",
                    return_value=FAKE_SCALE_META):
             response = client.post(
                 "/api/sync/actuals",
@@ -343,8 +343,8 @@ class TestBackfillScores:
              102: {"weight": 5.0,  "category_id": 1}},
             {},
         )
-        with patch("routes.performance.load_scale_meta", return_value=fake_meta), \
-             patch("routes.performance.patch_total_score", return_value=2.5):
+        with patch("routes.performance_routes.load_scale_meta", return_value=fake_meta), \
+             patch("routes.performance_routes.patch_total_score", return_value=2.5):
             response = client.post("/api/admin/backfill-scores")
 
         assert response.status_code == 200
@@ -354,9 +354,9 @@ class TestBackfillScores:
 
     def test_backfill_returns_zero_when_no_records(self, client, sb):
         _set_sb(sb, returns=_chain([]))
-        with patch("routes.performance.load_scale_meta",
+        with patch("routes.performance_routes.load_scale_meta",
                    return_value=FAKE_SCALE_META), \
-             patch("routes.performance.patch_total_score", return_value=0.0):
+             patch("routes.performance_routes.patch_total_score", return_value=0.0):
             response = client.post("/api/admin/backfill-scores")
 
         body = json.loads(response.data)
@@ -364,7 +364,7 @@ class TestBackfillScores:
         assert body["batches_totalled"] == 0
 
     def test_backfill_returns_500_on_error(self, client, sb):
-        with patch("routes.performance.load_scale_meta",
+        with patch("routes.performance_routes.load_scale_meta",
                    side_effect=Exception("Connection lost")):
             response = client.post("/api/admin/backfill-scores")
 

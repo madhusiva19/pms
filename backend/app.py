@@ -19,14 +19,14 @@ import logging
 from flask import Flask
 from flask_cors import CORS
 
-from routes.evaluator      import evaluator_bp
-from routes.manual_rating  import manual_rating_bp
-from routes.notifications  import notifications_bp
-from routes.org            import org_bp
-from routes.performance    import performance_bp
-from routes.rating_periods import rating_periods_bp
-from routes.templates      import templates_bp
-from routes.workforce_report import workforce_report_bp
+from routes.evaluator_routes        import evaluator_bp
+from routes.manual_rating_routes    import manual_rating_bp
+from routes.notifications_routes    import notifications_bp
+from routes.org_routes              import org_bp
+from routes.performance_routes      import performance_bp
+from routes.rating_periods_routes   import rating_periods_bp
+from routes.templates_routes        import templates_bp
+from routes.workforce_report_routes import workforce_report_bp
 
 from scheduler import init_scheduler
 
