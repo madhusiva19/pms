@@ -392,40 +392,57 @@ def get_reconsiderations_for_review(reviewer_id: str):
 
         pending_reconsiderations = []
         for recon in recon_resp.data or []:
-            # Get the assessment to find the direct supervisor
-            assess_resp = supabase.table('potential_assessments').select(
-                'employee_id, supervisor_id, appraisee_role, status, appraisal_cycle'
-            ).eq('id', recon['assessment_id']).single().execute()
+            try:
+                # Use limit(1) instead of single() to avoid exceptions when row is missing
+                assess_rows = supabase.table('potential_assessments').select(
+                    'employee_id, supervisor_id, appraisee_role, status, appraisal_cycle'
+                ).eq('id', recon['assessment_id']).limit(1).execute()
 
-            if assess_resp.data:
-                assess = assess_resp.data
+                if not assess_rows.data:
+                    continue
+
+                assess = assess_rows.data[0]
+
                 # Resolve who the senior supervisor should be for this direct supervisor
                 senior_supervisor_id, _ = assessment_service.resolve_senior_supervisor_id(assess['supervisor_id'])
 
+                # Fallback: if supervisor resolution fails, HQ admin handles it (mirrors submit_reconsideration logic)
+                if not senior_supervisor_id:
+                    hq = supabase.table('users').select('id').eq('role', 'hq_admin').limit(1).execute()
+                    if hq.data:
+                        senior_supervisor_id = hq.data[0]['id']
+
                 # If this reviewer matches the senior supervisor, include it
-                if senior_supervisor_id == reviewer_id:
-                    # Get employee and supervisor names
-                    try:
-                        emp_resp = supabase.table('users').select('full_name').eq('id', assess['employee_id']).single().execute()
-                        emp_name = emp_resp.data.get('full_name') if emp_resp.data else 'Unknown'
-                    except:
-                        emp_name = 'Unknown'
+                if senior_supervisor_id != reviewer_id:
+                    continue
 
-                    try:
-                        sup_resp = supabase.table('users').select('full_name').eq('id', assess['supervisor_id']).single().execute()
-                        sup_name = sup_resp.data.get('full_name') if sup_resp.data else 'Unknown'
-                    except:
-                        sup_name = 'Unknown'
+                try:
+                    emp_resp = supabase.table('users').select('full_name, emp_id').eq('id', assess['employee_id']).limit(1).execute()
+                    emp_data = emp_resp.data[0] if emp_resp.data else {}
+                    emp_name = emp_data.get('full_name', 'Unknown')
+                    emp_id   = emp_data.get('emp_id')
+                except Exception:
+                    emp_name, emp_id = 'Unknown', None
 
-                    pending_reconsiderations.append({
-                        'id': assess['employee_id'],
-                        'full_name': emp_name,
-                        'assessment_id': recon['assessment_id'],
-                        'assessment_status': assess['status'],
-                        'appraisee_role': assess['appraisee_role'],
-                        'appraisal_cycle': assess['appraisal_cycle'],
-                        'supervisor_name': sup_name,
-                    })
+                try:
+                    sup_resp = supabase.table('users').select('full_name').eq('id', assess['supervisor_id']).limit(1).execute()
+                    sup_name = sup_resp.data[0].get('full_name', 'Unknown') if sup_resp.data else 'Unknown'
+                except Exception:
+                    sup_name = 'Unknown'
+
+                pending_reconsiderations.append({
+                    'id': assess['employee_id'],
+                    'emp_id': emp_id,
+                    'full_name': emp_name,
+                    'assessment_id': recon['assessment_id'],
+                    'assessment_status': assess['status'],
+                    'appraisee_role': assess['appraisee_role'],
+                    'appraisal_cycle': assess['appraisal_cycle'],
+                    'supervisor_name': sup_name,
+                })
+            except Exception as inner_e:
+                print(f'[RECON REVIEW] Skipping recon {recon.get("assessment_id")}: {inner_e}')
+                continue
 
         return jsonify({'success': True, 'data': pending_reconsiderations}), 200
 
