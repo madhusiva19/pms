@@ -11,7 +11,6 @@ from datetime                          import datetime, date, timedelta, timezon
 import uuid
 
 from models.supabase_client import supabase
-from typing import Optional
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -32,7 +31,7 @@ def _iso(d: date) -> str:
 def _date(iso: str) -> date:
     return datetime.fromisoformat(iso).date()
 
-def _fmt(iso: Optional[str]) -> str:
+def _fmt(iso: str | None) -> str:
     """Human-readable date string for messages, e.g. 'August 16, 2026'."""
     if not iso:
         return "TBD"
@@ -223,7 +222,7 @@ def get_schedule_for_cycle(cycle: dict) -> list[dict]:
 # GRACE PERIOD BANNER  (called by route, not stored as a notification row)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_grace_period_status(cycle: dict) -> Optional[dict]:
+def get_grace_period_status(cycle: dict) -> dict | None:
     """
     Returns banner data when today falls within the grace period.
     Returns None when outside the grace period.
@@ -266,7 +265,7 @@ def get_grace_period_status(cycle: dict) -> Optional[dict]:
 # VISIBILITY RULE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_entries_for_level(user_level: int, cycle: Optional[dict] = None) -> list:
+def get_entries_for_level(user_level: int, cycle: dict | None = None) -> list:
     """Returns schedule entries visible to the given user level."""
     schedule = get_schedule_for_cycle(cycle) if cycle else []
     result   = [e for e in schedule if e["role"] == "all" or e["level"] == user_level]
@@ -278,7 +277,7 @@ def get_entries_for_level(user_level: int, cycle: Optional[dict] = None) -> list
 # ACTIVE CYCLE LOOKUP
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_active_cycle() -> Optional[dict]:
+def get_active_cycle() -> dict | None:
     """Fetch the currently active PMS cycle row from pms_cycles."""
     try:
         result = (
