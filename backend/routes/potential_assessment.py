@@ -205,6 +205,7 @@ def submit_reconsideration(assessment_id: str):
                 notif_type='reconsideration_request',
                 title='Reconsideration Request Received',
                 message=f"{employee_name} has requested a reconsideration of their potential assessment. Please review at your earliest convenience.",
+                assessment_id=assessment_id,
             )
         except Exception:
             pass  # intentionally ignored — notification failure should not block reconsideration
@@ -215,6 +216,7 @@ def submit_reconsideration(assessment_id: str):
                 notif_type='reconsideration_fyi',
                 title='Employee Has Requested Reconsideration',
                 message=f"{employee_name} has escalated their assessment result for reconsideration by a senior reviewer.",
+                assessment_id=assessment_id,
             )
         except Exception:
             pass  # intentionally ignored — notification failure should not block reconsideration
@@ -337,11 +339,22 @@ def review_reconsideration(assessment_id: str):
 
         supabase.table('potential_assessments').update(assessment_update).eq('id', assessment_id).execute()
 
+        # Send outcome notification to appraisee (the person who requested reconsideration)
         assessment_service.send_pa_notification(
             recipient_id=assessment['employee_id'],
             notif_type=notif_type,
             title=notif_title,
             message=notif_message,
+            assessment_id=assessment_id,
+        )
+
+        # Send outcome notification to initial supervisor (so they know the outcome)
+        assessment_service.send_pa_notification(
+            recipient_id=assessment['supervisor_id'],
+            notif_type=f"{notif_type}_supervisor",  # e.g., 'reconsideration_approved_supervisor'
+            title=f"{notif_title} by Senior Supervisor",
+            message=f"The reconsideration request from {assessment.get('appraisee_role', 'this user')} has been {action}d.",
+            assessment_id=assessment_id,
         )
 
         assessment_service.log_assessment_action(
