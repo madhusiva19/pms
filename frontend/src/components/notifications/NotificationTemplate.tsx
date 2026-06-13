@@ -176,7 +176,7 @@ function resolveCutoffStatus(cutoffDate: string): CutoffStatus {
 
 //  Main Component 
 export default function Notifications() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const userId = user?.id ?? "";
@@ -192,7 +192,11 @@ export default function Notifications() {
 
   //  Fetch notifications 
   useEffect(() => {
-    if (!userId) return;
+    if (authLoading) return;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
 
     async function load() {
       setLoading(true);
@@ -309,7 +313,7 @@ export default function Notifications() {
     }
 
     load();
-  }, [userId, roleSlug]);
+  }, [userId, roleSlug, authLoading]);
 
   // Mark read helpers 
   const callMarkRead = async (id: string) => {
