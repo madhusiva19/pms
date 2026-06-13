@@ -139,7 +139,7 @@ export default function HQAdminPotentialAssessmentPage() {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{recon.emp_id ?? recon.id?.slice(0, 8) ?? '-'}</td>
-                    <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{recon.appraisee_role?.replace('_', ' ').toUpperCase() ?? '-'}</td>
+                    <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{recon.appraisee_role?.replace(/_/g, ' ').toUpperCase() ?? '-'}</td>
                     <td className="px-5 py-4">
                       <button type="button"
                         onClick={() => router.push(`/hq-admin/potential-assessment/reconsideration/${recon.assessment_id}`)}
