@@ -284,7 +284,14 @@ export default function ViewTemplatePage() {
   // Re-used after a successful save to refresh the view without a full page reload
   const fetchTemplate = () => {
     setLoading(true);
-    fetch(`${API}/api/templates/${templateId}`)
+    // Pass user org context so backend can resolve variant if one exists
+    const params = new URLSearchParams();
+    if (user?.country_id)        params.set('country_id',        user.country_id);
+    if (user?.branch_id)         params.set('branch_id',         user.branch_id);
+    if (user?.department_id)     params.set('department_id',     user.department_id);
+    if (user?.sub_department_id) params.set('sub_department_id', user.sub_department_id);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    fetch(`${API}/api/templates/${templateId}${query}`)
       .then(r => r.json())
       .then(raw => {
         if (raw?.error) { setError(`Backend error: ${raw.error}`); setLoading(false); return; }
@@ -319,7 +326,7 @@ export default function ViewTemplatePage() {
         setCycleLoading(false);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templateId]);
+  }, [templateId, user?.id]);
 
   // ── Close search dropdown on outside click ─────────────────────
   useEffect(() => {
