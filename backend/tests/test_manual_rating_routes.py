@@ -42,7 +42,7 @@ def reset_mock():
 @pytest.fixture
 def app():
     from flask import Flask
-    from routes.manual_rating import manual_rating_bp
+    from routes.manual_rating_routes import manual_rating_bp
     flask_app = Flask(__name__)
     flask_app.config["TESTING"] = True
     flask_app.register_blueprint(manual_rating_bp)
@@ -54,7 +54,7 @@ def client(app):
 
 @pytest.fixture
 def sb():
-    import routes.manual_rating as mr
+    import routes.manual_rating_routes as mr
     sb = utils.db.supabase
     mr.supabase = sb
     return sb
@@ -83,7 +83,7 @@ class TestGetManualObjectives:
                  "rating_comment": None},
             ]),
         ])
-        with patch("routes.manual_rating.get_active_period_params",
+        with patch("routes.manual_rating_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/manual-objectives/user-1?year=2025&period=H1")
 
@@ -97,7 +97,7 @@ class TestGetManualObjectives:
 
     def test_returns_404_when_no_template_assigned(self, client, sb):
         _set_sb(sb, returns=_chain([]))
-        with patch("routes.manual_rating.get_active_period_params",
+        with patch("routes.manual_rating_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/manual-objectives/user-no-template")
 
@@ -110,7 +110,7 @@ class TestGetManualObjectives:
             _chain([{"id": 10, "name": "Financial Focus"}]),
             _chain([]),
         ])
-        with patch("routes.manual_rating.get_active_period_params",
+        with patch("routes.manual_rating_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/manual-objectives/user-1")
 
@@ -122,7 +122,7 @@ class TestGetManualObjectives:
             _chain([{"template_id": 1}]),
             _chain([]),
         ])
-        with patch("routes.manual_rating.get_active_period_params",
+        with patch("routes.manual_rating_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/manual-objectives/user-1")
 
@@ -137,7 +137,7 @@ class TestGetManualObjectives:
                      "weight": 5.0, "category_id": 20, "kpi_scale": "manual"}]),
             _chain([]),
         ])
-        with patch("routes.manual_rating.get_active_period_params",
+        with patch("routes.manual_rating_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/manual-objectives/user-1?year=2025&period=H2")
 
@@ -148,7 +148,7 @@ class TestGetManualObjectives:
 
     def test_returns_500_on_supabase_error(self, client, sb):
         sb.table.side_effect = Exception("DB connection failed")
-        with patch("routes.manual_rating.get_active_period_params",
+        with patch("routes.manual_rating_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/manual-objectives/user-1")
 
@@ -162,7 +162,7 @@ class TestGetManualObjectives:
                      "weight": 5.0, "category_id": 10, "kpi_scale": "manual"}]),
             _chain([]),
         ])
-        with patch("routes.manual_rating.get_active_period_params",
+        with patch("routes.manual_rating_routes.get_active_period_params",
                    return_value=(2025, "H1")):
             response = client.get("/api/manual-objectives/user-1")
 
