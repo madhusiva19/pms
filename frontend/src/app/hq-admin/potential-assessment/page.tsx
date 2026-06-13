@@ -20,6 +20,7 @@ export default function HQAdminPotentialAssessmentPage() {
   const router = useRouter();
   const [cycle, setCycle] = useState<AppraisalCycle | null>(null);
   const [subordinates, setSubordinates] = useState<SubordinateAssessmentSummary[]>([]);
+  const [escalatedReconsiderations, setEscalatedReconsiderations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +36,17 @@ export default function HQAdminPotentialAssessmentPage() {
         setCycle(activeCycle);
         const subs = await potentialAssessmentApi.getSubordinates(user.id, String(activeCycle.pms_year), user.role);
         setSubordinates(subs);
+
+        // Also fetch escalated reconsiderations from lower-level admins
+        try {
+          const escalatedRes = await fetch(`/api/potential-assessment/reconsiderations-for-review/${user.id}`);
+          const escalatedData = await escalatedRes.json();
+          if (escalatedData.success) {
+            setEscalatedReconsiderations(escalatedData.data || []);
+          }
+        } catch (err) {
+          // Ignore escalated reconsiderations fetch errors - they're supplementary
+        }
       })
       .catch((err) => setError(err?.response?.data?.error ?? 'Failed to load data.'))
       .finally(() => setLoading(false));
@@ -61,6 +73,7 @@ export default function HQAdminPotentialAssessmentPage() {
 
       {(() => {
         const reconSubs = subordinates.filter(s => s.assessment_status === 'reconsideration_requested');
+        const allReconsiderations = [...reconSubs, ...escalatedReconsiderations];
         return (
           <>
             <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
@@ -106,11 +119,15 @@ export default function HQAdminPotentialAssessmentPage() {
               </table>
             </div>
 
-            {reconSubs.length > 0 && (
+            {allReconsiderations.length > 0 && (
               <div className="flex flex-col gap-3 mt-2">
                 <div className="pb-3 border-b border-[#E5E7EB]">
                   <h2 className="text-[16px] font-semibold text-[#101828]">Pending Reconsideration Requests</h2>
-                  <p className="text-[13px] text-[#64748B]">These country admins have requested a reconsideration of their assessment result.</p>
+                  <p className="text-[13px] text-[#64748B]">
+                    {escalatedReconsiderations.length > 0
+                      ? 'Reconsiderations requiring your review (from branch admins, dept admins, and direct reports).'
+                      : 'These country admins have requested a reconsideration of their assessment result.'}
+                  </p>
                 </div>
                 <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
                   <table className="w-full border-collapse">
@@ -123,7 +140,7 @@ export default function HQAdminPotentialAssessmentPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {reconSubs.map((sub) => (
+                      {allReconsiderations.map((sub) => (
                         <tr key={sub.id} className="border-b border-[#F1F5F9] hover:bg-[#FAFAFA] transition-colors">
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
