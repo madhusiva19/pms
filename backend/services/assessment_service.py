@@ -5,16 +5,19 @@ from datetime import datetime, timezone
 
 # -- Notification helpers 
 
-def send_pa_notification(recipient_id: str, notif_type: str, title: str, message: str):
+def send_pa_notification(recipient_id: str, notif_type: str, title: str, message: str, assessment_id: str = None):
     # try/except: a notification failure must never block the main assessment workflow
     try:
-        supabase.table('potential_assessment_notifications').insert({
+        payload = {
             'recipient_id': recipient_id,
             'type': notif_type,
             'title': title,
             'message': message,
             'is_read': False,
-        }).execute()
+        }
+        if assessment_id:
+            payload['assessment_id'] = assessment_id
+        supabase.table('potential_assessment_notifications').insert(payload).execute()
     except Exception:
         pass  # intentionally ignored — notification failure should not block assessment flow
 
