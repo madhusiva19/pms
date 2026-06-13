@@ -30,9 +30,8 @@ export default function BranchAdminTeamReviewPage() {
       })
       .finally(() => setTeamLoading(false));
 
-    fetch(`/api/potential-assessment/reconsiderations-for-review/${user.id}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d?.success) setReconsiderations(d.data || []); })
+    potentialAssessmentApi.getReconsiderationsForReview(user.id)
+      .then(setReconsiderations)
       .catch(() => {});
   }, [user, authLoading]);
 

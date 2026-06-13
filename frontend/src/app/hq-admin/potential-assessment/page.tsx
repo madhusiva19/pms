@@ -33,15 +33,10 @@ export default function HQAdminPotentialAssessmentPage() {
         setSubordinates(subs);
 
         try {
-          const escalatedRes = await fetch(`/api/potential-assessment/reconsiderations-for-review/${user.id}`);
-          if (escalatedRes.ok) {
-            const escalatedData = await escalatedRes.json();
-            if (escalatedData.success) {
-              setEscalatedReconsiderations(escalatedData.data || []);
-            }
-          }
+          const recons = await potentialAssessmentApi.getReconsiderationsForReview(user.id);
+          setEscalatedReconsiderations(recons);
         } catch {
-          // Silently ignore escalated reconsiderations fetch errors
+          // non-fatal — page still usable without the reconsideration list
         }
       })
       .catch((err) => setError(err?.response?.data?.error ?? 'Failed to load data.'))
