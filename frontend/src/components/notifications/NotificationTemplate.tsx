@@ -103,7 +103,7 @@ function resolvePaActionUrl(type: PaNotificationType, roleSlug: string, assessme
       : `/${roleSlug}/potential-assessment/supervisor-review`;
   }
 
-  // reconsideration_fyi — FYI only, goes to supervisor-review but button will be disabled
+  // reconsideration_fyi — FYI only, goes to supervisor-review to see the case
   if (type === "reconsideration_fyi") {
     return roleSlug === "hq-admin"
       ? "/hq-admin/potential-assessment"
@@ -111,8 +111,15 @@ function resolvePaActionUrl(type: PaNotificationType, roleSlug: string, assessme
   }
 
   // reconsideration_request — senior supervisor with review capability
-  if (type === "reconsideration_request" && assessmentId) {
-    return `/${roleSlug}/potential-assessment/reconsideration/${assessmentId}`;
+  if (type === "reconsideration_request") {
+    // If assessmentId is available, go directly to review page
+    if (assessmentId) {
+      return `/${roleSlug}/potential-assessment/reconsideration/${assessmentId}`;
+    }
+    // Fallback to main page if assessmentId missing
+    return roleSlug === "hq-admin"
+      ? "/hq-admin/potential-assessment"
+      : `/${roleSlug}/potential-assessment/supervisor-review`;
   }
 
   // self_submitted and others — supervisor review page
