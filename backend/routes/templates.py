@@ -65,18 +65,18 @@ def _resolve_variant(template_id: int, country_id: str | None, branch_id: str | 
 @templates_bp.route("/api/templates", methods=["GET"])
 def get_templates():
     """
-    Return all templates for the active pms_cycle with freeze status and
-    variant resolution per requesting user's org unit.
-
-    Only templates belonging to the active pms_cycle are returned — so when
-    a new cycle starts with freshly copied templates, only those show up.
+    Return all templates with freeze status and content resolved per requesting user's org unit.
 
     Freeze logic: derived from pms_cycles dates, NOT templates.status.
-    Templates are active only within objective_setting_start → objective_setting_end.
+    Templates are 'active' when today falls between objective_setting_start
+    and grace_period_end. Outside that window they are 'frozen'.
 
-    Unfreeze override: template_unfreezes row for user's org unit overrides freeze.
-    Variant resolution: most specific variant for user's org unit wins.
-    Priority: sub_department > department > branch > country.
+    Unfreeze override: if a template_unfreezes row exists for the user's org unit,
+    that template is returned as 'active' regardless of the cycle dates.
+
+    Variant resolution: if a template_variant exists for the user's org unit, its
+    name/description overrides the base template row.
+    Resolution priority: sub_department > department > branch > country.
     """
     try:
         from datetime import date
@@ -85,34 +85,32 @@ def get_templates():
         department_id     = request.args.get("department_id")
         sub_department_id = request.args.get("sub_department_id")
 
-        # Fetch active pms_cycle — used for template filtering AND freeze check
+        result    = supabase.table("templates").select("*").execute()
+        templates = result.data or []
+
+        # Derive global freeze status from pms_cycles dates, not templates.status.
+        # Templates are active only during the objective setting window.
         cycle_res = (
             supabase.table("pms_cycles")
-            .select("id, objective_setting_start, objective_setting_end")
+            .select("objective_setting_start, objective_setting_end, grace_period_end")
             .eq("is_active", True)
             .order("pms_year", desc=True)
             .limit(1)
             .execute()
         )
-        cycle           = (cycle_res.data or [{}])[0]
-        active_cycle_id = cycle.get("id")
-        today           = date.today()
-        obj_start       = cycle.get("objective_setting_start")
-        obj_end         = cycle.get("objective_setting_end")
+        cycle = (cycle_res.data or [{}])[0]
+        today = date.today()
 
-        # Freeze: active only within objective setting window
+        obj_start = cycle.get("objective_setting_start")
+        obj_end   = cycle.get("objective_setting_end")
+        # Templates are active only within the objective setting window.
+        # grace_period_end is only for new template creation by HQ Admin — not for freeze status.
         cycle_active = (
             obj_start and obj_end and
             date.fromisoformat(obj_start) <= today <= date.fromisoformat(obj_end)
         )
 
-        # Fetch only templates for the active cycle
-        templates_q = supabase.table("templates").select("*")
-        if active_cycle_id:
-            templates_q = templates_q.eq("pms_cycle_id", active_cycle_id)
-        templates = templates_q.execute().data or []
-
-        # Apply global freeze status
+        # Apply global freeze status to all templates
         for t in templates:
             t["status"] = "active" if cycle_active else "frozen"
 
@@ -121,7 +119,9 @@ def get_templates():
         if has_org:
             all_template_ids = [t["id"] for t in templates]
 
-            # Unfreeze override — only when frozen
+            # Unfreeze override — only relevant when cycle window is closed.
+            # If HQ Admin has unfrozen a template for this user's org unit,
+            # override the frozen status back to active.
             unfrozen_for_user: set = set()
             if not cycle_active:
                 uf_res = (
@@ -136,16 +136,15 @@ def get_templates():
                     elif country_id and row.get("country_id") == country_id:
                         unfrozen_for_user.add(row["template_id"])
 
-            # Variant resolution — only variants for the active cycle
-            var_q = (
+            # Variant resolution
+            var_res = (
                 supabase.table("template_variants")
                 .select("*")
                 .in_("parent_template_id", all_template_ids)
+                .execute()
             )
-            if active_cycle_id:
-                var_q = var_q.eq("pms_cycle_id", active_cycle_id)
             variants_by_template: dict = {}
-            for v in (var_q.execute().data or []):
+            for v in (var_res.data or []):
                 variants_by_template.setdefault(v["parent_template_id"], []).append(v)
 
             def best_variant(tid: int) -> dict | None:
@@ -161,6 +160,7 @@ def get_templates():
                 best = max(candidates, key=score)
                 return best if score(best) > 0 else None
 
+            # Apply overrides
             for t in templates:
                 tid = t["id"]
                 if tid in unfrozen_for_user:
@@ -183,11 +183,15 @@ def get_templates():
 def get_template(template_id: int):
     """
     Return a single template with its categories and objectives.
-
-    Tries to include `kpi_scale` on objectives; falls back gracefully
-    if that column does not exist yet in the DB schema.
+    If org context params are passed and a variant exists for that org unit,
+    return the variant content instead of base template.
     """
     try:
+        country_id        = request.args.get("country_id")
+        branch_id         = request.args.get("branch_id")
+        department_id     = request.args.get("department_id")
+        sub_department_id = request.args.get("sub_department_id")
+
         tmpl_res = (
             supabase.table("templates")
             .select("*")
@@ -200,6 +204,66 @@ def get_template(template_id: int):
 
         template = tmpl_res.data[0]
 
+        # Compute freeze status from pms_cycles (same logic as get_templates)
+        from datetime import date as _date
+        cycle_res2 = (
+            supabase.table("pms_cycles")
+            .select("objective_setting_start, objective_setting_end")
+            .eq("is_active", True)
+            .order("pms_year", desc=True)
+            .limit(1)
+            .execute()
+        )
+        cycle2    = (cycle_res2.data or [{}])[0]
+        _today    = _date.today()
+        _start    = cycle2.get("objective_setting_start")
+        _end      = cycle2.get("objective_setting_end")
+        _active   = (
+            _start and _end and
+            _date.fromisoformat(_start) <= _today <= _date.fromisoformat(_end)
+        )
+        template["status"] = "active" if _active else "frozen"
+
+        # Check for variant if org context provided
+        if any([country_id, branch_id, department_id, sub_department_id]):
+            cycle_res = (
+                supabase.table("pms_cycles")
+                .select("id")
+                .eq("is_active", True)
+                .order("pms_year", desc=True)
+                .limit(1)
+                .execute()
+            )
+            active_cycle_id = (cycle_res.data or [{}])[0].get("id")
+
+            var_res = (
+                supabase.table("template_variants")
+                .select("*")
+                .eq("parent_template_id", template_id)
+                .eq("pms_cycle_id", active_cycle_id)
+                .execute()
+            )
+
+            def score_variant(v: dict) -> int:
+                if sub_department_id and v.get("sub_department_id") == sub_department_id: return 4
+                if department_id     and v.get("department_id")     == department_id:     return 3
+                if branch_id         and v.get("branch_id")         == branch_id:         return 2
+                if country_id        and v.get("country_id")        == country_id:        return 1
+                return 0
+
+            variants   = var_res.data or []
+            best       = max(variants, key=score_variant) if variants else None
+            best_score = score_variant(best) if best else 0
+
+            if best and best_score > 0 and best.get("template_content"):
+                template["name"]        = best.get("name")        or template["name"]
+                template["description"] = best.get("description") or template.get("description")
+                template["categories"]  = best["template_content"]
+                template["has_variant"] = True
+                template["variant_id"]  = best["id"]
+                return jsonify(template)
+
+        # No variant — return base template from categories/objectives tables
         cat_res = (
             supabase.table("categories")
             .select("*")
@@ -220,7 +284,6 @@ def get_template(template_id: int):
                     .execute()
                 )
             except Exception:
-                # Fallback for schemas without kpi_scale column
                 obj_res = (
                     supabase.table("objectives")
                     .select("id, name, weight, max_score, control_type, category_id")
@@ -289,8 +352,6 @@ def update_template(template_id: int):
             return jsonify({"success": True, "mode": "global"})
 
         # Non-HQ: upsert a variant scoped to the most specific org unit
-        # NOTE: chk_variant_scope requires branch_id OR country_id to be set.
-        # So dept/sub-dept variants must also include branch_id.
         scope = {
             "country_id":        None,
             "branch_id":         None,
@@ -299,16 +360,14 @@ def update_template(template_id: int):
         }
         if sub_department_id:
             scope["sub_department_id"] = sub_department_id
-            scope["branch_id"]         = branch_id   # required by chk_variant_scope
         elif department_id:
             scope["department_id"] = department_id
-            scope["branch_id"]     = branch_id       # required by chk_variant_scope
         elif branch_id:
             scope["branch_id"] = branch_id
         elif country_id:
             scope["country_id"] = country_id
 
-        # Get active pms_cycle_id — variants are scoped per cycle
+        # Get active pms_cycle_id — required NOT NULL in template_variants
         cycle_res = (
             supabase.table("pms_cycles")
             .select("id")
@@ -320,17 +379,6 @@ def update_template(template_id: int):
         active_cycle_id = (cycle_res.data or [{}])[0].get("id")
         if not active_cycle_id:
             return jsonify({"error": "No active PMS cycle found"}), 400
-
-        # Check if a variant already exists for this template + scope + cycle
-        existing_q = (
-            supabase.table("template_variants")
-            .select("id")
-            .eq("parent_template_id", template_id)
-            .eq("pms_cycle_id", active_cycle_id)
-        )
-        for k, v in scope.items():
-            existing_q = existing_q.eq(k, v) if v else existing_q.is_(k, "null")
-        existing = existing_q.limit(1).execute()
 
         # Fetch base template metadata for the variant row
         base = (
@@ -352,6 +400,17 @@ def update_template(template_id: int):
             "created_by":         editor_id,
             **scope,
         }
+
+        # Check if variant already exists for this template + scope + cycle
+        existing_q = (
+            supabase.table("template_variants")
+            .select("id")
+            .eq("parent_template_id", template_id)
+            .eq("pms_cycle_id", active_cycle_id)
+        )
+        for k, v in scope.items():
+            existing_q = existing_q.eq(k, v) if v else existing_q.is_(k, "null")
+        existing = existing_q.limit(1).execute()
 
         if existing.data:
             variant_id = existing.data[0]["id"]
