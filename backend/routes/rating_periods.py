@@ -587,7 +587,7 @@ def get_batch_rating_status():
     """
     try:
         raw_ids = request.args.get("user_ids", "").strip()
-        year    = request.args.get("pms_year", type=int)
+        year    = request.args.get("year", type=int)
         period  = request.args.get("period", "")
 
         if not raw_ids or not year or not period:
@@ -597,10 +597,14 @@ def get_batch_rating_status():
         if not user_ids:
             return jsonify({}), 200
 
+        print(f"[DEBUG] batch status: user_ids={user_ids}, year={year}, period={period}")
+
         # Get template assignments for all requested users
         assign_res     = supabase.table("template_assignments").select("user_id, template_id").in_("user_id", user_ids).execute()
         assign_by_user = {r["user_id"]: r["template_id"] for r in (assign_res.data or [])}
         template_ids   = list(set(assign_by_user.values()))
+
+        print(f"[DEBUG] assign_by_user={assign_by_user}, template_ids={template_ids}")
 
         if not template_ids:
             return jsonify({uid: {"submitted": False, "pending": 0, "total": 0} for uid in user_ids})
@@ -613,8 +617,8 @@ def get_batch_rating_status():
         if not all_cat_ids:
             return jsonify({uid: {"submitted": False, "pending": 0, "total": 0} for uid in user_ids})
 
-        # Get all manual objectives for those categories
-        obj_res          = supabase.table("objectives").select("id, category_id").in_("category_id", all_cat_ids).eq("kpi_scale", "manual").execute()
+        # Get all manual objectives — kpi_scale can be "manual" or "Manual Rating"
+        obj_res = supabase.table("objectives").select("id, category_id").in_("category_id", all_cat_ids).in_("kpi_scale", ["manual", "Manual Rating", "manual_rating"]).execute()
         objs_by_template: dict[int, list] = {}
         for obj in obj_res.data or []:
             tmpl = cat_to_template.get(obj["category_id"])
@@ -688,7 +692,7 @@ def get_rating_overview(evaluator_id: str):
     try:
         active_year, active_period_str = get_active_period_params()
         period   = request.args.get("period", active_period_str)
-        pms_year = request.args.get("pms_year", active_year, type=int)
+        pms_year = request.args.get("year", active_year, type=int)
 
         # Get direct reports of this evaluator
         team = (
