@@ -47,7 +47,6 @@ export default function DeptAdminTeamReviewPage() {
           <p className="text-[13.5px] text-[#64748B]">Review potential assessments for Sub Dept Admins under your department.</p>
         </div>
         {teamLoading ? <div className="text-[#94A3B8] text-[14px] py-4">Loading team dataâ€¦</div> : (() => {
-          const reconSubs = subordinates.filter(s => s.assessment_status === 'reconsideration_requested');
           return (
             <>
               <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
@@ -82,41 +81,6 @@ export default function DeptAdminTeamReviewPage() {
                   </tbody>
                 </table>
               </div>
-
-              {reconSubs.length > 0 && (
-                <div className="flex flex-col gap-3 mt-2">
-                  <div className="pb-3 border-b border-[#E5E7EB]">
-                    <h2 className="text-[16px] font-semibold text-[#101828]">Pending Reconsideration Requests</h2>
-                    <p className="text-[13px] text-[#64748B]">These sub dept admins have requested a reconsideration of their assessment result.</p>
-                  </div>
-                  <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-[#F8FAFC] border-b border-[#E5E7EB]">
-                          <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Name</th>
-                          <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Employee ID</th>
-                          <th className="text-left px-5 py-3.5 text-[12px] font-semibold text-[#64748B] uppercase tracking-wide">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reconSubs.map((sub) => (
-                          <tr key={sub.id} className="border-b border-[#F1F5F9] hover:bg-[#FAFAFA] transition-colors">
-                            <td className="px-5 py-4"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-[#DBEAFE] flex items-center justify-center"><User className="w-4 h-4 text-[#1D4ED8]" /></div><span className="text-[13.5px] font-medium text-[#101828]">{sub.full_name}</span></div></td>
-                            <td className="px-5 py-4 text-[13.5px] text-[#4A5565]">{sub.emp_id ?? sub.id.slice(0, 8)}</td>
-                            <td className="px-5 py-4">
-                              <button type="button"
-                                onClick={() => router.push(`/dept-admin/potential-assessment/reconsideration/${sub.assessment_id}`)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium bg-[#1E3A8A] text-white hover:bg-[#1E40AF] transition-colors">
-                                Review Request
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
             </>
           );
         })()}
