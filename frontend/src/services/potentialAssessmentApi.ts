@@ -104,6 +104,11 @@ export const potentialAssessmentApi = {
     const res = await paClient.post('/potential-assessment/supervisor-submit', payload);
     return res.data.data;
   },
+
+  getReconsiderationsForReview: async (reviewerId: string): Promise<any[]> => {
+    const res = await paClient.get(`/potential-assessment/reconsiderations-for-review/${reviewerId}`);
+    return res.data.data || [];
+  },
 };
 
 // Assessment Components (HQ Admin CRUD + per-role fetch) 
