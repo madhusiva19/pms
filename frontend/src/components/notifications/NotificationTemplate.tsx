@@ -88,7 +88,7 @@ export default function NotificationTemplate({
 }: NotificationPageProps) {
   const router = useRouter();
   const config = ROLE_CONFIG[role];
-  const { refreshBadges } = useAuth();
+  const { user, refreshBadges } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"achievements" | "cutoff">("achievements");
   const [achievementList, setAchievementList] = useState<AchievementNotification[]>(achievementNotifications);
@@ -125,37 +125,34 @@ export default function NotificationTemplate({
     }
   };
 
-  // ── Get user from localStorage ──
-const raw = typeof window !== "undefined" ? localStorage.getItem("pms_user") : null;
-const user = raw ? JSON.parse(raw) : null;
-
   // ── Mark all as read ──
   const markAllRead = async () => {
+    const API = process.env.NEXT_PUBLIC_API_URL;
+
     if (activeTab === "achievements") {
       const unread = achievementList.filter((n) => !n.isRead);
+      // Optimistically update UI first
       setAchievementList((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      for (const n of unread) {
-        try {
-          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${n.id}/read`, {
-            method: "PATCH",
-          });
-        } catch (err) {
-          console.error("Failed to mark as read:", err);
-        }
-      }
+      // Fire all PATCH requests in parallel
+      await Promise.all(
+        unread.map((n) =>
+          fetch(`${API}/api/notifications/${n.id}/read`, { method: "PATCH" })
+            .catch((err) => console.error("Failed to mark as read:", err))
+        )
+      );
       refreshBadges();
     } else {
       const unread = cutoffList.filter((n) => !n.isRead);
+      // Optimistically update UI first
       setCutoffList((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      for (const n of unread) {
-        try {
-          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${n.id}/read`, {
-            method: "PATCH",
-          });
-        } catch (err) {
-          console.error("Failed to mark as read:", err);
-        }
-      }
+      // Fire all PATCH requests in parallel
+      await Promise.all(
+        unread.map((n) =>
+          fetch(`${API}/api/notifications/${n.id}/read`, { method: "PATCH" })
+            .catch((err) => console.error("Failed to mark as read:", err))
+        )
+      );
+      refreshBadges();
     }
   };
 
