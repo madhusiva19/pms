@@ -106,8 +106,36 @@ export default function AdminNotificationsPage({ role, dashboardPath, profilePat
       <Sidebar />
       <main className={styles.main}>
         {(loading || !user) ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "#9CA3AF", fontSize: "14px" }}>
-            Loading...
+          <div style={{ padding: "32px", width: "100%", boxSizing: "border-box" }}>
+            <style>{`
+              @keyframes shimmer {
+                0%   { background-position: -600px 0; }
+                100% { background-position:  600px 0; }
+              }
+              .skeleton {
+                background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+                background-size: 600px 100%;
+                animation: shimmer 1.4s infinite linear;
+                border-radius: 8px;
+              }
+            `}</style>
+            <div className="skeleton" style={{ height: 14, width: 180, marginBottom: 28 }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+              <div>
+                <div className="skeleton" style={{ height: 22, width: 200, marginBottom: 10 }} />
+                <div className="skeleton" style={{ height: 14, width: 300 }} />
+              </div>
+              <div className="skeleton" style={{ height: 34, width: 130, borderRadius: 8 }} />
+            </div>
+            <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
+              <div className="skeleton" style={{ height: 36, width: 180, borderRadius: 999 }} />
+              <div className="skeleton" style={{ height: 36, width: 160, borderRadius: 999 }} />
+            </div>
+            {[1,2,3,4].map((i) => (
+              <div key={i} style={{ marginBottom: 16 }}>
+                <div className="skeleton" style={{ height: 88, width: "100%", borderRadius: 12 }} />
+              </div>
+            ))}
           </div>
         ) : (
           <NotificationTemplate

@@ -14,11 +14,12 @@ export default function AvatarUpload({
   currentUrl, initials, employeeId, onUpdate, avatarBg, viewMode = "own"
 }: AvatarUploadProps) {
   const fileInputRef              = useRef<HTMLInputElement>(null);
-  const [preview, setPreview]     = useState<string | null>(null);
-  const [showMenu, setShowMenu]   = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError]         = useState("");
+  const [preview, setPreview]           = useState<string | null>(null);
+  const [showMenu, setShowMenu]         = useState(false);
+  const [showModal, setShowModal]       = useState(false);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [uploading, setUploading]       = useState(false);
+  const [error, setError]               = useState("");
   const avatarRef = useRef<HTMLDivElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,14 +58,21 @@ export default function AvatarUpload({
     finally { setUploading(false); }
   };
 
-  const handleRemove = async () => {
+  const openRemoveModal = () => {
     setShowMenu(false);
-    if (!confirm("Remove profile picture?")) return;
+    setShowRemoveModal(true);
+  };
+
+  const handleRemove = async () => {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/remove-avatar/${employeeId}`,
         { method: "DELETE" });
       onUpdate(null);
-    } catch { setError("Failed to remove"); }
+    } catch {
+      setError("Failed to remove");
+    } finally {
+      setShowRemoveModal(false);
+    }
   };
 
   return (
@@ -169,7 +177,7 @@ export default function AvatarUpload({
         <>
           <div style={{ height: "1px", background: "#F3F4F6", margin: "0 12px" }} />
           <button
-            onClick={handleRemove}
+            onClick={openRemoveModal}
             style={{
               width: "100%", padding: "11px 16px", background: "none",
               border: "none", textAlign: "left", cursor: "pointer",
@@ -265,6 +273,76 @@ export default function AvatarUpload({
                 {uploading ? "Saving..." : "Save"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Remove Avatar Confirmation Modal ── */}
+      {showRemoveModal && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000, backdropFilter: "blur(4px)",
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: "20px", padding: "32px 28px",
+            width: "340px", maxWidth: "calc(100vw - 32px)",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
+          }}>
+
+            <div style={{
+              width: "48px", height: "48px", borderRadius: "50%",
+              background: "#FEF2F2", display: "flex", alignItems: "center",
+              justifyContent: "center", margin: "0 auto 16px",
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="#EF4444" strokeWidth="2" strokeLinecap="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </div>
+
+            <h3 style={{
+              margin: "0 0 4px", fontSize: "17px", fontWeight: 700,
+              color: "#111827", textAlign: "center",
+            }}>
+              Remove Photo
+            </h3>
+            <p style={{
+              margin: "0 0 24px", fontSize: "13px", color: "#9CA3AF",
+              textAlign: "center",
+            }}>
+              Your profile picture will be removed and replaced with your initials.
+            </p>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => setShowRemoveModal(false)}
+                style={{
+                  flex: 1, padding: "10px", borderRadius: "10px",
+                  border: "1.5px solid #E5E7EB", background: "#fff",
+                  cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#374151",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRemove}
+                style={{
+                  flex: 1, padding: "10px", borderRadius: "10px",
+                  border: "none", background: "#EF4444",
+                  color: "#fff", cursor: "pointer",
+                  fontSize: "13px", fontWeight: 700, transition: "background 0.2s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#DC2626")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#EF4444")}
+              >
+                Remove
+              </button>
+            </div>
+
           </div>
         </div>
       )}

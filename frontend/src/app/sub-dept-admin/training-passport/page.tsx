@@ -11,8 +11,6 @@ interface RawTraining { id: string; training_name: string; training_date: string
 interface RawSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; supervisor_comment?: string; }
 interface RawSubordinateSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; users?: { full_name: string; role: string; }; }
 
-const CACHE_TTL = 0; // Disabled cache to prevent stale data
-
 export default function SubDeptAdminTrainingPage() {
   const router = useRouter();
   const currentUser = useCurrentUser();
@@ -27,21 +25,6 @@ export default function SubDeptAdminTrainingPage() {
     setUser(currentUser);
 
     const fetchData = async () => {
-      const cacheKey = `training_cache_${currentUser.employee_id}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        try {
-          const { attended: at, suggestions: sg, subordinateSuggestions: ss, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < CACHE_TTL) {
-            setAttended(at);
-            setSuggestions(sg);
-            setSubordinateSuggestions(ss);
-            setLoading(false);
-            return;
-          }
-        } catch {}
-      }
-
       try {
         const attRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended/${currentUser.employee_id}`);
         const attData = await attRes.json();
@@ -66,13 +49,6 @@ export default function SubDeptAdminTrainingPage() {
         setAttended(mappedAttended);
         setSuggestions(mappedSuggestions);
         setSubordinateSuggestions(mappedSubordinate);
-
-        localStorage.setItem(cacheKey, JSON.stringify({
-          attended: mappedAttended,
-          suggestions: mappedSuggestions,
-          subordinateSuggestions: mappedSubordinate,
-          timestamp: Date.now(),
-        }));
       } catch (err) {
         console.error("Failed to fetch training data:", err);
       } finally {
@@ -87,8 +63,38 @@ export default function SubDeptAdminTrainingPage() {
       <Sidebar />
       <main className={styles.main}>
         {(loading || !user) ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "#9CA3AF", fontSize: "14px" }}>
-            Loading...
+          <div style={{ display: "flex", minHeight: "100vh", background: "#F9FAFB" }}>
+            <div style={{ width: "251px", flexShrink: 0 }} />
+            <div style={{ flex: 1, padding: "32px", boxSizing: "border-box" }}>
+            <style>{`
+              @keyframes shimmer {
+                0%   { background-position: -600px 0; }
+                100% { background-position:  600px 0; }
+              }
+              .skeleton {
+                background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+                background-size: 600px 100%;
+                animation: shimmer 1.4s infinite linear;
+                border-radius: 8px;
+              }
+            `}</style>
+            <div className="skeleton" style={{ height: 14, width: 180, marginBottom: 28 }} />
+            <div className="skeleton" style={{ height: 22, width: 260, marginBottom: 10 }} />
+            <div className="skeleton" style={{ height: 14, width: 200, marginBottom: 32 }} />
+            <div style={{ display: "flex", gap: 20, marginBottom: 32 }}>
+              <div className="skeleton" style={{ width: 88, height: 88, borderRadius: "50%", flexShrink: 0 }} />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10, justifyContent: "center" }}>
+                <div className="skeleton" style={{ height: 16, width: "40%" }} />
+                <div className="skeleton" style={{ height: 13, width: "25%" }} />
+                <div className="skeleton" style={{ height: 13, width: "30%" }} />
+              </div>
+            </div>
+            {[1,2,3].map((i) => (
+              <div key={i} style={{ marginBottom: 16 }}>
+                <div className="skeleton" style={{ height: 56, width: "100%", borderRadius: 12 }} />
+              </div>
+            ))}
+            </div>
           </div>
         ) : (
           <TrainingPassport
@@ -98,6 +104,7 @@ export default function SubDeptAdminTrainingPage() {
             userName={user.full_name}
             designation={user.role}
             employeeId={user.employee_id}
+            avatarUrl={user.avatar_url}
             initialAttended={attended}
             initialSuggestions={suggestions}
             initialSubordinateSuggestions={subordinateSuggestions}
