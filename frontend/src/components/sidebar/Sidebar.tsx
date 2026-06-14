@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell, LucideFileBarChart, User } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell, LucideFileBarChart, User, CalendarDays } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 import styles from './sidebar.module.css';
@@ -42,9 +42,10 @@ function Badge({ count }: { count: number }) {
 const hqAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/hq-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/hq-admin/template-management',  icon: FileText           },
+  { name: 'Appraisal Cycle',     href: '/hq-admin/appraisal-cycle',      icon: CalendarDays       },
   { name: 'My Team',             href: '/hq-admin/team',                 icon: Users              },
   { name: 'Reports',             href: '/hq-admin/reports',              icon: FileText           },
-  { name: 'Notifications',       href: '/hq-admin/notification',        icon: Bell               },
+  { name: 'Notifications',       href: '/hq-admin/notification',         icon: Bell               },
   { name: 'Training Passport',   href: '/hq-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'My Profile',          href: '/hq-admin/profile',              icon: User               },
 ];
@@ -53,7 +54,7 @@ const hqAdminNavItems: NavItem[] = [
 const countryAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/country-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/country-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/country-admin/team',                 icon: Users              },
+  { name: 'My Team',             href: '/my-team',                            icon: Users              },
   { name: 'My Performance',      href: '/country-admin/performance',          icon: TrendingUp         },
   { name: 'Reports',             href: '/country-admin/reports',              icon: FileText           },
   { name: 'Notifications',       href: '/country-admin/notification',        icon: Bell               },
@@ -65,7 +66,7 @@ const countryAdminNavItems: NavItem[] = [
 const branchAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/branch-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/branch-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/branch-admin/team',                 icon: Users              },
+  { name: 'My Team',             href: '/my-team',                           icon: Users              },
   { name: 'My Performance',      href: '/branch-admin/performance',          icon: TrendingUp         },
   { name: 'Reports',             href: '/branch-admin/reports',              icon: FileText           },
   { name: 'Notifications',       href: '/branch-admin/notification',        icon: Bell               },
@@ -77,7 +78,7 @@ const branchAdminNavItems: NavItem[] = [
 const deptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/dept-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/dept-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/dept-admin/team',                 icon: Users              },
+  { name: 'My Team',             href: '/my-team',                         icon: Users              },
   { name: 'My Performance',      href: '/dept-admin/performance',          icon: TrendingUp         },
   { name: 'Reports',             href: '/dept-admin/reports',              icon: FileText           },
   { name: 'Notifications',       href: '/dept-admin/notification',        icon: Bell               },
@@ -89,7 +90,7 @@ const deptAdminNavItems: NavItem[] = [
 const subDeptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/sub-dept-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/sub-dept-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/sub-dept-admin/team',                 icon: Users              },
+  { name: 'My Team',             href: '/my-team',                              icon: Users              },
   { name: 'My Performance',      href: '/sub-dept-admin/performance',          icon: TrendingUp         },
   { name: 'Reports',             href: '/sub-dept-admin/reports',              icon: FileText           },
   { name: 'Notifications',       href: '/sub-dept-admin/notification',        icon: Bell               },

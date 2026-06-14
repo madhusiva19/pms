@@ -18,11 +18,16 @@ from models.constants import (
     GRACE_PERIOD_DAYS,
     PMS_START_MONTH,
     PMS_START_DAY,
+    MID_YEAR_REVIEW_MONTH,
+    MID_YEAR_REVIEW_DAY,
+    YEAR_END_REVIEW_MONTH,
+    YEAR_END_REVIEW_DAY,
 )
+
 from models.supabase_client import supabase
+from typing import Optional
 
-
-def get_active_pms_cycle() -> dict | None:
+def get_active_pms_cycle() -> Optional[dict]:
     try:
         result = (
             supabase.table("pms_cycles")
@@ -38,12 +43,7 @@ def get_active_pms_cycle() -> dict | None:
         pass
     return None
 
-
 def compute_freeze_dates_from_cycle(cycle: dict) -> dict:
-    """
-    Derives freeze milestone dates from a DB cycle record.
-    Handles all columns including objective_setting_start.
-    """
     pms_start = datetime.fromisoformat(cycle["pms_start"]).date()
 
     obj_start = (
@@ -64,13 +64,27 @@ def compute_freeze_dates_from_cycle(cycle: dict) -> dict:
         else objective_end + timedelta(days=GRACE_PERIOD_DAYS)
     )
 
-    return {
-        "pms_start":     pms_start,
-        "obj_start":     obj_start,
-        "objective_end": objective_end,
-        "grace_end":     grace_end,
-    }
+    # ── NEW: review milestones ─────────────────────────────────────────────
+    mid_year_review = (
+        datetime.fromisoformat(cycle["mid_year_review"]).date()
+        if cycle.get("mid_year_review")
+        else date(pms_start.year, MID_YEAR_REVIEW_MONTH, MID_YEAR_REVIEW_DAY)
+    )
 
+    year_end_review = (
+        datetime.fromisoformat(cycle["year_end_review"]).date()
+        if cycle.get("year_end_review")
+        else date(pms_start.year + 1, YEAR_END_REVIEW_MONTH, YEAR_END_REVIEW_DAY)
+    )
+
+    return {
+        "pms_start":       pms_start,
+        "obj_start":       obj_start,
+        "objective_end":   objective_end,
+        "grace_end":       grace_end,
+        "mid_year_review": mid_year_review,   # NEW
+        "year_end_review": year_end_review,   # NEW
+    }
 
 def compute_freeze_dates_from_constants() -> dict:
     """
