@@ -21,7 +21,6 @@ def test_save_diary_success(mock_supabase, client):
         "employee_id": "emp-123",
         "description": "Completed logistics report",
         "entry_date":  "2026-05-13",
-        "cycle_id":    "cycle-1"
     })
 
     assert res.status_code == 201

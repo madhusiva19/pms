@@ -22,7 +22,6 @@ def add_training_attended(body):
         programme_name   = (body.get("programme_name")   or "").strip()
         training_date    = (body.get("training_date")    or "").strip()
         trainer_provider = (body.get("trainer_provider") or "").strip()
-        cycle_id         = (body.get("cycle_id")         or "").strip()
 
         if not employee_id or not programme_name or not training_date or not trainer_provider:
             return {"message": "All fields are required"}, 400
@@ -32,7 +31,6 @@ def add_training_attended(body):
             "training_name":    programme_name,
             "training_date":    training_date,
             "trainer_provider": trainer_provider,
-            "cycle_id":         cycle_id or None,
         }).execute()
 
         return {

@@ -45,16 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const parsedUser = JSON.parse(raw);
       setUser(parsedUser);
 
-      // Sync user to public.users — yours, kept
-      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/sync-user`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id:   parsedUser.id,
-          email:     parsedUser.email,
-          full_name: parsedUser.full_name,
-        }),
-      }).catch(() => {});
+
     }
   }, []);
 
@@ -65,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const employeeId = currentUser.employee_id;
     const role = currentUser.role;
     const API = process.env.NEXT_PUBLIC_API_URL;
+    if (!API) return;
 
     try {
       // ── Notification badge ──
@@ -93,8 +85,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setTrainingBadgeCount(trainingBadge);
 
-    } catch (err) {
-      console.error("Failed to fetch badges:", err);
+    } catch {
+      // silently fail — badges are non-critical
     }
   }, []);
 
