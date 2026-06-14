@@ -47,6 +47,7 @@ app.register_blueprint(template_bp)
 app.register_blueprint(assignment_bp)
 app.register_blueprint(org_bp)
 
+
 # Register dev-final's blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(profile_bp)
@@ -80,6 +81,5 @@ if __name__ == "__main__":
         rollover_fn=lambda: auto_rollover_if_needed(seed_notifications_for_cycle)
     )
     app.run(host="127.0.0.1", port=5000, debug=True)
-
 
 

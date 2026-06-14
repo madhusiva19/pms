@@ -437,6 +437,7 @@ function CycleDatesInner() {
       }
 
       toast.success("PMS cycle dates updated successfully.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setTimeout(() => router.push(TEMPLATE_CYCLE_PATH), 800);
     } catch (err: any) {
       console.error("[CycleDatesPage] Save error:", err);
