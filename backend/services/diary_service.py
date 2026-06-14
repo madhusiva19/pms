@@ -49,7 +49,6 @@ def save_diary(body):
         employee_id = (body.get("employee_id") or "").strip()
         description = (body.get("description") or "").strip()
         entry_date  = (body.get("entry_date")  or "").strip()
-        cycle_id    = (body.get("cycle_id")    or "").strip()
 
         if not employee_id or not description or not entry_date:
             return {"message": "employee_id, description and entry_date are required"}, 400
@@ -60,7 +59,6 @@ def save_diary(body):
             "author_type": "self",
             "entry_date":  entry_date,
             "entry_text":  description,
-            "cycle_id":    cycle_id or None,
             "status":      "approved"
         }).execute()
 
@@ -77,7 +75,6 @@ def submit_diary(body):
         employee_id = (body.get("employee_id") or "").strip()
         description = (body.get("description") or "").strip()
         entry_date  = (body.get("entry_date")  or "").strip()
-        cycle_id    = (body.get("cycle_id")    or "").strip()
 
         if not employee_id or not description or not entry_date:
             return {"message": "employee_id, description and entry_date are required"}, 400
@@ -88,7 +85,6 @@ def submit_diary(body):
             "author_type": "self",
             "entry_date":  entry_date,
             "entry_text":  description,
-            "cycle_id":    cycle_id or None,
             "status":      "pending"
         }).execute()
 
@@ -139,7 +135,6 @@ def add_supervisor_diary(body):
         supervisor_id = (body.get("supervisor_id") or "").strip()
         description   = (body.get("description")   or "").strip()
         entry_date    = (body.get("entry_date")     or "").strip()
-        cycle_id      = (body.get("cycle_id")       or "").strip()
 
         if not employee_id or not supervisor_id or not description or not entry_date:
             return {"message": "All fields are required"}, 400
@@ -150,7 +145,6 @@ def add_supervisor_diary(body):
             "author_type": "supervisor",
             "entry_date":  entry_date,
             "entry_text":  description,
-            "cycle_id":    cycle_id or None,
             "status":      "approved"
         }).execute()
 
