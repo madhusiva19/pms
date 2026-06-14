@@ -67,16 +67,16 @@ const DATE_FIELD_CONFIG: DateFieldConfig[] = [
     hint:     "HQ Admin retains edit access during grace. After this date, templates are fully frozen.",
     icon:     <Clock3     size={16} />,
   },
-  {
+{
     field:    "mid_year_review",
-    label:    "Mid-Year Review Date",
+    label:    "Mid-Year Review Date (H1 End)",
     required: false,
     hint:     "Target date for mid-cycle performance check-ins.",
     icon:     <BarChart3  size={16} />,
   },
   {
     field:    "year_end_review",
-    label:    "Year-End Review Date",
+    label:    "Year-End Review Date (H2 End)",
     required: false,
     hint:     "Target date for the annual appraisal and final score submission.",
     icon:     <Star       size={16} />,
@@ -191,14 +191,14 @@ function CycleSummaryChips({ activeCycle }: { activeCycle: any }) {
       color: "#92400e",
     },
     {
-      label: "Mid-Year Review",
+      label: "Mid-Year Review (H1 End)",
       value: formatDisplayDate(activeCycle.mid_year_review),
       icon:  <BarChart3 size={12} color="#e11d48" />,
       bg:    "#ffe4e6",
       color: "#9f1239",
     },
     {
-      label: "Year-End Review",
+      label: "Year-End Review (H2 End)",
       value: formatDisplayDate(activeCycle.year_end_review),
       icon:  <Star      size={12} color="#9333ea" />,
       bg:    "#f3e8ff",
