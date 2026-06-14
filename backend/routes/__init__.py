@@ -4,10 +4,7 @@ from .diary_routes import diary_bp
 from .notification_routes import notification_bp
 from .training_routes import training_bp
 from .dashboard_routes import dashboard_bp
-from .approval_routes import approval_bp
-from .enquiry_routes import enquiry_bp
-from .evaluation_routes import evaluation_bp
-from .evaluation_status_routes import evaluation_status_bp
-from .evaluation_notification_routes import evaluation_notification_bp
-from .performance_routes import performance_bp
-from .team_member_routes import team_member_bp
+from .pms_cycle_routes   import pms_cycle_bp      
+from .template_routes    import template_bp        
+from .assignment_routes  import assignment_bp     
+from .org_routes         import org_bp            
