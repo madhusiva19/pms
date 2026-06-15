@@ -17,7 +17,7 @@ from flask import Blueprint, jsonify, request
 from services.notification_service import broadcast_notifications, send_reminder
 from utils.db import supabase
 
-notifications_bp = Blueprint("notifications", __name__)
+notifications_bp = Blueprint("manual_notifications", __name__)
 
 
 # ---------------------------------------------------------------------------
