@@ -18,7 +18,7 @@ from flask import Blueprint, current_app, jsonify, request
 from utils.db import supabase
 from utils.helpers import unique_by_name
 
-org_bp = Blueprint("org", __name__)
+org_bp = Blueprint("org_structure", __name__)
 
 
 # ---------------------------------------------------------------------------
