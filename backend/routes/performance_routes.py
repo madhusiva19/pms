@@ -22,7 +22,7 @@ from services.rating_engine import (
 from services.score_service import get_active_period_params, patch_total_score
 from utils.db import supabase
 
-performance_bp = Blueprint("performance", __name__)
+performance_bp = Blueprint("my_performance", __name__)
 
 
 # ---------------------------------------------------------------------------
