@@ -10,7 +10,12 @@ interface User {
   role: string;
   org_level: number;
   iata_branch_code: string;
-  avatar_url?: string | null;   // ← from dev-final
+  avatar_url?: string | null;
+  // Wathsala's extra fields needed for dashboard/reporting pages
+  country_id?: string;
+  branch_id?: string;
+  dept_id?: string;
+  sub_dept_id?: string;
 }
 
 interface AuthContextType {
@@ -20,7 +25,7 @@ interface AuthContextType {
   notificationCount: number;
   trainingBadgeCount: number;
   refreshBadges: () => void;
-  clearTrainingBadge: () => void;   // ← from dev-final
+  clearTrainingBadge: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -30,22 +35,20 @@ const AuthContext = createContext<AuthContextType>({
   notificationCount: 0,
   trainingBadgeCount: 0,
   refreshBadges: () => {},
-  clearTrainingBadge: () => {},   // ← from dev-final
+  clearTrainingBadge: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [trainingBadgeCount, setTrainingBadgeCount] = useState(0);
-  const clearTrainingBadge = () => setTrainingBadgeCount(0);   // ← from dev-final
+  const clearTrainingBadge = () => setTrainingBadgeCount(0);
 
   useEffect(() => {
     const raw = localStorage.getItem("pms_user");
     if (raw) {
       const parsedUser = JSON.parse(raw);
       setUser(parsedUser);
-
-
     }
   }, []);
 
@@ -65,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const unread = (notifData.notifications || []).filter((n: any) => !n.is_read).length;
       setNotificationCount(unread);
 
-      // ── Training badge — from dev-final (counts reviewed too) ──
+      // ── Training badge ──
       const isSupervisor = ["hq_admin", "country_admin", "branch_admin", "dept_admin", "sub_dept_admin"].includes(role);
 
       let trainingBadge = 0;
@@ -96,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem("pms_user");
-    document.cookie = "pms_auth=; path=/; max-age=0; SameSite=Lax";  // ← from dev-final
+    document.cookie = "pms_auth=; path=/; max-age=0; SameSite=Lax";
     setUser(null);
     setNotificationCount(0);
     setTrainingBadgeCount(0);
@@ -110,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       notificationCount,
       trainingBadgeCount,
       refreshBadges,
-      clearTrainingBadge,   // ← from dev-final
+      clearTrainingBadge,
     }}>
       {children}
     </AuthContext.Provider>
@@ -120,4 +123,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-
