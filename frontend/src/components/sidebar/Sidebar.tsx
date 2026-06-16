@@ -1,9 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell, LucideFileBarChart, User, CalendarDays } from 'lucide-react';
+import {
+  LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell,
+  LucideFileBarChart, User, Target, ChevronDown, ChevronRight,
+  ClipboardList, UserCheck, CalendarDays,
+} from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 import styles from './sidebar.module.css';
@@ -12,98 +16,115 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ElementType;
+  children?: NavItem[];
 }
 
-// ── Badge component ──────────────────────────────────────────────────────────
+const badgeStyle: React.CSSProperties = {
+  background: '#ef4444',
+  color: '#fff',
+  borderRadius: '999px',
+  fontSize: '10px',
+  fontWeight: 700,
+  padding: '1px 5px',
+  marginLeft: 'auto',
+  minWidth: '18px',
+  textAlign: 'center',
+  lineHeight: '16px',
+  display: 'inline-block',
+};
+
 function Badge({ count }: { count: number }) {
-  if (count === 0) return null;
-  return (
-    <span style={{
-      marginLeft:     "auto",
-      background:     "#EF4444",
-      color:          "#fff",
-      fontSize:       "10px",
-      fontWeight:     700,
-      borderRadius:   "999px",
-      minWidth:       "18px",
-      height:         "18px",
-      display:        "flex",
-      alignItems:     "center",
-      justifyContent: "center",
-      padding:        "0 4px",
-      flexShrink:     0,
-    }}>
-      {count > 99 ? "99+" : count}
-    </span>
-  );
+  if (!count) return null;
+  return <span style={badgeStyle}>{count > 99 ? '99+' : count}</span>;
 }
 
 // ── HQ Admin — Level 1 ───────────────────────────────────────────────────────
 const hqAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/hq-admin/dashboard',            icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/hq-admin/template-management',  icon: FileText           },
-  { name: 'Appraisal Cycle',     href: '/hq-admin/appraisal-cycle',      icon: CalendarDays       },
-  { name: 'My Team',             href: '/hq-admin/team',                 icon: Users              },
-  { name: 'Reports',             href: '/hq-admin/reports',              icon: FileText           },
-  { name: 'Notifications',       href: '/hq-admin/notification',         icon: Bell               },
-  { name: 'Training Passport',   href: '/hq-admin/training-passport',    icon: LucideFileBarChart },
-  { name: 'My Profile',          href: '/hq-admin/profile',              icon: User               },
+  { name: 'Dashboard',           href: '/hq-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/hq-admin/template-management', icon: FileText           },
+  { name: 'Appraisal Cycle',     href: '/hq-admin/appraisal-cycle',     icon: CalendarDays       },
+  { name: 'My Team',             href: '/hq-admin/team',                icon: Users              },
+  { name: 'Reports',             href: '/hq-admin/reports',             icon: FileText           },
+  { name: 'Notifications',       href: '/hq-admin/notification',        icon: Bell               },
+  { name: 'Training Passport',   href: '/hq-admin/training-passport',   icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/hq-admin/potential-assessment', icon: Target, children: [
+    { name: 'Team Review',           href: '/hq-admin/potential-assessment',            icon: UserCheck     },
+    { name: 'Assessment Components', href: '/hq-admin/potential-assessment/components', icon: ClipboardList },
+  ]},
+  { name: 'My Profile',          href: '/hq-admin/profile',             icon: User               },
 ];
 
 // ── Country Admin — Level 2 ──────────────────────────────────────────────────
 const countryAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/country-admin/dashboard',            icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/country-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/my-team',                            icon: Users              },
-  { name: 'My Performance',      href: '/country-admin/performance',          icon: TrendingUp         },
-  { name: 'Reports',             href: '/country-admin/reports',              icon: FileText           },
+  { name: 'Dashboard',           href: '/country-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/country-admin/template-management', icon: FileText           },
+  { name: 'My Team',             href: '/my-team',                           icon: Users              },
+  { name: 'My Performance',      href: '/country-admin/performance',         icon: TrendingUp         },
+  { name: 'Reports',             href: '/country-admin/reports',             icon: FileText           },
   { name: 'Notifications',       href: '/country-admin/notification',        icon: Bell               },
-  { name: 'Training Passport',   href: '/country-admin/training-passport',    icon: LucideFileBarChart },
-  { name: 'My Profile',          href: '/country-admin/profile',              icon: User               },
+  { name: 'Training Passport',   href: '/country-admin/training-passport',   icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/country-admin/potential-assessment', icon: Target, children: [
+    { name: 'Self Assessment', href: '/country-admin/potential-assessment/self-assessment',   icon: ClipboardList },
+    { name: 'Team Review',     href: '/country-admin/potential-assessment/supervisor-review', icon: UserCheck     },
+  ]},
+  { name: 'My Profile',          href: '/country-admin/profile',             icon: User               },
 ];
 
 // ── Branch Admin — Level 3 ───────────────────────────────────────────────────
 const branchAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/branch-admin/dashboard',            icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/branch-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/my-team',                           icon: Users              },
-  { name: 'My Performance',      href: '/branch-admin/performance',          icon: TrendingUp         },
-  { name: 'Reports',             href: '/branch-admin/reports',              icon: FileText           },
+  { name: 'Dashboard',           href: '/branch-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/branch-admin/template-management', icon: FileText           },
+  { name: 'My Team',             href: '/my-team',                          icon: Users              },
+  { name: 'My Performance',      href: '/branch-admin/performance',         icon: TrendingUp         },
+  { name: 'Reports',             href: '/branch-admin/reports',             icon: FileText           },
   { name: 'Notifications',       href: '/branch-admin/notification',        icon: Bell               },
-  { name: 'Training Passport',   href: '/branch-admin/training-passport',    icon: LucideFileBarChart },
-  { name: 'My Profile',          href: '/branch-admin/profile',              icon: User               },
+  { name: 'Training Passport',   href: '/branch-admin/training-passport',   icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/branch-admin/potential-assessment', icon: Target, children: [
+    { name: 'Self Assessment', href: '/branch-admin/potential-assessment/self-assessment',   icon: ClipboardList },
+    { name: 'Team Review',     href: '/branch-admin/potential-assessment/supervisor-review', icon: UserCheck     },
+  ]},
+  { name: 'My Profile',          href: '/branch-admin/profile',             icon: User               },
 ];
 
 // ── Dept Admin — Level 4 ─────────────────────────────────────────────────────
 const deptAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/dept-admin/dashboard',            icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/dept-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/my-team',                         icon: Users              },
-  { name: 'My Performance',      href: '/dept-admin/performance',          icon: TrendingUp         },
-  { name: 'Reports',             href: '/dept-admin/reports',              icon: FileText           },
+  { name: 'Dashboard',           href: '/dept-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/dept-admin/template-management', icon: FileText           },
+  { name: 'My Team',             href: '/my-team',                        icon: Users              },
+  { name: 'My Performance',      href: '/dept-admin/performance',         icon: TrendingUp         },
+  { name: 'Reports',             href: '/dept-admin/reports',             icon: FileText           },
   { name: 'Notifications',       href: '/dept-admin/notification',        icon: Bell               },
-  { name: 'Training Passport',   href: '/dept-admin/training-passport',    icon: LucideFileBarChart },
-  { name: 'My Profile',          href: '/dept-admin/profile',              icon: User               },
+  { name: 'Training Passport',   href: '/dept-admin/training-passport',   icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/dept-admin/potential-assessment', icon: Target, children: [
+    { name: 'Self Assessment', href: '/dept-admin/potential-assessment/self-assessment',   icon: ClipboardList },
+    { name: 'Team Review',     href: '/dept-admin/potential-assessment/supervisor-review', icon: UserCheck     },
+  ]},
+  { name: 'My Profile',          href: '/dept-admin/profile',             icon: User               },
 ];
 
 // ── Sub Dept Admin — Level 5 ─────────────────────────────────────────────────
 const subDeptAdminNavItems: NavItem[] = [
-  { name: 'Dashboard',           href: '/sub-dept-admin/dashboard',            icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/sub-dept-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/my-team',                              icon: Users              },
-  { name: 'My Performance',      href: '/sub-dept-admin/performance',          icon: TrendingUp         },
-  { name: 'Reports',             href: '/sub-dept-admin/reports',              icon: FileText           },
+  { name: 'Dashboard',           href: '/sub-dept-admin/dashboard',           icon: LayoutDashboard    },
+  { name: 'Template Management', href: '/sub-dept-admin/template-management', icon: FileText           },
+  { name: 'My Team',             href: '/my-team',                             icon: Users              },
+  { name: 'My Performance',      href: '/sub-dept-admin/performance',         icon: TrendingUp         },
+  { name: 'Reports',             href: '/sub-dept-admin/reports',             icon: FileText           },
   { name: 'Notifications',       href: '/sub-dept-admin/notification',        icon: Bell               },
-  { name: 'Training Passport',   href: '/sub-dept-admin/training-passport',    icon: LucideFileBarChart },
-  { name: 'My Profile',          href: '/sub-dept-admin/profile',              icon: User               },
+  { name: 'Training Passport',   href: '/sub-dept-admin/training-passport',   icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/sub-dept-admin/potential-assessment', icon: Target, children: [
+    { name: 'Self Assessment', href: '/sub-dept-admin/potential-assessment/self-assessment',   icon: ClipboardList },
+    { name: 'Team Review',     href: '/sub-dept-admin/potential-assessment/supervisor-review', icon: UserCheck     },
+  ]},
+  { name: 'My Profile',          href: '/sub-dept-admin/profile',             icon: User               },
 ];
 
 // ── Employee — Level 6 ───────────────────────────────────────────────────────
 const employeeNavItems: NavItem[] = [
-  { name: 'My Performance',    href: '/employee/performance',        icon: TrendingUp         },
-  { name: 'Notifications',     href: '/employee/notification',      icon: Bell               },
-  { name: 'Training Passport', href: '/employee/training-passport',  icon: LucideFileBarChart },
-  { name: 'My Profile',        href: '/employee/profile',            icon: User               },
+  { name: 'My Performance',      href: '/employee/performance',       icon: TrendingUp         },
+  { name: 'Notifications',       href: '/employee/notification',      icon: Bell               },
+  { name: 'Training Passport',   href: '/employee/training-passport', icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/employee/potential-assessment', icon: Target          },
+  { name: 'My Profile',          href: '/employee/profile',           icon: User               },
 ];
 
 function getNavItems(role: string | undefined): NavItem[] {
@@ -124,7 +145,13 @@ export default function Sidebar() {
   const { user, notificationCount, trainingBadgeCount, logout } = useAuth();
 
   const roleFromPath = pathname?.split('/')[1]?.replace(/-/g, '_');
-  const navItems = getNavItems(user?.role ?? roleFromPath);
+  const role = user?.role ?? roleFromPath;
+  const navItems = getNavItems(role);
+
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  useEffect(() => {
+    if (pathname?.includes('/potential-assessment/')) setDropdownOpen(true);
+  }, [pathname]);
 
   const userInitials = user?.full_name
     ?.split(' ')
@@ -164,6 +191,42 @@ export default function Sidebar() {
       <nav className={styles.sideNav}>
         {navItems.map((item) => {
           const Icon = item.icon;
+          const hasChildren = !!item.children?.length;
+
+          if (hasChildren) {
+            const isChildActive = item.children!.some(c => pathname === c.href);
+            const isOpen = dropdownOpen;
+            return (
+              <React.Fragment key={item.name}>
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen(prev => !prev)}
+                  className={`${styles.sideItem}${isChildActive ? ' ' + styles.active : ''}`}
+                >
+                  <Icon className={styles.navSvg} />
+                  <span className={styles.sideLabel}>{item.name}</span>
+                  {isOpen
+                    ? <ChevronDown className={styles.dropdownChevron} />
+                    : <ChevronRight className={styles.dropdownChevron} />}
+                </button>
+                {isOpen && item.children!.map((child) => {
+                  const ChildIcon = child.icon;
+                  const isChildItemActive = pathname === child.href;
+                  return (
+                    <Link
+                      key={child.name}
+                      href={child.href}
+                      className={`${styles.sideItem} ${styles.childItem}${isChildItemActive ? ' ' + styles.active : ''}`}
+                    >
+                      <ChildIcon className={styles.navSvg} />
+                      <span className={styles.sideLabel}>{child.name}</span>
+                    </Link>
+                  );
+                })}
+              </React.Fragment>
+            );
+          }
+
           const isActive =
             pathname === item.href ||
             pathname?.startsWith(item.href + '/') ||

@@ -5,8 +5,9 @@
   font-size: 13px;
   padding: 12px 0 20px;
   color: #6b7280;
-  background: #f9fafb; 
+  background: #f9fafb;
 }
+
 .homeLink {
   display: flex;
   align-items: center;
