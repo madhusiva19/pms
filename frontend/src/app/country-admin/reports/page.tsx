@@ -5,6 +5,7 @@
  * Displays a grid of branches within the country admin's assigned country (India)
  */
 
+import Sidebar from '@/components/sidebar/Sidebar';
 import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Building } from 'lucide-react';
@@ -62,6 +63,9 @@ export default function CountryAdminReportsPage() {
   }
 
   return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8F9FC' }}>
+    <Sidebar />
+    <main style={{ marginLeft: '251px', flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
     <div className="px-4 py-2 pb-10 flex flex-col gap-8">
       <div className="max-w-[1225px] mx-auto w-full flex flex-col gap-8">
 
@@ -95,6 +99,8 @@ export default function CountryAdminReportsPage() {
           />
         )}
       </div>
+    </div>
+    </main>
     </div>
   );
 }
