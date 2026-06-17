@@ -193,27 +193,33 @@ def get_templates():
                 best = max(candidates, key=score)
                 return best if score(best) > 0 else None
 
-            # Resolve location name for the variant's scope — one lookup per relevant scope.
-            # Branch name takes priority since it's the most specific location identifier shown.
-            variant_location: str = ""
-            if branch_id:
+            # Batch-resolve location names from each variant's own scope columns.
+            # Branch admin variants use branch_id → branch name ("Hyderabad").
+            # Country admin variants use country_id → country name ("India").
+            # Each variant resolves its own location — not the requesting user's context.
+            all_branch_ids  = {v["branch_id"]  for vlist in variants_by_template.values() for v in vlist if v.get("branch_id")}
+            all_country_ids = {v["country_id"] for vlist in variants_by_template.values() for v in vlist if v.get("country_id")}
+
+            branch_names:  dict[str, str] = {}
+            country_names: dict[str, str] = {}
+
+            if all_branch_ids:
                 b_res = (
                     supabase.table("branches")
-                    .select("name")
-                    .eq("id", branch_id)
-                    .limit(1)
+                    .select("id, name")
+                    .in_("id", list(all_branch_ids))
                     .execute()
                 )
-                variant_location = ((b_res.data or [{}])[0]).get("name", "")
-            elif country_id:
+                branch_names = {r["id"]: r["name"] for r in (b_res.data or [])}
+
+            if all_country_ids:
                 c_res = (
                     supabase.table("countries")
-                    .select("name")
-                    .eq("id", country_id)
-                    .limit(1)
+                    .select("id, name")
+                    .in_("id", list(all_country_ids))
                     .execute()
                 )
-                variant_location = ((c_res.data or [{}])[0]).get("name", "")
+                country_names = {r["id"]: r["name"] for r in (c_res.data or [])}
 
             # Apply overrides
             for t in templates:
@@ -222,14 +228,20 @@ def get_templates():
                     t["status"] = "active"
                 variant = best_variant(tid)
                 if variant:
-                    t["name"]             = variant.get("name")        or t["name"]
-                    t["description"]      = variant.get("description") or t.get("description")
-                    t["variant_id"]       = variant["id"]
-                    t["has_variant"]      = True
+                    t["name"]        = variant.get("name")        or t["name"]
+                    t["description"] = variant.get("description") or t.get("description")
+                    t["variant_id"]  = variant["id"]
+                    t["has_variant"] = True
                     # Derive creator label from scope columns — avoids storing/resolving UUIDs
-                    t["created_by"]       = _creator_label_from_scope(variant)
-                    # Location name for display: "Branch Admin · Hyderabad"
-                    t["variant_location"] = variant_location
+                    t["created_by"]  = _creator_label_from_scope(variant)
+                    # Resolve location from the variant's own scope, not the requesting user's:
+                    # branch admin variant → branch name, country admin variant → country name
+                    if variant.get("branch_id"):
+                        t["variant_location"] = branch_names.get(variant["branch_id"], "")
+                    elif variant.get("country_id"):
+                        t["variant_location"] = country_names.get(variant["country_id"], "")
+                    else:
+                        t["variant_location"] = ""
                 else:
                     # Base template: created_by is already a role key like "hq_admin"
                     t["created_by"]       = _ROLE_LABELS.get(t.get("created_by", ""), "HQ Admin")
