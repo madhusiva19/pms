@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./training.module.css";
-import Sidebar from "@/components/sidebar/Sidebar";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type Role =
@@ -87,7 +86,6 @@ const DUMMY_AI: AIRecommendation[] = [
 // ── Component ──────────────────────────────────────────────────────────────
 export default function TrainingPassport({
   role,
-  sidebarName,
   dashboardPath,
   userName,
   designation,
@@ -255,10 +253,8 @@ export default function TrainingPassport({
   const reviewedOwnCount        = suggestionList.filter(s => s.status === "approved" || s.status === "rejected").length;
 
   return (
-    <div className={styles.shell}>
-
-      {/* ══════════ MAIN ══════════ */}
-      <main className={styles.main}>
+      <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
+      <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
 
         {/* Breadcrumb */}
         <div className={styles.breadcrumb}>
@@ -363,6 +359,8 @@ export default function TrainingPassport({
                       <input
                         className={styles.formInput}
                         type="date"
+                        title="Training date"
+                        aria-label="Training date"
                         value={newTraining.date}
                         onChange={(e) => setNewTraining((p) => ({ ...p, date: e.target.value }))}
                       />
@@ -657,7 +655,7 @@ export default function TrainingPassport({
           </div>
         )}
 
+      </div>
       </main>
-    </div>
   );
 }

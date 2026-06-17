@@ -1004,7 +1004,6 @@ export default function TemplateAssignmentPage({ level = 1 }: TemplateAssignment
 
   return (
     <div className={styles.dashShell}>
-      <Sidebar />
       <main className={styles.mainContent}>
         <Breadcrumb />
         <div className={styles.pageWrapper}>

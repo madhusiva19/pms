@@ -1,0 +1,101 @@
+﻿'use client';
+
+/**
+ * Country Admin Reports Page (Branch Listing)
+ * Displays a grid of branches within the country admin's assigned country (India)
+ */
+
+import { logger } from '@/utils/logger';
+import React, { useState, useEffect } from 'react';
+import { Building } from 'lucide-react';
+import BranchCard from '@/components/shared/BranchCard';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
+import SearchInput from '@/components/shared/SearchInput';
+import EmptyState from '@/components/shared/EmptyState';
+import { branchesApi } from '@/services/api';
+import { useAuth } from '@/lib/auth-context';
+import { useRouter } from 'next/navigation';
+import type { Branch } from '@/types';
+
+export default function CountryAdminReportsPage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Security check: verify user is country_admin
+  useEffect(() => {
+    if (!authLoading && (!user || user.role !== 'country_admin')) {
+      router.push('/reports');
+      return;
+    }
+  }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user?.country_id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    branchesApi.getByCountry(user.country_id, searchTerm)
+      .then(data => setBranches(data || []))
+      .catch(err => {
+        logger.error('Failed to fetch branches for country admin reports', err);
+        setBranches([]);
+      })
+      .finally(() => setLoading(false));
+  }, [user?.country_id, authLoading, searchTerm]);
+
+  if (authLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user || user.role !== 'country_admin') {
+    return null;
+  }
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <div className="px-4 py-2 pb-10 flex flex-col gap-8">
+      <div className="max-w-[1225px] mx-auto w-full flex flex-col gap-8">
+
+        {/* Breadcrumb */}
+        <Breadcrumb />
+
+        {/* Title & Stats Overview */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Branch Reports</h1>
+            <p className="text-[15px] text-[#4A5565]">
+              Select a branch to view detailed performance metrics and generate reports.
+            </p>
+          </div>
+        </div>
+
+        {/* Search bar */}
+        <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search branch..." />
+
+        {/* Branches Grid */}
+        {branches.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {branches.map((branch) => (
+              <BranchCard key={branch.id} branch={branch} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={Building}
+            message={searchTerm ? `No branches found matching "${searchTerm}"` : 'No branches available'}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
