@@ -236,7 +236,9 @@ export default function CreateReportModal({
         include_comparison: false,
         created_by_email: userEmail,
         is_trend_report: true,
-        selected_periods: [],
+        selected_periods: mode === 'year_comparison'
+          ? [String(reportYear), ...selectedPastYears.map(String)]
+          : selectedCountryIds,
         trend_metrics: trendMetrics,
         is_shared: false,
         shared_with_emails: [],
