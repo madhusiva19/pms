@@ -337,10 +337,8 @@ const avatarBg = "#F9BE00";
 
   return (
     <>
-    <div className={styles.shell}>
-
-      {/* ══════════════ MAIN ══════════════ */}
-      <main className={styles.main}>
+      <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
+      <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
 
         {/* Breadcrumb */}
         <div className={styles.breadcrumb}>
@@ -699,8 +697,8 @@ const avatarBg = "#F9BE00";
             )}
           </div>
         </section>
+      </div>
       </main>
-    </div>
 
       {/* ── Submit Confirmation Modal ── */}
       {showSubmitModal && (

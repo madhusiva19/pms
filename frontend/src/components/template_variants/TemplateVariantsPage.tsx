@@ -779,7 +779,6 @@ export default function TemplateVariantsPage() {
 
   return (
     <div className={styles.shell}>
-      <Sidebar />
       <main className={styles.main}>
         <Breadcrumb />
         <div className={styles.wrapper}>

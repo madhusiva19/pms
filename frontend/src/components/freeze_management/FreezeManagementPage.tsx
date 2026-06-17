@@ -660,7 +660,6 @@ function FreezeManagementInner() {
 
   return (
     <div className={styles.dashShell}>
-      <Sidebar />
       <main className={styles.mainContent}>
         <Breadcrumb />
         <div className={styles.pageWrapper}>

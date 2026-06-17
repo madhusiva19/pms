@@ -1,0 +1,335 @@
+'use client';
+
+/**
+ * Sub Dept Admin — Report Detail Page
+ * Shows team performance across the year (H1 + H2 together)
+ */
+
+import React, { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
+import {
+  ChevronLeft,
+  Users,
+  TrendingUp,
+  Award,
+  MapPin,
+  Download,
+  Loader2,
+  CheckCircle,
+  XCircle,
+} from 'lucide-react';
+
+import MetricCard from '@/components/shared/MetricCard';
+import AIInsightCard from '@/components/ai/AIInsightCard';
+import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
+import SubDeptScoreBarChart from '@/components/reports/SubDeptScoreBarChart';
+import type { TeamScoreEntry } from '@/components/reports/SubDeptScoreBarChart';
+
+import {
+  employeesApi,
+  performanceSummariesApi,
+  metricsApi,
+  activeReportYearApi,
+} from '@/services/api';
+import { downloadReportAsPDF } from '@/utils/downloadReport';
+import { DEFAULT_RECOMMENDATIONS, OVERALL_TEAM_INSIGHT } from '@/utils/constants';
+
+type DownloadStatus = 'idle' | 'generating' | 'success' | 'failed';
+
+export default function SubDeptAdminReportDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const employeeId = params?.employeeId as string;
+
+  const [empName, setEmpName] = useState('Employee');
+  const [teamScores, setTeamScores] = useState<TeamScoreEntry[]>([]);
+
+  // Combined metrics — uses mid_year for total/top, both periods for employee score
+  const [metrics, setMetrics] = useState<{
+    total_evaluated: number;
+    top_performers: number;
+    employee_mid_year: number | null;
+    employee_year_end: number | null;
+  } | null>(null);
+
+  const [reportYear, setReportYear] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
+
+  useEffect(() => {
+    activeReportYearApi.get()
+      .then(data => setReportYear(data.active_report_year))
+      .catch(() => setReportYear(new Date().getFullYear()));
+  }, []);
+
+  // Auth guard
+  useEffect(() => {
+    if (!authLoading && (!user || user.role !== 'sub_dept_admin')) router.push('/');
+  }, [user, authLoading, router]);
+
+  // Fetch employee name
+  useEffect(() => {
+    if (employeeId) {
+      employeesApi.getById(employeeId)
+        .then(emp => setEmpName(emp.full_name))
+        .catch(() => setEmpName('Employee'));
+    }
+  }, [employeeId]);
+
+  // Fetch team scores (mid-year + year-end together)
+  useEffect(() => {
+    if (!user?.sub_dept_id || !employeeId || reportYear === null) return;
+    setLoading(true);
+    employeesApi.getBySubDepartment(user.sub_dept_id)
+      .then(async (emps) => {
+        const scores = await Promise.all(
+          emps.map(async (emp) => {
+            const records = await performanceSummariesApi.getByUser(emp.id, reportYear!);
+            const midYear = records.find((r: any) => r.period === 'mid_year');
+            const yearEnd = records.find((r: any) => r.period === 'year_end');
+            return {
+              employeeId: emp.id,
+              name: emp.full_name,
+              midYearScore: midYear ? midYear.total_score : undefined,
+              yearEndScore: yearEnd ? yearEnd.total_score : undefined,
+            };
+          })
+        );
+        setTeamScores(scores);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user?.sub_dept_id, employeeId, reportYear]);
+
+  // Fetch metrics for both periods
+  useEffect(() => {
+    if (!user?.sub_dept_id || !employeeId || reportYear === null) return;
+    setMetrics(null);
+
+    Promise.all([
+      metricsApi.get({
+        period_type: 'mid_year',
+        year: reportYear!,
+        scope: 'sub_department',
+        scope_id: String(user.sub_dept_id),
+        employee_id: employeeId,
+      }),
+      metricsApi.get({
+        period_type: 'year_end',
+        year: reportYear!,
+        scope: 'sub_department',
+        scope_id: String(user.sub_dept_id),
+        employee_id: employeeId,
+      }),
+    ])
+      .then(([midYearMetrics, yearEndMetrics]) => {
+        setMetrics({
+          total_evaluated: Math.max(midYearMetrics.total_evaluated, yearEndMetrics.total_evaluated),
+          top_performers: Math.max(midYearMetrics.top_performers, yearEndMetrics.top_performers),
+          employee_mid_year: midYearMetrics.employee_score,
+          employee_year_end: yearEndMetrics.employee_score,
+        });
+      })
+      .catch(() => {});
+  }, [user?.sub_dept_id, employeeId, reportYear]);
+
+  const handleDownload = async () => {
+    try {
+      setDownloadStatus('generating');
+      const fileName = `${empName}-Performance-${reportYear!}.pdf`;
+      await new Promise(resolve => setTimeout(resolve, 800));
+      await downloadReportAsPDF('report-content', fileName, {
+        entityType: 'Employee',
+        entityName: empName,
+        reportYear: reportYear!,
+        metrics: metrics ? {
+          totalEvaluated: metrics.total_evaluated,
+          topPerformers: metrics.top_performers,
+          employeeScore: employeeScoreDisplay(),
+        } : undefined,
+        generatedAt: new Date(),
+      });
+      setDownloadStatus('success');
+      setTimeout(() => setDownloadStatus('idle'), 3000);
+    } catch (err: any) {
+      setDownloadStatus('failed');
+      setTimeout(() => setDownloadStatus('idle'), 3000);
+    }
+  };
+
+  const downloadButtonContent = () => {
+    switch (downloadStatus) {
+      case 'generating': return <><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF...</>;
+      case 'success': return <><CheckCircle className="w-4 h-4" /> Downloaded!</>;
+      case 'failed': return <><XCircle className="w-4 h-4" /> Failed. Try Again</>;
+      default: return <><Download className="w-4 h-4" /> Download Report</>;
+    }
+  };
+
+  const downloadButtonColor = () => {
+    switch (downloadStatus) {
+      case 'success': return 'bg-[#00A63E] hover:bg-[#00A63E]';
+      case 'failed': return 'bg-red-500 hover:bg-red-600';
+      default: return 'bg-[#2563EB] hover:bg-[#1D4ED8]';
+    }
+  };
+
+  if (authLoading) return (
+    <div className="flex items-center justify-center p-20">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+    </div>
+  );
+  if (!user || user.role !== 'sub_dept_admin') return null;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
+        <div className="text-gray-500 text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  // Format employee score string for display
+  const employeeScoreDisplay = () => {
+    if (!metrics) return 'N/A';
+    const mid = metrics.employee_mid_year;
+    const end = metrics.employee_year_end;
+    if (mid === null && end === null) return 'N/A';
+    if (mid !== null && end !== null) return `${mid.toFixed(2)} / ${end.toFixed(2)}`;
+    if (mid !== null) return `${mid.toFixed(2)} / —`;
+    return `— / ${end?.toFixed(2)}`;
+  };
+
+  return (
+    <main className="flex-1 bg-[#F9FAFB] min-h-screen overflow-y-auto">
+      <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
+
+        {/* ── Header Block ── */}
+        <div className="flex flex-col gap-4">
+
+          {/* Breadcrumb */}
+          <Breadcrumb items={[
+            { label: 'Home', href: '/sub-dept-admin' },
+            { label: 'Reports', href: '/sub-dept-admin/reports' },
+            { label: empName },
+          ]} />
+
+          {/* Title Row */}
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-[28px] font-semibold text-[#101828] leading-9">
+                Performance Reports
+              </h1>
+              <p className="text-[15px] text-[#4A5565]">
+                {empName} — Mid-Year & Year-End {reportYear! - 1}/{String(reportYear!).slice(-2)} Analytics
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleDownload}
+                disabled={downloadStatus !== 'idle'}
+                className={`flex items-center gap-2 px-4 py-2.5 text-white text-[13.5px] font-medium rounded-lg active:scale-[0.98] transition-all disabled:cursor-not-allowed ${downloadButtonColor()}`}
+              >
+                {downloadButtonContent()}
+              </button>
+            </div>
+          </div>
+
+          {/* Selected Entity Banner */}
+          <div
+            className="w-full rounded-xl border border-[#BEDBFF] px-4 py-3 flex items-center justify-between"
+            style={{ background: 'linear-gradient(90deg, #EFF6FF 0%, #F3F4F6 100%)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 flex items-center justify-center">
+                <MapPin className="w-6 h-6 text-[#155DFC]" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[12.7px] text-[#4A5565]">Selected Employee</span>
+                <span className="text-[18px] font-semibold text-[#101828] leading-7">
+                  {empName}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => router.push('/sub-dept-admin/reports')}
+              className="flex items-center gap-2 px-3 py-[7px] bg-[#F9FAFB] border border-[#E5E7EB] rounded-md text-[13px] font-medium text-[#1E293B] hover:bg-gray-100 transition-colors whitespace-nowrap"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Change Employee
+            </button>
+          </div>
+        </div>
+
+        {/* ── Report Content ── */}
+        <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
+
+          {/* Empty state */}
+          {metrics && metrics.total_evaluated === 0 && (
+            <div className="flex flex-col items-center justify-center p-20 text-center bg-[#F9FAFB] rounded-lg border border-dashed border-gray-200">
+              <p className="text-[#64748B] text-[15px] font-medium">No performance data found for {empName}.</p>
+              <p className="text-[#94A3B8] text-[13px] mt-1">Please ensure the data is loaded in the database.</p>
+            </div>
+          )}
+
+          {/* Metric Cards — Total Evaluated, Score (Mid / End), Top Performers */}
+          {metrics && metrics.total_evaluated > 0 && (
+            <div className="grid grid-cols-3 gap-4">
+              <MetricCard
+                title="Total Evaluated"
+                value={metrics.total_evaluated}
+                icon={Users}
+                iconColor="#155DFC"
+                iconBgColor="#FFFFFF"
+              />
+              <MetricCard
+                title="Score (Mid / End)"
+                value={employeeScoreDisplay()}
+                subtitle={`${empName}'s mid-year and year-end score`}
+                subtitleColor="text-[#00A63E]"
+                icon={TrendingUp}
+                iconColor="#0092B8"
+                iconBgColor="#FFFFFF"
+              />
+              <MetricCard
+                title="Top Performers"
+                value={metrics.top_performers}
+                subtitle="Rating ≥ 4.5"
+                subtitleColor="text-[#6A7282]"
+                icon={Award}
+                iconColor="#4F39F6"
+                iconBgColor="#FFFFFF"
+              />
+            </div>
+          )}
+
+          {/* Team Score Bar Chart — both periods together */}
+          {teamScores.length > 0 && (
+            <SubDeptScoreBarChart
+              data={teamScores}
+              currentEmployeeId={employeeId}
+              title="Team Performance Scores"
+              subtitle={`Mid-Year & Year-End ${reportYear! - 1}/${String(reportYear!).slice(-2)} — selected employee highlighted`}
+            />
+          )}
+
+          {/* AI Insight strip */}
+          <AIInsightCard
+            insight={OVERALL_TEAM_INSIGHT}
+            type="info"
+          />
+
+          {/* Recommendations */}
+          <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
+
+        </div>
+
+      </div>
+    </main>
+  );
+}

@@ -1014,7 +1014,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
 
   return (
     <div className={styles.dashShell}>
-      <Sidebar />
       <main className={styles.mainContent}>
         <Breadcrumb />
         <div className={styles.pageWrapper}>

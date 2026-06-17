@@ -1,9 +1,8 @@
 "use client";
 
 import styles from "./dashboard.module.css";
-import Sidebar from "@/components/sidebar/Sidebar";
 import { useEffect, useState } from "react";
-import { useCurrentUser, CurrentUser } from "@/hooks/useCurrentUser";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   PieChart, Pie, Cell, Legend
@@ -54,12 +53,10 @@ export default function DashboardBase({ level }: { level: number }) {
 
   const [stats,     setStats]     = useState<Record<string, number>>({});
   const [chartData, setChartData] = useState<ChartData>({ bar: [], pie: [] });
-  const [user,      setUser]      = useState<CurrentUser | null>(null);
   const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
     if (!currentUser) return;
-    setUser(currentUser);
 
     const fetchData = async () => {
       try {
@@ -98,10 +95,8 @@ export default function DashboardBase({ level }: { level: number }) {
   }));
 
   return (
-    <div className={styles.dashShell}>
-      <Sidebar />
-
-      <main className={styles.main}>
+    <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
+      <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
         <div className={styles.headerRow}>
           <div>
             <h1 className={styles.pageTitle}>{config.role} Dashboard</h1>
@@ -134,18 +129,27 @@ export default function DashboardBase({ level }: { level: number }) {
             </div>
             <div className={styles.chartBody}>
               {loading ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9CA3AF" }}>
                   Loading...
                 </div>
               ) : coloredBar.length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9CA3AF" }}>
                   No data available
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={coloredBar}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={coloredBar} margin={{ top: 16, right: 16, left: 0, bottom: 40 }}>
                     <CartesianGrid strokeDasharray="4 4" vertical={false} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      interval={0}
+                      angle={-30}
+                      textAnchor="end"
+                      height={55}
+                    />
                     <YAxis domain={[0, 5]} ticks={[0,1,2,3,4,5]} axisLine={false} tickLine={false} />
                     <Bar dataKey="score" radius={[10, 10, 0, 0]}>
                       {coloredBar.map((entry: BarEntry, index: number) => (
@@ -198,5 +202,7 @@ export default function DashboardBase({ level }: { level: number }) {
             </div>
           )}
         </section>
-</main>
-</div> ); }
+      </div>
+    </main>
+  );
+}
