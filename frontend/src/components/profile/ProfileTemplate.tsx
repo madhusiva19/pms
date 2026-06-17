@@ -6,7 +6,6 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./profile.module.css";
 import AvatarUpload from "./AvatarUpload";
-import Sidebar from "@/components/sidebar/Sidebar";
 
 // ── Types ──────────────────────────────────────────────
 export type Role =
@@ -338,9 +337,7 @@ const avatarBg = "#F9BE00";
 
   return (
     <>
-      <div style={{ display: 'flex', minHeight: '100vh', background: '#F8F9FC' }}>
-      <Sidebar />
-      <main style={{ marginLeft: '251px', flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
+      <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
       <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
 
         {/* Breadcrumb */}
@@ -702,7 +699,6 @@ const avatarBg = "#F9BE00";
         </section>
       </div>
       </main>
-      </div>
 
       {/* ── Submit Confirmation Modal ── */}
       {showSubmitModal && (

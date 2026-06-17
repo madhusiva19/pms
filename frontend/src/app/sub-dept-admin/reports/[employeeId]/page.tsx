@@ -27,7 +27,6 @@ import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
 import SubDeptScoreBarChart from '@/components/reports/SubDeptScoreBarChart';
 import type { TeamScoreEntry } from '@/components/reports/SubDeptScoreBarChart';
 
-import Sidebar from '@/components/sidebar/Sidebar';
 import {
   employeesApi,
   performanceSummariesApi,
@@ -205,9 +204,7 @@ export default function SubDeptAdminReportDetailPage() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8F9FC' }}>
-    <Sidebar />
-    <main className="flex-1 bg-[#F9FAFB] min-h-screen overflow-y-auto" style={{ marginLeft: '251px' }}>
+    <main className="flex-1 bg-[#F9FAFB] min-h-screen overflow-y-auto">
       <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
 
         {/* ── Header Block ── */}
@@ -334,6 +331,5 @@ export default function SubDeptAdminReportDetailPage() {
 
       </div>
     </main>
-    </div>
   );
 }
