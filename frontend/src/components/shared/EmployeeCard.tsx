@@ -25,7 +25,7 @@ export default function EmployeeCard({ employee }: EmployeeCardProps) {
     .toUpperCase();
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-lg p-6 flex flex-col gap-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ease-in-out">
+    <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 flex flex-col gap-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ease-in-out">
 
       {/* Top row: avatar + employee info */}
       <div className="flex items-start gap-4">
@@ -45,7 +45,7 @@ export default function EmployeeCard({ employee }: EmployeeCardProps) {
             </div>
             <Link
               href={`/sub-dept-admin/reports/${employee.id}`}
-              className="w-full flex items-center justify-center h-9 px-4 bg-[#2563EB] text-white text-[13.5px] font-medium rounded-lg hover:bg-[#1D4ED8] active:scale-[0.98] transition-all duration-200"
+              className="w-full flex items-center justify-center h-9 px-4 bg-[#2563EB] !text-white text-[13.5px] font-medium rounded-lg hover:bg-[#1D4ED8] active:scale-[0.98] transition-all duration-200"
             >
               View Reports
             </Link>
