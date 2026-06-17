@@ -341,7 +341,6 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className={styles.dashShell}>
-      <Sidebar />
       <main className={styles.mainContent}>
         <Breadcrumb />
         <div className={styles.page}>

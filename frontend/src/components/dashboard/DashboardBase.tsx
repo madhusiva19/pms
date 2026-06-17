@@ -99,7 +99,6 @@ export default function DashboardBase({ level }: { level: number }) {
 
   return (
     <div className={styles.dashShell}>
-      <Sidebar />
 
       <main className={styles.main}>
         <div className={styles.headerRow}>

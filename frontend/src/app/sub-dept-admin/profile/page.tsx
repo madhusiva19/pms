@@ -71,7 +71,6 @@ export default function SubDeptAdminProfilePage() {
 
   return (
     <div className={styles.shell}>
-      <Sidebar />
       <main className={styles.main}>
         {(loading || !user || !profileData) ? (
           <div style={{ display: "flex", minHeight: "100vh", background: "#F9FAFB" }}>
