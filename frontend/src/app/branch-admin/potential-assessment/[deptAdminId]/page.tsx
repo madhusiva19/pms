@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -49,7 +49,7 @@ export default function BranchAdminReviewPage() {
   const badge = statusBadge[status] ?? statusBadge.not_started;
 
   return (
-    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
+    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
       <Breadcrumb />
       <div><h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>{cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.pms_year}</strong></p>}</div>
       <div className="w-full rounded-xl border border-[#BEDBFF] px-4 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(90deg, #EFF6FF 0%, #F3F4F6 100%)' }}>
