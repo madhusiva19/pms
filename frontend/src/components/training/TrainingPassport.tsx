@@ -359,6 +359,8 @@ export default function TrainingPassport({
                       <input
                         className={styles.formInput}
                         type="date"
+                        title="Training date"
+                        aria-label="Training date"
                         value={newTraining.date}
                         onChange={(e) => setNewTraining((p) => ({ ...p, date: e.target.value }))}
                       />
