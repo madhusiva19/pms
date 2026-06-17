@@ -13,7 +13,7 @@
 
 .mainContent {
   flex:       1;
-  margin-left: 251px;
+
   min-width:  0;
   padding:    24px;
   overflow:   auto;

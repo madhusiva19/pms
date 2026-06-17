@@ -13,9 +13,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F8F9FC]">
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8F9FC' }}>
       <Sidebar />
-      <main className="flex-1 overflow-auto ml-[251px]">
+      <main style={{
+        marginLeft: '251px',
+        flex: 1,
+        minWidth: 0,
+        overflowY: 'auto',
+        display: 'block',
+      }}>
         {children}
       </main>
     </div>
