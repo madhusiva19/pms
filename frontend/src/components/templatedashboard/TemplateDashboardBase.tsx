@@ -1770,7 +1770,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className={styles.dashShell}>
-      <Sidebar />
       <main className={styles.mainContent} ref={mainContentRef}>
         <Breadcrumb />
         <div className={styles.wrapper}>

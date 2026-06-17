@@ -50,7 +50,6 @@ export default function EmployeeTrainingPage() {
 
   return (
     <div className={styles.shell}>
-      <Sidebar />
       <main className={styles.main}>
         {(loading || !user) ? (
           <div style={{ display: "flex", minHeight: "100vh", background: "#F9FAFB" }}>

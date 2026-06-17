@@ -103,7 +103,6 @@ export default function AdminNotificationsPage({ role, dashboardPath, profilePat
 
   return (
     <div className={styles.shell}>
-      <Sidebar />
       <main className={styles.main}>
         {(loading || !user) ? (
           <div style={{ padding: "32px", width: "100%", boxSizing: "border-box" }}>

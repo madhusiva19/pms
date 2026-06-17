@@ -336,7 +336,6 @@ export default function TemplateHistoryPage({ level = 1 }: { level?: number }) {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className={styles.shell}>
-      <Sidebar />
       <main className={styles.main}>
         <Breadcrumb />
         <div className={styles.wrapper}>
