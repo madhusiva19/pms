@@ -34,21 +34,21 @@ export default function SubDeptAdminReportsPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user?.sub_department_id) {
+    if (!user?.sub_dept_id) {
       setError('Sub-department not assigned to your account. Please contact your administrator.');
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    employeesApi.getBySubDepartment(user.sub_department_id)
+    employeesApi.getBySubDepartment(user.sub_dept_id)
       .then(emps => setEmployees(emps ?? []))
       .catch(err => {
         logger.error('Failed to load employees for sub-dept admin reports', err);
         setError('Failed to load employees. Please try again.');
       })
       .finally(() => setLoading(false));
-  }, [user?.sub_department_id, authLoading]);
+  }, [user?.sub_dept_id, authLoading]);
 
   if (authLoading || loading) return <LoadingSpinner />;
   if (!user || user.role !== 'sub_dept_admin') return null;

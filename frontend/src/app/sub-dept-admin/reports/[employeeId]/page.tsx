@@ -81,9 +81,9 @@ export default function SubDeptAdminReportDetailPage() {
 
   // Fetch team scores (mid-year + year-end together)
   useEffect(() => {
-    if (!user?.sub_department_id || !employeeId || reportYear === null) return;
+    if (!user?.sub_dept_id || !employeeId || reportYear === null) return;
     setLoading(true);
-    employeesApi.getBySubDepartment(user.sub_department_id)
+    employeesApi.getBySubDepartment(user.sub_dept_id)
       .then(async (emps) => {
         const scores = await Promise.all(
           emps.map(async (emp) => {
@@ -102,11 +102,11 @@ export default function SubDeptAdminReportDetailPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [user?.sub_department_id, employeeId, reportYear]);
+  }, [user?.sub_dept_id, employeeId, reportYear]);
 
   // Fetch metrics for both periods
   useEffect(() => {
-    if (!user?.sub_department_id || !employeeId || reportYear === null) return;
+    if (!user?.sub_dept_id || !employeeId || reportYear === null) return;
     setMetrics(null);
 
     Promise.all([
@@ -114,14 +114,14 @@ export default function SubDeptAdminReportDetailPage() {
         period_type: 'mid_year',
         year: reportYear!,
         scope: 'sub_department',
-        scope_id: String(user.sub_department_id),
+        scope_id: String(user.sub_dept_id),
         employee_id: employeeId,
       }),
       metricsApi.get({
         period_type: 'year_end',
         year: reportYear!,
         scope: 'sub_department',
-        scope_id: String(user.sub_department_id),
+        scope_id: String(user.sub_dept_id),
         employee_id: employeeId,
       }),
     ])
@@ -134,7 +134,7 @@ export default function SubDeptAdminReportDetailPage() {
         });
       })
       .catch(() => {});
-  }, [user?.sub_department_id, employeeId, reportYear]);
+  }, [user?.sub_dept_id, employeeId, reportYear]);
 
   const handleDownload = async () => {
     try {
