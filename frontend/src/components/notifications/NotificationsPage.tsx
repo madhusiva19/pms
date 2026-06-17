@@ -342,8 +342,8 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   return (
     <div className={styles.dashShell}>
       <main className={styles.mainContent}>
-        <Breadcrumb />
         <div className={styles.page}>
+          <Breadcrumb />
 
           {/* Header */}
           <div className={styles.headerRow}>
