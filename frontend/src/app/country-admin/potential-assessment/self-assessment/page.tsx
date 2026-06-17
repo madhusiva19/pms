@@ -57,7 +57,7 @@ export default function CountryAdminSelfAssessmentPage() {
   };
 
   return (
-    <div className="flex flex-col gap-10 max-w-[1225px] mx-auto w-full">
+    <div className="flex flex-col gap-10 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
       <Breadcrumb />
 
       <div className="flex flex-col gap-1">

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -47,7 +47,7 @@ export default function HQAdminPotentialAssessmentPage() {
   if (!user || user.role !== 'hq_admin') return null;
 
   return (
-    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
+    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
       <Breadcrumb />
 
       <div className="flex flex-col gap-1">
