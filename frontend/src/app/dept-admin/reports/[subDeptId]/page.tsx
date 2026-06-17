@@ -260,8 +260,8 @@ export default function DeptAdminReportDetailPage() {
   const isYearEndEmpty = activeTab === 'year_end' && (!metrics || metrics.total_evaluated === 0);
 
   return (
-    <main className="flex-1 p-2 bg-[#F9FAFB] min-h-screen overflow-y-auto">
-      <div className="flex flex-col gap-8 max-w-[1225px]">
+    <main className="flex-1 bg-[#F9FAFB] min-h-screen overflow-y-auto">
+      <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
 
         {/* ── Header Block ── */}
         <div className="flex flex-col gap-4">
