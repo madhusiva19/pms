@@ -34,21 +34,21 @@ export default function DeptAdminReportsPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user?.department_id) {
+    if (!user?.dept_id) {
       setError('Department not assigned to your account. Please contact your administrator.');
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    subDepartmentsApi.getByDepartment(user.department_id)
+    subDepartmentsApi.getByDepartment(user.dept_id)
       .then(subdepts => setTeams(subdepts ?? []))
       .catch(err => {
         logger.error('Failed to load sub-departments for dept admin reports', err);
         setError('Failed to load sub-departments. Please try again.');
       })
       .finally(() => setLoading(false));
-  }, [user?.department_id, authLoading]);
+  }, [user?.dept_id, authLoading]);
 
   if (authLoading || loading) return <LoadingSpinner />;
   if (!user || user.role !== 'dept_admin') return null;
@@ -84,7 +84,7 @@ export default function DeptAdminReportsPage() {
         {!error && filtered.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((team) => (
-              <SubDepartmentCard key={team.id} subDepartment={team} deptId={user.department_id || ''} />
+              <SubDepartmentCard key={team.id} subDepartment={team} deptId={user.dept_id || ''} />
             ))}
           </div>
         )}
