@@ -108,7 +108,7 @@ export default function HQAdminReconsiderationReviewPage() {
   if (authLoading || loading) return <LoadingSpinner />;
   if (!user || user.role !== 'hq_admin') return null;
   if (!assessment) return (
-    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
+    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
       <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">{error ?? 'Assessment not found.'}</div>
     </div>
   );
@@ -171,7 +171,7 @@ export default function HQAdminReconsiderationReviewPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
+    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
       <Breadcrumb />
 
       <div className="flex flex-col gap-1">

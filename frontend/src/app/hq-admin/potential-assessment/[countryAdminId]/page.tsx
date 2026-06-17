@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 /**
  * HQ Admin — Potential Assessment review detail page for a Country Admin
@@ -58,7 +58,7 @@ export default function HQAdminReviewPage() {
   const badge = statusBadge[status] ?? statusBadge.not_started;
 
   return (
-    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
+    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
       <Breadcrumb />
 
       <div className="flex flex-col gap-1">

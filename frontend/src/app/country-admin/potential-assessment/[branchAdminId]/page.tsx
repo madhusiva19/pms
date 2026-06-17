@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 /**
  * Country Admin — Review detail page for a Branch Admin
@@ -58,7 +58,7 @@ export default function CountryAdminReviewPage() {
   const badge = statusBadge[status] ?? statusBadge.not_started;
 
   return (
-    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
+    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
       <Breadcrumb />
       <div><h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>
         {cycle && <p className="text-[15px] text-[#4A5565]">Cycle: <strong>{cycle.pms_year}</strong></p>}
