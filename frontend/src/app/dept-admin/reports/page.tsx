@@ -1,7 +1,7 @@
 ﻿'use client';
 
 /**
- * Dept Admin â€” Reports Landing Page
+ * Dept Admin — Reports Landing Page
  * Shows teams/sub-departments as cards for selection
  */
 
