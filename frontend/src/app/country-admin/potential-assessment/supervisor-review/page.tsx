@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -39,7 +39,7 @@ export default function CountryAdminTeamReviewPage() {
   if (!user || user.role !== 'country_admin') return null;
 
   return (
-    <div className="flex flex-col gap-10 max-w-[1225px] mx-auto w-full">
+    <div className="flex flex-col gap-10 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
       <Breadcrumb />
 
       <div className="flex flex-col gap-1">
