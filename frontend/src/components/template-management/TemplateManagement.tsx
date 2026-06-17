@@ -9,10 +9,30 @@ interface Template {
   name: string;
   description: string;
   status: string;   // "active" | "frozen"
-  created_by: string;
+  created_by: string;           // role key: "hq_admin" | "country_admin" | "branch_admin" | "department_manager"
+  variant_location?: string;    // resolved branch/country name e.g. "Hyderabad" — only set when has_variant is true
+  has_variant?: boolean;
 }
 
 const API = 'http://127.0.0.1:5000';
+
+// Maps role keys returned by the backend → display labels
+const ROLE_LABELS: Record<string, string> = {
+  hq_admin:           'HQ Admin',
+  country_admin:      'Country Admin',
+  branch_admin:       'Branch Admin',
+  department_manager: 'Dept. Manager',
+};
+
+// Builds the "Made by" string shown on template cards.
+// When a variant exists the location name is appended: "Branch Admin · Hyderabad"
+function formatCreatedBy(tmpl: Template): string {
+  const roleLabel = ROLE_LABELS[tmpl.created_by] ?? tmpl.created_by ?? 'HQ Admin';
+  if (tmpl.has_variant && tmpl.variant_location) {
+    return `${roleLabel} · ${tmpl.variant_location}`;
+  }
+  return roleLabel;
+}
 
 export default function TemplatesListPage() {
   const { user, loading: authLoading } = useAuth();
@@ -426,14 +446,14 @@ function TemplateCard({ tmpl, index, userRole, managerId }: {
             </span>
           </div>
 
-          {/* Made by */}
+          {/* Made by — shows role label + location when variant exists */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
               <path d="M2 14c0-2.21 2.686-4 6-4s6 1.79 6 4" stroke="#94A3B8" strokeWidth="1.4" strokeLinecap="round"/>
               <circle cx="8" cy="5.5" r="2.5" stroke="#94A3B8" strokeWidth="1.4"/>
             </svg>
             <span style={{ fontSize: 12.7, color: '#94A3B8', lineHeight: '20px' }}>
-              Made by {tmpl.created_by || 'Group Admin'}
+              Made by {formatCreatedBy(tmpl)}
             </span>
           </div>
 
