@@ -26,6 +26,34 @@ templates_bp = Blueprint("templates", __name__)
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# Maps role keys stored in created_by → human-readable label
+_ROLE_LABELS: dict[str, str] = {
+    "hq_admin":           "HQ Admin",
+    "country_admin":      "Country Admin",
+    "branch_admin":       "Branch Admin",
+    "department_manager": "Dept. Manager",
+}
+
+
+def _creator_label_from_scope(variant: dict) -> str:
+    """
+    Derive a readable creator label from the variant's scope columns.
+    The scope columns already tell us which role created the variant —
+    no UUID lookup needed.
+    """
+    if variant.get("sub_department_id") or variant.get("department_id"):
+        return _ROLE_LABELS["department_manager"]
+    if variant.get("branch_id"):
+        return _ROLE_LABELS["branch_admin"]
+    if variant.get("country_id"):
+        return _ROLE_LABELS["country_admin"]
+    return _ROLE_LABELS["hq_admin"]
+
+
+# ---------------------------------------------------------------------------
 # Template listing and detail
 # ---------------------------------------------------------------------------
 
@@ -77,6 +105,11 @@ def get_templates():
     Variant resolution: if a template_variant exists for the user's org unit, its
     name/description overrides the base template row.
     Resolution priority: sub_department > department > branch > country.
+
+    created_by resolution: for variant rows, the creator label is derived from
+    the variant's scope columns (branch_id/country_id etc.) rather than storing
+    a UUID. The location name is resolved from the branches/countries tables and
+    included as variant_location so the frontend can display e.g. "Branch Admin · Hyderabad".
     """
     try:
         from datetime import date
@@ -160,6 +193,28 @@ def get_templates():
                 best = max(candidates, key=score)
                 return best if score(best) > 0 else None
 
+            # Resolve location name for the variant's scope — one lookup per relevant scope.
+            # Branch name takes priority since it's the most specific location identifier shown.
+            variant_location: str = ""
+            if branch_id:
+                b_res = (
+                    supabase.table("branches")
+                    .select("name")
+                    .eq("id", branch_id)
+                    .limit(1)
+                    .execute()
+                )
+                variant_location = ((b_res.data or [{}])[0]).get("name", "")
+            elif country_id:
+                c_res = (
+                    supabase.table("countries")
+                    .select("name")
+                    .eq("id", country_id)
+                    .limit(1)
+                    .execute()
+                )
+                variant_location = ((c_res.data or [{}])[0]).get("name", "")
+
             # Apply overrides
             for t in templates:
                 tid = t["id"]
@@ -167,10 +222,18 @@ def get_templates():
                     t["status"] = "active"
                 variant = best_variant(tid)
                 if variant:
-                    t["name"]        = variant.get("name")        or t["name"]
-                    t["description"] = variant.get("description") or t.get("description")
-                    t["variant_id"]  = variant["id"]
-                    t["has_variant"] = True
+                    t["name"]             = variant.get("name")        or t["name"]
+                    t["description"]      = variant.get("description") or t.get("description")
+                    t["variant_id"]       = variant["id"]
+                    t["has_variant"]      = True
+                    # Derive creator label from scope columns — avoids storing/resolving UUIDs
+                    t["created_by"]       = _creator_label_from_scope(variant)
+                    # Location name for display: "Branch Admin · Hyderabad"
+                    t["variant_location"] = variant_location
+                else:
+                    # Base template: created_by is already a role key like "hq_admin"
+                    t["created_by"]       = _ROLE_LABELS.get(t.get("created_by", ""), "HQ Admin")
+                    t["variant_location"] = ""
 
         return jsonify(templates)
 
@@ -330,7 +393,6 @@ def update_template(template_id: int):
         branch_id         = body.get("branch_id")
         department_id     = body.get("department_id")
         sub_department_id = body.get("sub_department_id")
-        editor_id         = body.get("editor_id")
 
         if editor_role == "hq_admin":
             # HQ Admin modifies global objectives directly
@@ -397,7 +459,8 @@ def update_template(template_id: int):
             "description":        body.get("description") or base.get("description"),
             "max_score":          body.get("max_score") or base.get("max_score", 5),
             "total_weight":       body.get("total_weight") or base.get("total_weight", 100),
-            "created_by":         editor_id,
+            # Store role key string — not the UUID — so created_by is always human-readable
+            "created_by":         editor_role,
             **scope,
         }
 
