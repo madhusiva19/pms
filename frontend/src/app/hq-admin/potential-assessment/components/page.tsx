@@ -163,13 +163,13 @@ export default function HQAdminAssessmentComponentsPage() {
   };
 
   const getPillarCls  = (p: PillarType) => PILLARS.find(x => x.key === p)!;
-  const getRoleLabel  = (role: string | null) => ROLES.find(r => r.key === role)?.label ?? role ?? 'â€”';
+  const getRoleLabel  = (role: string | null) => ROLES.find(r => r.key === role)?.label ?? role ?? '—';
 
   if (authLoading || loading) return <LoadingSpinner />;
   if (!user || user.role !== 'hq_admin') return null;
 
   return (
-    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full">
+    <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
       <Breadcrumb />
 
       {/* Header */}
@@ -185,7 +185,7 @@ export default function HQAdminAssessmentComponentsPage() {
             </p>
           </div>
         </div>
-        {/* BUTTON â€” "Add Component" (opens Add/Edit modal in add mode)
+        {/* BUTTON — "Add Component" (opens Add/Edit modal in add mode)
             Why: HQ Admin creates new question overrides per role or globally;
             the modal opens with a blank form so no existing component is accidentally overwritten */}
         <button
@@ -229,7 +229,7 @@ export default function HQAdminAssessmentComponentsPage() {
              `${getRoleLabel(filter)} Components`}
             <span className="ml-2 text-[12px] font-normal text-[#94A3B8]">({filtered.length})</span>
           </p>
-          {/* FILTER SELECT â€” filters the table by scope or assigned role
+          {/* FILTER SELECT — filters the table by scope or assigned role
               Why: with up to 45 possible components (9 slots Ã— 5 roles + globals) the list
               grows long; filtering by role lets HQ Admin quickly check what is set for a specific audience */}
           <select
@@ -242,7 +242,7 @@ export default function HQAdminAssessmentComponentsPage() {
           </select>
         </div>
 
-        {/* TABLE â€” components list: Pillar | Q# | Description | Assigned To | Actions
+        {/* TABLE — components list: Pillar | Q# | Description | Assigned To | Actions
             Why: single view of all DB question overrides; empty state guides HQ Admin to
             add the first component; alternating row shading aids readability */}
         <table className="w-full border-collapse">
@@ -288,7 +288,7 @@ export default function HQAdminAssessmentComponentsPage() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-2">
-                      {/* BUTTON â€” "Edit" (opens Add/Edit modal pre-populated with this row)
+                      {/* BUTTON — "Edit" (opens Add/Edit modal pre-populated with this row)
                           Why: HQ Admin can correct a description or reassign scope without
                           deleting and recreating the component, preserving the component ID */}
                       <button
@@ -298,7 +298,7 @@ export default function HQAdminAssessmentComponentsPage() {
                       >
                         <Edit2 className="w-3 h-3" /> Edit
                       </button>
-                      {/* BUTTON â€” "Delete" (opens delete confirmation modal for this row)
+                      {/* BUTTON — "Delete" (opens delete confirmation modal for this row)
                           Why: destructive action gated behind a confirmation modal; deletion
                           causes assessment forms to fall back to the hardcoded default for this slot */}
                       <button
@@ -325,7 +325,7 @@ export default function HQAdminAssessmentComponentsPage() {
               <h2 className="text-[16px] font-semibold text-[#101828]">
                 {editTarget ? 'Edit Component' : 'Add Component'}
               </h2>
-              {/* BUTTON â€” X icon (close Add/Edit modal without saving)
+              {/* BUTTON — X icon (close Add/Edit modal without saving)
                   Why: quick dismiss when HQ Admin opens the modal accidentally */}
               <button type="button" onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-[#F1F5F9] transition-colors">
                 <X className="w-5 h-5 text-[#64748B]" />
@@ -373,7 +373,7 @@ export default function HQAdminAssessmentComponentsPage() {
                 <textarea
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Describe what this component assessesâ€¦"
+                  placeholder="Describe what this component assesses…"
                   rows={3}
                   className="resize-none px-3 py-2.5 border border-[#E5E7EB] rounded-lg text-[13.5px] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#3B82F6] transition-all"
                 />
@@ -425,7 +425,7 @@ export default function HQAdminAssessmentComponentsPage() {
             </div>
 
             <div className="flex gap-3 justify-end pt-2 border-t border-[#F1F5F9]">
-              {/* BUTTON â€” "Cancel" (close Add/Edit modal without saving)
+              {/* BUTTON — "Cancel" (close Add/Edit modal without saving)
                   Why: lets HQ Admin abort an accidental edit; no DB write occurs */}
               <button
                 type="button"
@@ -435,9 +435,9 @@ export default function HQAdminAssessmentComponentsPage() {
               >
                 Cancel
               </button>
-              {/* BUTTON â€” "Save Changes" / "Add Component" (submit the modal form to API)
+              {/* BUTTON — "Save Changes" / "Add Component" (submit the modal form to API)
                   Why: disabled while saving to prevent duplicate submissions; label switches
-                  based on editTarget presence â€” add mode vs edit mode */}
+                  based on editTarget presence — add mode vs edit mode */}
               <button
                 type="button"
                 disabled={saving}
@@ -445,7 +445,7 @@ export default function HQAdminAssessmentComponentsPage() {
                 className="flex items-center gap-2 px-5 py-2 bg-[#1E3A8A] text-white text-[13.5px] font-semibold rounded-lg hover:bg-[#1E40AF] transition-colors disabled:opacity-70"
               >
                 {saving
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Savingâ€¦</>
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
                   : <><CheckCircle className="w-4 h-4" /> {editTarget ? 'Save Changes' : 'Add Component'}</>}
               </button>
             </div>
@@ -474,7 +474,7 @@ export default function HQAdminAssessmentComponentsPage() {
               </div>
             )}
             <div className="flex gap-3 justify-end">
-              {/* BUTTON â€” "Cancel" (close delete confirmation modal without deleting)
+              {/* BUTTON — "Cancel" (close delete confirmation modal without deleting)
                   Why: second chance to abort before permanent removal from the DB */}
               <button
                 type="button"
@@ -484,9 +484,9 @@ export default function HQAdminAssessmentComponentsPage() {
               >
                 Cancel
               </button>
-              {/* BUTTON â€” "Delete" (confirm permanent deletion of the component)
+              {/* BUTTON — "Delete" (confirm permanent deletion of the component)
                   Why: once confirmed the DB row is removed; assessment forms using this slot
-                  fall back to the hardcoded default description â€” this cannot be undone */}
+                  fall back to the hardcoded default description — this cannot be undone */}
               <button
                 type="button"
                 disabled={deleting}
@@ -494,7 +494,7 @@ export default function HQAdminAssessmentComponentsPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-[#DC2626] text-white text-[13.5px] font-semibold rounded-lg hover:bg-[#B91C1C] transition-colors disabled:opacity-70"
               >
                 {deleting
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Deletingâ€¦</>
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</>
                   : <><Trash2 className="w-4 h-4" /> Delete</>}
               </button>
             </div>

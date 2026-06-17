@@ -1,7 +1,7 @@
 ﻿'use client';
 
 /**
- * Branch Admin â€” Reports Landing Page
+ * Branch Admin — Reports Landing Page
  * Shows departments as cards for selection.
  * UI mirrors HQ Admin (CountryCard layout) via DepartmentCard component.
  */
@@ -77,7 +77,7 @@ export default function BranchAdminReportsPage() {
         </div>
 
         {/* Search */}
-        <SearchInput value={search} onChange={setSearch} placeholder="Search departmentâ€¦" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search department…" />
 
         {/* Error state */}
         {error && (
