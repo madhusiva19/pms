@@ -398,6 +398,7 @@
   color:       #334155;
   font-weight: 500;
   line-height: 1.55;
+  -webkit-user-select: none;
   user-select: none;
   flex:        1;
 }
