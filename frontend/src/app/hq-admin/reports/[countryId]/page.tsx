@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import Sidebar from '@/components/sidebar/Sidebar';
 import { logger } from '@/utils/logger';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -291,7 +292,9 @@ export default function CountryReportPage() {
   const isYearEndEmpty = activeTab === 'year_end' && (!metrics || metrics.total_evaluated === 0);
 
   return (
-    <main className="flex-1 bg-[#F9FAFB] min-h-screen overflow-y-auto">
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8F9FC' }}>
+    <Sidebar />
+    <main className="flex-1 bg-[#F9FAFB] min-h-screen overflow-y-auto" style={{ marginLeft: '251px' }}>
       <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
 
         {/* ── Header Block ── */}
@@ -522,5 +525,6 @@ export default function CountryReportPage() {
         />
       )}
     </main>
+    </div>
   );
 }

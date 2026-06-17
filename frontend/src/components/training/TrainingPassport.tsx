@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./training.module.css";
+import Sidebar from "@/components/sidebar/Sidebar";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type Role =
@@ -253,7 +254,9 @@ export default function TrainingPassport({
   const reviewedOwnCount        = suggestionList.filter(s => s.status === "approved" || s.status === "rejected").length;
 
   return (
-      <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8F9FC' }}>
+      <Sidebar />
+      <main style={{ marginLeft: '251px', flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
       <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
 
         {/* Breadcrumb */}
@@ -657,5 +660,6 @@ export default function TrainingPassport({
 
       </div>
       </main>
+    </div>
   );
 }

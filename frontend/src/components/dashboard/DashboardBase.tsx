@@ -1,6 +1,7 @@
 "use client";
 
 import styles from "./dashboard.module.css";
+import Sidebar from "@/components/sidebar/Sidebar";
 import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
@@ -95,7 +96,9 @@ export default function DashboardBase({ level }: { level: number }) {
   }));
 
   return (
-    <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8F9FC' }}>
+    <Sidebar />
+    <main style={{ marginLeft: '251px', flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
       <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
         <div className={styles.headerRow}>
           <div>
@@ -204,5 +207,6 @@ export default function DashboardBase({ level }: { level: number }) {
         </section>
       </div>
     </main>
+    </div>
   );
 }
