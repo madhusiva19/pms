@@ -9,7 +9,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   Cell,
 } from 'recharts';
 import { serialize } from 'v8';
@@ -50,6 +49,17 @@ export default function SubDeptScoreBarChart({
       <div className="px-6 pt-6 pb-0">
         <h4 className="text-[15px] font-semibold text-[#1E293B] leading-4 mb-1.5">{title}</h4>
         <p className="text-[15px] text-[#64748B] leading-6">{subtitle}</p>
+        {/* Legend */}
+        <div className="flex items-center gap-5 mt-3">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm inline-block bg-slate-400" />
+            <span className="text-[13px] text-[#64748B]">Mid-Year</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm inline-block bg-slate-300" />
+            <span className="text-[13px] text-[#64748B]">Year-End</span>
+          </div>
+        </div>
       </div>
 
       {/* Chart */}
@@ -93,10 +103,6 @@ export default function SubDeptScoreBarChart({
                   return item?.fullName ?? label;
                 }}
               />
-              <Legend
-                wrapperStyle={{ paddingTop: '10px', fontSize: '13px' }}
-              />
-
               {/* Mid-Year bar */}
               <Bar dataKey="midYear" name="Mid-Year" radius={[3, 3, 0, 0]} barSize={30}>
                 {chartData.map((entry, index) => (
