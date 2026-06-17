@@ -16,7 +16,7 @@ interface CountryCardProps {
 
 export default function CountryCard({ country }: CountryCardProps) {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-l p-6 flex flex-col gap-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ease-in-out">
+    <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 flex flex-col gap-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ease-in-out">
 
       {/* Top row: icon + country info */}
       <div className="flex items-start gap-4">
@@ -39,10 +39,10 @@ export default function CountryCard({ country }: CountryCardProps) {
               <span>{country.total_branches.toLocaleString()} Branches</span>
             </div>
             <Link
-              href={`/hq-admin/reports/${country.id}`}
-              className="w-full flex items-center justify-center h-9 px-4 bg-[#2563EB] text-white text-[13.5px] font-medium rounded-lg hover:bg-[#1D4ED8] active:scale-[0.98] transition-all duration-200"
-            >
-              View Reports
+                href={`/hq-admin/reports/${country.id}`}
+                className="w-full flex items-center justify-center h-9 px-4 bg-[#2563EB] !text-white text-[13.5px] font-medium rounded-lg hover:bg-[#1D4ED8] active:scale-[0.98] transition-all duration-200"
+                >
+                 View Reports
             </Link>
           </div>
           
