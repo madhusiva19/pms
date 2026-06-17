@@ -66,10 +66,32 @@ def get_subordinates_assessment_status(supervisor_id: str, cycle: str):
 def self_submit_potential_assessment():
     try:
         body = request.json or {}
-        required = ['employee_id', 'supervisor_id', 'appraisee_role', 'cycle', 'items']
+        required = ['employee_id', 'appraisee_role', 'cycle', 'items']
         missing = [f for f in required if f not in body]
         if missing:
             return jsonify({'success': False, 'error': f'Missing fields: {missing}'}), 400
+
+        # Auto-resolve supervisor if not provided or empty
+        if not body.get('supervisor_id', '').strip():
+            emp_resp = supabase.table('users').select('role, department_id, iata_branch_code, country_id').eq('id', body['employee_id']).limit(1).execute()
+            if not emp_resp.data:
+                return jsonify({'success': False, 'error': 'Employee not found.'}), 404
+            emp = emp_resp.data[0]
+            emp_role = emp.get('role')
+            sup_resp = None
+            if emp_role in ('sub_dept_admin', 'employee'):
+                sup_resp = supabase.table('users').select('id').eq('role', 'dept_admin').eq('department_id', emp.get('department_id')).limit(1).execute()
+            elif emp_role == 'dept_admin':
+                sup_resp = supabase.table('users').select('id').eq('role', 'branch_admin').eq('iata_branch_code', emp.get('iata_branch_code')).limit(1).execute()
+            elif emp_role == 'branch_admin':
+                sup_resp = supabase.table('users').select('id').eq('role', 'country_admin').eq('country_id', emp.get('country_id')).limit(1).execute()
+            elif emp_role == 'country_admin':
+                sup_resp = supabase.table('users').select('id').eq('role', 'hq_admin').limit(1).execute()
+            if sup_resp and sup_resp.data:
+                body['supervisor_id'] = sup_resp.data[0]['id']
+            else:
+                return jsonify({'success': False, 'error': 'Could not determine your supervisor. Please contact your administrator.'}), 400
+
         if len(body['items']) != 9:
             return jsonify({'success': False, 'error': 'Exactly 9 items required (3 pillars × 3 components)'}), 400
         for item in body['items']:
