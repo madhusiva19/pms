@@ -38,19 +38,13 @@ _ROLE_LABELS: dict[str, str] = {
 }
 
 
-def _creator_label_from_scope(variant: dict) -> str:
+def _creator_label(variant: dict) -> str:
     """
-    Derive a readable creator label from the variant's scope columns.
-    The scope columns already tell us which role created the variant —
-    no UUID lookup needed.
+    Return a readable creator label for a variant.
+    Uses the stored created_by role key directly — scope columns only tell us
+    WHERE the variant applies, not WHO created it (e.g. HQ Admin can scope to a branch).
     """
-    if variant.get("sub_department_id") or variant.get("department_id"):
-        return _ROLE_LABELS["department_manager"]
-    if variant.get("branch_id"):
-        return _ROLE_LABELS["branch_admin"]
-    if variant.get("country_id"):
-        return _ROLE_LABELS["country_admin"]
-    return _ROLE_LABELS["hq_admin"]
+    return _ROLE_LABELS.get(variant.get("created_by", ""), "HQ Admin")
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +184,10 @@ def get_templates():
                     if branch_id         and v.get("branch_id")         == branch_id:         return 2
                     if country_id        and v.get("country_id")        == country_id:        return 1
                     return 0
-                best = max(candidates, key=score)
+                # Use created_at as tiebreaker — latest row wins when two variants
+                # share the same scope level (e.g. HQ Admin and Branch Admin both
+                # scoped to the same branch)
+                best = max(candidates, key=lambda v: (score(v), v.get("created_at", "")))
                 return best if score(best) > 0 else None
 
             # Batch-resolve location names from each variant's own scope columns.
@@ -232,13 +229,14 @@ def get_templates():
                     t["description"] = variant.get("description") or t.get("description")
                     t["variant_id"]  = variant["id"]
                     t["has_variant"] = True
-                    # Derive creator label from scope columns — avoids storing/resolving UUIDs
-                    t["created_by"]  = _creator_label_from_scope(variant)
-                    # Resolve location from the variant's own scope, not the requesting user's:
-                    # branch admin variant → branch name, country admin variant → country name
-                    if variant.get("branch_id"):
+                    # Use created_by role key directly — scope columns tell us WHERE,
+                    # not WHO (HQ Admin can scope a variant to a branch)
+                    t["created_by"]  = _creator_label(variant)
+                    # Only show location for non-HQ roles — HQ Admin is global
+                    creator_role = variant.get("created_by", "")
+                    if creator_role != "hq_admin" and variant.get("branch_id"):
                         t["variant_location"] = branch_names.get(variant["branch_id"], "")
-                    elif variant.get("country_id"):
+                    elif creator_role != "hq_admin" and variant.get("country_id"):
                         t["variant_location"] = country_names.get(variant["country_id"], "")
                     else:
                         t["variant_location"] = ""
