@@ -129,18 +129,27 @@ export default function DashboardBase({ level }: { level: number }) {
             </div>
             <div className={styles.chartBody}>
               {loading ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9CA3AF" }}>
                   Loading...
                 </div>
               ) : coloredBar.length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9CA3AF" }}>
                   No data available
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={coloredBar}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={coloredBar} margin={{ top: 16, right: 16, left: 0, bottom: 40 }}>
                     <CartesianGrid strokeDasharray="4 4" vertical={false} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      interval={0}
+                      angle={-30}
+                      textAnchor="end"
+                      height={55}
+                    />
                     <YAxis domain={[0, 5]} ticks={[0,1,2,3,4,5]} axisLine={false} tickLine={false} />
                     <Bar dataKey="score" radius={[10, 10, 0, 0]}>
                       {coloredBar.map((entry: BarEntry, index: number) => (
