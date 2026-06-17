@@ -1,9 +1,8 @@
 "use client";
 
 import styles from "./dashboard.module.css";
-import Sidebar from "@/components/sidebar/Sidebar";
 import { useEffect, useState } from "react";
-import { useCurrentUser, CurrentUser } from "@/hooks/useCurrentUser";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   PieChart, Pie, Cell, Legend
@@ -54,12 +53,10 @@ export default function DashboardBase({ level }: { level: number }) {
 
   const [stats,     setStats]     = useState<Record<string, number>>({});
   const [chartData, setChartData] = useState<ChartData>({ bar: [], pie: [] });
-  const [user,      setUser]      = useState<CurrentUser | null>(null);
   const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
     if (!currentUser) return;
-    setUser(currentUser);
 
     const fetchData = async () => {
       try {
@@ -98,9 +95,8 @@ export default function DashboardBase({ level }: { level: number }) {
   }));
 
   return (
-    <div className={styles.dashShell}>
-
-      <main className={styles.main}>
+    <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
+      <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
         <div className={styles.headerRow}>
           <div>
             <h1 className={styles.pageTitle}>{config.role} Dashboard</h1>
@@ -197,5 +193,7 @@ export default function DashboardBase({ level }: { level: number }) {
             </div>
           )}
         </section>
-</main>
-</div> ); }
+      </div>
+    </main>
+  );
+}
