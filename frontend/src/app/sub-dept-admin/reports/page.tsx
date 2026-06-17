@@ -1,7 +1,7 @@
 ﻿'use client';
 
 /**
- * Sub Dept Admin â€” Reports Landing Page
+ * Sub Dept Admin — Reports Landing Page
  * Shows direct-report employees as cards for selection
  */
 
