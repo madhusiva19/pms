@@ -255,10 +255,7 @@ export default function TrainingPassport({
   const reviewedOwnCount        = suggestionList.filter(s => s.status === "approved" || s.status === "rejected").length;
 
   return (
-    <div className={styles.shell}>
-
-      {/* ══════════ MAIN ══════════ */}
-      <main className={styles.main}>
+      <main style={{ padding: '32px', flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
 
         {/* Breadcrumb */}
         <div className={styles.breadcrumb}>
@@ -658,6 +655,5 @@ export default function TrainingPassport({
         )}
 
       </main>
-    </div>
   );
 }
