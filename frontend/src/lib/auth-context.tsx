@@ -20,6 +20,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  loading: boolean;
   setUser: (user: User | null) => void;
   logout: () => void;
   notificationCount: number;
@@ -30,6 +31,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  loading: true,
   setUser: () => {},
   logout: () => {},
   notificationCount: 0,
@@ -40,6 +42,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
   const [trainingBadgeCount, setTrainingBadgeCount] = useState(0);
   const clearTrainingBadge = () => setTrainingBadgeCount(0);
@@ -50,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const parsedUser = JSON.parse(raw);
       setUser(parsedUser);
     }
+    setLoading(false);
   }, []);
 
   const refreshBadges = useCallback(async () => {
@@ -108,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user,
+      loading,
       setUser,
       logout,
       notificationCount,
