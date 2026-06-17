@@ -325,7 +325,9 @@ def get_template(template_id: int):
                 return 0
 
             variants   = var_res.data or []
-            best       = max(variants, key=score_variant) if variants else None
+            # Use created_at as tiebreaker — same logic as get_templates best_variant()
+            # so the card and the view page always show the same variant
+            best       = max(variants, key=lambda v: (score_variant(v), v.get("created_at", ""))) if variants else None
             best_score = score_variant(best) if best else 0
 
             if best and best_score > 0 and best.get("template_content"):
@@ -474,12 +476,16 @@ def update_template(template_id: int):
             **scope,
         }
 
-        # Check if variant already exists for this template + scope + cycle
+        # Check if variant already exists for this template + scope + cycle + creator role.
+        # created_by is included so each role gets their own row — e.g. HQ Admin scoping
+        # to a branch and Branch Admin editing the same template both keep separate rows,
+        # and the best_variant tiebreaker (latest created_at) decides which one is shown.
         existing_q = (
             supabase.table("template_variants")
             .select("id")
             .eq("parent_template_id", template_id)
             .eq("pms_cycle_id", active_cycle_id)
+            .eq("created_by", editor_role)
         )
         for k, v in scope.items():
             existing_q = existing_q.eq(k, v) if v else existing_q.is_(k, "null")
