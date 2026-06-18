@@ -62,8 +62,7 @@ const countryAdminNavItems: NavItem[] = [
   { name: 'My Team',             href: '/my-team',                           icon: Users              },
   { name: 'My Performance',      href: '/country-admin/my-performance',      icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/country-admin/rating-settings',     icon: Settings           },
-  { name: 'Workforce Report',    href: '/country-admin/workforce-report',    icon: BarChart2          },
-  { name: 'Reports',             href: '/country-admin/reports',             icon: FileText           },
+  { name: 'Reports',             href: '/country-admin/reports',             icon: BarChart2          },
   { name: 'Notifications',       href: '/country-admin/notification',        icon: Bell               },
   { name: 'Training Passport',   href: '/country-admin/training-passport',   icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/country-admin/potential-assessment', icon: Target, children: [
