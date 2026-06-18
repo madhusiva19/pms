@@ -11,7 +11,6 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "allowArbitraryExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
@@ -21,16 +20,17 @@
     ],
     "paths": {
       "@/*": ["./src/*"]
-    },
-    "types": ["jest"]
+    }
   },
   "include": [
     "next-env.d.ts",
+    "*.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-, "src/lib/supabase.ts"  ],
+  ],
   "exclude": ["node_modules"]
 }
+

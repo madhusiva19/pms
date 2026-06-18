@@ -1,79 +1,118 @@
 """
-Unit tests for utils/helpers.py — pure helper functions only.
-resolve_emp_ids_by_scope is excluded (requires DB).
+tests/test_helpers.py
+----------------------
+Unit tests for utils/helpers.py.
 
-Run with:  pytest
+Run with:
+    pytest tests/test_helpers.py -v
+
+No database connection required — all functions are pure.
 """
+
 import pytest
-from utils.helpers import calculate_bell_curve_from_scores, get_period_dates
+from datetime import date
+
+from utils.helpers import parse_date, unique_by_name
 
 
-class TestGetPeriodDates:
+# ---------------------------------------------------------------------------
+# parse_date
+# ---------------------------------------------------------------------------
 
-    def test_mid_year_returns_h1_range(self):
-        start, end = get_period_dates('mid_year', 2026)
-        assert start == '2026-01-01'
-        assert end   == '2026-06-30'
+class TestParseDate:
+    """Tests for the ISO date string parser."""
 
-    def test_year_end_returns_h2_range(self):
-        start, end = get_period_dates('year_end', 2026)
-        assert start == '2026-07-01'
-        assert end   == '2026-12-31'
+    def test_valid_iso_string(self):
+        assert parse_date("2025-06-30") == date(2025, 6, 30)
 
-    def test_unknown_period_defaults_to_year_end(self):
-        start, end = get_period_dates('unknown', 2026)
-        assert start == '2026-07-01'
-        assert end   == '2026-12-31'
+    def test_datetime_string_truncated_to_date(self):
+        # Only the first 10 characters are used
+        assert parse_date("2025-06-30T12:00:00") == date(2025, 6, 30)
+
+    def test_none_input_returns_none(self):
+        assert parse_date(None) is None
+
+    def test_empty_string_returns_none(self):
+        assert parse_date("") is None
+
+    def test_invalid_format_returns_none(self):
+        # Malformed string should not raise — return None instead
+        assert parse_date("not-a-date") is None
+
+    def test_integer_zero_returns_none(self):
+        # Falsy non-string should return None gracefully
+        assert parse_date(0) is None
 
 
-class TestCalculateBellCurveFromScores:
+# ---------------------------------------------------------------------------
+# unique_by_name
+# ---------------------------------------------------------------------------
 
-    def test_empty_records_returns_all_zero_buckets(self):
-        result = calculate_bell_curve_from_scores([])
-        assert len(result) == 8
-        assert all(b['employee_count'] == 0 for b in result)
-        assert all(b['percentage'] == 0 for b in result)
+class TestUniqueByName:
+    """Tests for the name-based de-duplication helper."""
 
-    def test_score_lands_in_correct_bucket(self):
-        records = [{'total_score': '4.7'}]
-        result  = calculate_bell_curve_from_scores(records)
-        bucket  = next(b for b in result if b['rating_range'] == '4.5-5.0')
-        assert bucket['employee_count'] == 1
-        assert bucket['percentage'] == 100.0
+    def test_no_duplicates_returns_same_items(self):
+        rows = [
+            {"id": "1", "name": "Alpha"},
+            {"id": "2", "name": "Beta"},
+        ]
+        result = unique_by_name(rows)
+        assert len(result) == 2
 
-    def test_boundary_score_5_0_included_in_top_bucket(self):
-        records = [{'total_score': '5.0'}]
-        result  = calculate_bell_curve_from_scores(records)
-        top     = next(b for b in result if b['rating_range'] == '4.5-5.0')
-        assert top['employee_count'] == 1
+    def test_duplicates_are_merged(self):
+        rows = [
+            {"id": "1", "name": "Colombo"},
+            {"id": "2", "name": "Colombo"},   # same name, different id
+        ]
+        result = unique_by_name(rows)
+        # Should collapse into one entry
+        assert len(result) == 1
+        assert set(result[0]["all_ids"]) == {"1", "2"}
 
-    def test_lower_boundary_exclusive_for_non_top_buckets(self):
-        # score of exactly 2.0 should go to 2.0-2.5, NOT 1.5-2.0
-        records = [{'total_score': '2.0'}]
-        result  = calculate_bell_curve_from_scores(records)
-        lower   = next(b for b in result if b['rating_range'] == '1.5-2.0')
-        upper   = next(b for b in result if b['rating_range'] == '2.0-2.5')
-        assert lower['employee_count'] == 0
-        assert upper['employee_count'] == 1
+    def test_case_insensitive_dedup(self):
+        rows = [
+            {"id": "1", "name": "Finance"},
+            {"id": "2", "name": "FINANCE"},
+        ]
+        result = unique_by_name(rows)
+        assert len(result) == 1
 
-    def test_percentages_sum_to_100(self):
-        records = [{'total_score': str(s)} for s in [1.2, 2.3, 3.4, 4.6]]
-        result  = calculate_bell_curve_from_scores(records)
-        total   = sum(b['percentage'] for b in result)
-        assert round(total, 1) == 100.0
+    def test_whitespace_stripped(self):
+        rows = [
+            {"id": "1", "name": "  HR  "},
+            {"id": "2", "name": "HR"},
+        ]
+        result = unique_by_name(rows)
+        assert len(result) == 1
 
-    def test_records_with_none_score_are_ignored(self):
-        records = [{'total_score': None}, {'total_score': '3.5'}]
-        result  = calculate_bell_curve_from_scores(records)
-        total   = sum(b['employee_count'] for b in result)
-        assert total == 1
+    def test_empty_name_rows_are_dropped(self):
+        rows = [
+            {"id": "1", "name": ""},
+            {"id": "2", "name": None},
+            {"id": "3", "name": "Sales"},
+        ]
+        result = unique_by_name(rows)
+        assert len(result) == 1
+        assert result[0]["name"] == "Sales"
 
-    def test_returns_eight_buckets(self):
-        result = calculate_bell_curve_from_scores([{'total_score': '3.0'}])
-        assert len(result) == 8
+    def test_result_is_sorted_alphabetically(self):
+        rows = [
+            {"id": "3", "name": "Zebra"},
+            {"id": "1", "name": "Apple"},
+            {"id": "2", "name": "Mango"},
+        ]
+        result = unique_by_name(rows)
+        names = [r["name"] for r in result]
+        assert names == sorted(names)
 
-    def test_all_bucket_labels_present(self):
-        expected = ['1.0-1.5', '1.5-2.0', '2.0-2.5', '2.5-3.0',
-                    '3.0-3.5', '3.5-4.0', '4.0-4.5', '4.5-5.0']
-        result = calculate_bell_curve_from_scores([])
-        assert [b['rating_range'] for b in result] == expected
+    def test_empty_input_returns_empty_list(self):
+        assert unique_by_name([]) == []
+
+    def test_all_ids_list_has_correct_length(self):
+        rows = [
+            {"id": "a", "name": "London"},
+            {"id": "b", "name": "London"},
+            {"id": "c", "name": "London"},
+        ]
+        result = unique_by_name(rows)
+        assert len(result[0]["all_ids"]) == 3
