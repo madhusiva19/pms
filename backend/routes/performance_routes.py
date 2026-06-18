@@ -376,3 +376,79 @@ def backfill_scores():
     except Exception as exc:
         print(f"[ERROR] backfill_scores: {exc}")
         return jsonify({"error": str(exc)}), 500
+    
+@performance_bp.route("/api/feedback/<user_id>/<int:year>/<period>", methods=["GET"])
+def get_supervisor_feedback(user_id: str, year: int, period: str):
+    """Return supervisor feedback for a specific employee, year and period."""
+    try:
+        # Find the evaluation for this employee/year/period
+        eval_res = (
+            supabase.table("evaluations")
+            .select("id, evaluator_id")
+            .eq("employee_id", user_id)
+            .eq("year", year)
+            .eq("period", period)
+            .limit(1)
+            .execute()
+        )
+        if not eval_res.data:
+            return jsonify({"feedback": None, "evaluator": None}), 200
+
+        evaluation = eval_res.data[0]
+        eval_id    = evaluation["id"]
+
+        # Get feedback for this evaluation
+        fb_res = (
+            supabase.table("feedback")
+            .select("comment, evaluator_id")
+            .eq("evaluation_id", eval_id)
+            .limit(1)
+            .execute()
+        )
+        if not fb_res.data:
+            return jsonify({"feedback": None, "evaluator": None}), 200
+
+        fb = fb_res.data[0]
+        evaluator = None
+        if fb.get("evaluator_id"):
+            ev_res = (
+                supabase.table("users")
+                .select("full_name")
+                .eq("id", fb["evaluator_id"])
+                .limit(1)
+                .execute()
+            )
+            if ev_res.data:
+                evaluator = {
+                    "name": ev_res.data[0].get("full_name"),
+                    "designation": ""
+                }
+
+        return jsonify({
+            "feedback":  fb.get("comment"),
+            "evaluator": evaluator,
+        }), 200
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/recommendations/<user_id>/<year>/<period>
+# ─────────────────────────────────────────────────────────────────────────────
+
+@performance_bp.route("/api/recommendations/<user_id>/<int:year>/<period>", methods=["GET"])
+def get_ai_recommendations(user_id: str, year: int, period: str):
+    """Return AI recommendations for a specific employee, year and period."""
+    try:
+        result = (
+            supabase.table("performance_ai_recommendations")
+            .select("insight_text, insight_type")
+            .eq("user_id", user_id)
+            .eq("year", year)
+            .eq("period", period)
+            .execute()
+        )
+        return jsonify(result.data or []), 200
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
