@@ -14,13 +14,20 @@ def client():
 @patch("services.profile_service.supabase")
 def test_get_profile_success(mock_supabase, client):
     """Returns profile with flattened designation name."""
-    mock_supabase.table.return_value.select.return_value\
-        .eq.return_value.execute.return_value.data = [{
-            "id":           "emp-123",
-            "full_name":    "Madhu Test",
-            "email":        "madhu@dgl.com",
-            "designations": {"name": "Senior Analyst"}
-        }]
+    def table_mock(table_name):
+        mock_t = MagicMock()
+        if table_name == "users":
+            mock_t.select.return_value.eq.return_value.execute.return_value.data = [{
+                "id":           "emp-123",
+                "full_name":    "Madhu Test",
+                "email":        "madhu@dgl.com",
+                "designations": {"name": "Senior Analyst"}
+            }]
+        else:
+            mock_t.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = []
+        return mock_t
+
+    mock_supabase.table.side_effect = table_mock
 
     res  = client.get("/api/profile/emp-123")
     data = res.get_json()

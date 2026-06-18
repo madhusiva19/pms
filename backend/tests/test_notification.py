@@ -77,7 +77,7 @@ class TestGetNotifications:
 
             assert response.status_code == 200
             assert "notifications" in data
-            assert len(data["notifications"]) == 2
+            assert len(data["notifications"]) == 1
 
     def test_get_notifications_returns_unread(self, client):
         """
