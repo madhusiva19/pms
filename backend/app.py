@@ -21,7 +21,7 @@ from flask_cors import CORS
 
 from routes.evaluator_routes        import evaluator_bp
 from routes.manual_rating_routes    import manual_rating_bp
-from routes.notifications_routes    import notifications_bp
+from routes.notification_routes     import notifications_bp
 from routes.org_routes              import org_bp
 from routes.performance_routes      import performance_bp
 from routes.rating_periods_routes   import rating_periods_bp
