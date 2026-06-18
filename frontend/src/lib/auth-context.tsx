@@ -21,20 +21,26 @@ export interface User {
   iata_branch_code?:  string;
   department_id?:     string;
   sub_department_id?: string;
+  avatar_url?:        string;
 }
 
 interface AuthContextType {
-  user:    User | null;
-  loading: boolean;
-  error:   string | null;
+  user:               User | null;
+  loading:            boolean;
+  error:              string | null;
+  notificationCount:  number;
+  trainingBadgeCount: number;
+  logout:             () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user,    setUser]    = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+  const [user,               setUser]               = useState<User | null>(null);
+  const [loading,            setLoading]            = useState(true);
+  const [error,              setError]              = useState<string | null>(null);
+  const [notificationCount,  setNotificationCount]  = useState(0);
+  const [trainingBadgeCount, setTrainingBadgeCount] = useState(0);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -134,8 +140,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeAuth();
   }, []);
 
+  // Fetch unread notification count whenever the user changes
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('is_read', false)
+      .then(({ count }) => setNotificationCount(count ?? 0));
+  }, [user?.id]);
+
+  // Fetch incomplete training badge count whenever the user changes
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('training_records')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+      .then(({ count }) => setTrainingBadgeCount(count ?? 0));
+  }, [user?.id]);
+
+  // Clear session and reset auth state
+  const logout = () => {
+    sessionStorage.removeItem('demo-role');
+    sessionStorage.removeItem('demo-email');
+    localStorage.removeItem('demo-role');
+    localStorage.removeItem('demo-email');
+    supabase.auth.signOut();
+    setUser(null);
+    setNotificationCount(0);
+    setTrainingBadgeCount(0);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, error }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      error,
+      notificationCount,
+      trainingBadgeCount,
+      logout,
+    }}>
       {children}
     </AuthContext.Provider>
   );
