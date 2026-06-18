@@ -139,8 +139,8 @@ def get_supervisor_feedback(user_id: str, year: int, period: str):
                 "id, evaluator_id, "
                 "users!evaluations_evaluator_id_fkey(full_name, designation_id, designations!fk_designation(name))"
             )
-            .eq("user_id", user_id)
-            .eq("pms_year", year)
+            .eq("employee_id", user_id)
+            .eq("year", year)
             .eq("period", period)
             .limit(1)
             .execute()
@@ -192,7 +192,7 @@ def get_recommendations(user_id: str, year: int, period: str):
             supabase.table("performance_ai_recommendations")
             .select("insight_text, insight_type, sort_order")
             .eq("user_id", user_id)
-            .eq("pms_year", year)
+            .eq("year", year)
             .eq("period", period)
             .order("sort_order")
             .execute()
