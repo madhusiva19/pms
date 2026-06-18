@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <div style={{ display: 'flex', minHeight: '100vh' }}>
             <Sidebar />
-            <main style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+            <main style={{ flex: 1, minWidth: 0, overflow: 'auto', marginLeft: '251px' }}>
               {children}
             </main>
           </div>
