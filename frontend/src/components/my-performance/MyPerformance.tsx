@@ -306,13 +306,14 @@ export default function MyPerformance() {
   } | null>(null);
   const [recommendations, setRecommendations] = useState<{ insight_text: string; insight_type: string }[]>([]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!employeeId) return;
-    fetch(`${API_BASE}/api/feedback/${employeeId}/${activeYear}/${selectedPeriod}`)
+    const yearForPeriod = selectedPeriod === 'H2' ? h2Year : activeYear;
+    fetch(`${API_BASE}/api/feedback/${employeeId}/${yearForPeriod}/${selectedPeriod}`)
       .then(r => r.json()).then(setSupervisorFeedback).catch(() => setSupervisorFeedback(null));
-    fetch(`${API_BASE}/api/recommendations/${employeeId}/${activeYear}/${selectedPeriod}`)
+    fetch(`${API_BASE}/api/recommendations/${employeeId}/${yearForPeriod}/${selectedPeriod}`)
       .then(r => r.json()).then(setRecommendations).catch(() => setRecommendations([]));
-  }, [employeeId, selectedPeriod, activeYear]);
+  }, [employeeId, selectedPeriod, activeYear, h2Year]);
 
   const displayName        = data?.employee?.name        ?? user?.full_name ?? null;
   const displayDesignation = data?.employee?.designation ?? null;
