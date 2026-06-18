@@ -46,7 +46,7 @@ const hqAdminNavItems: NavItem[] = [
   { name: 'My Team',             href: '/my-team',                  icon: Users              },
   { name: 'Rating Settings',     href: '/hq-admin/rating-settings',       icon: Settings           },
   { name: 'Reports',             href: '/hq-admin/reports',               icon: BarChart2          },
-  { name: 'Notifications',       href: '/hq-admin/notifications',          icon: Bell               },
+  { name: 'Notifications',       href: '/hq-admin/notification',          icon: Bell               },
   { name: 'Training Passport',   href: '/hq-admin/training-passport',     icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/hq-admin/potential-assessment', icon: Target, children: [
     { name: 'Team Review',           href: '/hq-admin/potential-assessment',            icon: UserCheck     },
@@ -63,7 +63,7 @@ const countryAdminNavItems: NavItem[] = [
   { name: 'My Performance',      href: '/country-admin/my-performance',       icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/country-admin/rating-settings',      icon: Settings           },
   { name: 'Reports',             href: '/country-admin/reports',              icon: BarChart2          },
-  { name: 'Notifications',       href: '/country-admin/notifications',         icon: Bell               },
+  { name: 'Notifications',       href: '/country-admin/notification',         icon: Bell               },
   { name: 'Training Passport',   href: '/country-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/country-admin/potential-assessment', icon: Target, children: [
     { name: 'Self Assessment', href: '/country-admin/potential-assessment/self-assessment',   icon: ClipboardList },
@@ -80,7 +80,7 @@ const branchAdminNavItems: NavItem[] = [
   { name: 'My Performance',      href: '/branch-admin/my-performance',       icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/branch-admin/rating-settings',      icon: Settings           },
   { name: 'Reports',             href: '/branch-admin/reports',              icon: BarChart2          },
-  { name: 'Notifications',       href: '/branch-admin/notifications',         icon: Bell               },
+  { name: 'Notifications',       href: '/branch-admin/notification',         icon: Bell               },
   { name: 'Training Passport',   href: '/branch-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/branch-admin/potential-assessment', icon: Target, children: [
     { name: 'Self Assessment', href: '/branch-admin/potential-assessment/self-assessment',   icon: ClipboardList },
@@ -97,7 +97,7 @@ const deptAdminNavItems: NavItem[] = [
   { name: 'My Performance',      href: '/dept-admin/my-performance',       icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/dept-admin/rating-settings',      icon: Settings           },
   { name: 'Reports',             href: '/dept-admin/reports',              icon: BarChart2          },
-  { name: 'Notifications',       href: '/dept-admin/notifications',         icon: Bell               },
+  { name: 'Notifications',       href: '/dept-admin/notification',         icon: Bell               },
   { name: 'Training Passport',   href: '/dept-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/dept-admin/potential-assessment', icon: Target, children: [
     { name: 'Self Assessment', href: '/dept-admin/potential-assessment/self-assessment',   icon: ClipboardList },
@@ -114,7 +114,7 @@ const subDeptAdminNavItems: NavItem[] = [
   { name: 'My Performance',      href: '/sub-dept-admin/my-performance',       icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/sub-dept-admin/rating-settings',      icon: Settings           },
   { name: 'Reports',             href: '/sub-dept-admin/reports',              icon: BarChart2          },
-  { name: 'Notifications',       href: '/sub-dept-admin/notifications',         icon: Bell               },
+  { name: 'Notifications',       href: '/sub-dept-admin/notification',         icon: Bell               },
   { name: 'Training Passport',   href: '/sub-dept-admin/training-passport',    icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/sub-dept-admin/potential-assessment', icon: Target, children: [
     { name: 'Self Assessment', href: '/sub-dept-admin/potential-assessment/self-assessment',   icon: ClipboardList },
@@ -127,7 +127,7 @@ const subDeptAdminNavItems: NavItem[] = [
 const employeeNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/employee/dashboard',            icon: LayoutDashboard    },
   { name: 'My Performance',      href: '/employee/my-performance',       icon: TrendingUp         },
-  { name: 'Notifications',       href: '/employee/notifications',         icon: Bell               },
+  { name: 'Notifications',       href: '/employee/notification',         icon: Bell               },
   { name: 'Training Passport',   href: '/employee/training-passport',    icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/employee/potential-assessment', icon: Target             },
   { name: 'My Profile',          href: '/employee/profile',              icon: User               },
