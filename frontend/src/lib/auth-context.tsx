@@ -11,11 +11,12 @@ interface User {
   org_level: number;
   iata_branch_code: string;
   avatar_url?: string | null;
-  // Wathsala's extra fields needed for dashboard/reporting pages
   country_id?: string;
   branch_id?: string;
   dept_id?: string;
   sub_dept_id?: string;
+  department_id?: string;
+  sub_department_id?: string;
 }
 
 interface AuthContextType {
