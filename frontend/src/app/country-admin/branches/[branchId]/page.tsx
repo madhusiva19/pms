@@ -326,6 +326,21 @@ export default function BranchReportPage() {
 
             {/* ← NEW Action buttons */}
             <div className="flex items-center gap-3">
+
+              {/* Workforce Report button — Year-End only */}
+              {user && activeTab === 'year_end' && (
+                <button
+                  onClick={() => router.push('/country-admin/workforce-report')}
+                  className="flex items-center gap-2 px-4 py-2.5 text-[#155DFC] text-[13.5px] font-medium rounded-lg border border-[#155DFC] bg-white hover:bg-[#EFF6FF] active:scale-[0.98] transition-all"
+                >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="20" x2="18" y2="10"/>
+                  <line x1="12" y1="20" x2="12" y2="4"/>
+                  <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+                  Workforce Report
+                </button>
+              )}
               {/* Create Report button — Year-End only */}
               {user && activeTab === 'year_end' && (
                 <button
