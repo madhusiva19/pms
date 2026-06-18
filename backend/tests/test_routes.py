@@ -43,7 +43,7 @@ def app():
     from flask import Flask
     from routes.templates_routes     import templates_bp
     from routes.evaluator_routes     import evaluator_bp
-    from routes.notifications_routes import notifications_bp
+    from routes.notification_routes  import notifications_bp
     from routes.org_routes           import org_bp
     flask_app = Flask(__name__)
     flask_app.config["TESTING"] = True
@@ -61,7 +61,7 @@ def client(app):
 def sb():
     import routes.templates_routes as rt
     import routes.evaluator_routes as re
-    import routes.notifications_routes as rn
+    import routes.notification_routes as rn
     import routes.org_routes as ro
     sb = utils.db.supabase
     for mod in [rt, re, rn, ro]:
