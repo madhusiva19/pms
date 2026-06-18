@@ -618,8 +618,8 @@ export default function ViewTemplatePage() {
   const currentTotal      = editMode ? Math.round(getTotalWeight(editedData) * 100) / 100 : 100;
 
   return (
-    <div style={{ padding: '24px 16px', background: '#F8F9FC', minHeight: '100vh', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: '24px 32px', background: '#F8F9FC', minHeight: '100vh', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px' }}>
 
         {/* Breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, fontSize: 13, color: '#64748B', flexWrap: 'wrap' }}>
