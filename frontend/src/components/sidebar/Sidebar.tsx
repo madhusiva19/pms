@@ -43,7 +43,7 @@ const hqAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/hq-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/hq-admin/template-management',  icon: FileText           },
   { name: 'Appraisal Cycle',     href: '/hq-admin/appraisal-cycle',      icon: CalendarDays       },
-  { name: 'My Team',             href: '/hq-admin/team',                  icon: Users              },
+  { name: 'My Team',             href: '/my-team',                  icon: Users              },
   { name: 'Rating Settings',     href: '/hq-admin/rating-settings',       icon: Settings           },
   { name: 'Reports',             href: '/hq-admin/reports',               icon: BarChart2          },
   { name: 'Notifications',       href: '/hq-admin/notifications',          icon: Bell               },
@@ -59,7 +59,7 @@ const hqAdminNavItems: NavItem[] = [
 const countryAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/country-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/country-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/country-admin/team',                 icon: Users              },
+  { name: 'My Team',             href: '/my-team',                 icon: Users              },
   { name: 'My Performance',      href: '/country-admin/my-performance',       icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/country-admin/rating-settings',      icon: Settings           },
   { name: 'Reports',             href: '/country-admin/reports',              icon: BarChart2          },
@@ -76,7 +76,7 @@ const countryAdminNavItems: NavItem[] = [
 const branchAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/branch-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/branch-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/branch-admin/team',                 icon: Users              },
+  { name: 'My Team',             href: '/my-team',                 icon: Users              },
   { name: 'My Performance',      href: '/branch-admin/my-performance',       icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/branch-admin/rating-settings',      icon: Settings           },
   { name: 'Reports',             href: '/branch-admin/reports',              icon: BarChart2          },
@@ -93,7 +93,7 @@ const branchAdminNavItems: NavItem[] = [
 const deptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/dept-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/dept-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/dept-admin/team',                 icon: Users              },
+  { name: 'My Team',             href: '/my-team',                 icon: Users              },
   { name: 'My Performance',      href: '/dept-admin/my-performance',       icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/dept-admin/rating-settings',      icon: Settings           },
   { name: 'Reports',             href: '/dept-admin/reports',              icon: BarChart2          },
@@ -110,7 +110,7 @@ const deptAdminNavItems: NavItem[] = [
 const subDeptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/sub-dept-admin/dashboard',            icon: LayoutDashboard    },
   { name: 'Template Management', href: '/sub-dept-admin/template-management',  icon: FileText           },
-  { name: 'My Team',             href: '/sub-dept-admin/team',                 icon: Users              },
+  { name: 'My Team',             href: '/my-team',                 icon: Users              },
   { name: 'My Performance',      href: '/sub-dept-admin/my-performance',       icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/sub-dept-admin/rating-settings',      icon: Settings           },
   { name: 'Reports',             href: '/sub-dept-admin/reports',              icon: BarChart2          },
