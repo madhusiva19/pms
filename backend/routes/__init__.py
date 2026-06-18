@@ -1,1 +1,10 @@
-# routes package
+from .auth_routes import auth_bp
+from .profile_routes import profile_bp
+from .diary_routes import diary_bp
+from .notification_routes import notification_bp
+from .training_routes import training_bp
+from .dashboard_routes import dashboard_bp
+from .pms_cycle_routes   import pms_cycle_bp
+from .template_routes    import template_bp
+from .assignment_routes  import assignment_bp
+from .org_routes         import org_bp
