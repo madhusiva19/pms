@@ -1,16 +1,19 @@
 """
 services/notification_service.py
 
-Business logic for the Objective Cut-off Notification System.
-
+Combined notification service:
+1. Objective Cut-off Notification System (dev-final)
+2. Manual Rating Notification broadcasts (minimuthu)
 """
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron         import CronTrigger
 from datetime                          import datetime, date, timedelta, timezone
 import uuid
+import requests as req
 
 from models.supabase_client import supabase
+from models import SUPABASE_URL, SUPABASE_KEY
 from typing import Optional
 
 
@@ -18,8 +21,8 @@ from typing import Optional
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
 
-WARNING_DAYS_BEFORE     = 10  
-GRACE_WARNING_DAYS      = 3    
+WARNING_DAYS_BEFORE = 10
+GRACE_WARNING_DAYS  = 3
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -43,43 +46,27 @@ def _fmt(iso: Optional[str]) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SCHEDULE BUILDER — derives all entries from cycle dates
+# SCHEDULE BUILDER (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_schedule_for_cycle(cycle: dict) -> list[dict]:
-    """
-    Returns the full list of notification entries for the given cycle.
-
-    Each entry has:
-        trigger_date  — "YYYY-MM-DD" when this notification should fire
-        trigger_key   — unique dedup key: "YYYY-MM-DD:role:slug"
-        role          — "all" | "hq_admin" | "country_admin" | etc.
-        level         — int visibility level (99 = all)
-        title         — notification title
-        message       — notification body
-        action_link   — URL
-        event_type    — "warning" | "on_date" | "grace_started" |
-                        "grace_warning" | "grace_ended" | "cycle_start"
-    """
     from models.constants import PMS_START_MONTH, PMS_START_DAY
 
     pms_year      = int(cycle["pms_year"])
     obj_end_iso   = cycle.get("objective_setting_end")
     grace_end_iso = cycle.get("grace_period_end")
-
     obj_end_fmt   = _fmt(obj_end_iso)
     grace_end_fmt = _fmt(grace_end_iso)
 
     entries = []
 
-    # ── helper to append entries cleanly ─────────────────────────────────────
     def add(trigger_iso: str, role: str, level: int,
             slug: str, event_type: str, title: str, message: str,
             action_link: str = "/notifications"):
         entries.append({
             "trigger_date": trigger_iso,
             "trigger_key":  f"{trigger_iso}:{role}:{slug}",
-            "mmdd":         trigger_iso[5:],   # kept for route compat
+            "mmdd":         trigger_iso[5:],
             "role":         role,
             "level":        level,
             "event_type":   event_type,
@@ -88,9 +75,7 @@ def get_schedule_for_cycle(cycle: dict) -> list[dict]:
             "action_link":  action_link,
         })
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # 1. CYCLE START — uses pms_start from DB, falls back to constants
-    # ─────────────────────────────────────────────────────────────────────────
+    # 1. CYCLE START
     pms_start_iso = cycle.get("pms_start")
     try:
         cycle_start = _date(pms_start_iso) if pms_start_iso else date(pms_year, PMS_START_MONTH, PMS_START_DAY)
@@ -98,7 +83,6 @@ def get_schedule_for_cycle(cycle: dict) -> list[dict]:
         cycle_start = date(pms_year, 7, 1)
 
     cycle_start_fmt = _fmt(_iso(cycle_start))
-
     add(
         _iso(cycle_start), "all", 99,
         "cycle_start", "cycle_start",
@@ -108,129 +92,79 @@ def get_schedule_for_cycle(cycle: dict) -> list[dict]:
         "Please begin KPI assignments for your team.",
     )
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # 2. OBJECTIVE SETTING END  (warning + on-date)
-    # ─────────────────────────────────────────────────────────────────────────
+    # 2. OBJECTIVE SETTING END
     if obj_end_iso:
-        obj_end = _date(obj_end_iso)
-
-        # Warning — 10 days before
+        obj_end   = _date(obj_end_iso)
         warn_date = obj_end - timedelta(days=WARNING_DAYS_BEFORE)
 
-        # Sub-Dept warning
-        add(
-            _iso(warn_date), "sub_dept_admin", 5,
-            "obj_end_warning", "warning",
+        add(_iso(warn_date), "sub_dept_admin", 5, "obj_end_warning", "warning",
             "Objective Setting Deadline Approaching",
             f"Warning: Objective setting window closes on {obj_end_fmt} "
             f"({WARNING_DAYS_BEFORE} days remaining). "
             "Please ensure all KPI assignments are complete.",
-            "/template-management",
-        )
-        # Dept warning
-        add(
-            _iso(warn_date), "dept_admin", 4,
-            "obj_end_warning", "warning",
+            "/template-management")
+        add(_iso(warn_date), "dept_admin", 4, "obj_end_warning", "warning",
             "Objective Setting Deadline Approaching",
             f"Warning: Objective setting closes on {obj_end_fmt} "
             f"({WARNING_DAYS_BEFORE} days remaining). "
             "Verify your Sub-Dept Admins are completing KPI assignments.",
-            "/template-management",
-        )
-        # Branch warning
-        add(
-            _iso(warn_date), "branch_admin", 3,
-            "obj_end_warning", "warning",
+            "/template-management")
+        add(_iso(warn_date), "branch_admin", 3, "obj_end_warning", "warning",
             "Objective Setting Deadline Approaching",
             f"Warning: Objective setting closes on {obj_end_fmt} "
             f"({WARNING_DAYS_BEFORE} days remaining). "
             "Confirm Dept Admins in your branch are progressing.",
-            "/template-management",
-        )
-        # Country warning
-        add(
-            _iso(warn_date), "country_admin", 2,
-            "obj_end_warning", "warning",
+            "/template-management")
+        add(_iso(warn_date), "country_admin", 2, "obj_end_warning", "warning",
             "Objective Setting Deadline Approaching",
             f"Warning: Objective setting closes on {obj_end_fmt} "
             f"({WARNING_DAYS_BEFORE} days remaining). "
             "Ensure all branches in your country are completing KPI assignments.",
-            "/template-management",
-        )
-        # HQ warning
-        add(
-            _iso(warn_date), "hq_admin", 1,
-            "obj_end_warning", "warning",
+            "/template-management")
+        add(_iso(warn_date), "hq_admin", 1, "obj_end_warning", "warning",
             f"Final Escalation — Deadline in {WARNING_DAYS_BEFORE} Days",
             f"Final Escalation: Objective setting closes on {obj_end_fmt}. "
             "Any incomplete assignments will be frozen with previous year KPIs. "
             f"Grace period available until {grace_end_fmt}.",
-            "/template-management",
-        )
-
-        # On-date — window closed (all levels)
-        add(
-            _iso(obj_end), "all", 99,
-            "obj_end", "on_date",
+            "/template-management")
+        add(_iso(obj_end), "all", 99, "obj_end", "on_date",
             "Objective Setting Window Closed",
             f"Objective setting window is now CLOSED as of {obj_end_fmt}. "
             "All set objectives are saved. Incomplete objectives are automatically "
-            f"frozen with previous year KPIs. Grace period active until {grace_end_fmt}.",
-        )
+            f"frozen with previous year KPIs. Grace period active until {grace_end_fmt}.")
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # 3. GRACE PERIOD  (started + warning + ended)
-    # ─────────────────────────────────────────────────────────────────────────
+    # 3. GRACE PERIOD
     if grace_end_iso:
         grace_end = _date(grace_end_iso)
 
-        # Grace period STARTED — fires same day as obj_end (HQ only)
         if obj_end_iso:
-            add(
-                obj_end_iso[:10], "hq_admin", 1,
-                "grace_started", "grace_started",
+            add(obj_end_iso[:10], "hq_admin", 1, "grace_started", "grace_started",
                 "Grace Period Now Active",
                 f"Grace period is now active until {grace_end_fmt}. "
                 "Admins may still make corrections during this window. "
-                "Templates will be fully frozen after the grace period ends.",
-            )
+                "Templates will be fully frozen after the grace period ends.")
 
-        # Grace period ENDING SOON — 3 days before (HQ only)
         grace_warn_date = grace_end - timedelta(days=GRACE_WARNING_DAYS)
-        add(
-            _iso(grace_warn_date), "hq_admin", 1,
-            "grace_warning", "grace_warning",
+        add(_iso(grace_warn_date), "hq_admin", 1, "grace_warning", "grace_warning",
             f"Grace Period Ending in {GRACE_WARNING_DAYS} Days",
             f"Warning: Grace period ends on {grace_end_fmt} "
             f"({GRACE_WARNING_DAYS} days remaining). "
-            "After this date, PMS templates will be fully frozen with no further changes allowed.",
-        )
+            "After this date, PMS templates will be fully frozen with no further changes allowed.")
 
-        # Grace period ENDED — on grace_period_end (HQ only)
-        add(
-            _iso(grace_end), "hq_admin", 1,
-            "grace_ended", "grace_ended",
+        add(_iso(grace_end), "hq_admin", 1, "grace_ended", "grace_ended",
             "Grace Period Ended — Templates Frozen",
             f"Grace period ended on {grace_end_fmt}. "
             "PMS templates are now fully frozen. "
-            "No further changes are permitted until the next appraisal cycle.",
-        )
+            "No further changes are permitted until the next appraisal cycle.")
 
     return entries
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GRACE PERIOD BANNER  (called by route, not stored as a notification row)
+# GRACE PERIOD BANNER (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_grace_period_status(cycle: dict) -> Optional[dict]:
-    """
-    Returns banner data when today falls within the grace period.
-    Returns None when outside the grace period.
-
-    Used by GET /notifications/grace-status endpoint.
-    Only relevant for HQ Admin (level 1).
-    """
     obj_end_iso   = cycle.get("objective_setting_end")
     grace_end_iso = cycle.get("grace_period_end")
 
@@ -242,17 +176,16 @@ def get_grace_period_status(cycle: dict) -> Optional[dict]:
     grace_end = _date(grace_end_iso)
 
     if today < obj_end:
-        return None   # objective window still open
+        return None
 
     if today > grace_end:
         return {
-            "status":      "ended",
-            "message":     f"Grace period ended on {_fmt(grace_end_iso)}. Templates are fully frozen.",
-            "grace_end":   grace_end_iso,
-            "days_left":   0,
+            "status":    "ended",
+            "message":   f"Grace period ended on {_fmt(grace_end_iso)}. Templates are fully frozen.",
+            "grace_end": grace_end_iso,
+            "days_left": 0,
         }
 
-    # today is within grace period (obj_end <= today <= grace_end)
     days_left = (grace_end - today).days
     return {
         "status":    "active",
@@ -263,11 +196,10 @@ def get_grace_period_status(cycle: dict) -> Optional[dict]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# VISIBILITY RULE
+# VISIBILITY RULE (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_entries_for_level(user_level: int, cycle: Optional[dict] = None) -> list:
-    """Returns schedule entries visible to the given user level."""
     schedule = get_schedule_for_cycle(cycle) if cycle else []
     result   = [e for e in schedule if e["role"] == "all" or e["level"] == user_level]
     print(f"[notifications] Level {user_level} visible entries: {[e['trigger_key'] for e in result]}")
@@ -275,11 +207,10 @@ def get_entries_for_level(user_level: int, cycle: Optional[dict] = None) -> list
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ACTIVE CYCLE LOOKUP
+# ACTIVE CYCLE LOOKUP (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_active_cycle() -> Optional[dict]:
-    """Fetch the currently active PMS cycle row from pms_cycles."""
     try:
         result = (
             supabase.table("pms_cycles")
@@ -294,12 +225,12 @@ def get_active_cycle() -> Optional[dict]:
         print(f"❌ get_active_cycle: {e}")
         return None
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# DEDUPLICATION
+# DEDUPLICATION (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def already_fired(cycle_id: int, trigger_key: str) -> bool:
-    """Return True if this notification already exists for this cycle."""
     try:
         result = (
             supabase.table("notifications")
@@ -315,17 +246,10 @@ def already_fired(cycle_id: int, trigger_key: str) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CYCLE DATE CHANGE — delete current cycle notifications and re-seed
+# CYCLE DATE CHANGE (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def purge_cycle_notifications(cycle_id: int) -> int:
-    """
-    Deletes ALL objective_cutoff notifications for the given cycle.
-    Called when HQ Admin updates cycle dates so stale notifications are removed.
-    Previous cycle notifications (different cycle_id) are never touched.
-
-    Returns the number of rows deleted.
-    """
     try:
         result = (
             supabase.table("notifications")
@@ -343,25 +267,16 @@ def purge_cycle_notifications(cycle_id: int) -> int:
 
 
 def refresh_notifications_for_cycle(cycle: dict) -> None:
-    """
-    Called when HQ Admin updates cycle dates on the active cycle.
-    Purges all existing notifications for this cycle and re-seeds
-    only the ones whose trigger_date has already passed.
-    """
     purge_cycle_notifications(cycle["id"])
     seed_notifications_for_cycle(cycle)
     print(f"🔄 refresh_notifications_for_cycle({cycle.get('pms_year')}): done")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FIRE A SINGLE NOTIFICATION
+# FIRE A SINGLE NOTIFICATION (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def fire_notification(cycle: dict, entry: dict) -> bool:
-    """
-    Insert one notification row. Idempotent — skips if already exists.
-    Returns True if inserted, False if skipped.
-    """
     cycle_id    = cycle["id"]
     trigger_key = entry["trigger_key"]
 
@@ -392,15 +307,10 @@ def fire_notification(cycle: dict, entry: dict) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SEED — fire all past-due notifications for a cycle
+# SEED (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
+
 def seed_notifications_for_cycle(cycle: dict) -> None:
-    """
-    Fire all notifications whose trigger_date <= today.
-    cycle_start is always fired immediately on creation regardless of date.
-    Skips already-inserted rows (idempotent).
-    Called on new cycle creation AND after a date change (after purge).
-    """
     today  = date.today().isoformat()
     seeded = 0
 
@@ -413,15 +323,10 @@ def seed_notifications_for_cycle(cycle: dict) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DAILY SCHEDULER JOB
+# DAILY SCHEDULER JOB (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_cutoff_notifications_job() -> None:
-    """
-    Runs daily at 08:00. Fires any notification whose trigger_date is today
-    or earlier and hasn't been inserted yet.
-    Re-fetches cycle each run so date changes are always picked up.
-    """
     print(f"🔔 run_cutoff_notifications_job: {datetime.now().isoformat()}")
     cycle = get_active_cycle()
     if not cycle:
@@ -435,7 +340,7 @@ def run_cutoff_notifications_job() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SCHEDULER STARTUP
+# SCHEDULER STARTUP (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def start_scheduler(rollover_fn=None) -> None:
@@ -468,26 +373,21 @@ def start_scheduler(rollover_fn=None) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LEGACY SHIMS
+# LEGACY SHIMS (dev-final)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_trigger_key(pms_year: int, mmdd: str, role: str) -> str:
-    """Kept for route backward compatibility."""
     return f"{pms_year}-{mmdd}:{role}"
 
-CUTOFF_SCHEDULE = []   # legacy shim — use get_schedule_for_cycle(cycle) instead
+CUTOFF_SCHEDULE = []
 
 def init_notifications(_supabase_client=None) -> None:
-    """No-op kept for backward compatibility."""
     pass
 
 
-
-
-# ── ADD at the bottom of YOUR notification_service.py ──
-
-import requests as req
-from models import SUPABASE_URL, SUPABASE_KEY
+# ─────────────────────────────────────────────────────────────────────────────
+# LEGACY NOTIFICATION HELPERS (dev-final)
+# ─────────────────────────────────────────────────────────────────────────────
 
 def get_notifications(employee_id):
     try:
@@ -501,6 +401,7 @@ def get_notifications(employee_id):
         return {"notifications": result.data}, 200
     except Exception as e:
         return {"message": str(e)}, 500
+
 
 def mark_read(notification_id):
     try:
@@ -518,3 +419,233 @@ def mark_read(notification_id):
         return {"message": f"Failed: {response.text}"}, 400
     except Exception as e:
         return {"message": str(e)}, 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MANUAL RATING BROADCAST HELPERS (minimuthu)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_valid_manager_ids(evaluators: list[dict]) -> set[str]:
+    all_manager_ids = list({
+        e["manager_id"]
+        for e in evaluators
+        if e.get("manager_id")
+    })
+
+    if not all_manager_ids:
+        return set()
+
+    rows = (
+        supabase.table("users")
+        .select("id")
+        .in_("id", all_manager_ids)
+        .execute()
+        .data
+        or []
+    )
+    return {r["id"] for r in rows}
+
+
+def _count_manual_objectives(template_id: int) -> int:
+    cat_res = (
+        supabase.table("categories")
+        .select("id")
+        .eq("template_id", template_id)
+        .execute()
+    )
+    cat_ids = [c["id"] for c in (cat_res.data or [])]
+
+    if not cat_ids:
+        return 0
+
+    obj_res = (
+        supabase.table("objectives")
+        .select("id")
+        .in_("category_id", cat_ids)
+        .eq("kpi_scale", "manual")
+        .execute()
+    )
+    return len(obj_res.data or [])
+
+
+def _count_submitted(user_id: str, period: str, pms_year: int) -> int:
+    res = (
+        supabase.table("performance_records")
+        .select("objective_id")
+        .eq("user_id", user_id)
+        .eq("period", period)
+        .eq("year", pms_year)
+        .not_.is_("manual_rating", "null")
+        .execute()
+    )
+    return len(res.data or [])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MANUAL RATING BROADCAST (minimuthu)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def broadcast_notifications(
+    notif_type: str,
+    period: str,
+    pms_year: int,
+) -> int:
+    evaluator_roles = ["branch_admin", "dept_admin", "sub_dept_admin", "country_admin"]
+
+    evaluators = (
+        supabase.table("users")
+        .select("id, full_name, manager_id, role")
+        .in_("role", evaluator_roles)
+        .execute()
+        .data
+        or []
+    )
+
+    valid_manager_ids = _get_valid_manager_ids(evaluators)
+    notifications_to_insert: list[dict] = []
+
+    for evaluator in evaluators:
+        assign_res = (
+            supabase.table("template_assignments")
+            .select("template_id")
+            .eq("user_id", evaluator["id"])
+            .limit(1)
+            .execute()
+        )
+        if not assign_res.data:
+            continue
+
+        template_id   = assign_res.data[0]["template_id"]
+        total_manual  = _count_manual_objectives(template_id)
+        submitted     = _count_submitted(evaluator["id"], period, pms_year)
+        pending       = max(0, total_manual - submitted)
+        manager_id    = evaluator.get("manager_id")
+        valid_manager = manager_id if manager_id in valid_manager_ids else None
+
+        if notif_type == "period_opened":
+            notifications_to_insert.append({
+                "recipient_id": evaluator["id"],
+                "sender_id":    None,
+                "type":         "period_opened",
+                "title":        f"Manual Rating Window Open — {period} {pms_year}",
+                "message": (
+                    f"The manual rating window for {period} {pms_year} is now open. "
+                    f"You have {total_manual} manual KPI(s) to rate. "
+                    "Please complete all ratings before the deadline."
+                ),
+                "period":   period,
+                "pms_year": pms_year,
+                "is_read":  False,
+            })
+
+        elif notif_type == "deadline_warning" and pending > 0:
+            plural = "s" if pending > 1 else ""
+            notifications_to_insert.append({
+                "recipient_id": evaluator["id"],
+                "sender_id":    None,
+                "type":         "deadline_warning",
+                "title":        f"Manual Ratings Due in 3 Days — {period} {pms_year}",
+                "message": (
+                    f"You have {pending} pending manual rating{plural} due in 3 days "
+                    f"for {period} {pms_year}. "
+                    "Please complete them before the window closes."
+                ),
+                "period":   period,
+                "pms_year": pms_year,
+                "is_read":  False,
+            })
+            if valid_manager:
+                notifications_to_insert.append({
+                    "recipient_id": valid_manager,
+                    "sender_id":    None,
+                    "type":         "supervisor_alert",
+                    "title":        f"Team Member Has Pending Ratings — {period} {pms_year}",
+                    "message": (
+                        f"{evaluator['full_name']} has {pending} pending manual "
+                        f"rating{plural} due in 3 days for {period} {pms_year}. "
+                        "Please follow up."
+                    ),
+                    "period":   period,
+                    "pms_year": pms_year,
+                    "is_read":  False,
+                })
+
+        elif notif_type == "period_closed" and pending > 0 and valid_manager:
+            plural = "s" if pending > 1 else ""
+            notifications_to_insert.append({
+                "recipient_id": valid_manager,
+                "sender_id":    None,
+                "type":         "supervisor_alert",
+                "title":        f"Incomplete Ratings After Period Closed — {period} {pms_year}",
+                "message": (
+                    f"{evaluator['full_name']} has {pending} incomplete manual "
+                    f"rating{plural} after the {period} {pms_year} window has closed."
+                ),
+                "period":   period,
+                "pms_year": pms_year,
+                "is_read":  False,
+            })
+
+    if notifications_to_insert:
+        supabase.table("manual_rating_notifications").insert(
+            notifications_to_insert
+        ).execute()
+
+    return len(notifications_to_insert)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SEND ONE-TO-ONE REMINDER (minimuthu)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def send_reminder(
+    sender_id: str,
+    recipient_id: str,
+    period: str,
+    pms_year: int,
+    message: str,
+) -> dict:
+    recipient_res = (
+        supabase.table("users")
+        .select("id, full_name, manager_id")
+        .eq("id", recipient_id)
+        .single()
+        .execute()
+    )
+
+    if not recipient_res.data:
+        raise ValueError("Recipient not found")
+
+    if str(recipient_res.data.get("manager_id")) != str(sender_id):
+        raise PermissionError("Sender is not the direct manager of this recipient")
+
+    sender_res = (
+        supabase.table("users")
+        .select("full_name")
+        .eq("id", sender_id)
+        .single()
+        .execute()
+    )
+    sender_name = (
+        sender_res.data.get("full_name", "Your Supervisor")
+        if sender_res.data
+        else "Your Supervisor"
+    )
+
+    final_message = message or (
+        f"{sender_name} has requested you complete your pending manual "
+        f"ratings for {period} {pms_year} urgently."
+    )
+
+    supabase.table("manual_rating_notifications").insert({
+        "recipient_id": recipient_id,
+        "sender_id":    sender_id,
+        "type":         "manual_reminder",
+        "title":        "Manual Rating Reminder",
+        "message":      final_message,
+        "period":       period,
+        "pms_year":     pms_year,
+        "is_read":      False,
+    }).execute()
+
+    return {"success": True}

@@ -1,42 +1,25 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Suspense } from "react";
-import "./globals.css";
-import { AuthProvider } from "@/lib/auth-context";
-import { Toaster } from "sonner";
-import AppShell from "@/components/shared/AppShell";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import Sidebar from '../components/sidebar/Sidebar';
+import { AuthProvider } from '@/lib/auth-context';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ['latin'] });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+export const metadata: Metadata = { title: 'PMS - Dart Global Logistics' };
 
-export const metadata: Metadata = {
-  title: "DGL Performance Management System",
-  description: "DGL Performance Management System",
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        <Suspense>
-          <AuthProvider>
-            <AppShell>
+      <body style={{ margin: 0, padding: 0, background: '#F9FAFB' }}>
+        <AuthProvider>
+          <div style={{ display: 'flex', minHeight: '100vh' }}>
+            <Sidebar />
+            <main style={{ flex: 1, minWidth: 0, overflow: 'auto', marginLeft: '251px' }}>
               {children}
-            </AppShell>
-            <Toaster />
-          </AuthProvider>
-        </Suspense>
+            </main>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );
