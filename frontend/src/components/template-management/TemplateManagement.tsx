@@ -110,7 +110,7 @@ export default function TemplatesListPage() {
       minHeight: '100vh',
       background: '#F8F9FC',
       fontFamily: "'Inter', 'Segoe UI', sans-serif",
-      padding: '32px',
+      padding: '50px',
       boxSizing: 'border-box',
     }}>
       <style>{`
