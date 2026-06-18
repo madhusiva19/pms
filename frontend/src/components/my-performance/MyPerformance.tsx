@@ -319,7 +319,7 @@ export default function MyPerformance() {
   const displayDesignation = data?.employee?.designation ?? null;
 
   return (
-    <div style={{ minHeight: '100vh', background: C.pageBg, fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: C.pageBg, fontFamily: 'Inter, sans-serif', padding: '0 36px' }}>
       <div style={{ padding: '24px' }}>
 
         {/* Breadcrumb */}
