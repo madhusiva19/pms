@@ -7,7 +7,8 @@
 
 import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
-import { MapPin } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { MapPin, BarChart2 } from 'lucide-react';
 import CountryCard from '@/components/shared/CountryCard';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
@@ -17,6 +18,7 @@ import { countriesApi } from '@/services/api';
 import type { Country } from '@/types';
 
 export default function ReportsListingPage() {
+  const router = useRouter();
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,6 +60,16 @@ export default function ReportsListingPage() {
               Select a country to view detailed performance metrics and generate reports.
             </p>
           </div>
+
+          {/* Workforce Report button */}
+          <button
+            type="button"
+            onClick={() => router.push('/hq-admin/workforce-report')}
+            className="flex items-center gap-2 px-4 py-2.5 text-[#155DFC] text-[13.5px] font-medium rounded-lg border border-[#155DFC] bg-white hover:bg-[#EFF6FF] active:scale-[0.98] transition-all"
+          >
+            <BarChart2 className="w-4 h-4" />
+            Workforce Report
+          </button>
         </div>
 
         {/* Search bar */}

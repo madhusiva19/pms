@@ -317,17 +317,6 @@ export default function CountryReportPage() {
 
             {/* ← NEW Action buttons */}
             <div className="flex items-center gap-3">
-              {/* Workforce Performance Report button — Year-End only */}
-              {activeTab === 'year_end' && (
-                <button
-                  type="button"
-                  onClick={() => router.push('/hq-admin/reports/workforce')}
-                  className="flex items-center gap-2 px-4 py-2.5 text-[#155DFC] text-[13.5px] font-medium rounded-lg border border-[#155DFC] bg-white hover:bg-[#EFF6FF] active:scale-[0.98] transition-all"
-                >
-                  <BarChart2 className="w-4 h-4" />
-                  Workforce Report
-                </button>
-              )}
 
               {/* Create Report button — Year-End only */}
               {user && activeTab === 'year_end' && (
