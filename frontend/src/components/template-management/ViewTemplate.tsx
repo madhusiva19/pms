@@ -322,9 +322,9 @@ export default function ViewTemplatePage() {
       .then(r => r.json())
       .then(d => { setCycleState(d); setCycleLoading(false); })
       .catch(() => {
-        setCycleState({ cycle: null, editing_open: false, reason: 'Could not load PMS cycle' });
-        setCycleLoading(false);
-      });
+    setCycleState({ cycle: null, editing_open: false, reason: 'Could not load PMS cycle' });
+    setCycleLoading(false);
+  });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId, user?.id]);
 
