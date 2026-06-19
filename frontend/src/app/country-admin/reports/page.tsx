@@ -7,7 +7,7 @@
 
 import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
-import { Building } from 'lucide-react';
+import { Building, BarChart2 } from 'lucide-react';
 import BranchCard from '@/components/shared/BranchCard';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
@@ -76,6 +76,16 @@ export default function CountryAdminReportsPage() {
               Select a branch to view detailed performance metrics and generate reports.
             </p>
           </div>
+
+          {/* Workforce Report button */}
+          <button
+            type="button"
+            onClick={() => router.push('/country-admin/workforce-report')}
+            className="flex items-center gap-2 px-4 py-2.5 text-[#155DFC] text-[13.5px] font-medium rounded-lg border border-[#155DFC] bg-white hover:bg-[#EFF6FF] active:scale-[0.98] transition-all"
+          >
+            <BarChart2 className="w-4 h-4" />
+            Workforce Report
+          </button>
         </div>
 
         {/* Search bar */}
