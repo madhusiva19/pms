@@ -95,7 +95,7 @@ export default function ManualRatingsPage() {
       const [teamRes, objRes, periodRes, profileRes] = await Promise.all([
         fetch(`${API}/api/evaluator/${evaluatorId}/team`),
         fetch(`${API}/api/manual-objectives/${userId}?year=${year}&period=${period}`),
-        fetch(`${API}/api/rating-periods/current`),
+        fetch(`${API}/api/rating-periods/current?user_id=${userId}`),
         fetch(`${API}/api/evaluator/${userId}/profile`),
       ]);
 
@@ -321,13 +321,12 @@ export default function ManualRatingsPage() {
   );
 
   // Reusable table cell style helpers to keep the JSX DRY
-  const P = '16px 20px';
+  const P = '10px 20px';
 
   const thStyle = (align: 'left' | 'center' = 'left'): React.CSSProperties => ({
-    padding: '12px 20px', textAlign: align, color: '#64748B',
-    fontWeight: 600, fontSize: 11,
-    textTransform: 'uppercase', letterSpacing: '0.07em',
-    borderBottom: '1px solid #E2E8F0',
+    padding: '14px 20px', textAlign: align, color: '#64748B',
+    fontWeight: 600, fontSize: 12,
+    textTransform: 'uppercase', letterSpacing: '0.05em',
   });
 
   const tdBase = (align: 'left' | 'center' = 'left', extra?: React.CSSProperties): React.CSSProperties => ({
@@ -371,7 +370,7 @@ export default function ManualRatingsPage() {
 
   return (
     <div style={{
-      padding: '24px 16px', background: '#F8F9FC',
+      padding: '24px 32px', background: '#F8F9FC',
       minHeight: '100vh', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
     }}>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -470,19 +469,34 @@ export default function ManualRatingsPage() {
         <div style={{
           background: '#fff',
           border: '1px solid #E2E8F0',
-          borderRadius: 14,
+          borderRadius: 12,
           overflow: 'hidden',
           marginBottom: 20,
           boxShadow: '0 2px 8px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03)',
         }}>
-          {/* ── Full blue header bar, white text, no subtitle ── */}
+          {/* ── Header bar — blue background, white text, with progress badge ── */}
           <div style={{
-            padding: '18px 24px',
+            padding: '16px 24px',
             background: '#3B82F6',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8,
           }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#FFFFFF', lineHeight: 1.3 }}>
-              Manual Ratings
-            </h3>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#FFFFFF', lineHeight: 1.3 }}>
+                Manual Ratings
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#DBEAFE' }}>
+                {objectives.length} objective{objectives.length !== 1 ? 's' : ''} · {fiscalLabel(year, period)}
+              </p>
+            </div>
+            {!hasNoObjectives && (
+              <span style={{
+                fontSize: 11.5, fontWeight: 600, padding: '4px 10px', borderRadius: 20,
+                background: 'rgba(255,255,255,0.2)',
+                color: '#FFFFFF',
+              }}>
+                {objectives.length - pendingCount}/{objectives.length} rated
+              </span>
+            )}
           </div>
 
           <div style={{ overflowX: 'auto' }}>
@@ -510,7 +524,7 @@ export default function ManualRatingsPage() {
                   <col style={{ width: '32%' }} />
                 </colgroup>
                 <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E5E7EB' }}>
                     <th style={thStyle('left')}>Category</th>
                     <th style={thStyle('left')}>Objective</th>
                     <th style={thStyle('left')}>KPI Scale</th>
@@ -540,19 +554,23 @@ export default function ManualRatingsPage() {
                         const rowBg           = oi === 0 ? '#F8FAFF' : '#fff';
 
                         return (
-                          <tr key={obj.objective_id} style={{
-                            borderTop:    oi === 0 && gi > 0 ? '2px solid #E2E8F0' : '1px solid #F1F5F9',
-                            borderBottom: 'none',
-                            background:   rowBg,
-                            transition:   'background 0.15s',
-                          }}>
+                          <tr
+                            key={obj.objective_id}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#FAFAFA')}
+                            onMouseLeave={e => (e.currentTarget.style.background = rowBg)}
+                            style={{
+                              borderBottom: '1px solid #F1F5F9',
+                              background:   rowBg,
+                              transition:   'background 0.15s',
+                            }}
+                          >
 
                             {/* Category */}
                             <td style={tdBase('left', {
                               color:      '#0F172A',
                               fontWeight: oi === 0 ? 700 : 400,
                               fontSize:   13,
-                              borderLeft: oi === 0 ? '4px solid #2563EB' : '4px solid transparent',
+                              borderLeft: oi === 0 ? '3px solid #93C5FD' : '3px solid transparent',
                               background: rowBg,
                               paddingLeft: 16,
                             })}>
@@ -596,11 +614,11 @@ export default function ManualRatingsPage() {
                                 readOnly={viewOnly}
                                 style={{
                                   width: 88,
-                                  padding: '9px 10px',
+                                  padding: '7px 10px',
                                   textAlign: 'center',
                                   border: `1.5px solid ${hasRatingError ? '#F87171' : '#CBD5E1'}`,
                                   borderRadius: 8,
-                                  fontSize: 15,
+                                  fontSize: 14,
                                   fontWeight: 600,
                                   color: '#1E293B',
                                   background: hasRatingError ? '#FFF5F5' : viewOnly ? '#F8F9FC' : '#fff',
@@ -621,7 +639,7 @@ export default function ManualRatingsPage() {
                             </td>
 
                             {/* Comment input */}
-                            <td style={tdBase('left', { background: rowBg, paddingTop: 10, paddingBottom: 10 })}>
+                            <td style={tdBase('left', { background: rowBg, paddingTop: 8, paddingBottom: 8 })}>
                               <textarea
                                 placeholder={
                                   isBelowThree
@@ -631,10 +649,10 @@ export default function ManualRatingsPage() {
                                 value={comments[obj.objective_id] ?? ''}
                                 onChange={e => !viewOnly && handleCommentChange(obj.objective_id, e.target.value)}
                                 readOnly={viewOnly}
-                                rows={2}
+                                rows={1}
                                 style={{
                                   width: '100%',
-                                  padding: '9px 12px',
+                                  padding: '7px 12px',
                                   border: `1.5px solid ${
                                     hasCommentError
                                       ? '#F87171'
@@ -730,7 +748,7 @@ export default function ManualRatingsPage() {
             display: 'flex', alignItems: 'center', gap: 12,
             padding: '18px 24px', background: '#fff',
             border: '1px solid #E2E8F0',
-            borderRadius: 14,
+            borderRadius: 12,
             boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
             flexWrap: 'wrap',
           }}>
