@@ -104,73 +104,58 @@ export default function DeptAdminReportDetailPage() {
   }, [user?.iata_branch_code, activeTab, reportYear]);
 
   const fetchAllData = async () => {
+    setLoading(true);
+    setError(null);
+    setBellCurveData([]);
+    setComparisonData([]);
+    setInsights([]);
+    setMetrics(null);
+
+    // ── Critical: page cannot render without these ──
+    let branchData: Branch;
+    let summaryData: BranchDashboardSummary;
     try {
-      setLoading(true);
-      setError(null);
-      // Clear previous data to prevent stale charts showing on tab switch
-      setBellCurveData([]);
-      setComparisonData([]);
-      setInsights([]);
-      setMetrics(null);
-
-      const branchData = await branchByCodeApi.get(user!.iata_branch_code!);
+      branchData = await branchByCodeApi.get(user!.iata_branch_code!);
       setBranch(branchData);
-
-      const summaryData = await branchDashboardApi.getSummary(branchData.id);
+      summaryData = await branchDashboardApi.getSummary(branchData.id);
       setSummary(summaryData);
-
-      const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
-
-      // Fetch dynamic metrics scoped to this sub-department
-      const metricsData = await metricsApi.get({
-        period_type: activeTab,
-        year: reportYear!,
-        scope: 'sub_department',
-        scope_id: subDeptId,
-      });
-      setMetrics(metricsData);
-
-      // Bell curve — always fetch, independent of activeReport
-      const bellCurve = await bellCurveApi.getLive({
-        period_type: activeTab,
-        year: reportYear!,
-        scope: 'sub_department',
-        scope_id: subDeptId,
-      });
-      setBellCurveData(bellCurve as any);
-
-      // Insights — still gated on activeReport (uses legacy report table IDs)
-      if (activeReport) {
-        const insightsData = await branchInsightsApi.getByReport(activeReport.id);
-        if (insightsData && insightsData.length > 0) {
-          setInsights(insightsData);
-        } else {
-          const fallbackInsight = activeTab === 'mid_year'
-            ? FALLBACK_INSIGHT_MID_YEAR
-            : FALLBACK_INSIGHT_YEAR_END;
-          setInsights([{
-            id: 'fallback-insight',
-            report_id: activeReport.id,
-            insight_text: fallbackInsight,
-            insight_type: 'distribution_analysis',
-            created_at: new Date().toISOString(),
-          }]);
-        }
-      }
-
-      // Comparison — always fetch live data for both periods
-      const comparison = await comparisonLiveApi.get({
-        year: reportYear!,
-        scope: 'sub_department',
-        scope_id: subDeptId,
-      });
-      setComparisonData(comparison);
     } catch (err) {
-      setError('Failed to load report data. Please try again.');
       logger.error('Failed to load sub-department report data', err);
-    } finally {
+      setError('Failed to load report data. Please try again.');
       setLoading(false);
+      return;
     }
+
+    // ── Non-critical: charts/metrics degrade gracefully on failure ──
+    const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
+
+    await Promise.allSettled([
+      metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'sub_department', scope_id: subDeptId })
+        .then(setMetrics)
+        .catch(() => setMetrics(null)),
+
+      bellCurveApi.getLive({ period_type: activeTab, year: reportYear!, scope: 'sub_department', scope_id: subDeptId })
+        .then(d => setBellCurveData(d as any))
+        .catch(() => setBellCurveData([])),
+
+      (activeReport
+        ? branchInsightsApi.getByReport(activeReport.id).then(data => {
+            if (data && data.length > 0) {
+              setInsights(data);
+            } else {
+              const fallback = activeTab === 'mid_year' ? FALLBACK_INSIGHT_MID_YEAR : FALLBACK_INSIGHT_YEAR_END;
+              setInsights([{ id: 'fallback-insight', report_id: activeReport.id, insight_text: fallback, insight_type: 'distribution_analysis', created_at: new Date().toISOString() }]);
+            }
+          })
+        : Promise.resolve()
+      ).catch(() => {}),
+
+      comparisonLiveApi.get({ year: reportYear!, scope: 'sub_department', scope_id: subDeptId })
+        .then(setComparisonData)
+        .catch(() => setComparisonData([])),
+    ]);
+
+    setLoading(false);
   };
 
   const handleDownload = async () => {
