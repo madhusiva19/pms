@@ -3,6 +3,49 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
+// html2canvas cannot render <svg> elements reliably (Recharts, etc.).
+// This helper replaces each SVG with an <img> snapshot before capture,
+// then returns a function that restores the originals.
+async function swapSvgsForImages(element: HTMLElement): Promise<() => void> {
+  const svgs = Array.from(element.querySelectorAll('svg'));
+  const swaps: Array<{ parent: Node; svg: SVGElement; img: HTMLImageElement }> = [];
+
+  for (const svg of svgs) {
+    const rect = svg.getBoundingClientRect();
+    const w = Math.round(rect.width)  || svg.clientWidth  || 300;
+    const h = Math.round(rect.height) || svg.clientHeight || 150;
+
+    const clone = svg.cloneNode(true) as SVGElement;
+    clone.setAttribute('width',  String(w));
+    clone.setAttribute('height', String(h));
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+    const dataUrl =
+      'data:image/svg+xml;charset=utf-8,' +
+      encodeURIComponent(new XMLSerializer().serializeToString(clone));
+
+    const img = document.createElement('img');
+    img.width  = w;
+    img.height = h;
+    img.style.display = 'block';
+
+    await new Promise<void>((resolve) => {
+      img.onload  = () => resolve();
+      img.onerror = () => resolve();
+      img.src = dataUrl;
+    });
+
+    svg.parentNode!.replaceChild(img, svg);
+    swaps.push({ parent: svg.parentNode!, svg, img });
+  }
+
+  return () => {
+    for (const { svg, img } of swaps) {
+      img.parentNode?.replaceChild(svg, img);
+    }
+  };
+}
+
 export interface ReportHeaderInfo {
   entityType: string;
   entityName: string;
@@ -47,13 +90,19 @@ export async function downloadReportAsPDF(
   const element = document.getElementById(elementId);
   if (!element) throw new Error('Report element not found');
 
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    useCORS: true,
-    allowTaint: true,
-    backgroundColor: '#FFFFFF',
-    logging: false,
-  });
+  const restoreSvgs = await swapSvgsForImages(element);
+
+  let canvas: HTMLCanvasElement;
+  try {
+    canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#FFFFFF',
+      logging: false,
+    });
+  } finally {
+    restoreSvgs();
+  }
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = pdf.internal.pageSize.getWidth();
