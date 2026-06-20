@@ -263,9 +263,7 @@ export default function BranchReportPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
         <div className="text-center">
-          <p className="text-red-600 mb-4 font-bold text-lg">{error || 'Branch or report data not found'}</p>
-          {error && <p className="text-gray-600 mb-4 text-sm">{error}</p>}
-          {!branch && <p className="text-gray-600 mb-4 text-sm">Branch ID: {branchId}</p>}
+          <p className="text-red-600 mb-4">{error || 'Branch or report data not found'}</p>
           <button
             onClick={() => router.push('/country-admin/reports')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
