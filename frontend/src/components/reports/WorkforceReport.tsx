@@ -240,13 +240,29 @@ export default function WorkforceReport() {
             </p>
           </div>
           {total > 0 && (
-            <button onClick={onPdf} disabled={pdfLoading} style={{
-              display:'flex',alignItems:'center',gap:6,padding:'7px 16px',borderRadius:8,
-              border:'1px solid #BFDBFE',background:C.blueBg,color:C.blue,
-              fontSize:13,fontWeight:600,cursor:pdfLoading?'wait':'pointer',fontFamily:'inherit',
-              opacity:pdfLoading?0.7:1,
-            }}>
-              <Download size={13}/> {pdfLoading ? 'Preparing…' : 'Download PDF'}
+            <button
+              onClick={onPdf}
+              disabled={pdfLoading}
+              onMouseEnter={e => {
+                if (!pdfLoading) {
+                  e.currentTarget.style.background = '#BFDBFE';
+                  e.currentTarget.style.borderColor = '#60A5FA';
+                }
+              }}
+              onMouseLeave={e => {
+                if (!pdfLoading) {
+                  e.currentTarget.style.background = C.blueBg;
+                  e.currentTarget.style.borderColor = '#BFDBFE';
+                }
+              }}
+              style={{
+                display:'flex',alignItems:'center',gap:6,padding:'7px 16px',borderRadius:8,
+                border:'1px solid #BFDBFE',background:C.blueBg,color:C.blue,
+                fontSize:13,fontWeight:600,cursor:pdfLoading?'wait':'pointer',fontFamily:'inherit',
+                opacity:pdfLoading?0.7:1, transition:'background 0.15s, border-color 0.15s',
+              }}
+            >
+             <Download size={13}/> {pdfLoading ? 'Preparing…' : 'Download PDF'}
             </button>
           )}
         </div>
