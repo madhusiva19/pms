@@ -32,6 +32,34 @@ _SCOPE_FIELD_MAP = {
 }
 
 
+_BATCH_SIZE = 100
+
+
+def fetch_summaries_for_ids(emp_ids: list, year: int, period: str, columns: str = 'user_id, total_score') -> list:
+    """Fetch performance_summaries for a list of employee IDs in sequential batches.
+
+    Splits emp_ids into chunks of _BATCH_SIZE to stay under PostgREST URL length limits.
+    Sequential (not parallel) to avoid supabase-py httpx client thread-safety issues.
+    Each batch uses execute_with_retry to absorb transient Supabase/network blips
+    instead of failing the whole report with an intermittent 500.
+    """
+    rows = []
+    for i in range(0, len(emp_ids), _BATCH_SIZE):
+        batch = emp_ids[i:i + _BATCH_SIZE]
+        result = execute_with_retry(
+            lambda b=batch: (
+                supabase.table('performance_summaries')
+                .select(columns)
+                .eq('pms_year', year)
+                .eq('period', period)
+                .in_('user_id', b)
+                .execute()
+            )
+        )
+        rows.extend(result.data)
+    return rows
+
+
 def resolve_emp_ids_by_scope(scope: str, scope_id: str) -> list:
     """Return employee user IDs for the given scope and scope_id."""
     if scope == 'employee':

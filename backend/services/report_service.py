@@ -1,5 +1,5 @@
 from models.supabase_client import supabase
-from utils.helpers import resolve_emp_ids_by_scope
+from utils.helpers import resolve_emp_ids_by_scope, fetch_summaries_for_ids
 from datetime import datetime
 
 
@@ -88,8 +88,8 @@ def get_report_metrics(period_type: str, year: int, scope: str, scope_id: str, e
     if not emp_ids:
         return {'total_evaluated': 0, 'avg_score': 0.0, 'top_performers': 0, 'employee_score': None}
 
-    summaries = supabase.table('performance_summaries').select('user_id, total_score').eq('pms_year', year).eq('period', db_period).in_('user_id', emp_ids).execute()
-    scores = [float(r['total_score']) for r in summaries.data if r.get('total_score') is not None]
+    all_rows = fetch_summaries_for_ids(emp_ids, year, db_period)
+    scores = [float(r['total_score']) for r in all_rows if r.get('total_score') is not None]
 
     # 8 equal-width buckets across the 1.0–5.0 range; midpoint used for weighted average
     bell_curve_buckets = [

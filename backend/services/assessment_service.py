@@ -51,7 +51,29 @@ def strip_supervisor_columns(items: list, status: str) -> list:
 def get_notifications(user_id: str) -> list:
     # desc=True: latest notification appears first so the UI needs no client-side sort
     resp = supabase.table('potential_assessment_notifications').select('*').eq('recipient_id', user_id).order('created_at', desc=True).execute()
-    return resp.data or []
+    notifications = resp.data or []
+
+    # Enrich reconsideration_request notifications with the current review outcome so the
+    # UI can distinguish "pending" from "already reviewed" without a separate API call.
+    # Wrapped in try/except so a DB failure here never breaks the base notification list.
+    try:
+        recon_notifs = [n for n in notifications if n.get('type') == 'reconsideration_request' and n.get('assessment_id')]
+        if recon_notifs:
+            assessment_ids = list({n['assessment_id'] for n in recon_notifs})
+            recon_resp = supabase.table('potential_assessment_reconsiderations') \
+                .select('assessment_id, action, reviewed_at, reviewed_by') \
+                .in_('assessment_id', assessment_ids) \
+                .execute()
+            recon_map = {r['assessment_id']: r for r in (recon_resp.data or [])}
+            for n in notifications:
+                if n.get('type') == 'reconsideration_request' and n.get('assessment_id') in recon_map:
+                    rec = recon_map[n['assessment_id']]
+                    n['reconsideration_action'] = rec.get('action')
+                    n['reconsideration_reviewed_at'] = rec.get('reviewed_at')
+    except Exception as e:
+        print(f'[NOTIFICATION ENRICH ERROR] failed to enrich reconsideration status: {e}')
+
+    return notifications
 
 
 def mark_notification_read(notification_id: str) -> dict | None:
