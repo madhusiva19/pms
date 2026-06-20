@@ -11,8 +11,6 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { serialize } from 'v8';
-
 export interface TeamScoreEntry {
   employeeId: string;
   name: string;
