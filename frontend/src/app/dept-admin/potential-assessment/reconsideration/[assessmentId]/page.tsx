@@ -162,7 +162,12 @@ export default function DeptAdminReconsiderationReviewPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
-      <Breadcrumb />
+      <Breadcrumb items={[
+        { label: 'Dept Admin', href: '/dept-admin' },
+        { label: 'Potential Assessment', href: '/dept-admin/potential-assessment' },
+        { label: 'Reconsideration', href: '/dept-admin/potential-assessment/reconsideration' },
+        { label: assessment.employee_name ?? 'Review' },
+      ]} />
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Reconsideration Review</h1>
