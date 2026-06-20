@@ -1,0 +1,26 @@
+{
+  "name": "evaluation-system-react-typescript",
+  "version": "1.0.0",
+  "description": "Team Evaluation System with React and TypeScript",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.3",
+    "axios": "^1.4.0",
+    "next": "16.1.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.27",
+    "typescript": "^6.0.3"
+  }
+}
