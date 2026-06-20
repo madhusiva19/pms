@@ -1123,13 +1123,17 @@ export default function RatingSettings() {
                           {renderStatus()}
                         </td>
                         <td style={{ padding: '6px 20px', textAlign: 'center' }}>
-                          <EnterRatingsBtn
-                            ratingIsOpen={ratingIsOpen}
-                            reenter={status?.submitted === true}
-                            onClick={() => router.push(
+                          {status && status.total === 0 ? (
+                            <span style={{ fontSize: 12, color: '#CBD5E1' }}>—</span>
+                          ) : (
+                            <EnterRatingsBtn
+                              ratingIsOpen={ratingIsOpen}
+                              reenter={status?.submitted === true}
+                              onClick={() => router.push(
                               `/${roleSlug}/manual-rating?userId=${member.id}&year=${pmsYear}&period=${selectedPeriod}${!ratingIsOpen ? '&viewOnly=true' : ''}`
                             )}
-                          />
+                            />
+                          )}
                         </td>
                       </tr>
                     );
