@@ -103,67 +103,56 @@ export default function CountryReportPage() {
   }, [countryId, activeTab, reportYear]);
 
   const fetchAllData = async () => {
+    setLoading(true);
+    setError(null);
+
+    // ── Critical: page cannot render without these ──
+    let countryData: Country;
+    let summaryData: DashboardSummary;
     try {
-      setLoading(true);
-      setError(null);
-
-      const countryData = await countriesApi.getById(countryId);
+      [countryData, summaryData] = await Promise.all([
+        countriesApi.getById(countryId),
+        dashboardApi.getSummary(countryId),
+      ]);
       setCountry(countryData);
-
-      const summaryData = await dashboardApi.getSummary(countryId);
       setSummary(summaryData);
-
-      const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
-
-      // Fetch live bell curve from performance_summaries
-      const bellCurve = await bellCurveApi.getLive({
-        period_type: activeTab,
-        year: reportYear!,
-        scope: 'country',
-        scope_id: countryId,
-      });
-      setBellCurveData(bellCurve);
-
-      // Fetch dynamic metrics (total_evaluated, avg_score, top_performers)
-      const metricsData = await metricsApi.get({
-        period_type: activeTab,
-        year: reportYear!,
-        scope: 'country',
-        scope_id: countryId,
-      });
-      setMetrics(metricsData);
-
-      if (activeReport) {
-        const insightsData = await insightsApi.getByReport(activeReport.id);
-        if (insightsData && insightsData.length > 0) {
-          setInsights(insightsData);
-        } else {
-          // Fallback AI insight when database has no records
-          const fallbackInsight = activeTab === 'mid_year'
-            ? FALLBACK_INSIGHT_MID_YEAR
-            : FALLBACK_INSIGHT_YEAR_END;
-          setInsights([{
-            id: 'fallback-insight',
-            report_id: activeReport.id,
-            insight_text: fallbackInsight,
-            insight_type: 'distribution_analysis',
-            created_at: new Date().toISOString(),
-          }]);
-        }
-      }
-
-      const comparison = await comparisonLiveApi.get({
-        year: reportYear!,
-        scope: 'country',
-        scope_id: countryId,
-      });
-      setComparisonData(comparison);
     } catch (err) {
-      setError('Failed to load report data. Please try again.');
       logger.error('Failed to load country report data', err);
-    } finally {
+      setError('Failed to load report data. Please try again.');
       setLoading(false);
+      return;
     }
+
+    // ── Non-critical: charts/metrics degrade gracefully on failure ──
+    const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
+
+    await Promise.allSettled([
+      bellCurveApi.getLive({ period_type: activeTab, year: reportYear!, scope: 'country', scope_id: countryId })
+        .then(setBellCurveData)
+        .catch(() => setBellCurveData([])),
+
+      metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'country', scope_id: countryId })
+        .then(setMetrics)
+        .catch(() => setMetrics({ total_evaluated: 0, avg_score: 0, top_performers: 0 })),
+
+      (activeReport
+        ? insightsApi.getByReport(activeReport.id).then(data => {
+            if (data && data.length > 0) {
+              setInsights(data);
+            } else {
+              const fallbackInsight = activeTab === 'mid_year' ? FALLBACK_INSIGHT_MID_YEAR : FALLBACK_INSIGHT_YEAR_END;
+              setInsights([{ id: 'fallback-insight', report_id: activeReport.id, insight_text: fallbackInsight, insight_type: 'distribution_analysis', created_at: new Date().toISOString() }]);
+            }
+          })
+        : Promise.resolve()
+      ).catch(() => {}),
+
+      comparisonLiveApi.get({ year: reportYear!, scope: 'country', scope_id: countryId })
+        .then(setComparisonData)
+        .catch(() => setComparisonData([])),
+    ]);
+
+    setLoading(false);
   };
 
   // ── NEW — Download flow ──────────────────────────────────────────────
@@ -317,17 +306,6 @@ export default function CountryReportPage() {
 
             {/* ← NEW Action buttons */}
             <div className="flex items-center gap-3">
-              {/* Workforce Performance Report button — Year-End only */}
-              {activeTab === 'year_end' && (
-                <button
-                  type="button"
-                  onClick={() => router.push('/hq-admin/reports/workforce')}
-                  className="flex items-center gap-2 px-4 py-2.5 text-[#155DFC] text-[13.5px] font-medium rounded-lg border border-[#155DFC] bg-white hover:bg-[#EFF6FF] active:scale-[0.98] transition-all"
-                >
-                  <BarChart2 className="w-4 h-4" />
-                  Workforce Report
-                </button>
-              )}
 
               {/* Create Report button — Year-End only */}
               {user && activeTab === 'year_end' && (

@@ -169,4 +169,28 @@ def open_next_pms_cycle_route():
         return jsonify({"message": f"Cycle {cycle['pms_year']} opened.", "cycle": cycle}), 200
     except Exception as e:
         return _error(str(e), 400)
+    
+
+@pms_cycle_bp.route("/api/pms-cycle/current", methods=["GET"])
+def get_pms_cycle_current():
+    """
+    Compatibility endpoint for ViewTemplate.tsx edit-permission checks.
+    editing_open is true only while the objective-setting window is open —
+    grace period is reserved for HQ Admin corrections, not general template editing.
+    """
+    try:
+        data = get_active_cycle_response()
+        from datetime import date
+        today = date.today().isoformat()
+        obj_end = data.get("objective_setting_end")
+        editing_open = bool(obj_end) and today < obj_end
+        return jsonify({
+            "cycle": data,
+            "editing_open": editing_open,
+            "reason": None if editing_open else "Objective setting window has closed for this cycle.",
+            "objective_setting_end": data.get("objective_setting_end"),
+            "grace_period_end": data.get("grace_period_end"),
+        }), 200
+    except Exception as e:
+        return _error(str(e), 400)
 

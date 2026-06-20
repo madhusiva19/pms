@@ -10,8 +10,7 @@ def get_branches_by_country(country_id: str, search: str | None = None) -> list:
 
 
 def get_branch_by_id(branch_id: str) -> dict | None:
-    # .single() raises if ID is missing, making bad lookups explicit
-    response = supabase.table('branches').select('*').eq('id', branch_id).single().execute()
+    response = supabase.table('branches').select('*').eq('id', branch_id).maybe_single().execute()
     return response.data
 
 
@@ -28,7 +27,7 @@ def create_branch(data: dict) -> dict:
 
 def get_branch_dashboard_summary(branch_id: str) -> dict:
     # desc=True + limit(1): always returns the most recent report for each period type
-    branch = supabase.table('branches').select('*').eq('id', branch_id).single().execute()
+    branch = supabase.table('branches').select('*').eq('id', branch_id).maybe_single().execute()
     mid_year = supabase.table('branch_performance_reports').select('*').eq('branch_id', branch_id).eq('report_type', 'mid_year').order('report_year', desc=True).limit(1).execute()
     year_end = supabase.table('branch_performance_reports').select('*').eq('branch_id', branch_id).eq('report_type', 'year_end').order('report_year', desc=True).limit(1).execute()
     return {

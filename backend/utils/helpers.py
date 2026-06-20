@@ -3,8 +3,13 @@ Shared helper functions used across services and routes.
 """
 
 import time
+from datetime import date
 from models.supabase_client import supabase
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEV-FINAL HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
 
 def execute_with_retry(fn, retries: int = 2, delay: float = 0.6):
     """Call fn(); on exception wait delay seconds and retry up to retries times."""
@@ -25,6 +30,34 @@ _SCOPE_FIELD_MAP = {
     'department': 'department_id',
     'sub_department': 'sub_department_id',
 }
+
+
+_BATCH_SIZE = 100
+
+
+def fetch_summaries_for_ids(emp_ids: list, year: int, period: str, columns: str = 'user_id, total_score') -> list:
+    """Fetch performance_summaries for a list of employee IDs in sequential batches.
+
+    Splits emp_ids into chunks of _BATCH_SIZE to stay under PostgREST URL length limits.
+    Sequential (not parallel) to avoid supabase-py httpx client thread-safety issues.
+    Each batch uses execute_with_retry to absorb transient Supabase/network blips
+    instead of failing the whole report with an intermittent 500.
+    """
+    rows = []
+    for i in range(0, len(emp_ids), _BATCH_SIZE):
+        batch = emp_ids[i:i + _BATCH_SIZE]
+        result = execute_with_retry(
+            lambda b=batch: (
+                supabase.table('performance_summaries')
+                .select(columns)
+                .eq('pms_year', year)
+                .eq('period', period)
+                .in_('user_id', b)
+                .execute()
+            )
+        )
+        rows.extend(result.data)
+    return rows
 
 
 def resolve_emp_ids_by_scope(scope: str, scope_id: str) -> list:
@@ -70,4 +103,27 @@ def calculate_bell_curve_from_scores(records: list) -> list:
             'employee_count': count,
             'percentage': round((count / total * 100), 2) if total > 0 else 0,
         })
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MINIMUTHU HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def parse_date(value) -> date:
+    """Parse a date value into a Python date object."""
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10])
+
+
+def unique_by_name(items: list) -> list:
+    """Remove duplicate items by name field."""
+    seen = set()
+    result = []
+    for item in items:
+        name = item.get("name")
+        if name not in seen:
+            seen.add(name)
+            result.append(item)
     return result

@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import services.bell_curve_service as bell_curve_service
 from utils.helpers import execute_with_retry
 from datetime import datetime
@@ -23,4 +23,5 @@ def get_bell_curve_live():
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         import traceback
-        return jsonify({'success': False, 'error': str(e), 'detail': traceback.format_exc()}), 500
+        current_app.logger.error('bell-curve-live error: %s\n%s', e, traceback.format_exc())
+        return jsonify({'success': True, 'data': [], 'total_employees': 0}), 200

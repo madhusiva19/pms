@@ -375,33 +375,143 @@ def fire_notification_now():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+    
 
-
-
-
-
-
-# ── ADD at the bottom of YOUR notification_routes.py ──
-
-from services.notification_service import get_notifications, mark_read
+# ─────────────────────────────────────────────────────────────────────────────
+# BASIC NOTIFICATION ROUTES (dev-final — notification_bp)
+# ─────────────────────────────────────────────────────────────────────────────
 
 notification_bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")
 
 @notification_bp.get("/<employee_id>")
-def get_notifications_route(employee_id):
+def get_notifications_for_employee(employee_id):
     try:
+        from services.notification_service import get_notifications
         result, status = get_notifications(employee_id)
         return jsonify(result), status
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
-
-
 @notification_bp.patch("/<notification_id>/read")
-def mark_notification_read(notification_id):
+def mark_notification_read_basic(notification_id):
     try:
+        from services.notification_service import mark_read
         result, status = mark_read(notification_id)
         return jsonify(result), status
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MANUAL RATING NOTIFICATION ROUTES (minimuthu)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@notifications_bp.route("/manual-rating-notifications/<user_id>", methods=["GET"])
+def get_manual_rating_notifications(user_id: str):
+    """Return all manual rating notifications for a user, newest first."""
+    try:
+        result = (
+            supabase.table("manual_rating_notifications")
+            .select("*")
+            .eq("recipient_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return jsonify(result.data or [])
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@notifications_bp.route("/manual-rating-notifications/<notif_id>/read", methods=["PATCH"])
+def mark_manual_notification_read(notif_id: str):
+    """Flip is_read to True for the given manual rating notification."""
+    try:
+        (
+            supabase.table("manual_rating_notifications")
+            .update({"is_read": True})
+            .eq("id", notif_id)
+            .execute()
+        )
+        return jsonify({"success": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@notifications_bp.route("/manual-rating-notifications/<notif_id>", methods=["DELETE"])
+def delete_manual_notification(notif_id: str):
+    """Delete a manual rating notification row."""
+    try:
+        recipient_id = request.args.get("recipient_id")
+        query = (
+            supabase.table("manual_rating_notifications")
+            .delete()
+            .eq("id", notif_id)
+        )
+        if recipient_id:
+            query = query.eq("recipient_id", recipient_id)
+        query.execute()
+        return jsonify({"success": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@notifications_bp.route("/manual-rating-notifications/send-reminder", methods=["POST"])
+def send_manual_rating_reminder():
+    """Allow a manager to send a personalised reminder to a direct report."""
+    try:
+        body         = request.get_json()
+        sender_id    = body.get("sender_id")
+        recipient_id = body.get("recipient_id")
+        period       = body.get("period")
+        pms_year     = body.get("pms_year")
+        message      = body.get("message", "")
+        if not all([sender_id, recipient_id, period, pms_year]):
+            return jsonify({"error": "Missing required fields"}), 400
+        from services.notification_service import send_reminder
+        result = send_reminder(
+            sender_id    = sender_id,
+            recipient_id = recipient_id,
+            period       = period,
+            pms_year     = pms_year,
+            message      = message,
+        )
+        return jsonify(result)
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@notifications_bp.route("/manual-rating-notifications/broadcast", methods=["POST"])
+def broadcast_manual_rating_notification():
+    """Trigger a system-wide broadcast notification."""
+    try:
+        body       = request.get_json()
+        notif_type = body.get("type")
+        period     = body.get("period")
+        pms_year   = body.get("pms_year")
+        if not all([notif_type, period, pms_year]):
+            return jsonify({"error": "Missing required fields"}), 400
+        if notif_type == "period_opened":
+            existing = (
+                supabase.table("manual_rating_notifications")
+                .select("id")
+                .eq("type", "period_opened")
+                .eq("period", period)
+                .eq("pms_year", pms_year)
+                .limit(1)
+                .execute()
+            )
+            if existing.data:
+                return jsonify({
+                    "success":            False,
+                    "message": f"period_opened notification already sent for {period} {pms_year}.",
+                    "notifications_sent": 0,
+                }), 200
+        from services.notification_service import broadcast_notifications
+        count = broadcast_notifications(notif_type, period, pms_year)
+        return jsonify({"success": True, "notifications_sent": count})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500

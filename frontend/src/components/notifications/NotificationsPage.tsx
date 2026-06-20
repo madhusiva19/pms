@@ -73,6 +73,7 @@ type PaNotification = {
   createdAt: string;
   actionUrl: string;
   assessmentId?: string;
+  reconsiderationAction?: string | null;
 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -292,6 +293,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
           createdAt: n.created_at ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "",
           assessmentId: n.assessment_id,
           actionUrl: resolvePaActionUrl(n.type, roleSlug, n.assessment_id),
+          reconsiderationAction: n.reconsideration_action ?? null,
         }));
         setPaList(paNotifs);
 
@@ -482,7 +484,9 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                 </div>
               ) : (
                 paList.map(n => {
-                  const s = PA_STYLES[n.type] ?? PA_STYLES.self_submitted;
+                  const alreadyReviewed = n.type === 'reconsideration_request' && !!n.reconsiderationAction;
+                  const reviewedStyle = { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "Already Reviewed", borderColor: "#86EFAC", bg: "#F0FDF4" };
+                  const s = alreadyReviewed ? reviewedStyle : (PA_STYLES[n.type] ?? PA_STYLES.self_submitted);
                   return (
                     <div key={n.id} className={`${styles.notifCard} ${!n.isRead ? styles.unread : ""}`} style={{ background: s.bg, borderColor: s.borderColor }}>
                       <div className={styles.notifTop}>
@@ -499,6 +503,10 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                       <div className={styles.notifActions}>
                         {n.type === 'reconsideration_fyi' ? (
                           <span style={{ fontSize: '13px', color: '#64748B' }}>ℹ️ Informational only — awaiting senior supervisor review</span>
+                        ) : alreadyReviewed ? (
+                          <button type="button" className={styles.actionBtn} onClick={() => { markPaRead(n.id); window.location.href = n.actionUrl; }}>
+                            View Review →
+                          </button>
                         ) : (
                           <button type="button" className={styles.actionBtn} onClick={() => { markPaRead(n.id); window.location.href = n.actionUrl; }}>
                             {n.type === 'reconsideration_request' && "Review Reconsideration →"}

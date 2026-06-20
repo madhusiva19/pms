@@ -3,12 +3,12 @@
 import { usePathname } from 'next/navigation';
 import Sidebar from '@/components/sidebar/Sidebar';
 
-const AUTH_ROUTES = ['/login', '/'];
+const AUTH_ROUTES = ['/login', '/', '/reset-password'];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (AUTH_ROUTES.includes(pathname)) {
+  if (!pathname || AUTH_ROUTES.includes(pathname)) {
     return <>{children}</>;
   }
 

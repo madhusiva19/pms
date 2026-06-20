@@ -28,7 +28,6 @@ import BellCurveChart from '@/components/bell-curve/BellCurveChart';
 import ComparisonChart from '@/components/comparison/ComparisonChart';
 import AIInsightCard from '@/components/ai/AIInsightCard';
 import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
-import CreateReportModal from '@/components/reports/CreateReportModal';
 import YearEndEmptyState from '@/components/reports/YearEndEmptyState';
 
 import {
@@ -36,7 +35,6 @@ import {
   bellCurveApi,
   comparisonLiveApi,
   branchInsightsApi,
-  branchesApi,
   metricsApi,
   activeReportYearApi,
 } from '@/services/api';
@@ -81,10 +79,6 @@ export default function BranchReportPage() {
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
   const [requestId, setRequestId] = useState<string | null>(null);
 
-  // ← NEW — Create Report Modal state
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createReportSuccess, setCreateReportSuccess] = useState(false);
-
   useEffect(() => {
     activeReportYearApi.get()
       .then(data => setReportYear(data.active_report_year))
@@ -106,74 +100,54 @@ export default function BranchReportPage() {
   }, [branchId, activeTab, authLoading, user?.role, reportYear]);
 
   const fetchAllData = async () => {
+    setLoading(true);
+    setError(null);
+
+    // ── Critical: page cannot render without these ──
+    let summaryData: BranchDashboardSummary;
     try {
-      setLoading(true);
-      setError(null);
-
-      const summaryData = await branchDashboardApi.getSummary(branchId);
-
-      // Use branch data from dashboard summary
+      summaryData = await branchDashboardApi.getSummary(branchId);
       const branchData = summaryData.branch;
-
-      if (!branchData) {
-        setError('Branch not found');
-        return;
-      }
-
+      if (!branchData) { setError('Branch not found'); setLoading(false); return; }
       setBranch(branchData);
       setSummary(summaryData);
-
-      const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
-
-      // Fetch live bell curve from performance_summaries — independent of activeReport
-      const bellCurve = await bellCurveApi.getLive({
-        period_type: activeTab,
-        year: reportYear!,
-        scope: 'branch',
-        scope_id: branchId,
-      });
-      setBellCurveData(bellCurve as any);
-
-      // Fetch dynamic metrics for the branch
-      const metricsData = await metricsApi.get({
-        period_type: activeTab,
-        year: reportYear!,
-        scope: 'branch',
-        scope_id: branchId,
-      });
-      setMetrics(metricsData);
-
-      if (activeReport) {
-        const insightsData = await branchInsightsApi.getByReport(activeReport.id);
-        if (insightsData && insightsData.length > 0) {
-          setInsights(insightsData);
-        } else {
-          // Fallback AI insight when database has no records
-          const fallbackInsight = activeTab === 'mid_year'
-            ? FALLBACK_INSIGHT_MID_YEAR
-            : FALLBACK_INSIGHT_YEAR_END;
-          setInsights([{
-            id: 'fallback-insight',
-            report_id: activeReport.id,
-            insight_text: fallbackInsight,
-            insight_type: 'distribution_analysis',
-            created_at: new Date().toISOString(),
-          }]);
-        }
-      }
-
-      const comparison = await comparisonLiveApi.get({
-        year: reportYear!,
-        scope: 'branch',
-        scope_id: branchId,
-      });
-      setComparisonData(comparison);
-    } catch (err: any) {
+    } catch (err) {
       logger.error('Failed to load branch report data', err);
-      setError(`Failed to load report data: ${err.message}`);
-    } finally {
+      setError('Failed to load report data. Please try again.');
       setLoading(false);
+      return;
     }
+
+    // ── Non-critical: charts/metrics degrade gracefully on failure ──
+    const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
+
+    await Promise.allSettled([
+      bellCurveApi.getLive({ period_type: activeTab, year: reportYear!, scope: 'branch', scope_id: branchId })
+        .then(d => setBellCurveData(d as any))
+        .catch(() => setBellCurveData([])),
+
+      metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'branch', scope_id: branchId })
+        .then(setMetrics)
+        .catch(() => setMetrics({ total_evaluated: 0, avg_score: 0, top_performers: 0 })),
+
+      (activeReport
+        ? branchInsightsApi.getByReport(activeReport.id).then(data => {
+            if (data && data.length > 0) {
+              setInsights(data);
+            } else {
+              const fallbackInsight = activeTab === 'mid_year' ? FALLBACK_INSIGHT_MID_YEAR : FALLBACK_INSIGHT_YEAR_END;
+              setInsights([{ id: 'fallback-insight', report_id: activeReport.id, insight_text: fallbackInsight, insight_type: 'distribution_analysis', created_at: new Date().toISOString() }]);
+            }
+          })
+        : Promise.resolve()
+      ).catch(() => {}),
+
+      comparisonLiveApi.get({ year: reportYear!, scope: 'branch', scope_id: branchId })
+        .then(setComparisonData)
+        .catch(() => setComparisonData([])),
+    ]);
+
+    setLoading(false);
   };
 
   const handleDownload = async () => {
@@ -283,9 +257,7 @@ export default function BranchReportPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
         <div className="text-center">
-          <p className="text-red-600 mb-4 font-bold text-lg">{error || 'Branch or report data not found'}</p>
-          {error && <p className="text-gray-600 mb-4 text-sm">{error}</p>}
-          {!branch && <p className="text-gray-600 mb-4 text-sm">Branch ID: {branchId}</p>}
+          <p className="text-red-600 mb-4">{error || 'Branch or report data not found'}</p>
           <button
             onClick={() => router.push('/country-admin/reports')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
@@ -324,17 +296,7 @@ export default function BranchReportPage() {
               </p>
             </div>
 
-            {/* ← NEW Action buttons */}
             <div className="flex items-center gap-3">
-              {/* Create Report button — Year-End only */}
-              {user && activeTab === 'year_end' && (
-                <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 text-[#155DFC] text-[13.5px] font-medium rounded-lg border border-[#155DFC] bg-white hover:bg-[#EFF6FF] active:scale-[0.98] transition-all"
-                >
-                  + Create Report
-                </button>
-              )}
 
               {/* Download button */}
               <button
@@ -489,32 +451,7 @@ export default function BranchReportPage() {
         </div>
         {/* ── End printable area ── */}
 
-        {/* Success message after saving report */}
-        {createReportSuccess && (
-          <div className="fixed bottom-4 right-4 bg-green-50 border border-green-200 rounded-lg p-4 text-green-700 shadow-lg animate-pulse">
-            Report saved successfully! View it in your <a href="/saved-reports" className="font-semibold underline">saved reports</a>.
-          </div>
-        )}
       </div>
-
-      {/* Create Report Modal */}
-      {user && branch && summary && (
-        <CreateReportModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          onSuccess={(savedReport) => {
-            setCreateReportSuccess(true);
-            setTimeout(() => setCreateReportSuccess(false), 5000);
-          }}
-          reportType="branch"
-          countryId={branch.country_id}
-          branchId={branch.id}
-          reportPeriod="both"
-          reportYear={reportYear!}
-          userId={user.id}
-          userEmail={user.email}
-        />
-      )}
     </main>
   );
 }

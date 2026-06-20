@@ -24,7 +24,7 @@ from routes.assignment_routes import assignment_bp
 from routes.org_routes        import org_bp
 from routes import auth_bp, profile_bp, diary_bp, notification_bp, training_bp, dashboard_bp
 
-#  (Dashboard & Reporting) ─────────────────────────────
+# (Dashboard & Reporting) ─────────────────────────────────────────────────────
 from routes.countries            import countries_bp
 from routes.branches             import branches_bp
 from routes.reports              import reports_bp
@@ -35,6 +35,15 @@ from routes.comparisons          import comparisons_bp
 from routes.saved_reports        import saved_reports_bp
 from routes.potential_assessment import potential_assessment_bp
 from routes.report_cycle         import report_cycle_bp
+
+# ── Minimuthu's blueprints ────────────────────────────────────────────────────
+from routes.evaluator_routes        import evaluator_bp
+from routes.manual_rating_routes    import manual_rating_bp
+from routes.performance_routes      import performance_bp
+from routes.rating_periods_routes   import rating_periods_bp
+from routes.templates_routes        import templates_bp
+from routes.workforce_report_routes import workforce_report_bp
+from scheduler                      import init_scheduler
 
 # ── DB client ─────────────────────────────────────────────────────────────────
 from models.supabase_client import supabase
@@ -79,9 +88,20 @@ app.register_blueprint(saved_reports_bp)
 app.register_blueprint(potential_assessment_bp)
 app.register_blueprint(report_cycle_bp)
 
+# Register minimuthu's blueprints
+app.register_blueprint(evaluator_bp)
+app.register_blueprint(manual_rating_bp)
+app.register_blueprint(performance_bp)
+app.register_blueprint(rating_periods_bp)
+app.register_blueprint(templates_bp)
+app.register_blueprint(workforce_report_bp)
+
 # Wire seed function so cycle creation triggers notifications
 init_pms_cycle_routes(seed_notifications_for_cycle)
 init_notifications(supabase)
+
+# Initialise minimuthu's scheduler
+init_scheduler()
 
 # ── DB WARMUP (runs under WSGI/Gunicorn too) ──────────────────────────────────
 with app.app_context():

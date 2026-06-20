@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell,
   LucideFileBarChart, User, Target, ChevronDown, ChevronRight,
-  ClipboardList, UserCheck, CalendarDays,
+  ClipboardList, UserCheck, CalendarDays, Settings, BarChart2,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
@@ -44,7 +44,8 @@ const hqAdminNavItems: NavItem[] = [
   { name: 'Template Management', href: '/hq-admin/template-management', icon: FileText           },
   { name: 'Appraisal Cycle',     href: '/hq-admin/appraisal-cycle',     icon: CalendarDays       },
   { name: 'My Team',             href: '/hq-admin/team',                icon: Users              },
-  { name: 'Reports',             href: '/hq-admin/reports',             icon: FileText           },
+  { name: 'Rating Settings',     href: '/hq-admin/rating-settings',     icon: Settings           },
+  { name: 'Reports',             href: '/hq-admin/reports',             icon: BarChart2          },
   { name: 'Notifications',       href: '/hq-admin/notification',        icon: Bell               },
   { name: 'Training Passport',   href: '/hq-admin/training-passport',   icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/hq-admin/potential-assessment', icon: Target, children: [
@@ -59,8 +60,9 @@ const countryAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/country-admin/dashboard',           icon: LayoutDashboard    },
   { name: 'Template Management', href: '/country-admin/template-management', icon: FileText           },
   { name: 'My Team',             href: '/my-team',                           icon: Users              },
-  { name: 'My Performance',      href: '/country-admin/performance',         icon: TrendingUp         },
-  { name: 'Reports',             href: '/country-admin/reports',             icon: FileText           },
+  { name: 'My Performance',      href: '/country-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Rating Settings',     href: '/country-admin/rating-settings',     icon: Settings           },
+  { name: 'Reports',             href: '/country-admin/reports',             icon: BarChart2          },
   { name: 'Notifications',       href: '/country-admin/notification',        icon: Bell               },
   { name: 'Training Passport',   href: '/country-admin/training-passport',   icon: LucideFileBarChart },
   { name: 'Potential Assessment', href: '/country-admin/potential-assessment', icon: Target, children: [
@@ -75,7 +77,8 @@ const branchAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/branch-admin/dashboard',           icon: LayoutDashboard    },
   { name: 'Template Management', href: '/branch-admin/template-management', icon: FileText           },
   { name: 'My Team',             href: '/my-team',                          icon: Users              },
-  { name: 'My Performance',      href: '/branch-admin/performance',         icon: TrendingUp         },
+  { name: 'My Performance',      href: '/branch-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Rating Settings',     href: '/branch-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/branch-admin/reports',             icon: FileText           },
   { name: 'Notifications',       href: '/branch-admin/notification',        icon: Bell               },
   { name: 'Training Passport',   href: '/branch-admin/training-passport',   icon: LucideFileBarChart },
@@ -91,7 +94,8 @@ const deptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/dept-admin/dashboard',           icon: LayoutDashboard    },
   { name: 'Template Management', href: '/dept-admin/template-management', icon: FileText           },
   { name: 'My Team',             href: '/my-team',                        icon: Users              },
-  { name: 'My Performance',      href: '/dept-admin/performance',         icon: TrendingUp         },
+  { name: 'My Performance',      href: '/dept-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Rating Settings',     href: '/dept-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/dept-admin/reports',             icon: FileText           },
   { name: 'Notifications',       href: '/dept-admin/notification',        icon: Bell               },
   { name: 'Training Passport',   href: '/dept-admin/training-passport',   icon: LucideFileBarChart },
@@ -107,7 +111,8 @@ const subDeptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/sub-dept-admin/dashboard',           icon: LayoutDashboard    },
   { name: 'Template Management', href: '/sub-dept-admin/template-management', icon: FileText           },
   { name: 'My Team',             href: '/my-team',                             icon: Users              },
-  { name: 'My Performance',      href: '/sub-dept-admin/performance',         icon: TrendingUp         },
+  { name: 'My Performance',      href: '/sub-dept-admin/my-performance',      icon: TrendingUp         },
+  { name: 'Rating Settings',     href: '/sub-dept-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/sub-dept-admin/reports',             icon: FileText           },
   { name: 'Notifications',       href: '/sub-dept-admin/notification',        icon: Bell               },
   { name: 'Training Passport',   href: '/sub-dept-admin/training-passport',   icon: LucideFileBarChart },
@@ -120,11 +125,11 @@ const subDeptAdminNavItems: NavItem[] = [
 
 // ── Employee — Level 6 ───────────────────────────────────────────────────────
 const employeeNavItems: NavItem[] = [
-  { name: 'My Performance',      href: '/employee/performance',       icon: TrendingUp         },
-  { name: 'Notifications',       href: '/employee/notification',      icon: Bell               },
-  { name: 'Training Passport',   href: '/employee/training-passport', icon: LucideFileBarChart },
-  { name: 'Potential Assessment', href: '/employee/potential-assessment', icon: Target          },
-  { name: 'My Profile',          href: '/employee/profile',           icon: User               },
+  { name: 'My Performance',      href: '/employee/my-performance',       icon: TrendingUp         },
+  { name: 'Notifications',       href: '/employee/notification',         icon: Bell               },
+  { name: 'Training Passport',   href: '/employee/training-passport',    icon: LucideFileBarChart },
+  { name: 'Potential Assessment', href: '/employee/potential-assessment', icon: Target             },
+  { name: 'My Profile',          href: '/employee/profile',              icon: User               },
 ];
 
 function getNavItems(role: string | undefined): NavItem[] {

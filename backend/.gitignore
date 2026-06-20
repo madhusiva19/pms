@@ -62,6 +62,7 @@ assign_subdepts.py
 create_cus_das.py
 fix_designations.py
 fix_duplicate_names.py
+update_users_table.py
 update_duplicate_names_db.py
 
 
@@ -220,3 +221,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+

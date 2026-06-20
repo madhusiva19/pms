@@ -128,7 +128,8 @@ export default function BranchAdminReconsiderationReviewPage() {
   const liveAspiration  = livePillarOverall('aspiration');
   const liveLeadership  = livePillarOverall('leadership');
   const liveTalentBlock = calcOverallPotentiality(liveAbility, liveAspiration, liveLeadership);
-  const hasAnyOverride  = Object.values(overrides).some(Boolean);
+  const hasAnyOverride    = Object.values(overrides).some(Boolean);
+  const isAlreadyReviewed = !!assessment.action;
 
   const setOverride = (itemId: string, v: RatingValue | '') => setOverrides(prev => ({ ...prev, [itemId]: v }));
 
@@ -162,7 +163,12 @@ export default function BranchAdminReconsiderationReviewPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
-      <Breadcrumb />
+      <Breadcrumb items={[
+        { label: 'Branch Admin', href: '/branch-admin' },
+        { label: 'Potential Assessment', href: '/branch-admin/potential-assessment' },
+        { label: 'Reconsideration', href: '/branch-admin/potential-assessment/reconsideration' },
+        { label: assessment.employee_name ?? 'Review' },
+      ]} />
 
       <div className="flex flex-col gap-1">
         <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Reconsideration Review</h1>
@@ -171,16 +177,29 @@ export default function BranchAdminReconsiderationReviewPage() {
 
       {error && <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-[13.5px] text-red-600">{error}</div>}
 
-      <div className="flex items-start gap-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-5 py-4">
-        <span className="text-[20px] shrink-0">⚠️</span>
-        <div className="flex flex-col gap-0.5">
-          <p className="text-[14px] font-semibold text-[#92400E]">Reconsideration Requested</p>
-          <p className="text-[13.5px] text-[#92400E]">
-            <strong>{assessment.employee_name ?? 'This employee'}</strong> has requested a reconsideration
-            of their assessment result. Requested on {formatDate(assessment.requested_at)}.
-          </p>
+      {isAlreadyReviewed ? (
+        <div className={`flex items-start gap-3 rounded-xl px-5 py-4 ${assessment.action === 'approve' ? 'bg-[#F0FDF4] border border-[#86EFAC]' : 'bg-[#FEF2F2] border border-[#FECACA]'}`}>
+          <div className="flex flex-col gap-0.5">
+            <p className={`text-[14px] font-semibold ${assessment.action === 'approve' ? 'text-[#166534]' : 'text-[#991B1B]'}`}>
+              Reconsideration {assessment.action === 'approve' ? 'Approved' : 'Rejected'}
+            </p>
+            <p className={`text-[13.5px] ${assessment.action === 'approve' ? 'text-[#166534]' : 'text-[#991B1B]'}`}>
+              This reconsideration has already been reviewed. Reviewed on {formatDate(assessment.reviewed_at)}.
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-start gap-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-5 py-4">
+          <span className="text-[20px] shrink-0">⚠️</span>
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[14px] font-semibold text-[#92400E]">Reconsideration Requested</p>
+            <p className="text-[13.5px] text-[#92400E]">
+              <strong>{assessment.employee_name ?? 'This employee'}</strong> has requested a reconsideration
+              of their assessment result. Requested on {formatDate(assessment.requested_at)}.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
         <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#E5E7EB]">
@@ -236,7 +255,7 @@ export default function BranchAdminReconsiderationReviewPage() {
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[16%]">Self Rating</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[16%]">Supervisor Rating</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[16%]">Final Result</th>
-                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[22%]">Override</th>
+                    {!isAlreadyReviewed && <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-[22%]">Override</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -281,9 +300,11 @@ export default function BranchAdminReconsiderationReviewPage() {
                             <ComponentRating value={final} />
                           )}
                         </td>
-                        <td className="px-4 py-4 align-top">
-                          <OverrideSelect itemId={item.id} value={overrides[item.id] ?? ''} onChange={setOverride} />
-                        </td>
+                        {!isAlreadyReviewed && (
+                          <td className="px-4 py-4 align-top">
+                            <OverrideSelect itemId={item.id} value={overrides[item.id] ?? ''} onChange={setOverride} />
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -323,46 +344,78 @@ export default function BranchAdminReconsiderationReviewPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 flex flex-col gap-5">
-        <h2 className="text-[15px] font-semibold text-[#101828] pb-2 border-b border-[#F1F5F9]">Your Decision</h2>
+      {isAlreadyReviewed ? (
+        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 flex flex-col gap-5">
+          <h2 className="text-[15px] font-semibold text-[#101828] pb-2 border-b border-[#F1F5F9]">Review Decision</h2>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">Decision</span>
+              <span className={`text-[13.5px] font-semibold ${assessment.action === 'approve' ? 'text-[#166534]' : 'text-[#991B1B]'}`}>
+                {assessment.action === 'approve' ? 'Approved' : 'Rejected'}
+              </span>
+            </div>
+            {assessment.justification && (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">Justification</span>
+                <p className="text-[13.5px] text-[#374151] bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-4 py-3">{assessment.justification}</p>
+              </div>
+            )}
+            {assessment.rejection_note && (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">Rejection Note</span>
+                <p className="text-[13.5px] text-[#374151] bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-4 py-3">{assessment.rejection_note}</p>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center justify-end pt-1">
+            <button type="button" onClick={() => router.push(BACK_PATH)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-[13.5px] font-medium text-[#1E293B] hover:bg-[#F1F5F9] transition-colors">
+              <ChevronLeft className="w-4 h-4" /> Back
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 flex flex-col gap-5">
+          <h2 className="text-[15px] font-semibold text-[#101828] pb-2 border-b border-[#F1F5F9]">Your Decision</h2>
 
-        {hasAnyOverride && (
+          {hasAnyOverride && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[13px] font-medium text-[#374151]">
+                Justification <span className="text-[#DC2626]">(required — you have overridden scores)</span>
+              </label>
+              <textarea rows={3} placeholder="Explain why you are changing the supervisor's scores..."
+                value={justification} onChange={e => setJustification(e.target.value)}
+                className="w-full rounded-lg border border-[#D1D5DB] px-3 py-2.5 text-[13.5px] text-[#1E293B] resize-none focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:border-transparent"
+              />
+            </div>
+          )}
+
           <div className="flex flex-col gap-1.5">
             <label className="text-[13px] font-medium text-[#374151]">
-              Justification <span className="text-[#DC2626]">(required — you have overridden scores)</span>
+              Rejection Note <span className="text-[#DC2626]">(required if rejecting)</span>
             </label>
-            <textarea rows={3} placeholder="Explain why you are changing the supervisor's scores..."
-              value={justification} onChange={e => setJustification(e.target.value)}
+            <textarea rows={3} placeholder="Explain why this reconsideration is being rejected..."
+              value={rejectionNote} onChange={e => setRejectionNote(e.target.value)}
               className="w-full rounded-lg border border-[#D1D5DB] px-3 py-2.5 text-[13.5px] text-[#1E293B] resize-none focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:border-transparent"
             />
           </div>
-        )}
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[13px] font-medium text-[#374151]">
-            Rejection Note <span className="text-[#DC2626]">(required if rejecting)</span>
-          </label>
-          <textarea rows={3} placeholder="Explain why this reconsideration is being rejected..."
-            value={rejectionNote} onChange={e => setRejectionNote(e.target.value)}
-            className="w-full rounded-lg border border-[#D1D5DB] px-3 py-2.5 text-[13.5px] text-[#1E293B] resize-none focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:border-transparent"
-          />
+          <div className="flex items-center justify-end gap-3 pt-1">
+            <button type="button" onClick={() => router.push(BACK_PATH)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-[13.5px] font-medium text-[#1E293B] hover:bg-[#F1F5F9] transition-colors">
+              <ChevronLeft className="w-4 h-4" /> Back
+            </button>
+            <button type="button" onClick={handleReject} disabled={submitting}
+              className="px-4 py-2 bg-[#FEF2F2] border border-[#FCA5A5] text-[#DC2626] text-[13.5px] font-medium rounded-lg hover:bg-[#FEE2E2] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              {submitting ? 'Processing…' : 'Reject'}
+            </button>
+            <button type="button" onClick={handleApprove} disabled={submitting}
+              className="px-4 py-2 bg-[#1D4ED8] text-white text-[13.5px] font-medium rounded-lg hover:bg-[#1E40AF] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              {submitting ? 'Processing…' : hasAnyOverride ? 'Override & Approve' : 'Approve'}
+            </button>
+          </div>
         </div>
-
-        <div className="flex items-center justify-end gap-3 pt-1">
-          <button type="button" onClick={() => router.push(BACK_PATH)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-[13.5px] font-medium text-[#1E293B] hover:bg-[#F1F5F9] transition-colors">
-            <ChevronLeft className="w-4 h-4" /> Back
-          </button>
-          <button type="button" onClick={handleReject} disabled={submitting}
-            className="px-4 py-2 bg-[#FEF2F2] border border-[#FCA5A5] text-[#DC2626] text-[13.5px] font-medium rounded-lg hover:bg-[#FEE2E2] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-            {submitting ? 'Processing…' : 'Reject'}
-          </button>
-          <button type="button" onClick={handleApprove} disabled={submitting}
-            className="px-4 py-2 bg-[#1D4ED8] text-white text-[13.5px] font-medium rounded-lg hover:bg-[#1E40AF] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-            {submitting ? 'Processing…' : hasAnyOverride ? 'Override & Approve' : 'Approve'}
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
