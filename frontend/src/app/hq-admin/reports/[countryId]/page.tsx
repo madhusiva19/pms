@@ -133,7 +133,7 @@ export default function CountryReportPage() {
 
       metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'country', scope_id: countryId })
         .then(setMetrics)
-        .catch(() => setMetrics(null)),
+        .catch(() => setMetrics({ total_evaluated: 0, avg_score: 0, top_performers: 0 })),
 
       (activeReport
         ? insightsApi.getByReport(activeReport.id).then(data => {

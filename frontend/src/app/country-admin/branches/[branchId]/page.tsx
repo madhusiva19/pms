@@ -134,7 +134,7 @@ export default function BranchReportPage() {
 
       metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'branch', scope_id: branchId })
         .then(setMetrics)
-        .catch(() => setMetrics(null)),
+        .catch(() => setMetrics({ total_evaluated: 0, avg_score: 0, top_performers: 0 })),
 
       (activeReport
         ? branchInsightsApi.getByReport(activeReport.id).then(data => {
