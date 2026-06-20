@@ -7,8 +7,7 @@ def get_all_countries() -> list:
 
 
 def get_country_by_id(country_id: str) -> dict | None:
-    # .single() raises if ID is missing, making bad lookups explicit rather than returning []
-    response = supabase.table('countries').select('*').eq('id', country_id).single().execute()
+    response = supabase.table('countries').select('*').eq('id', country_id).maybe_single().execute()
     return response.data
 
 
@@ -19,7 +18,7 @@ def create_country(data: dict) -> dict:
 
 def get_dashboard_summary(country_id: str) -> dict:
     # desc=True + limit(1): always returns the most recent report for each period type
-    country = supabase.table('countries').select('*').eq('id', country_id).single().execute()
+    country = supabase.table('countries').select('*').eq('id', country_id).maybe_single().execute()
     mid_year = supabase.table('performance_reports').select('*').eq('country_id', country_id).eq('report_type', 'mid_year').order('report_year', desc=True).limit(1).execute()
     year_end = supabase.table('performance_reports').select('*').eq('country_id', country_id).eq('report_type', 'year_end').order('report_year', desc=True).limit(1).execute()
     return {
