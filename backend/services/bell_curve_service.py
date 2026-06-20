@@ -1,5 +1,5 @@
 from models.supabase_client import supabase
-from utils.helpers import resolve_emp_ids_by_scope, calculate_bell_curve_from_scores, get_period_dates
+from utils.helpers import resolve_emp_ids_by_scope, fetch_summaries_for_ids, calculate_bell_curve_from_scores, get_period_dates
 
 
 def get_bell_curve_live(period_type: str, year: int, scope: str, scope_id: str) -> dict:
@@ -16,19 +16,12 @@ def get_bell_curve_live(period_type: str, year: int, scope: str, scope_id: str) 
             'date_range': {'start': start_date, 'end': end_date},
         }
 
-    records = (
-        supabase.table('performance_summaries')
-        .select('user_id, total_score, period, pms_year')
-        .eq('pms_year', year)
-        .eq('period', db_period)
-        .in_('user_id', emp_ids)
-        .execute()
-    )
+    all_rows = fetch_summaries_for_ids(emp_ids, year, db_period, columns='user_id, total_score, period, pms_year')
 
     return {
         # calculate_bell_curve_from_scores groups raw scores into histogram buckets
-        'data': calculate_bell_curve_from_scores(records.data),
-        'total_employees': len(records.data),
+        'data': calculate_bell_curve_from_scores(all_rows),
+        'total_employees': len(all_rows),
         'period_type': period_type,
         'year': year,
         'scope': scope,
