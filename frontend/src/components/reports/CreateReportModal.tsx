@@ -162,22 +162,21 @@ export default function CreateReportModal({
           ? ['mid_year', 'year_end']
           : [ycPeriod];
 
-        const yearData = await Promise.all(
-          years.map(async (year) => {
-            const entry: Record<string, any> = { year };
-            for (const p of periods) {
-              try {
-                const m = await fetchMetrics(p, year, scope, scopeId);
-                entry[p] = m
-                  ? { avg_score: m.avg_score, top_performers: m.top_performers, total_evaluated: m.total_evaluated }
-                  : { avg_score: 0, top_performers: 0, total_evaluated: 0 };
-              } catch {
-                entry[p] = { avg_score: 0, top_performers: 0, total_evaluated: 0 };
-              }
+        const yearData: Record<string, any>[] = [];
+        for (const year of years) {
+          const entry: Record<string, any> = { year };
+          for (const p of periods) {
+            try {
+              const m = await fetchMetrics(p, year, scope, scopeId);
+              entry[p] = m
+                ? { avg_score: m.avg_score, top_performers: m.top_performers, total_evaluated: m.total_evaluated }
+                : { avg_score: 0, top_performers: 0, total_evaluated: 0 };
+            } catch {
+              entry[p] = { avg_score: 0, top_performers: 0, total_evaluated: 0 };
             }
-            return entry;
-          })
-        );
+          }
+          yearData.push(entry);
+        }
 
         trendMetrics.year_data = yearData;
         trendMetrics.comparison_years = selectedPastYears;
