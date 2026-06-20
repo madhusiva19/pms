@@ -3,7 +3,6 @@ Shared helper functions used across services and routes.
 """
 
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from models.supabase_client import supabase
 
@@ -34,22 +33,18 @@ _SCOPE_FIELD_MAP = {
 
 
 _BATCH_SIZE = 100
-_MAX_WORKERS = 8
 
 
 def fetch_summaries_for_ids(emp_ids: list, year: int, period: str, columns: str = 'user_id, total_score') -> list:
-    """Fetch performance_summaries for a list of employee IDs using parallel batches.
+    """Fetch performance_summaries for a list of employee IDs in sequential batches.
 
-    Splits emp_ids into chunks of _BATCH_SIZE and fires all requests concurrently,
-    so a scope with 2000 employees takes the same wall-clock time as one with 100.
+    Splits emp_ids into chunks of _BATCH_SIZE to stay under PostgREST URL length limits.
+    Sequential (not parallel) to avoid supabase-py httpx client thread-safety issues.
     """
-    if not emp_ids:
-        return []
-
-    batches = [emp_ids[i:i + _BATCH_SIZE] for i in range(0, len(emp_ids), _BATCH_SIZE)]
-
-    def _fetch(batch):
-        return (
+    rows = []
+    for i in range(0, len(emp_ids), _BATCH_SIZE):
+        batch = emp_ids[i:i + _BATCH_SIZE]
+        rows.extend(
             supabase.table('performance_summaries')
             .select(columns)
             .eq('pms_year', year)
@@ -58,12 +53,6 @@ def fetch_summaries_for_ids(emp_ids: list, year: int, period: str, columns: str 
             .execute()
             .data
         )
-
-    rows = []
-    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(batches))) as pool:
-        futures = [pool.submit(_fetch, b) for b in batches]
-        for future in as_completed(futures):
-            rows.extend(future.result())
     return rows
 
 
