@@ -37,14 +37,20 @@ _ROLE_LABELS: dict[str, str] = {
     "department_manager": "Dept. Manager",
 }
 
+# Reverse lookup so legacy rows that stored the human-readable label
+# directly (e.g. "Country Admin") still resolve correctly, in addition
+# to rows storing the raw role key (e.g. "country_admin").
+_ROLE_LABELS_BY_VALUE: dict[str, str] = {v: v for v in _ROLE_LABELS.values()}
+
 
 def _creator_label(variant: dict) -> str:
     """
     Return a readable creator label for a variant.
-    Uses the stored created_by role key directly — scope columns only tell us
-    WHERE the variant applies, not WHO created it (e.g. HQ Admin can scope to a branch).
+    Handles both the raw role key (e.g. "country_admin") and legacy rows
+    that stored the human-readable label directly (e.g. "Country Admin").
     """
-    return _ROLE_LABELS.get(variant.get("created_by", ""), "HQ Admin")
+    raw = variant.get("created_by", "")
+    return _ROLE_LABELS.get(raw) or _ROLE_LABELS_BY_VALUE.get(raw) or "HQ Admin"
 
 
 # ---------------------------------------------------------------------------
@@ -463,6 +469,10 @@ def update_template(template_id: int):
             .execute()
         ).data or {}
 
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+        print(f"[DEBUG] lastModified being set to: {now_iso}")
+
         variant_row = {
             "parent_template_id": template_id,
             "pms_cycle_id":       active_cycle_id,
@@ -473,19 +483,22 @@ def update_template(template_id: int):
             "total_weight":       body.get("total_weight") or base.get("total_weight", 100),
             # Store role key string — not the UUID — so created_by is always human-readable
             "created_by":         editor_role,
+            "lastModified":       now_iso,
             **scope,
         }
 
-        # Check if variant already exists for this template + scope + cycle + creator role.
-        # created_by is included so each role gets their own row — e.g. HQ Admin scoping
-        # to a branch and Branch Admin editing the same template both keep separate rows,
-        # and the best_variant tiebreaker (latest created_at) decides which one is shown.
+        # Check if variant already exists for this template + scope + cycle.
+        # NOTE: created_by is intentionally NOT part of this match — the real DB
+        # unique constraint (uq_variant_country / equivalent) only covers
+        # (parent_template_id, scope column, pms_cycle_id), so filtering on
+        # created_by here caused false negatives that led to duplicate-key
+        # insert errors when a row already existed under a different
+        # created_by value/format.
         existing_q = (
-            supabase.table("template_variants")
-            .select("id")
-            .eq("parent_template_id", template_id)
-            .eq("pms_cycle_id", active_cycle_id)
-            .eq("created_by", editor_role)
+           supabase.table("template_variants")
+           .select("id")
+           .eq("parent_template_id", template_id)
+           .eq("pms_cycle_id", active_cycle_id)
         )
         for k, v in scope.items():
             existing_q = existing_q.eq(k, v) if v else existing_q.is_(k, "null")
@@ -496,6 +509,7 @@ def update_template(template_id: int):
             supabase.table("template_variants").update({
                 "template_content": body["categories"],
                 "name":             variant_row["name"],
+                "lastModified":     now_iso,
             }).eq("id", variant_id).execute()
             return jsonify({"success": True, "mode": "variant_updated", "variant_id": variant_id})
         else:
@@ -655,6 +669,58 @@ def get_assignments(template_id: int):
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
+@templates_bp.route("/api/templates/assignments/batch", methods=["GET"])
+def get_assignments_batch():
+    """
+    Batched version of get_assignments — returns assignment counts for
+    MULTIPLE templates in a single request, scoped to manager_id if given.
+    Fixes connection-pool exhaustion caused by firing one /assignments
+    request per template card on the Template Management list page.
+    Query params
+    ------------
+    template_ids  str  comma-separated list of template IDs
+    manager_id    str  optional — scopes counts to this manager's team
+    """
+    try:
+        ids_param = request.args.get("template_ids", "").strip()
+        if not ids_param:
+            return jsonify({"error": "template_ids required"}), 400
+
+        template_ids = [int(t) for t in ids_param.split(",") if t.strip().isdigit()]
+        manager_id   = request.args.get("manager_id", "").strip()
+
+        if not template_ids:
+            return jsonify({}), 200
+
+        # Single query for all assignments across the requested templates
+        result = (
+            supabase.table("template_assignments")
+            .select("user_id, template_id")
+            .in_("template_id", template_ids)
+            .execute()
+        )
+        rows = result.data or []
+
+        # Resolve manager's team once, reused for every template
+        team_ids = None
+        if manager_id:
+            team_res = (
+                supabase.table("users")
+                .select("id")
+                .eq("manager_id", manager_id)
+                .execute()
+            )
+            team_ids = {u["id"] for u in (team_res.data or [])}
+
+        counts: dict[int, int] = {tid: 0 for tid in template_ids}
+        for row in rows:
+            if team_ids is not None and row["user_id"] not in team_ids:
+                continue
+            counts[row["template_id"]] = counts.get(row["template_id"], 0) + 1
+
+        return jsonify(counts), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 # ---------------------------------------------------------------------------
 # Employee search
