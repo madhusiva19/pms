@@ -132,7 +132,7 @@ export default function DeptAdminReportDetailPage() {
     await Promise.allSettled([
       metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'sub_department', scope_id: subDeptId })
         .then(setMetrics)
-        .catch(() => setMetrics(null)),
+        .catch(() => setMetrics({ total_evaluated: 0, avg_score: 0, top_performers: 0 })),
 
       bellCurveApi.getLive({ period_type: activeTab, year: reportYear!, scope: 'sub_department', scope_id: subDeptId })
         .then(d => setBellCurveData(d as any))

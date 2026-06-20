@@ -140,7 +140,7 @@ export default function BranchAdminReportDetailPage() {
     await Promise.allSettled([
       metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'department', scope_id: deptId })
         .then(setMetrics)
-        .catch(() => setMetrics(null)),
+        .catch(() => setMetrics({ total_evaluated: 0, avg_score: 0, top_performers: 0 })),
 
       bellCurveApi.getLive({ period_type: activeTab, year: reportYear!, scope: 'department', scope_id: deptId })
         .then(d => setBellCurveData(d as any))
