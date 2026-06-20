@@ -50,11 +50,11 @@ export default function SubDeptScoreBarChart({
         {/* Legend */}
         <div className="flex items-center gap-5 mt-3">
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm inline-block bg-slate-400" />
+            <span className="w-3 h-3 rounded-sm inline-block bg-[#94A3B8]" />
             <span className="text-[13px] text-[#64748B]">Mid-Year</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm inline-block bg-slate-300" />
+            <span className="w-3 h-3 rounded-sm inline-block bg-[#CBD5E1]" />
             <span className="text-[13px] text-[#64748B]">Year-End</span>
           </div>
         </div>
