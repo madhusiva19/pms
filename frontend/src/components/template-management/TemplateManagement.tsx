@@ -39,6 +39,8 @@ export default function TemplatesListPage() {
   const [templates, setTemplates]           = useState<Template[]>([]);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState('');
+  // Assignment counts for all templates, fetched once in a single batch call
+  const [assignedCounts, setAssignedCounts] = useState<Record<number, number>>({});
   // Tracks what the user has typed in the search box
   const [searchInput, setSearchInput]       = useState('');
   const [showDropdown, setShowDropdown]     = useState(false);
@@ -71,6 +73,22 @@ export default function TemplatesListPage() {
       })
       .finally(() => setLoading(false));
   }, [authLoading, user]);
+
+  // Fetch assignment counts for ALL templates in a single batched request,
+  // instead of each TemplateCard firing its own /assignments call.
+  useEffect(() => {
+    if (templates.length === 0) return;
+    const ids = templates.map(t => t.id).join(',');
+    const url = user?.id
+      ? `${API}/api/templates/assignments/batch?template_ids=${ids}&manager_id=${user.id}`
+      : `${API}/api/templates/assignments/batch?template_ids=${ids}`;
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        if (data && typeof data === 'object' && !data.error) setAssignedCounts(data);
+      })
+      .catch(() => {});
+  }, [templates, user?.id]);
 
   useEffect(() => {
     // Close the autocomplete dropdown when the user clicks outside the search box
@@ -308,6 +326,7 @@ export default function TemplatesListPage() {
                 index={idx}
                 userRole={user?.role}
                 managerId={user?.id}
+                assignedCount={assignedCounts[tmpl.id] ?? null}
               />
             ))}
           </div>
@@ -350,28 +369,14 @@ function getAbbr(name: string): string {
   return (words[0][0] + (words[1]?.[0] ?? words[0][1])).toUpperCase();
 }
 
-function TemplateCard({ tmpl, index, userRole, managerId }: {
+function TemplateCard({ tmpl, index, userRole, managerId, assignedCount }: {
   tmpl: Template;
   index: number;
   userRole: string | undefined;
-  managerId: string | undefined;  // Scopes the assignment count to this manager's team
+  managerId: string | undefined;
+  assignedCount: number | null;  // Now passed down from the batched parent fetch
 }) {
   const [hovered, setHovered] = useState(false);
-  // Null while the count is still loading (shows a shimmer placeholder)
-  const [assignedCount, setAssignedCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    // Fetch how many of THIS manager's team members are on this template.
-    // Without manager_id the API would return the global count across all managers.
-    const assignmentUrl = managerId
-      ? `${API}/api/templates/${tmpl.id}/assignments?manager_id=${managerId}`
-      : `${API}/api/templates/${tmpl.id}/assignments`;
-
-    fetch(assignmentUrl)
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setAssignedCount(data.length); })
-      .catch(() => setAssignedCount(0));
-  }, [tmpl.id, managerId]);
 
   const isFrozen = tmpl.status === 'frozen';
   // Convert role string for use in URL paths (e.g. "branch_admin" → "branch-admin")
@@ -453,7 +458,7 @@ function TemplateCard({ tmpl, index, userRole, managerId }: {
               <circle cx="8" cy="5.5" r="2.5" stroke="#94A3B8" strokeWidth="1.4"/>
             </svg>
             <span style={{ fontSize: 12.7, color: '#94A3B8', lineHeight: '20px' }}>
-              Made by {formatCreatedBy(tmpl)}
+              Created by {formatCreatedBy(tmpl)}
             </span>
           </div>
 
