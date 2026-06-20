@@ -106,74 +106,54 @@ export default function BranchReportPage() {
   }, [branchId, activeTab, authLoading, user?.role, reportYear]);
 
   const fetchAllData = async () => {
+    setLoading(true);
+    setError(null);
+
+    // ── Critical: page cannot render without these ──
+    let summaryData: BranchDashboardSummary;
     try {
-      setLoading(true);
-      setError(null);
-
-      const summaryData = await branchDashboardApi.getSummary(branchId);
-
-      // Use branch data from dashboard summary
+      summaryData = await branchDashboardApi.getSummary(branchId);
       const branchData = summaryData.branch;
-
-      if (!branchData) {
-        setError('Branch not found');
-        return;
-      }
-
+      if (!branchData) { setError('Branch not found'); setLoading(false); return; }
       setBranch(branchData);
       setSummary(summaryData);
-
-      const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
-
-      // Fetch live bell curve from performance_summaries — independent of activeReport
-      const bellCurve = await bellCurveApi.getLive({
-        period_type: activeTab,
-        year: reportYear!,
-        scope: 'branch',
-        scope_id: branchId,
-      });
-      setBellCurveData(bellCurve as any);
-
-      // Fetch dynamic metrics for the branch
-      const metricsData = await metricsApi.get({
-        period_type: activeTab,
-        year: reportYear!,
-        scope: 'branch',
-        scope_id: branchId,
-      });
-      setMetrics(metricsData);
-
-      if (activeReport) {
-        const insightsData = await branchInsightsApi.getByReport(activeReport.id);
-        if (insightsData && insightsData.length > 0) {
-          setInsights(insightsData);
-        } else {
-          // Fallback AI insight when database has no records
-          const fallbackInsight = activeTab === 'mid_year'
-            ? FALLBACK_INSIGHT_MID_YEAR
-            : FALLBACK_INSIGHT_YEAR_END;
-          setInsights([{
-            id: 'fallback-insight',
-            report_id: activeReport.id,
-            insight_text: fallbackInsight,
-            insight_type: 'distribution_analysis',
-            created_at: new Date().toISOString(),
-          }]);
-        }
-      }
-
-      const comparison = await comparisonLiveApi.get({
-        year: reportYear!,
-        scope: 'branch',
-        scope_id: branchId,
-      });
-      setComparisonData(comparison);
-    } catch (err: any) {
+    } catch (err) {
       logger.error('Failed to load branch report data', err);
-      setError(`Failed to load report data: ${err.message}`);
-    } finally {
+      setError('Failed to load report data. Please try again.');
       setLoading(false);
+      return;
     }
+
+    // ── Non-critical: charts/metrics degrade gracefully on failure ──
+    const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
+
+    await Promise.allSettled([
+      bellCurveApi.getLive({ period_type: activeTab, year: reportYear!, scope: 'branch', scope_id: branchId })
+        .then(d => setBellCurveData(d as any))
+        .catch(() => setBellCurveData([])),
+
+      metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'branch', scope_id: branchId })
+        .then(setMetrics)
+        .catch(() => setMetrics(null)),
+
+      (activeReport
+        ? branchInsightsApi.getByReport(activeReport.id).then(data => {
+            if (data && data.length > 0) {
+              setInsights(data);
+            } else {
+              const fallbackInsight = activeTab === 'mid_year' ? FALLBACK_INSIGHT_MID_YEAR : FALLBACK_INSIGHT_YEAR_END;
+              setInsights([{ id: 'fallback-insight', report_id: activeReport.id, insight_text: fallbackInsight, insight_type: 'distribution_analysis', created_at: new Date().toISOString() }]);
+            }
+          })
+        : Promise.resolve()
+      ).catch(() => {}),
+
+      comparisonLiveApi.get({ year: reportYear!, scope: 'branch', scope_id: branchId })
+        .then(setComparisonData)
+        .catch(() => setComparisonData([])),
+    ]);
+
+    setLoading(false);
   };
 
   const handleDownload = async () => {
