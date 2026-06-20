@@ -28,7 +28,6 @@ import BellCurveChart from '@/components/bell-curve/BellCurveChart';
 import ComparisonChart from '@/components/comparison/ComparisonChart';
 import AIInsightCard from '@/components/ai/AIInsightCard';
 import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
-import CreateReportModal from '@/components/reports/CreateReportModal';
 import YearEndEmptyState from '@/components/reports/YearEndEmptyState';
 
 import {
@@ -36,7 +35,6 @@ import {
   bellCurveApi,
   comparisonLiveApi,
   branchInsightsApi,
-  branchesApi,
   metricsApi,
   activeReportYearApi,
 } from '@/services/api';
@@ -80,10 +78,6 @@ export default function BranchReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
   const [requestId, setRequestId] = useState<string | null>(null);
-
-  // ← NEW — Create Report Modal state
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createReportSuccess, setCreateReportSuccess] = useState(false);
 
   useEffect(() => {
     activeReportYearApi.get()
@@ -302,18 +296,7 @@ export default function BranchReportPage() {
               </p>
             </div>
 
-            {/* ← NEW Action buttons */}
             <div className="flex items-center gap-3">
-
-              {/* Create Report button — Year-End only */}
-              {user && activeTab === 'year_end' && (
-                <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 text-[#155DFC] text-[13.5px] font-medium rounded-lg border border-[#155DFC] bg-white hover:bg-[#EFF6FF] active:scale-[0.98] transition-all"
-                >
-                  + Create Report
-                </button>
-              )}
 
               {/* Download button */}
               <button
@@ -468,32 +451,7 @@ export default function BranchReportPage() {
         </div>
         {/* ── End printable area ── */}
 
-        {/* Success message after saving report */}
-        {createReportSuccess && (
-          <div className="fixed bottom-4 right-4 bg-green-50 border border-green-200 rounded-lg p-4 text-green-700 shadow-lg animate-pulse">
-            Report saved successfully! View it in your <a href="/saved-reports" className="font-semibold underline">saved reports</a>.
-          </div>
-        )}
       </div>
-
-      {/* Create Report Modal */}
-      {user && branch && summary && (
-        <CreateReportModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          onSuccess={(savedReport) => {
-            setCreateReportSuccess(true);
-            setTimeout(() => setCreateReportSuccess(false), 5000);
-          }}
-          reportType="branch"
-          countryId={branch.country_id}
-          branchId={branch.id}
-          reportPeriod="both"
-          reportYear={reportYear!}
-          userId={user.id}
-          userEmail={user.email}
-        />
-      )}
     </main>
   );
 }
