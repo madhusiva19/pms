@@ -14,13 +14,23 @@ const APPROVAL_TAB = {
   all: 'all',
 } as const;
 
+// Maps the approval status to the evaluation flow display label.
+// The flow is only "completed" when the last stage (HQ Admin Finalization) is
+// done, i.e. the approval is approved. Everything before that is "in progress".
+const getEvalFlowLabel = (status?: string): string => {
+  const s = normalizeStatus(status);
+  if (s === 'approved')  return 'completed';
+  if (s === 'rejected')  return 'rejected';
+  return 'pending';
+};
+
 // Returns CSS module classes for status badges in the table.
 const getStatusColor = (status?: string, styles: Record<string, string> = {}) => {
   switch (normalizeStatus(status)) {
-    case TEAM_MEMBER_STATUS.pending:   return styles.statusPending;
     case 'approved':                    return styles.statusApproved;
     case 'rejected':                    return styles.statusRejected;
     case TEAM_MEMBER_STATUS.inProgress: return styles.statusInProgress;
+    case TEAM_MEMBER_STATUS.pending:    return styles.statusInProgress;
     default:                            return styles.statusDefault;
   }
 };
@@ -161,7 +171,7 @@ export default function Approvals({ roleFilter }: { roleFilter?: string } = {}) 
                       <td className={viewStyles.v046}>{row.level}</td>
                       <td className={viewStyles.v046}>
                         <span className={`${viewStyles.v051} ${getStatusColor(row.status, viewStyles as Record<string, string>)}`}>
-                          {normalizeStatus(row.status)}
+                          {getEvalFlowLabel(row.status)}
                         </span>
                       </td>
                       <td className={viewStyles.v046}>{row.dueDate}</td>

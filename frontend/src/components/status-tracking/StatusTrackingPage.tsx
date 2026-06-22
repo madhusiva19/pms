@@ -11,7 +11,18 @@ import { readStoredMember, saveStoredMember } from '../../lib/currentMember';
 import { formatRole, normalizeStatus } from '../../lib/formatters';
 import type { EvaluationStatus, TeamMember } from '../../lib/types';
 
-export default function StatusTracking() {
+// Defines which stage names each role should see in their evaluation workflow.
+// Each role only sees Self Evaluation + the admin levels above them.
+const ROLE_STAGE_NAMES: Record<string, string[]> = {
+  hq_admin:       ['Self Evaluation'],
+  country_admin:  ['Self Evaluation', 'HQ Admin Finalization'],
+  branch_admin:   ['Self Evaluation', 'Country Admin Final Approval', 'HQ Admin Finalization'],
+  dept_admin:     ['Self Evaluation', 'Branch Admin Review', 'Country Admin Final Approval', 'HQ Admin Finalization'],
+  sub_dept_admin: ['Self Evaluation', 'Dept Admin Approval', 'Branch Admin Review', 'Country Admin Final Approval', 'HQ Admin Finalization'],
+  employee:       ['Self Evaluation', 'Sub Dept Admin Evaluation', 'Dept Admin Approval', 'Branch Admin Review', 'Country Admin Final Approval', 'HQ Admin Finalization'],
+};
+
+export default function StatusTracking({ forceAllCompleted = false }: { forceAllCompleted?: boolean }) {
   const router = useRouter();
   const routes = useRoutes();
   // Stores the workflow status object returned from the backend.
@@ -125,8 +136,18 @@ export default function StatusTracking() {
 
   const employeeName = activeMember?.name || evaluationStatus.employee || 'Employee';
   const initials = employeeName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-  const currentStage = evaluationStatus.currentStage || EVALUATION_DEFAULTS.currentStage;
-  const completedStages = evaluationStatus.stages.filter(s => normalizeStatus(s.status) === 'completed');
+
+  const allowedStageNames = activeMember?.role ? ROLE_STAGE_NAMES[activeMember.role] : null;
+  const displayedStages = allowedStageNames
+    ? evaluationStatus.stages.filter(s => allowedStageNames.includes(s.name))
+    : evaluationStatus.stages;
+
+  const currentStage = forceAllCompleted
+    ? (displayedStages[displayedStages.length - 1]?.name || EVALUATION_DEFAULTS.currentStage)
+    : (evaluationStatus.currentStage || EVALUATION_DEFAULTS.currentStage);
+  const completedStages = forceAllCompleted
+    ? displayedStages
+    : displayedStages.filter(s => normalizeStatus(s.status) === 'completed');
 
   return (
     <div className={viewStyles.v031}>
@@ -163,11 +184,11 @@ export default function StatusTracking() {
               <h2 className={viewStyles.timelineHeading}>Evaluation Workflow</h2>
 
               <div>
-                {evaluationStatus.stages.map((stage, idx) => {
-                  const status = normalizeStatus(stage.status);
+                {displayedStages.map((stage, idx) => {
+                  const status = forceAllCompleted ? 'completed' : normalizeStatus(stage.status);
                   const isCompleted = status === 'completed';
                   const isInProgress = status === 'in progress';
-                  const isLast = idx === evaluationStatus.stages.length - 1;
+                  const isLast = idx === displayedStages.length - 1;
 
                   const dotClass = `${viewStyles.trackStageDot} ${
                     isCompleted
@@ -234,7 +255,7 @@ export default function StatusTracking() {
                 <h2 className={viewStyles.trackSideTitle}>Current Stage</h2>
                 <div className={viewStyles.trackCurrentStageBox}>
                   <div className={viewStyles.trackCurrentStageName}>{currentStage} (Level 1)</div>
-                  <div className={viewStyles.trackCurrentStageStatus}>{EVALUATION_DEFAULTS.currentStatus}</div>
+                  <div className={viewStyles.trackCurrentStageStatus}>{forceAllCompleted ? 'completed' : EVALUATION_DEFAULTS.currentStatus}</div>
                 </div>
               </div>
 

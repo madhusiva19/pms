@@ -143,6 +143,44 @@ def get_approval(approval_id):
     return fallback_response(approval)
 
 
+ROLE_TO_STAGE = {
+    'employee':       'Sub Dept Admin Evaluation',
+    'sub_dept_admin': 'Dept Admin Approval',
+    'dept_admin':     'Branch Admin Review',
+    'branch_admin':   'Country Admin Final Approval',
+    'country_admin':  'HQ Admin Finalization',
+}
+
+
+def _complete_evaluation_stage(member_id):
+    """Mark the evaluation stage for member_id as completed based on their role."""
+    try:
+        member = fetch_first("team_members", "id", member_id, missing_ok=True)
+        member_role = (member or {}).get("role") or (member or {}).get("designation")
+        stage_name = ROLE_TO_STAGE.get(member_role or "")
+        if not stage_name:
+            return
+        ev_status = fetch_first("evaluation_status", "member_id", member_id, missing_ok=True)
+        if not ev_status:
+            ev_status = fetch_first("evaluation_status", "employee_id", member_id, missing_ok=True)
+        if ev_status:
+            supabase_request(
+                "evaluation_stages",
+                method="PATCH",
+                params={
+                    "evaluation_status_id": f"eq.{ev_status['id']}",
+                    "stage_name": f"eq.{stage_name}",
+                },
+                payload={
+                    "stage_status": "completed",
+                    "stage_date": datetime.utcnow().date().isoformat(),
+                },
+            )
+    except Exception as err:
+        from flask import current_app as _app
+        _app.logger.warning("Could not update evaluation stage on approval: %s", err)
+
+
 def update_approval(approval_id):
     """Approve or reject an approval and create a workflow notification."""
 
@@ -178,6 +216,10 @@ def update_approval(approval_id):
             else:
                 description = f"{employee_name} approval status changed to {normalized_status}."
             create_notification(notification_type, "Approval Status Updated", description)
+            if normalized_status == "approved":
+                member_id = approval.get("team_member_id") or approval.get("employee_id")
+                if member_id:
+                    _complete_evaluation_stage(member_id)
             return jsonify(approval), 200
         except Exception as error:
             current_app.logger.warning("Falling back to in-memory approval update: %s", error)

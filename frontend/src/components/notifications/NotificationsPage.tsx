@@ -18,6 +18,8 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   // Stores a readable message when the notification API cannot be reached.
   const [errorMessage, setErrorMessage] = useState('');
+  // Tracks which page of notifications is currently visible (1-indexed).
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Loads notifications and initializes the local read-status set.
   useEffect(() => {
@@ -29,6 +31,7 @@ export default function Notifications() {
         const response = await getNotifications();
         const notificationRows = Array.isArray(response.data) ? response.data : [];
         setNotifications(notificationRows);
+        setCurrentPage(1);
         setReadNotifications(
           new Set(notificationRows.filter((notif) => notif.is_read).map((notif) => notif.id))
         );
@@ -108,6 +111,10 @@ export default function Notifications() {
 
   const unreadCount = notifications.filter(n => !readNotifications.has(n.id) && !n.is_read).length;
 
+  const PAGE_SIZE = 10;
+  const totalPages = Math.ceil(notifications.length / PAGE_SIZE);
+  const pagedNotifications = notifications.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   return (
     <div className={viewStyles.v031}>
       <Sidebar />
@@ -155,7 +162,7 @@ export default function Notifications() {
             </div>
           ) : notifications.length > 0 ? (
             <div className={viewStyles.notifList}>
-              {notifications.map((notif) => {
+              {pagedNotifications.map((notif) => {
                 const isRead = readNotifications.has(notif.id) || notif.is_read;
                 const typeClass = getNotificationTypeClass(notif.type);
                 const iconClass = getNotificationIconClass(notif.type);
@@ -200,6 +207,30 @@ export default function Notifications() {
             </div>
           )}
 
+          {!loading && !errorMessage && totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginTop: '24px', marginBottom: '40px' }}>
+              <button
+                onClick={() => setCurrentPage(p => p - 1)}
+                disabled={currentPage === 1}
+                className={viewStyles.v048}
+                style={{ opacity: currentPage === 1 ? 0.4 : 1 }}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: '14px', color: '#64748b' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(p => p + 1)}
+                disabled={currentPage === totalPages}
+                className={viewStyles.v048}
+                style={{ opacity: currentPage === totalPages ? 0.4 : 1 }}
+              >
+                Next
+              </button>
+            </div>
+          )}
+
           {/* Static helper cards explain the evaluation process and approver levels. */}
           <div className={viewStyles.notifInfoGrid}>
             {/* Process Flow */}
@@ -212,6 +243,7 @@ export default function Notifications() {
                   'Dept Admin Approval',
                   'Branch Admin Review',
                   'Country Admin Final Approval',
+                  'HQ Admin Finalization',
                 ].map((step, idx) => (
                   <div key={idx} className={viewStyles.notifProcessStep}>
                     <span className={viewStyles.notifProcessNum}>{idx + 1}</span>
@@ -230,7 +262,8 @@ export default function Notifications() {
                   { icon: '👥', label: 'Level 2: Country Admin' },
                   { icon: '🏢', label: 'Level 3: Branch Admin' },
                   { icon: '⭐', label: 'Level 4: Dept Admin' },
-                  { icon: '⭐', label: 'Level 4: Sub Dept Admin' },
+                  { icon: '⭐', label: 'Level 5: Sub Department Admin' },
+                  { icon: '👤', label: 'Level 6: Employees' },
                 ].map((role, idx) => (
                   <div key={idx} className={viewStyles.notifRoleItem}>
                     <div className={viewStyles.notifRoleIcon}>{role.icon}</div>
