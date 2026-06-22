@@ -2,12 +2,12 @@ import viewStyles from '../../styles/views.module.css';
 import { useState, useEffect } from 'react';
 import Link from '../../lib/routing';
 import { useRoutes } from '../../lib/routing';
-import { getTeamMembers, getApprovals } from '../../lib/api';
+import { getApprovals, invalidateCache } from '../../lib/api';
 import Sidebar from '../sidebar/Sidebar';
 import LoadingScreen from '../LoadingScreen';
-import { TEAM_MEMBER_STATUS, STORAGE_KEYS, ROLE_SUBORDINATE_MAP } from '../../lib/constants';
+import { TEAM_MEMBER_STATUS } from '../../lib/constants';
 import { normalizeStatus } from '../../lib/formatters';
-import type { Approval, TeamMember } from '../../lib/types';
+import type { Approval } from '../../lib/types';
 
 const APPROVAL_TAB = {
   pending: 'pending',
@@ -28,7 +28,7 @@ const getStatusColor = (status?: string, styles: Record<string, string> = {}) =>
 const getInitials = (name?: string) =>
   (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
-export default function Approvals() {
+export default function Approvals({ roleFilter }: { roleFilter?: string } = {}) {
   const routes = useRoutes();
   const [rows, setRows] = useState<Approval[]>([]);
   const [activeTab, setActiveTab] = useState<string>(APPROVAL_TAB.pending);
@@ -37,61 +37,13 @@ export default function Approvals() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      invalidateCache('/approvals');
       try {
-        // Read logged-in user role to determine which subordinates to show —
-        // mirrors exactly what MyTeamPage does so both pages list the same people.
-        let userRole = 'branch_admin';
-        try {
-          const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.user) || 'null') as { role?: string } | null;
-          if (stored?.role) userRole = stored.role;
-        } catch {}
-
-        const subordinateRole = ROLE_SUBORDINATE_MAP[userRole];
-
-        const [membersRes, approvalsRes] = await Promise.all([
-          getTeamMembers(),
-          getApprovals(),
-        ]);
-
-        // Filter members by the direct subordinate role (same filter as My Team).
-        const members: TeamMember[] = subordinateRole
-          ? membersRes.data.filter(m => m.role === subordinateRole)
-          : membersRes.data;
-
-        const approvalRecords: Approval[] = approvalsRes.data;
-
-        // Build one row per team member, enriched with their approval record when one exists.
-        const merged: Approval[] = members.map(member => {
-          const existing = approvalRecords.find(a =>
-            String(a.team_member_id) === String(member.id) ||
-            String(a.employee_id)    === String(member.id) ||
-            String(a.member_id)      === String(member.id) ||
-            a.employee?.toLowerCase() === member.name?.toLowerCase()
-          );
-
-          if (existing) {
-            return {
-              ...existing,
-              employee: member.name,
-              team_member_id: member.id,
-              employee_id: member.id,
-            };
-          }
-
-          // Member has no approval record yet — show as pending.
-          return {
-            id: `member-${member.id}`,
-            employee: member.name,
-            team_member_id: member.id,
-            employee_id: member.id,
-            status: normalizeStatus(member.status) || TEAM_MEMBER_STATUS.pending,
-            evaluationBy: '—',
-            level: '—',
-            dueDate: '—',
-          } as Approval;
-        });
-
-        setRows(merged);
+        const approvalsRes = await getApprovals();
+        // Backend already filters to real submissions (evaluation_id IS NOT NULL)
+        // and resolves employee / evaluator names via FK joins.
+        const records: Approval[] = approvalsRes.data ?? [];
+        setRows(records);
       } catch (error) {
         console.error('Error fetching approvals:', error);
       } finally {

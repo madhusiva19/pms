@@ -171,12 +171,10 @@
 .v017 {
   margin-bottom: 20px;
   overflow: hidden;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 8px 32px rgba(28, 57, 142, 0.10);
+  border-radius: 16px;
+  border: 1.5px solid rgba(30, 58, 138, 0.14);
+  background: #ffffff;
+  box-shadow: 0 4px 24px rgba(30, 58, 138, 0.10), 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .v018 {
@@ -190,42 +188,50 @@
 .v020 {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) 120px 150px 150px 120px 110px;
-  border-bottom: 1px solid #e5e7eb;
-  background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%);
-  padding: 14px 16px;
+  background: linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 60%, #2563eb 100%);
+  border-bottom: 2px solid rgba(30, 58, 138, 0.20);
+  padding: 15px 20px;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.09em;
+  color: #ffffff;
 }
 
 .v021 {
-  background: #f1f5f9;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  font-size: 12px;
+  background: linear-gradient(90deg, #eff6ff 0%, #f8faff 100%);
+  border-left: 4px solid #3b82f6;
+  border-bottom: 1px solid #e0e7ff;
+  border-top: 1px solid #e0e7ff;
+  padding-left: 20px;
+  padding-right: 20px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  font-size: 11px;
   line-height: 16px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
-  color: #334155;
+  letter-spacing: 0.08em;
+  color: #1d4ed8;
 }
 
 .v022 {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) 120px 150px 150px 120px 110px;
   align-items: center;
-  border-bottom: 1px solid #e5e7eb;
-  border-color: #f1f5f9;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 16px;
-  padding-bottom: 16px;
-  font-size: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-left: 20px;
+  padding-right: 20px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  font-size: 13px;
   line-height: 20px;
-  color: #334155;
+  color: #374151;
+  transition: background 0.15s ease;
+}
+
+.v022:hover {
+  background: #f8faff;
 }
 
 .v022:last-child {
@@ -233,8 +239,9 @@
 }
 
 .v023 {
-  font-weight: 500;
-  color: #1e293b;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
 
 .v024 {
@@ -378,16 +385,17 @@
 
 .v030 {
   display: inline-flex;
-  min-width: 48px;
+  min-width: 52px;
   justify-content: center;
   border-radius: 999px;
-  padding-left: 8px;
-  padding-right: 8px;
+  padding-left: 10px;
+  padding-right: 10px;
   padding-top: 4px;
   padding-bottom: 4px;
   font-size: 12px;
   line-height: 16px;
   font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .v031 {
@@ -2870,11 +2878,11 @@
 }
 
 /* ── Rating badge classes (CSS module, replaces Tailwind strings) ── */
-.ratingGray   { background: #f3f4f6; color: #4b5563; }
-.ratingGreen  { background: #d1fae5; color: #065f46; }
-.ratingYellow { background: #fef3c7; color: #92400e; }
-.ratingOrange { background: #ffedd5; color: #9a3412; }
-.ratingRed    { background: #fee2e2; color: #991b1b; }
+.ratingGray   { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.ratingGreen  { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.ratingYellow { background: #fef9c3; color: #92400e; border: 1px solid #fde68a; }
+.ratingOrange { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+.ratingRed    { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
 .stageTextCompleted {
   color: #166534;

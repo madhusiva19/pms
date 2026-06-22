@@ -7,6 +7,7 @@ import type {
   EnquiryPayload,
   EntityId,
   EvaluationStatus,
+  MemberEvaluationData,
   NotificationItem,
   PerformanceRecord,
   QueryParams,
@@ -23,6 +24,17 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 404) {
+      const url = error?.config?.url || '(unknown)';
+      console.warn(`[API 404] ${error?.config?.method?.toUpperCase() ?? 'GET'} ${url}`);
+    }
+    return Promise.reject(error);
+  }
+);
 
 // In-memory GET cache — 30-second TTL so re-visiting pages skips the round-trip to Flask.
 const memCache = new Map<string, { data: unknown; ts: number }>();
@@ -67,11 +79,11 @@ export const updateApproval = (id: EntityId, data: Record<string, unknown>) => {
 };
 
 // Fetch notifications for the notification center.
-export const getNotifications = (): Promise<AxiosResponse<NotificationItem[]>> => cachedGet('/notifications');
+export const getNotifications = (): Promise<AxiosResponse<NotificationItem[]>> => cachedGet('/evaluation-notifications');
 // Persist a notification's read state.
 export const markNotificationRead = (id: EntityId) => {
-  invalidateCache('/notifications');
-  return api.put(`/notifications/${id}/read`);
+  invalidateCache('/evaluation-notifications');
+  return api.put(`/evaluation-notifications/${id}/read`);
 };
 
 // Fetch evaluation progress stages for the status tracking timeline.
@@ -81,6 +93,12 @@ export const getEvaluationStatus = (id: EntityId): Promise<AxiosResponse<Evaluat
 // Fetch metric/objective rows used by evaluation and approval tables.
 export const getPerformanceRecords = (params: QueryParams = {}): Promise<AxiosResponse<PerformanceRecord[]>> =>
   cachedGet('/performance-records', params);
+
+// Fetch objectives grouped by category, merged with member-specific actuals/
+// ratings from performance_records, plus the overall score from
+// performance_summaries. Pass user_id (UUID) and/or team_member_id (numeric).
+export const getObjectives = (params: QueryParams = {}): Promise<AxiosResponse<MemberEvaluationData>> =>
+  cachedGet('/objectives', params);
 // Fetch aggregated performance summary data when a page needs dashboard totals.
 export const getPerformanceSummary = () => cachedGet('/performance-summary');
 

@@ -6,7 +6,7 @@ import { getEvaluationStatus, getTeamMember, getTeamMembers } from '../../lib/ap
 import Sidebar from '../sidebar/Sidebar';
 import LoadingScreen from '../LoadingScreen';
 import { useRoutes } from '../../lib/routing';
-import { EVALUATION_DEFAULTS, TEAM_MEMBER_STATUS } from '../../lib/constants';
+import { EVALUATION_DEFAULTS } from '../../lib/constants';
 import { readStoredMember, saveStoredMember } from '../../lib/currentMember';
 import { formatRole, normalizeStatus } from '../../lib/formatters';
 import type { EvaluationStatus, TeamMember } from '../../lib/types';
@@ -36,40 +36,59 @@ export default function StatusTracking() {
         const knownId = routeMemberId || storedMember?.id;
 
         if (knownId) {
-          // Fetch member details and evaluation status in parallel since both IDs are known.
-          const [memberResponse, statusResponse] = await Promise.all([
-            getTeamMember(knownId),
-            getEvaluationStatus(knownId),
-          ]);
-          member = memberResponse.data;
-          saveStoredMember(member);
-          setActiveMember(member);
-          setEvaluationStatus({
-            ...statusResponse.data,
-            employee: member.name || statusResponse.data.employee,
-          });
-        } else {
-          const membersResponse = await getTeamMembers();
-          member =
-            membersResponse.data.find((item) => normalizeStatus(item.status) === TEAM_MEMBER_STATUS.inProgress) ||
-            membersResponse.data[0] ||
-            null;
-
-          if (!member?.id) {
-            setEvaluationStatus(null);
-            setActiveMember(null);
+          try {
+            // Use the previously stored member (the "past path").
+            const [memberResponse, statusResponse] = await Promise.all([
+              getTeamMember(knownId),
+              getEvaluationStatus(knownId),
+            ]);
+            member = memberResponse.data;
+            saveStoredMember(member);
+            setActiveMember(member);
+            setEvaluationStatus({
+              ...statusResponse.data,
+              employee: member.name || statusResponse.data.employee,
+            });
             return;
+          } catch (err: unknown) {
+            const httpStatus = (err as { response?: { status?: number } })?.response?.status;
+            if (httpStatus === 404) {
+              // Stale stored ID — clear it and fall through to auto-pick a
+              // real member from the team list so the page still loads.
+              localStorage.removeItem('pms_current_member_id');
+              localStorage.removeItem('pms_current_member_name');
+              localStorage.removeItem('pms_current_member_role');
+            } else {
+              throw err;
+            }
           }
-
-          saveStoredMember(member);
-          setActiveMember(member);
-
-          const statusResponse = await getEvaluationStatus(member.id);
-          setEvaluationStatus({
-            ...statusResponse.data,
-            employee: member.name || statusResponse.data.employee,
-          });
         }
+
+        // No valid stored member — find the most relevant member from the team
+        // list so the page is always useful.
+        // normalizeStatus converts "in_progress" → "in progress".
+        const membersResponse = await getTeamMembers();
+        member =
+          membersResponse.data.find((item) => normalizeStatus(item.status) === 'in progress') ||
+          membersResponse.data.find((item) => normalizeStatus(item.status) === 'pending') ||
+          membersResponse.data[0] ||
+          null;
+
+        if (!member?.id) {
+          setEvaluationStatus(null);
+          setActiveMember(null);
+          return;
+        }
+
+        // Auto-picked member — set active without overwriting localStorage so a
+        // real past selection (saved from My Team) is preserved for next visit.
+        setActiveMember(member);
+
+        const statusResponse = await getEvaluationStatus(member.id);
+        setEvaluationStatus({
+          ...statusResponse.data,
+          employee: member.name || statusResponse.data.employee,
+        });
       } catch (error) {
         console.error('Error fetching status:', error);
       } finally {
@@ -85,7 +104,23 @@ export default function StatusTracking() {
   }
 
   if (!evaluationStatus) {
-    return <div className={viewStyles.v052}>Status not found</div>;
+    return (
+      <div className={viewStyles.v031}>
+        <Sidebar />
+        <main className={viewStyles.v032}>
+          <div className={viewStyles.v033}>
+            <div className={viewStyles.v034}>
+              <Link href={routes.myTeam} className={viewStyles.v035}>My Team</Link>
+              {' > Status Tracking'}
+            </div>
+            <div className={viewStyles.v052}>
+              No evaluation status found. Please select a team member from{' '}
+              <Link href={routes.myTeam} className={viewStyles.v035}>My Team</Link> first.
+            </div>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   const employeeName = activeMember?.name || evaluationStatus.employee || 'Employee';

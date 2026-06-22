@@ -8,7 +8,7 @@ import { useRouter } from '../../lib/routing';
 import Link from '../../lib/routing';
 import {
   getApproval,
-  getPerformanceRecords,
+  getObjectives,
   getTeamMember,
   updateApproval,
 } from '../../lib/api';
@@ -18,9 +18,9 @@ import { useRoutes } from '../../lib/routing';
 import { EVALUATION_DEFAULTS, ROLE_EVALUATOR_LABEL } from '../../lib/constants';
 import { DEFAULT_ADMIN_FEEDBACK, DEFAULT_OBJECTIVES } from '../../lib/evaluationDefaults';
 import { formatRole, formatScore, getRatingBadgeClass, valueOrDash } from '../../lib/formatters';
-import { groupPerformanceRecords, isNumericId } from '../../lib/performanceRecords';
+import { isNumericId } from '../../lib/performanceRecords';
 import { saveStoredMember, updateStoredApproval } from '../../lib/currentMember';
-import type { Approval, PerformanceRecord, TeamMember } from '../../lib/types';
+import type { Approval, EvaluationRecord, EvaluationSummary, ObjectiveGroup, TeamMember } from '../../lib/types';
 
 export default function EvaluationApproval() {
   const router = useRouter();
@@ -29,16 +29,15 @@ export default function EvaluationApproval() {
   // so the page can load the exact employee connected to the approval.
   const { id, memberId: routeMemberId } = router.query;
 
-  // Stores the approval row being reviewed.
-  const [approval, setApproval] = useState<Approval | null>(null);
-  // Stores the member connected to the approval.
-  const [member, setMember] = useState<TeamMember | null>(null);
-  // Stores objective/metric records used in the review table.
-  const [performanceRecords, setPerformanceRecords] = useState<PerformanceRecord[]>([]);
-  // Stores read-only feedback shown to approvers.
+  const [approval, setApproval]     = useState<Approval | null>(null);
+  const [member, setMember]         = useState<TeamMember | null>(null);
+  const [dbGroups, setDbGroups]     = useState<ObjectiveGroup[]>([]);
+  const [summary, setSummary]       = useState<EvaluationSummary>({});
+  const [evalRec, setEvalRec]       = useState<EvaluationRecord>({});
+  const [noRecords, setNoRecords]   = useState(false);
   const [adminFeedback, setAdminFeedback] = useState('');
-  // Controls loading and loaded page states.
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]       = useState(true);
+  const [showApproveSuccess, setShowApproveSuccess] = useState(false);
 
   // Pre-warm approvals and rejection pages so button clicks feel instant.
   useEffect(() => {
@@ -48,8 +47,8 @@ export default function EvaluationApproval() {
 
   // Main loading process for the review page:
   // 1. Get the approval request.
-  // 2. Resolve the employee/member ID from the approval or route query.
-  // 3. Load employee profile and performance records in parallel.
+  // 2. Resolve the numeric team member ID and fetch their profile (for user_id).
+  // 3. Query performance records by user_id — the only column records are linked by.
   // 4. Store all data in state so the review page can render.
   useEffect(() => {
     if (!id) return;
@@ -57,56 +56,60 @@ export default function EvaluationApproval() {
     const fetchApprovalDetails = async () => {
       setLoading(true);
       try {
-        // Load the approval first because it contains the employee reference.
         const approvalResponse = await getApproval(id);
         const approvalData = approvalResponse.data;
 
-        // Different database tables may store the employee reference under
-        // different column names, so this chooses the first available value.
-        const memberId = approvalData.team_member_id || approvalData.member_id || approvalData.memberId || routeMemberId || approvalData.employee_id || approvalData.employeeId || null;
+        const numericId =
+          approvalData.team_member_id ||
+          approvalData.member_id ||
+          (isNumericId(routeMemberId) ? routeMemberId : null) ||
+          null;
 
-        // Performance records can be linked by member_id or user_id depending on
-        // the database table, so choose the safest filter based on ID format.
-        const recordsParams = isNumericId(memberId)
-          ? { member_id: memberId }
-          : { user_id: memberId };
+        let memberData: Partial<TeamMember> = {};
+        if (numericId && isNumericId(numericId)) {
+          try {
+            const memberResponse = await getTeamMember(numericId);
+            memberData = memberResponse.data ?? {};
+          } catch {
+            memberData = {};
+          }
+        }
 
-        // These requests are independent after memberId is known, so they run
-        // together to reduce waiting time on the review page.
-        const recordsPromise = getPerformanceRecords(recordsParams).catch(() => ({ data: [] }));
-        const memberPromise = isNumericId(memberId)
-          ? getTeamMember(memberId).catch(() => ({ data: null }))
-          : Promise.resolve({ data: null });
+        // ── Same getObjectives call as EvaluateMemberPage ──────────────────
+        const params: Record<string, string> = {};
+        if (memberData.user_id) params.user_id = String(memberData.user_id);
+        if (isNumericId(numericId)) params.team_member_id = String(numericId);
 
-        const [memberResponse, recordsResponse] = await Promise.all([
-          memberPromise,
-          recordsPromise,
-        ]);
+        try {
+          const { data } = await getObjectives(params);
+          setDbGroups(data.groups ?? []);
+          setSummary(data.summary ?? {});
+          setEvalRec(data.evaluation ?? {});
+          setNoRecords((data.groups ?? []).length === 0);
+          setAdminFeedback(
+            data.evaluation?.feedback ??
+            (memberData?.evaluation?.feedback as string | undefined) ??
+            DEFAULT_ADMIN_FEEDBACK
+          );
+        } catch {
+          setNoRecords(true);
+          setAdminFeedback(
+            (memberData?.evaluation?.feedback as string | undefined) ?? DEFAULT_ADMIN_FEEDBACK
+          );
+        }
 
-        const memberData = memberResponse.data || {};
-
-        // Store approval details exactly as the backend returns them.
         setApproval(approvalData);
-        // Build a complete member object even if the backend cannot return the
-        // member row, so the UI can still show a name and role.
         const resolvedMember = {
           ...memberData,
-          id: memberData.id || memberId,
+          id: memberData.id || numericId || approvalData.employee_id,
           name: approvalData.employee || memberData.name || EVALUATION_DEFAULTS.defaultEmployeeName,
           role: memberData.role || EVALUATION_DEFAULTS.approvalReviewRole,
         };
         setMember(resolvedMember);
         saveStoredMember(resolvedMember);
-        // Store objective/metric rows for the score table.
-        setPerformanceRecords(recordsResponse.data || []);
-        // Prefer submitted feedback, then member evaluation feedback, then a safe
-        // fallback message so the section is never blank.
-        setAdminFeedback(
-          approvalData.feedback ||
-            memberData?.evaluation?.feedback ||
-            DEFAULT_ADMIN_FEEDBACK
-        );
-      } catch (error) {
+      } catch (error: unknown) {
+        const status = (error as { response?: { status?: number } })?.response?.status;
+        if (status === 404) { router.push(routes.approvals); return; }
         console.error('Error fetching approval details:', error);
       } finally {
         setLoading(false);
@@ -116,18 +119,17 @@ export default function EvaluationApproval() {
     fetchApprovalDetails();
   }, [id, routeMemberId]);
 
-  // Builds the objective table from real records first. If there are no separate
-  // performance record rows, it uses objectives already attached to the member.
-  // The final fallback keeps the table layout usable while database data is empty.
   const objectiveGroups = useMemo(() => {
-    const recordGroups = groupPerformanceRecords(performanceRecords);
-    if (recordGroups.length) return recordGroups;
+    if (dbGroups.length) return dbGroups;
     return member?.evaluation?.objectives?.length ? member.evaluation.objectives : DEFAULT_OBJECTIVES;
-  }, [member, performanceRecords]);
+  }, [dbGroups, member]);
 
-  // Overall score can come from the member row or nested evaluation row.
-  // The fallback value keeps the score card stable if the backend field is absent.
-  const overallScore = member?.overallScore || member?.evaluation?.overallScore || member?.evaluation?.overall_score || 3.24;
+  const overallScore =
+    (summary as { total_score?: number }).total_score ??
+    (evalRec as { overall_score?: number }).overall_score ??
+    member?.overallScore ??
+    member?.evaluation?.overallScore ??
+    0;
 
   // Approve process:
   // 1. Update the approval status in the backend.
@@ -146,36 +148,21 @@ export default function EvaluationApproval() {
         team_member_id: approval?.team_member_id || member?.id || response.data?.team_member_id,
         status: 'approved',
       });
-      alert('Evaluation approved successfully!');
-      router.push(routes.approvals);
+      setShowApproveSuccess(true);
     } catch (error) {
       console.error('Error approving evaluation:', error);
       alert('Error approving evaluation');
     }
   };
 
-  // Marks the approval as rejected, updates the local approval cache, then opens
-  // the rejection detail page where the reviewer can add comments.
-  const handleReject = async () => {
-    try {
-      const response = await updateApproval(id, { status: 'rejected' });
-      updateStoredApproval({
-        ...approval,
-        ...response.data,
-        id: approval?.id || id,
-        employee: approval?.employee || member?.name || response.data?.employee,
-        employee_id: approval?.employee_id || member?.id || response.data?.employee_id,
-        team_member_id: approval?.team_member_id || member?.id || response.data?.team_member_id,
-        status: 'rejected',
-      });
-      router.push({
-        pathname: `${routes.rejection}/${id}`,
-        query: member?.id && isNumericId(member.id) ? { memberId: member.id } : {},
-      });
-    } catch (error) {
-      console.error('Error rejecting evaluation:', error);
-      alert('Error rejecting evaluation');
-    }
+  // Navigate to the rejection detail page where the reviewer adds comments.
+  // The actual status update (PUT /approvals/:id with comments) happens there
+  // in one API call, so comments are always included with the rejection.
+  const handleReject = () => {
+    router.push({
+      pathname: `${routes.rejection}/${id}`,
+      query: member?.id && isNumericId(member.id) ? { memberId: member.id } : {},
+    });
   };
 
   if (loading) {
@@ -223,6 +210,12 @@ export default function EvaluationApproval() {
               <div className={viewStyles.v016}>Overall Score</div>
             </div>
           </section>
+
+          {noRecords && (
+            <div className={viewStyles.v140} style={{ marginBottom: '1rem', background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
+              ⚠️ Performance records could not be loaded — showing template data. The actual scores may differ.
+            </div>
+          )}
 
           {/* Read-only objective table lets the approver inspect scoring details. */}
           <section className={viewStyles.v017}>
@@ -293,6 +286,131 @@ export default function EvaluationApproval() {
           </div>
         </div>
       </main>
+
+      {showApproveSuccess && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(6px)',
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          <div style={{
+            width: '100%', maxWidth: '480px', margin: '0 16px',
+            borderRadius: '24px',
+            background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 100%)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 32px 80px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.08)',
+            overflow: 'hidden',
+            animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)',
+          }}>
+            {/* Green accent bar */}
+            <div style={{ height: '4px', background: 'linear-gradient(90deg, #16a34a, #4ade80, #22d3ee)' }} />
+
+            <div style={{ padding: '36px 36px 32px' }}>
+              {/* Icon */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                <div style={{
+                  width: '72px', height: '72px', borderRadius: '50%',
+                  background: 'radial-gradient(circle at 35% 35%, #22c55e, #15803d)',
+                  boxShadow: '0 0 0 12px rgba(34,197,94,0.12), 0 8px 24px rgba(34,197,94,0.30)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Title */}
+              <h2 style={{
+                margin: '0 0 8px', textAlign: 'center',
+                fontSize: '22px', fontWeight: 800, color: '#f1f5f9',
+                letterSpacing: '-0.02em',
+              }}>
+                Evaluation Approved
+              </h2>
+              <p style={{
+                margin: '0 0 24px', textAlign: 'center',
+                fontSize: '14px', color: 'rgba(255,255,255,0.50)', lineHeight: 1.5,
+              }}>
+                The evaluation has been successfully approved.
+              </p>
+
+              {/* Member info card */}
+              <div style={{
+                borderRadius: '14px',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                padding: '16px 20px',
+                marginBottom: '28px',
+                display: 'grid',
+                gridTemplateColumns: '1fr auto',
+                alignItems: 'center',
+                gap: '12px',
+              }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.45)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Employee</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '15px', fontWeight: 700, color: '#f1f5f9' }}>{approval.employee || member?.name}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'rgba(255,255,255,0.40)' }}>{formatRole(member?.role)}</p>
+                </div>
+                {Number(overallScore) > 0 && (
+                  <div style={{
+                    minWidth: '64px', height: '64px', borderRadius: '14px',
+                    background: 'linear-gradient(135deg, #14532d, #16a34a)',
+                    border: '1px solid rgba(34,197,94,0.40)',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{formatScore(overallScore)}</span>
+                    <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.55)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Score</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Status pill */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '28px' }}>
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '7px',
+                  padding: '7px 16px', borderRadius: '999px',
+                  background: 'rgba(34,197,94,0.12)',
+                  border: '1px solid rgba(34,197,94,0.30)',
+                  color: '#4ade80', fontSize: '12px', fontWeight: 700,
+                }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
+                  Approved
+                </div>
+              </div>
+
+              {/* Action button */}
+              <button
+                type="button"
+                onClick={() => router.push(routes.approvals)}
+                style={{
+                  width: '100%', padding: '13px', borderRadius: '12px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #15803d, #16a34a)',
+                  boxShadow: '0 6px 20px rgba(22,163,74,0.40)',
+                  color: '#ffffff', fontSize: '14px', fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Back to Approvals
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <style>{`
+            @keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
+            @keyframes scaleIn { from { opacity:0; transform:scale(0.85) } to { opacity:1; transform:scale(1) } }
+          `}</style>
+        </div>
+      )}
     </div>
   );
 }

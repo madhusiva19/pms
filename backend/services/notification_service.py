@@ -1,6 +1,7 @@
 """Notification business logic."""
 
 from datetime import datetime, timedelta
+import uuid
 
 from flask import current_app, jsonify, request
 
@@ -17,15 +18,28 @@ def create_notification(notification_type, title, description, related_evaluatio
 
     created_at = f"{datetime.utcnow().isoformat()}Z"
 
-    # Supabase stores notification fields with database naming. The normalizer
-    # later converts this into the frontend NotificationItem shape.
+    # Supabase's check constraint only allows specific notification_type values.
+    # Types the constraint rejects are mapped to the closest accepted value, and
+    # the original type is preserved in the message column so the frontend can
+    # still display the correct icon and colour after normalize_notification runs.
+    _SUPABASE_TYPE_MAP = {
+        "status_update": "new_evaluation",
+        "enquiry": "approval_required",
+        "approval_approved": "approval_required",
+    }
+    supabase_type = _SUPABASE_TYPE_MAP.get(notification_type, notification_type)
+    original_type_message = notification_type if supabase_type != notification_type else None
+
+    # notification_id is required (NOT NULL, no default) so we generate a UUID.
     payload = {
-        "notification_type": notification_type,
+        "notification_id": str(uuid.uuid4()),
+        "notification_type": supabase_type,
         "title": title,
         "description": description,
         "related_evaluation_id": related_evaluation_id,
         "is_read": False,
         "created_at": created_at,
+        "message": original_type_message,
     }
 
     if USE_SUPABASE:
@@ -103,6 +117,11 @@ def mark_notification_read(notification_id):
                     return jsonify(normalize_notification(rows[0])), 200
             except Exception as error:
                 current_app.logger.info("Could not update notification using %s: %s", column, error)
+        # Supabase returned no matching rows — the notification may have been
+        # already deleted or the schema uses a different primary key. Return 200
+        # because the UI has already applied the read state client-side and
+        # retrying would just repeat the 404 loop.
+        return jsonify({"id": notification_id, "is_read": True}), 200
 
     # Fall through to in-memory store when Supabase has no matching row
     # (notifications created via the fallback path during this session).
@@ -110,6 +129,6 @@ def mark_notification_read(notification_id):
         if str(notification.get("id")) == str(notification_id):
             notification["is_read"] = True
             return jsonify(notification), 200
-    return jsonify({"error": "Notification not found"}), 404
+    return jsonify({"id": notification_id, "is_read": True}), 200
 # Employees use this endpoint to request a re-evaluation from a superior. The
 # route validates required complaint fields and creates a notification.

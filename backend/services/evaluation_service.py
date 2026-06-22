@@ -1,5 +1,6 @@
 """Evaluation submission, lookup, and rejection business logic."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 from flask import current_app, jsonify, request
@@ -50,7 +51,9 @@ def create_evaluation():
     """Submit an evaluation and create the related approval request."""
 
     data = request.get_json(silent=True) or {}
-    member_id = data.get("employee_id") or data.get("member_id")
+    # Prefer the numeric team_member_id (URL param) over employee_id which may
+    # be a UUID user_id and would not match team_members.id (bigint).
+    member_id = data.get("team_member_id") or data.get("member_id") or data.get("employee_id")
 
     if not member_id:
         return jsonify({"error": "employee_id is required"}), 400
@@ -66,19 +69,25 @@ def create_evaluation():
                     return fallback_response(memory_result, 201)
                 return jsonify({"error": "Team member not found"}), 404
 
-            evaluation = create_evaluation_record(data, member)
-            approval = create_approval_record(data, member, evaluation)
+            # Status update is independent — run it in the background while the
+            # evaluation + approval records are created sequentially (approval
+            # depends on the evaluation id).
+            def _update_status():
+                try:
+                    supabase_request(
+                        "team_members",
+                        method="PATCH",
+                        params={"id": f"eq.{member_id}"},
+                        payload={"status": "completed", "updated_at": datetime.utcnow().isoformat()},
+                    )
+                except Exception as err:
+                    current_app.logger.info("Could not update team member status after submit: %s", err)
 
-            try:
-                # After submission the member leaves the evaluator's active queue.
-                supabase_request(
-                    "team_members",
-                    method="PATCH",
-                    params={"id": f"eq.{member_id}"},
-                    payload={"status": "completed", "updated_at": datetime.utcnow().isoformat()},
-                )
-            except Exception as error:
-                current_app.logger.info("Could not update team member status after submit: %s", error)
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                status_future = pool.submit(_update_status)
+                evaluation = create_evaluation_record(data, member)
+                approval = create_approval_record(data, member, evaluation)
+                status_future.result(timeout=5)
 
             create_notification(
                 "approval_required",

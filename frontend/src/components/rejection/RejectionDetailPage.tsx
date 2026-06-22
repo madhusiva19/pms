@@ -19,9 +19,9 @@ export default function RejectionDetail() {
   // Controls the loading state while approval data is fetched.
   const [loading, setLoading] = useState(true);
   // Stores editable rejection comments from the approver.
-  const [comments, setComments] = useState('Please provide more details in the "Teamwork" section and add specific examples of your contributions.');
-  // Stores the name shown in the resubmission form.
-  const [resubmittedBy, setResubmittedBy] = useState('John Smith');
+  const [comments, setComments] = useState('');
+  // Stores the name shown in the resubmission form — filled from the approval record on load.
+  const [resubmittedBy, setResubmittedBy] = useState('');
   const [date, setDate] = useState('');
   const [evaluatorLabel, setEvaluatorLabel] = useState('Manager');
   const [showRejectSuccess, setShowRejectSuccess] = useState(false);
@@ -41,7 +41,14 @@ export default function RejectionDetail() {
       try {
         const response = await getApproval(id);
         setApproval(response.data);
-      } catch (error) {
+        // Pre-fill resubmittedBy with the employee name from the approval record.
+        if (response.data?.employee) setResubmittedBy(response.data.employee);
+      } catch (error: unknown) {
+        const status = (error as { response?: { status?: number } })?.response?.status;
+        if (status === 404) {
+          router.push(routes.rejection);
+          return;
+        }
         console.error('Error fetching rejected approval:', error);
       } finally {
         setLoading(false);
@@ -176,7 +183,7 @@ export default function RejectionDetail() {
                 className={viewStyles.v167}
                 rows={4}
               />
-              <p className={viewStyles.v168}>- Admin User (15 May 2024)</p>
+              <p className={viewStyles.v168}>- {approval?.evaluationBy || evaluatorLabel}{date ? ` (${date})` : ''}</p>
             </div>
 
             {/* Resubmit form captures who is resubmitting and the resubmission date. */}
@@ -195,7 +202,7 @@ export default function RejectionDetail() {
                   <label className={viewStyles.v172}>Re-submitted By</label>
                   <input
                     type="text"
-                    value={approval?.employee || resubmittedBy}
+                    value={resubmittedBy}
                     onChange={(e) => setResubmittedBy(e.target.value)}
                     className={viewStyles.v174}
                   />

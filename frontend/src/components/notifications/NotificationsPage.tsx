@@ -2,7 +2,7 @@ import viewStyles from '../../styles/views.module.css';
 // Notifications page: displays evaluation alerts and lets users mark them as read.
 import { useState, useEffect } from 'react';
 import Link, { useRoutes } from '../../lib/routing';
-import { getNotifications, markNotificationRead } from '../../lib/api';
+import { getNotifications, markNotificationRead, invalidateCache } from '../../lib/api';
 import Sidebar from '../sidebar/Sidebar';
 import LoadingScreen from '../LoadingScreen';
 import { formatNotificationTime } from '../../lib/formatters';
@@ -22,6 +22,9 @@ export default function Notifications() {
   // Loads notifications and initializes the local read-status set.
   useEffect(() => {
     const fetchNotifications = async () => {
+      // Always bust the cache so the page shows the latest notifications from
+      // the backend rather than a 30-second-old snapshot.
+      invalidateCache('/evaluation-notifications');
       try {
         const response = await getNotifications();
         const notificationRows = Array.isArray(response.data) ? response.data : [];
@@ -32,7 +35,7 @@ export default function Notifications() {
         setErrorMessage('');
       } catch (error) {
         console.error('Error fetching notifications:', error);
-        setErrorMessage('Could not load notifications. Please check that the Flask backend is running on port 8000.');
+        setErrorMessage('Could not load notifications. Please check that the Flask backend is running on port 5000.');
       } finally {
         setLoading(false);
       }

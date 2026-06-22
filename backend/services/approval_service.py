@@ -1,5 +1,6 @@
 """Approval workflow business logic."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 from flask import current_app, jsonify, request
@@ -10,45 +11,93 @@ from .notification_service import create_notification
 
 
 def get_approvals():
-    """Return approval rows for the approvals table."""
+    """Return approval rows for the approvals table.
+
+    Only returns records that originated from a real evaluation submission
+    (evaluation_id IS NOT NULL). Uses PostgREST embedded-resource joins to
+    resolve employee name and evaluator name in a single DB round-trip.
+    """
 
     if USE_SUPABASE:
         try:
-            rows = supabase_request("approvals", params={"select": "*", "order": "id.asc", "limit": 100})
-            member_names = {}
-            user_names = {}
+            approval_table = resolve_table_name("approvals")
+
+            # One query: join team_members for employee name and evaluations
+            # for period / overall_score. Filter out old test rows that have
+            # no evaluation_id — those were never submitted through the app.
+            rows = raw_supabase_request(
+                approval_table,
+                params={
+                    "select": (
+                        "*,"
+                        "team_members(id,full_name,name,designation,role,email),"
+                        "evaluations(id,overall_score,period,admin_recommendation)"
+                    ),
+                    "team_member_id": "not.is.null",
+                    "order": "id.desc",
+                    "limit": 200,
+                },
+            )
+
+            # Mirrors ROLE_EVALUATOR_LABEL in the frontend constants.
+            ROLE_EVALUATOR = {
+                'country_admin':  'HQ Admin',
+                'branch_admin':   'Country Admin',
+                'dept_admin':     'Branch Admin',
+                'sub_dept_admin': 'Department Admin',
+                'employee':       'Sub Department Admin',
+            }
+
+            # Fetch users once for employee_id / approved_by name resolution.
+            all_users = fetch_rows("users", {"select": "id,email,name,first_name,last_name,full_name,display_name", "limit": 2000}) or []
+            user_map  = {str(u.get("id", "")): user_display_name(u) or u.get("email", "") for u in all_users}
+
+            seen_members: set = set()
             normalized_rows = []
             for row in rows:
                 approval = normalize_approval(row)
-                # Approval rows may store only IDs. Resolve names here so the
-                # frontend can render a readable table without extra requests.
-                if not approval.get("employee") and approval.get("employee_id"):
-                    if not member_names:
-                        member_names = build_id_name_map("team_members", normalize_member)
-                    if not user_names:
-                        user_names = build_id_name_map("users", lambda user: user)
+
+                # ── Employee name & role ───────────────────────────────────────
+                tm = row.get("team_members") or {}
+                member_role = None
+                if isinstance(tm, dict) and tm:
                     approval["employee"] = (
-                        member_names.get(str(approval["employee_id"]))
-                        or user_names.get(str(approval["employee_id"]))
-                        or "Unknown Employee"
+                        tm.get("full_name") or tm.get("name") or approval.get("employee")
                     )
-                if not approval.get("employee_id") and approval.get("employee"):
-                    member = get_member_by_name(approval["employee"])
-                    if member:
-                        approval["employee_id"] = member["id"]
-                        approval["team_member_id"] = member["id"]
-                elif approval.get("employee"):
-                    member = get_member_by_name(approval["employee"])
-                    if member:
-                        approval["team_member_id"] = member["id"]
-                if not approval.get("evaluationBy") and approval.get("approved_by"):
-                    # approved_by references a user row in the newer schema.
-                    if not user_names:
-                        user_names = build_id_name_map("users", lambda user: user)
-                    approval["evaluationBy"] = user_names.get(str(approval["approved_by"])) or "Approver"
-                approval.setdefault("evaluationBy", "Admin User")
-                approval.setdefault("level", approval.get("approval_level", DEFAULT_APPROVAL_LEVEL))
+                    approval["team_member_id"] = tm.get("id") or approval.get("team_member_id")
+                    member_role = tm.get("role")
+                    # Level = the employee's own designation / role label
+                    approval["level"] = tm.get("designation") or tm.get("role") or DEFAULT_APPROVAL_LEVEL
+
+                # Fallback: employee_id → users map
+                if not approval.get("employee") and approval.get("employee_id"):
+                    approval["employee"] = user_map.get(str(approval["employee_id"])) or "Unknown Employee"
+
+                # ── Evaluation By = the admin directly above this employee ─────
+                evaluator = ROLE_EVALUATOR.get(member_role or "") if member_role else None
+                if evaluator:
+                    approval["evaluationBy"] = evaluator
+                elif approval.get("approved_by"):
+                    approval["evaluationBy"] = user_map.get(str(approval["approved_by"])) or DEFAULT_EVALUATOR_NAME
+                else:
+                    approval["evaluationBy"] = DEFAULT_EVALUATOR_NAME
+
+                # ── Evaluation metadata ────────────────────────────────────────
+                ev = row.get("evaluations") or {}
+                if isinstance(ev, dict) and ev:
+                    approval.setdefault("period",        ev.get("period"))
+                    approval.setdefault("overall_score", ev.get("overall_score"))
+                    approval.setdefault("evaluation_id", ev.get("id"))
+
+                # ── Deduplicate: one record per team member (newest wins) ───────
+                member_key = str(approval.get("team_member_id") or approval.get("employee") or "")
+                if member_key and member_key in seen_members:
+                    continue
+                if member_key:
+                    seen_members.add(member_key)
+
                 normalized_rows.append(approval)
+
             return jsonify(normalized_rows), 200
         except Exception as error:
             current_app.logger.warning("Falling back to in-memory approvals: %s", error)
@@ -78,7 +127,7 @@ def get_approval(approval_id):
                 if member:
                     normalized["employee_id"] = member["id"]
                     normalized["team_member_id"] = member["id"]
-            elif normalized.get("employee"):
+            elif normalized.get("employee") and not normalized.get("team_member_id"):
                 member = get_member_by_name(normalized["employee"])
                 if member:
                     normalized["team_member_id"] = member["id"]
@@ -99,6 +148,10 @@ def update_approval(approval_id):
 
     data = request.get_json(silent=True) or {}
     status_value = data.get("status")
+    # Rejection comments are sent from the frontend but cannot be stored in the
+    # approvals table (no column). Include them in the notification description
+    # so reviewers can still see the reason on the Notifications page.
+    rejection_comments = data.get("comments", "").strip()
 
     # Map approval status changes to notification categories used by the UI.
     notification_type = "approval_required"
@@ -118,11 +171,13 @@ def update_approval(approval_id):
             if not rows:
                 return jsonify({"error": "Approval not found"}), 404
             approval = normalize_approval(rows[0])
-            create_notification(
-                notification_type,
-                "Approval Status Updated",
-                f"{approval.get('employee', 'Employee')} approval status changed to {normalize_status_value(status_value)}.",
-            )
+            employee_name = approval.get("employee", "Employee")
+            normalized_status = normalize_status_value(status_value)
+            if normalized_status == "rejected" and rejection_comments:
+                description = f"{employee_name}'s evaluation was rejected. Reason: {rejection_comments}"
+            else:
+                description = f"{employee_name} approval status changed to {normalized_status}."
+            create_notification(notification_type, "Approval Status Updated", description)
             return jsonify(approval), 200
         except Exception as error:
             current_app.logger.warning("Falling back to in-memory approval update: %s", error)
@@ -131,9 +186,11 @@ def update_approval(approval_id):
     if not approval:
         return jsonify({"error": "Approval not found"}), 404
     approval["status"] = status_value or approval["status"]
-    create_notification(
-        notification_type,
-        "Approval Status Updated",
-        f"{approval.get('employee', 'Employee')} approval status changed to {normalize_status_value(approval['status'])}.",
-    )
+    employee_name = approval.get("employee", "Employee")
+    normalized_status = normalize_status_value(approval["status"])
+    if normalized_status == "rejected" and rejection_comments:
+        description = f"{employee_name}'s evaluation was rejected. Reason: {rejection_comments}"
+    else:
+        description = f"{employee_name} approval status changed to {normalized_status}."
+    create_notification(notification_type, "Approval Status Updated", description)
     return fallback_response(approval)

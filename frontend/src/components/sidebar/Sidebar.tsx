@@ -60,8 +60,8 @@ export default function Sidebar() {
 
   const navItems: NavItem[] = [
     { name: 'Dashboard', href: routes.myTeam, icon: 'dashboard' },
-    { name: 'Template Management', href: routes.testConnection, icon: 'file' },
     { name: 'My Team', href: routes.myTeam, icon: 'users' },
+    { name: 'Approvals', href: routes.approvals, icon: 'file' },
     { name: 'Reports', href: routes.statusTracking, icon: 'chart' },
     { name: 'Notifications', href: routes.notifications, icon: 'bell' },
     { name: 'Training Passport', href: routes.members, icon: 'passport' },

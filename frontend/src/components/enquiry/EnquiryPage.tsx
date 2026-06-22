@@ -45,19 +45,30 @@ export default function Enquiry() {
         const knownId = routeMemberId || storedMember?.id;
 
         if (knownId) {
-          // Fetch member details and evaluation status in parallel since the ID is known.
-          const [memberResponse, statusResponse] = await Promise.all([
-            getTeamMember(knownId),
-            getEvaluationStatus(knownId),
-          ]);
-          selectedMember = memberResponse.data;
-          setMember(selectedMember);
-          saveStoredMember(selectedMember);
-          setEvaluationStatus(statusResponse.data);
-          const inProgressStage = statusResponse.data.stages?.find(
-            (stage) => normalizeStatus(stage.status) === TEAM_MEMBER_STATUS.inProgress
-          );
-          if (inProgressStage?.user) setEvaluatorName(inProgressStage.user);
+          try {
+            // Fetch member details and evaluation status in parallel since the ID is known.
+            const [memberResponse, statusResponse] = await Promise.all([
+              getTeamMember(knownId),
+              getEvaluationStatus(knownId),
+            ]);
+            selectedMember = memberResponse.data;
+            setMember(selectedMember);
+            saveStoredMember(selectedMember);
+            setEvaluationStatus(statusResponse.data);
+            const inProgressStage = statusResponse.data.stages?.find(
+              (stage) => normalizeStatus(stage.status) === TEAM_MEMBER_STATUS.inProgress
+            );
+            if (inProgressStage?.user) setEvaluatorName(inProgressStage.user);
+          } catch (err: unknown) {
+            const httpStatus = (err as { response?: { status?: number } })?.response?.status;
+            if (httpStatus === 404) {
+              localStorage.removeItem('pms_current_member_id');
+              localStorage.removeItem('pms_current_member_name');
+              localStorage.removeItem('pms_current_member_role');
+            } else {
+              throw err;
+            }
+          }
         } else {
           const membersResponse = await getTeamMembers();
           selectedMember =

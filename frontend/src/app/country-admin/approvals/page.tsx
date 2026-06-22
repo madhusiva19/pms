@@ -4,5 +4,5 @@ import Approvals from '@/components/approvals/ApprovalsPage';
 import ClientRoute from '@/app/ClientRoute';
 
 export default function ApprovalsRoute() {
-  return <ClientRoute><Approvals /></ClientRoute>;
+  return <ClientRoute><Approvals roleFilter="dept_admin" /></ClientRoute>;
 }

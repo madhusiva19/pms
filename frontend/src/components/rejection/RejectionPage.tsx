@@ -1,21 +1,51 @@
 import viewStyles from '../../styles/views.module.css';
-// Rejection page: shows rejection information and links back to approvals.
+// Rejection page: shows rejection details for the stored member and links back to approvals.
 import { useState, useEffect } from 'react';
 import Link, { useRoutes } from '../../lib/routing';
 import Sidebar from '../sidebar/Sidebar';
+import LoadingScreen from '../LoadingScreen';
 import { ROLE_EVALUATOR_LABEL } from '../../lib/constants';
 import { readStoredMember, readEvaluationDate } from '../../lib/currentMember';
+import { getEvaluationStatus } from '../../lib/api';
 
 export default function Rejection() {
   const routes = useRoutes();
+  const [loading, setLoading] = useState(true);
+  const [memberName, setMemberName] = useState('');
   const [evaluatorLabel, setEvaluatorLabel] = useState('Manager');
   const [evalDate, setEvalDate] = useState('');
+  const [rejectionComments, setRejectionComments] = useState('');
 
   useEffect(() => {
-    const storedMember = readStoredMember();
-    setEvaluatorLabel(ROLE_EVALUATOR_LABEL[storedMember?.role || ''] || 'Manager');
-    setEvalDate(readEvaluationDate());
+    const load = async () => {
+      const storedMember = readStoredMember();
+      setMemberName(storedMember?.name || '');
+      setEvaluatorLabel(ROLE_EVALUATOR_LABEL[storedMember?.role || ''] || 'Manager');
+      setEvalDate(readEvaluationDate());
+
+      if (storedMember?.id) {
+        try {
+          const statusResponse = await getEvaluationStatus(storedMember.id);
+          const comments = statusResponse.data?.rejectionComments;
+          if (comments && typeof comments === 'string') {
+            setRejectionComments(comments);
+          }
+        } catch {
+          // No comments available — use generic fallback below
+        }
+      }
+
+      setLoading(false);
+    };
+
+    load();
   }, []);
+
+  if (loading) return <LoadingScreen fullPage />;
+
+  const commentText = rejectionComments ||
+    'The evaluation has been rejected. Please review the feedback and re-submit with the required corrections.';
+  const approverLine = `${evaluatorLabel}${evalDate ? ' (' + evalDate + ')' : ''}`;
 
   return (
     <div className={viewStyles.v031}>
@@ -42,34 +72,30 @@ export default function Rejection() {
 
           {/* Details card explains the rejection reason and resubmission status. */}
           <div className={viewStyles.v166}>
-            {/* Read-only rejection comment from the approver. */}
+            {/* Rejection comment from the approver. */}
             <div>
               <h3 className={viewStyles.v149}>Comments from Approver ({evaluatorLabel})</h3>
               <div className={viewStyles.v179}>
-                <p className={viewStyles.v180}>
-                  Please provide more details in the "Teamwork" section and add specific examples of your contributions.
-                </p>
+                <p className={viewStyles.v180}>{commentText}</p>
               </div>
-              <p className={viewStyles.v168}>- Admin User (15 May 2024)</p>
+              <p className={viewStyles.v168}>- {approverLine}</p>
             </div>
 
-            {/* Read-only resubmission fields shown for context. */}
+            {/* Resubmission context fields. */}
             <div className={viewStyles.v169}>
               <h3 className={viewStyles.v170}>Re-submit Evaluation</h3>
 
               <div className={viewStyles.v171}>
                 <div>
                   <label className={viewStyles.v172}>Status</label>
-                  <div className={viewStyles.v173}>
-                    Rejected
-                  </div>
+                  <div className={viewStyles.v173}>Rejected</div>
                 </div>
 
                 <div>
                   <label className={viewStyles.v172}>Re-submitted By</label>
                   <input
                     type="text"
-                    defaultValue="John Smith"
+                    value={memberName}
                     readOnly
                     className={viewStyles.v181}
                   />
@@ -79,7 +105,7 @@ export default function Rejection() {
                   <label className={viewStyles.v172}>Date</label>
                   <input
                     type="text"
-                    defaultValue={evalDate}
+                    value={evalDate}
                     readOnly
                     className={viewStyles.v181}
                   />

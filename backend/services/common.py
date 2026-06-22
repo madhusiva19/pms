@@ -114,16 +114,25 @@ def normalize_notification(notification):
     normalized = dict(notification)
     if "notification_id" in normalized and "id" not in normalized:
         normalized["id"] = normalized["notification_id"]
-    if "notification_type" in normalized:
-        normalized["type"] = normalized.pop("notification_type")
     if "notification_title" in normalized and "title" not in normalized:
         normalized["title"] = normalized.pop("notification_title")
     if "created_at" in normalized and not normalized.get("timestamp"):
         normalized["timestamp"] = normalized["created_at"]
     if "createdAt" in normalized and not normalized.get("timestamp"):
         normalized["timestamp"] = normalized["createdAt"]
-    if "message" in normalized and "description" not in normalized:
-        normalized["description"] = normalized.pop("message")
+
+    # The message field stores the original notification type when the Supabase
+    # check constraint forced a mapped type to be stored in notification_type.
+    # A type code looks like all-lowercase with underscores (e.g. "status_update").
+    message_val = normalized.pop("message", None)
+    notification_type_val = normalized.pop("notification_type", None)
+    if message_val and "_" in message_val and " " not in message_val:
+        normalized["type"] = message_val
+    elif notification_type_val:
+        normalized["type"] = notification_type_val
+    elif message_val:
+        normalized.setdefault("description", message_val)
+
     normalized.setdefault("type", "general")
     normalized.setdefault("title", "Notification")
     normalized.setdefault("description", "")
@@ -399,13 +408,14 @@ def create_approval_record(data, member, evaluation=None):
         }
     else:
         payload = {
-            "evaluation_id": evaluation.get("id") if evaluation else None,
-            "employee_id": linked_user.get("id") if linked_user else None,
+            "evaluation_id":  evaluation.get("id") if evaluation else None,
+            "employee_id":    linked_user.get("id") if linked_user else None,
+            "team_member_id": member.get("id"),
             "approval_level": data.get("level") or DEFAULT_APPROVAL_LEVEL,
-            "approved_by": None,
-            "status": "pending",
-            "due_date": due_date,
-            "updated_at": datetime.utcnow().isoformat(),
+            "approved_by":    None,
+            "status":         "pending",
+            "due_date":       due_date,
+            "updated_at":     datetime.utcnow().isoformat(),
         }
 
     try:

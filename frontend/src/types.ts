@@ -117,3 +117,24 @@ export interface EnquiryPayload {
 }
 
 export type QueryParams = ParsedUrlQueryInput;
+
+export interface EvaluationSummary {
+  total_score?: number | null;
+  period?: string | null;
+  year?: number | null;
+}
+
+export interface EvaluationRecord {
+  id?: number | null;
+  overall_score?: number | null;
+  period?: string | null;
+  year?: number | null;
+  status?: string | null;
+  feedback?: string | null;
+}
+
+export interface MemberEvaluationData {
+  groups: ObjectiveGroup[];
+  summary: EvaluationSummary;
+  evaluation: EvaluationRecord;
+}
