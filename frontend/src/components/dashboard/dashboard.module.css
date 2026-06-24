@@ -1,0 +1,180 @@
+.dashShell {
+  min-height: 100vh;
+  display: flex;
+  background: #f9fafb;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* Main */
+.main {
+  flex: 1;
+  padding: 24px;
+  overflow: auto;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 20px;
+  margin-bottom: 16px;
+}
+
+.crumbLink {
+  color: #64748b;
+}
+
+.crumbSep {
+  color: #64748b;
+}
+
+.crumbCurrent {
+  color: #1e293b;
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-family: "Segoe UI", Inter, sans-serif;
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 36px;
+  color: #101828;
+}
+
+.pageSub {
+  margin: 8px 0 0 0;
+  font-size: 16px;
+  line-height: 24px;
+  color: #4a5565;
+}
+
+/* Stats */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.statCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.statLeft {
+  display: flex;
+  flex-direction: column;
+}
+
+.statTitle {
+  margin: 0;
+  font-family: "Segoe UI", Inter, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+  color: #4a5565;
+}
+
+.statValue {
+  margin: 8px 0 0 0;
+  font-family: "Segoe UI", Inter, sans-serif;
+  font-weight: 600;
+  font-size: 48px;
+  line-height: 48px;
+  color: #101828;
+}
+
+/* Charts */
+.chartsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.chartBox {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.chartBoxFull {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  grid-column: span 2;
+}
+
+.chartHead {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chartHead h3 {
+  margin: 0;
+  font-family: "Segoe UI", Inter, sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 28px;
+  color: #101828;
+}
+
+.chartBody {
+  padding: 0 24px 24px 24px;
+  height: 360px;
+}
+
+/* Recharts */
+.chartBox :global(.recharts-legend-wrapper) {
+  display: flex;
+  justify-content: center;
+}
+
+.chartBox :global(.recharts-default-legend) {
+  display: flex !important;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.chartBox :global(.recharts-default-legend li) {
+  margin: 0 !important;
+}
+
+.chartBox :global(.recharts-cartesian-axis-tick-value) {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 12px;
+  fill: rgba(0, 0, 0, 0.7);
+}
+
+.chartBox :global(.recharts-cartesian-grid line) {
+  stroke: rgba(0, 0, 26, 0.15);
+  stroke-dasharray: 4 4;
+}
+
+.chartBox :global(.recharts-cartesian-axis-line) {
+  stroke: rgba(0, 0, 26, 0.3);
+}
+
+.chartBox :global(.recharts-pie-label-text) {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 16px;
+}

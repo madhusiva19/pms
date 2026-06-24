@@ -1,0 +1,504 @@
+'use client';
+
+/**
+ * Country Report Details Page
+ * Displays comprehensive performance analytics for a selected country
+ * Shows both mid-year and year-end reports with visualizations
+ */
+
+import React, { useState, useEffect } from 'react';
+import { logger } from '@/utils/logger';
+import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
+import {
+  ChevronLeft,
+  Users,
+  TrendingUp,
+  Award,
+  MapPin,
+  Download,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  BarChart2,
+} from 'lucide-react';
+
+import MetricCard from '@/components/shared/MetricCard';
+import BellCurveChart from '@/components/bell-curve/BellCurveChart';
+import ComparisonChart from '@/components/comparison/ComparisonChart';
+import AIInsightCard from '@/components/ai/AIInsightCard';
+import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
+import CreateReportModal from '@/components/reports/CreateReportModal';
+import YearEndEmptyState from '@/components/reports/YearEndEmptyState';
+
+import {
+  dashboardApi,
+  bellCurveApi,
+  comparisonLiveApi,
+  insightsApi,
+  countriesApi,
+  metricsApi,
+  activeReportYearApi,
+} from '@/services/api';
+import { reportRequestApi } from '@/services/reportRequestApi';
+import { downloadReportAsPDF } from '@/utils/downloadReport';
+import {
+  DEFAULT_RECOMMENDATIONS,
+  FALLBACK_INSIGHT_MID_YEAR,
+  FALLBACK_INSIGHT_YEAR_END,
+} from '@/utils/constants';
+
+import type {
+  DashboardSummary,
+  BellCurveData,
+  AIInsight,
+  Country,
+  ReportType,
+} from '@/types';
+
+// ← NEW
+type DownloadStatus = 'idle' | 'requesting' | 'generating' | 'success' | 'failed';
+
+export default function CountryReportPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { user } = useAuth();
+  const countryId = params?.countryId as string;
+
+  const [country, setCountry] = useState<Country | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [activeTab, setActiveTab] = useState<ReportType>('mid_year');
+  const [bellCurveData, setBellCurveData] = useState<BellCurveData[]>([]);
+  const [comparisonData, setComparisonData] = useState<any[]>([]);
+  const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [metrics, setMetrics] = useState<{
+    total_evaluated: number;
+    avg_score: number;
+    top_performers: number;
+  } | null>(null);
+  const [reportYear, setReportYear] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // ← NEW — Create Report Modal state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createReportSuccess, setCreateReportSuccess] = useState(false);
+
+  // ← NEW — download state
+  const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
+  const [requestId, setRequestId] = useState<string | null>(null);
+
+
+  useEffect(() => {
+    activeReportYearApi.get()
+      .then(data => setReportYear(data.active_report_year))
+      .catch(() => setReportYear(new Date().getFullYear()));
+  }, []);
+
+  useEffect(() => {
+    if (countryId && reportYear !== null) {
+      fetchAllData();
+    }
+  }, [countryId, activeTab, reportYear]);
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    setError(null);
+
+    // ── Critical: page cannot render without these ──
+    let countryData: Country;
+    let summaryData: DashboardSummary;
+    try {
+      [countryData, summaryData] = await Promise.all([
+        countriesApi.getById(countryId),
+        dashboardApi.getSummary(countryId),
+      ]);
+      setCountry(countryData);
+      setSummary(summaryData);
+    } catch (err) {
+      logger.error('Failed to load country report data', err);
+      setError('Failed to load report data. Please try again.');
+      setLoading(false);
+      return;
+    }
+
+    // ── Non-critical: charts/metrics degrade gracefully on failure ──
+    const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
+
+    await Promise.allSettled([
+      bellCurveApi.getLive({ period_type: activeTab, year: reportYear!, scope: 'country', scope_id: countryId })
+        .then(setBellCurveData)
+        .catch(() => setBellCurveData([])),
+
+      metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'country', scope_id: countryId })
+        .then(setMetrics)
+        .catch(() => setMetrics({ total_evaluated: 0, avg_score: 0, top_performers: 0 })),
+
+      (activeReport
+        ? insightsApi.getByReport(activeReport.id).then(data => {
+            if (data && data.length > 0) {
+              setInsights(data);
+            } else {
+              const fallbackInsight = activeTab === 'mid_year' ? FALLBACK_INSIGHT_MID_YEAR : FALLBACK_INSIGHT_YEAR_END;
+              setInsights([{ id: 'fallback-insight', report_id: activeReport.id, insight_text: fallbackInsight, insight_type: 'distribution_analysis', created_at: new Date().toISOString() }]);
+            }
+          })
+        : Promise.resolve()
+      ).catch(() => {}),
+
+      comparisonLiveApi.get({ year: reportYear!, scope: 'country', scope_id: countryId })
+        .then(setComparisonData)
+        .catch(() => setComparisonData([])),
+    ]);
+
+    setLoading(false);
+  };
+
+  // ── NEW — Download flow ──────────────────────────────────────────────
+  // Step 1 — POST to report_requests table (status: "pending")
+  // Step 2 — Generate PDF using html2canvas + jsPDF
+  // Step 3 — PATCH status to "completed" or "failed"
+  // ────────────────────────────────────────────────────────────────────
+  const handleDownload = async () => {
+    if (!country || !countryId) {
+      setError('Cannot download: No country information available.');
+      setDownloadStatus('failed');
+      setTimeout(() => setDownloadStatus('idle'), 3000);
+      return;
+    }
+
+    let currentRequestId = null;
+
+    try {
+      setError(null);
+      setDownloadStatus('requesting');
+
+      // Try to log the request to Supabase, but don't fail if it doesn't work
+      try {
+        const request = await reportRequestApi.create(
+          countryId,
+          activeTab,
+          user?.id ?? 'unknown'
+        );
+        currentRequestId = request.id;
+        setRequestId(request.id);
+      } catch (logErr) {
+        // intentionally ignored — logging failure should not block download
+      }
+
+      setDownloadStatus('generating');
+      const fileName = `${country.name}-${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'}-${reportYear!}.pdf`;
+
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      await downloadReportAsPDF('report-content', fileName, {
+        entityType: 'Country',
+        entityName: country.name,
+        reportPeriod: activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End',
+        reportYear: reportYear!,
+        metrics: metrics ? {
+          totalEvaluated: metrics.total_evaluated,
+          avgScore: metrics.avg_score.toFixed(2),
+          topPerformers: metrics.top_performers,
+        } : undefined,
+        generatedAt: new Date(),
+      });
+      // Try to mark as completed, but don't fail if it doesn't work
+      if (currentRequestId) {
+        try {
+          await reportRequestApi.updateStatus(currentRequestId, 'completed');
+        } catch (statusErr) {
+          // intentionally ignored — status update failure should not affect the user
+        }
+      }
+
+      setDownloadStatus('success');
+      setTimeout(() => setDownloadStatus('idle'), 3000);
+
+    } catch (err: any) {
+      logger.error('Failed to download country report PDF', err);
+      const errorMsg = err?.message || 'Download failed. Please check your connection.';
+      setError(`Download Error: ${errorMsg}`);
+
+      if (currentRequestId) {
+        try {
+          await reportRequestApi.updateStatus(currentRequestId, 'failed');
+        } catch (statusErr) {
+          // intentionally ignored — status update failure should not affect the user
+        }
+      }
+      setDownloadStatus('failed');
+      setTimeout(() => setDownloadStatus('idle'), 3000);
+    }
+  };
+
+  // ← NEW — button appearance based on download status
+  const downloadButtonContent = () => {
+    switch (downloadStatus) {
+      case 'requesting': return <><Loader2 className="w-4 h-4 animate-spin" /> Preparing Request...</>;
+      case 'generating': return <><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF...</>;
+      case 'success': return <><CheckCircle className="w-4 h-4" /> Downloaded!</>;
+      case 'failed': return <><XCircle className="w-4 h-4" /> Failed. Try Again</>;
+      default: return <><Download className="w-4 h-4" /> Download Report</>;
+    }
+  };
+
+  const downloadButtonColor = () => {
+    switch (downloadStatus) {
+      case 'success': return 'bg-[#00A63E] hover:bg-[#00A63E]';
+      case 'failed': return 'bg-red-500 hover:bg-red-600';
+      default: return 'bg-[#2563EB] hover:bg-[#1D4ED8]';
+    }
+  };
+  // ── END NEW ──────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
+        <div className="text-gray-500 text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error || !country || !summary) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error || 'Country not found'}</p>
+          <button
+            onClick={() => router.push('/hq-admin/reports')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+          >
+            Back to Reports
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const isYearEndEmpty = activeTab === 'year_end' && (!metrics || metrics.total_evaluated === 0);
+
+  return (
+    <main className="flex-1 bg-[#F9FAFB] min-h-screen overflow-y-auto">
+      <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
+
+        {/* ── Header Block ── */}
+        <div className="flex flex-col gap-4">
+
+          {/* Breadcrumb */}
+          <Breadcrumb items={[
+            { label: 'Home', href: '/' },
+            { label: 'Reports', href: '/hq-admin/reports' },
+            { label: country.name },
+          ]} />
+
+          {/* Title Row — NEW: Download button added on right */}
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-[28px] font-semibold text-[#101828] leading-9">
+                Performance Reports
+              </h1>
+              <p className="text-[15px] text-[#4A5565]">
+                {country.name} - Mid-Year &amp; Year-End Analytics
+              </p>
+            </div>
+
+            {/* ← NEW Action buttons */}
+            <div className="flex items-center gap-3">
+
+              {/* Create Report button — Year-End only */}
+              {user && activeTab === 'year_end' && (
+                <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 text-[#155DFC] text-[13.5px] font-medium rounded-lg border border-[#155DFC] bg-white hover:bg-[#EFF6FF] active:scale-[0.98] transition-all"
+                >
+                  + Create Report
+                </button>
+              )}
+
+              {/* Download button */}
+              <button
+                onClick={handleDownload}
+                disabled={downloadStatus !== 'idle'}
+                className={`flex items-center gap-2 px-4 py-2.5 text-white text-[13.5px] font-medium rounded-lg active:scale-[0.98] transition-all disabled:cursor-not-allowed ${downloadButtonColor()}`}
+              >
+                {downloadButtonContent()}
+              </button>
+            </div>
+          </div>
+
+          {/* Selected Country Banner — unchanged */}
+          <div
+            className="w-full rounded-xl border border-[#BEDBFF] px-4 py-3 flex items-center justify-between"
+            style={{ background: 'linear-gradient(90deg, #EFF6FF 0%, #F3F4F6 100%)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 flex items-center justify-center">
+                <MapPin className="w-6 h-6 text-[#155DFC]" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[12.7px] text-[#4A5565]">Selected Country</span>
+                <span className="text-[18px] font-semibold text-[#101828] leading-7">
+                  {country.name}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => router.push('/hq-admin/reports')}
+              className="flex items-center gap-2 px-3 py-[7px] bg-[#F9FAFB] border border-[#E5E7EB] rounded-md text-[13px] font-medium text-[#1E293B] hover:bg-gray-100 transition-colors whitespace-nowrap"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Change Country
+            </button>
+          </div>
+        </div>
+
+        {/* ── Tab Switcher — unchanged ── */}
+        <div className="flex bg-[#F3F4F6] p-[3px] rounded-xl w-fit">
+          <button
+            onClick={() => setActiveTab('mid_year')}
+            className={`px-[57px] py-[3.8px] text-[13.3px] font-medium rounded-xl transition-all ${activeTab === 'mid_year'
+              ? 'bg-white text-[#1E293B] shadow-sm'
+              : 'text-[#1E293B] hover:bg-gray-200/60'
+              }`}
+          >
+            Mid-Year Report
+          </button>
+          <button
+            onClick={() => setActiveTab('year_end')}
+            className={`px-[58px] py-[3.8px] text-[13px] font-medium rounded-xl transition-all ${activeTab === 'year_end'
+              ? 'bg-white text-[#1E293B] shadow-sm'
+              : 'text-[#1E293B] hover:bg-gray-200/60'
+              }`}
+          >
+            Year-End Report
+          </button>
+        </div>
+         {/* ── Metric Cards — dynamic ── */}
+          {metrics && (
+            <div className="grid grid-cols-3 gap-4">
+              <MetricCard
+                title="Total Evaluated"
+                value={metrics.total_evaluated}
+                icon={Users}
+                iconColor="#155DFC"
+                iconBgColor="#FFFFFF"
+              />
+
+              <MetricCard
+                title="Avg Score"
+                value={metrics.avg_score.toFixed(2)}
+                subtitle="Calculated from distribution"
+                subtitleColor="text-[#00A63E]"
+                icon={TrendingUp}
+                iconColor="#0092B8"
+                iconBgColor="#FFFFFF"
+              />
+
+              <MetricCard
+                title="Top Performers"
+                value={metrics.top_performers}
+                subtitle="Rating ≥ 4.5"
+                subtitleColor="text-[#6A7282]"
+                icon={Award}
+                iconColor="#4F39F6"
+                iconBgColor="#FFFFFF"
+              />
+            </div>
+          )}
+
+        {/* ─────────────────────────────────────────
+            PRINTABLE AREA → becomes the PDF
+            ← NEW: added id="report-content"
+        ───────────────────────────────────────── */}
+        <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
+
+          {/* ── Bell Curve Chart ── */}
+          {isYearEndEmpty ? (
+            <YearEndEmptyState />
+          ) : bellCurveData.length > 0 ? (
+            <BellCurveChart
+              data={bellCurveData}
+              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear! - 1}/${String(reportYear!).slice(-2)}`}
+              subtitle={
+                activeTab === 'mid_year'
+                  ? 'Performance rating distribution with normalization'
+                  : 'Final performance rating distribution with normalization'
+              }
+            />
+          ) : null}
+
+          {/* ── AI Insight strip ── */}
+          {insights.length > 0 && (
+            <div>
+              {insights.map((insight) => (
+                <AIInsightCard
+                  key={insight.id}
+                  insight={insight.insight_text}
+                  type={activeTab === 'year_end' ? 'success' : 'info'}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Recommendations (mid-year only) */}
+          {activeTab === 'mid_year' && (
+            <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
+          )}
+
+          {/* Comparison chart — always shown when data available */}
+          {activeTab === 'year_end' && (
+            isYearEndEmpty ? (
+              <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-6">
+                <div className="mb-6">
+                  <h4 className="text-[15px] font-semibold text-[#1E293B] mb-1.5">Mid-Year vs Year-End Comparison</h4>
+                  <p className="text-[14px] text-[#64748B]">Performance progression across categories</p>
+                </div>
+                <YearEndEmptyState description="The Mid-Year vs Year-End comparison will be available once the H2 appraisal cycle is completed." />
+              </div>
+            ) : comparisonData.length > 0 ? (
+              <ComparisonChart
+                data={comparisonData as any}
+                title="Mid-Year vs Year-End Comparison"
+                subtitle="Performance progression across categories"
+              />
+            ) : null
+          )}
+          
+
+        </div>
+        {/* ── End printable area ── */}
+
+        {/* Success toast after creating report */}
+        {createReportSuccess && (
+          <div className="fixed bottom-4 right-4 bg-green-50 border border-green-200 rounded-lg px-5 py-3.5 text-green-700 shadow-lg flex items-center gap-2 text-[13.5px] font-medium">
+            <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            Report saved &amp; downloaded successfully!
+          </div>
+        )}
+      </div>
+
+      {/* Create Report Modal */}
+      {user && (
+        <CreateReportModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={(savedReport) => {
+            setCreateReportSuccess(true);
+            setTimeout(() => setCreateReportSuccess(false), 5000);
+          }}
+          reportType="country"
+          countryId={countryId}
+          reportPeriod="both"
+          reportYear={reportYear!}
+          userId={user.id}
+          userEmail={user.email}
+        />
+      )}
+    </main>
+  );
+}
