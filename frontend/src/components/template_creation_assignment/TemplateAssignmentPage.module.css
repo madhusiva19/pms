@@ -1,0 +1,1539 @@
+/**
+ * TemplateAssignmentPage.module.css
+ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Layout Shell
+   ───────────────────────────────────────────────────────────────────────────── */
+
+
+/* Shell: sidebar + content side by side */
+.dashShell {
+  display:     flex;
+  min-height:  100vh;
+  background:  #f9fafb;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+/* Main content area offset by sidebar width */
+.mainContent {
+  flex:        1;
+
+  min-width:   0;
+  overflow-y:  auto;
+  padding:     24px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DESIGN TOKENS
+───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Radius */
+  --tap-radius-sm:    6px;
+  --tap-radius-md:    10px;
+  --tap-radius-lg:    14px;
+  --tap-radius-xl:    18px;
+  --tap-radius-full:  9999px;
+
+  /* Shadows */
+  --tap-shadow-sm:    0 1px 3px rgba(0, 0, 0, 0.04);
+  --tap-shadow-card:  0 1px 4px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --tap-shadow-float: 0 12px 40px rgba(0, 0, 0, 0.16);
+
+  /* Base */
+  --tap-white: #ffffff;
+
+  /* Slate */
+  --tap-slate-50:  #f8fafc;
+  --tap-slate-100: #f1f5f9;
+  --tap-slate-200: #e2e8f0;
+  --tap-slate-300: #cbd5e1;
+  --tap-slate-400: #94a3b8;
+  --tap-slate-500: #64748b;
+  --tap-slate-600: #475569;
+  --tap-slate-700: #334155;
+  --tap-slate-800: #1e293b;
+  --tap-slate-900: #0f172a;
+
+  /* Blue */
+  --tap-blue-50:  #eff6ff;
+  --tap-blue-100: #dbeafe;
+  --tap-blue-200: #bfdbfe;
+  --tap-blue-600: #2563eb;
+  --tap-blue-700: #1d4ed8;
+  --tap-blue-800: #1e40af;
+
+  /* Green */
+  --tap-green-50:  #f0fdf4;
+  --tap-green-200: #bbf7d0;
+  --tap-green-600: #16a34a;
+  --tap-green-700: #15803d;
+  --tap-green-800: #166534;
+
+  /* Violet */
+  --tap-violet-50:  #f5f3ff;
+  --tap-violet-100: #ede9fe;
+  --tap-violet-200: #ddd6fe;
+  --tap-violet-600: #7c3aed;
+  --tap-violet-700: #6d28d9;
+
+  /* Amber */
+  --tap-amber-100: #fef3c7;
+  --tap-amber-200: #fde68a;
+  --tap-amber-800: #92400e;
+
+  /* Rose */
+  --tap-rose-50:  #fff1f2;
+  --tap-rose-100: #ffe4e6;
+  --tap-rose-200: #fecdd3;
+  --tap-rose-600: #e11d48;
+
+  /* Typography */
+  --tap-text-xs:  10px;
+  --tap-text-sm:  11px;
+  --tap-text-md:  13px;
+  --tap-text-lg:  14px;
+  --tap-text-xl:  16px;
+  --tap-text-3xl: 26px;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ANIMATIONS
+───────────────────────────────────────────────────────────────────────────── */
+
+@keyframes tapSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes tapFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PAGE WRAPPER
+───────────────────────────────────────────────────────────────────────────── */
+
+.pageWrapper {
+  max-width:   1200px;
+  margin:      0 auto;
+  padding:     0 0 80px;
+  font-family: inherit;
+  animation:   tapFadeIn 0.3s ease;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LOADING / ERROR
+───────────────────────────────────────────────────────────────────────────── */
+
+.loadingWrapper {
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  justify-content: center;
+  min-height:      60vh;
+  gap:             12px;
+}
+
+.loadingSpinner {
+  width:        40px;
+  height:       40px;
+  border:       3px solid var(--tap-slate-200);
+  border-top-color: var(--tap-blue-600);
+  border-radius: 50%;
+  animation:    tapSpin 1s linear infinite;
+}
+
+.loadingText {
+  color:       var(--tap-slate-500);
+  font-size:   var(--tap-text-lg);
+  font-weight: 500;
+  margin:      0;
+}
+
+.errorWrapper {
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  justify-content: center;
+  min-height:      40vh;
+  gap:             16px;
+}
+
+.errorText {
+  color:       var(--tap-slate-500);
+  font-size:   var(--tap-text-xl);
+  font-weight: 600;
+  margin:      0;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PAGE HEADER
+───────────────────────────────────────────────────────────────────────────── */
+
+.pageHeader {
+  display:         flex;
+  align-items:     flex-start;
+  justify-content: space-between;
+  gap:             20px;
+  margin-bottom:   24px;
+  flex-wrap:       wrap;
+}
+
+.pageTitleBlock {
+  flex:      1;
+  min-width: 0;
+}
+
+.pageTitle {
+  font-size:      var(--tap-text-3xl);
+  font-weight:    750;
+  color:          var(--tap-slate-900);
+  margin:         0 0 6px;
+  letter-spacing: -0.5px;
+  line-height:    1.1;
+}
+
+.pageSubtitle {
+  font-size:   var(--tap-text-lg);
+  color:       var(--tap-slate-500);
+  margin:      0;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* Stat chips */
+.headerStats {
+  display:     flex;
+  gap:         10px;
+  flex-wrap:   wrap;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.statChip {
+  display:        flex;
+  flex-direction: column;
+  align-items:    center;
+  padding:        10px 18px;
+  border-radius:  var(--tap-radius-lg);
+  border:         1.5px solid transparent;
+  min-width:      72px;
+  text-align:     center;
+}
+
+.statChipBlue   { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-color: var(--tap-blue-200); }
+.statChipViolet { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-color: var(--tap-violet-200); }
+.statChipGreen  { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-color: var(--tap-green-200); }
+
+.statChipCount {
+  font-size:     20px;
+  font-weight:   900;
+  line-height:   1;
+  margin-bottom: 3px;
+}
+.statChipBlue   .statChipCount { color: var(--tap-blue-700); }
+.statChipViolet .statChipCount { color: var(--tap-violet-700); }
+.statChipGreen  .statChipCount { color: var(--tap-green-700); }
+
+.statChipLabel {
+  font-size:      var(--tap-text-xs);
+  font-weight:    700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.statChipBlue   .statChipLabel { color: var(--tap-blue-600); }
+.statChipViolet .statChipLabel { color: var(--tap-violet-600); }
+.statChipGreen  .statChipLabel { color: var(--tap-green-700); }
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   NO-PERMISSION BANNER
+───────────────────────────────────────────────────────────────────────────── */
+
+.noPermissionBanner {
+  display:       flex;
+  align-items:   center;
+  gap:           10px;
+  padding:       12px 18px;
+  border-radius: var(--tap-radius-lg);
+  background:    var(--tap-amber-100);
+  border:        1px solid var(--tap-amber-200);
+  margin-bottom: 20px;
+  font-size:     var(--tap-text-md);
+  font-weight:   600;
+  color:         var(--tap-amber-800);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PANEL CARDS
+───────────────────────────────────────────────────────────────────────────── */
+
+.panelCard {
+  background:    var(--tap-white);
+  border-radius: var(--tap-radius-xl);
+  border:        1px solid #e4e9f0;
+  box-shadow:    var(--tap-shadow-card);
+  margin-bottom: 16px;
+  overflow:      hidden;
+}
+
+.panelHeader {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         18px 24px 15px;
+  gap:             14px;
+}
+
+.panelHeaderLeft {
+  display:     flex;
+  align-items: center;
+  gap:         14px;
+}
+
+.panelIcon {
+  width:           38px;
+  height:          38px;
+  border-radius:   var(--tap-radius-lg);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+}
+
+.panelTitle {
+  font-size:      14px;
+  font-weight:    700;
+  color:          var(--tap-slate-900);
+  margin:         0 0 2px;
+  letter-spacing: -0.2px;
+  display:        flex;
+  align-items:    center;
+  gap:            8px;
+  flex-wrap:      wrap;
+}
+
+.panelSubtitle {
+  font-size:   var(--tap-text-md);
+  color:       var(--tap-slate-400);
+  margin:      0;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.panelDivider {
+  height:     1px;
+  background: #f1f5f9;
+  margin:     0;
+}
+
+.panelBody {
+  padding:        20px 24px;
+  display:        flex;
+  flex-direction: column;
+  gap:            16px;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ACTIVE RULES BADGES  (rendered inside panelTitle)
+───────────────────────────────────────────────────────────────────────────── */
+
+.activeRulesCountBadge {
+  display:       inline-flex;
+  align-items:   center;
+  padding:       3px 12px;
+  border-radius: var(--tap-radius-full);
+  font-size:     var(--tap-text-sm);
+  font-weight:   700;
+  background:    linear-gradient(135deg, #eff6ff, #dbeafe);
+  color:         var(--tap-blue-700);
+  border:        1px solid var(--tap-blue-200);
+}
+
+.activeRulesMatchBadge {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           4px;
+  padding:       3px 12px;
+  border-radius: var(--tap-radius-full);
+  font-size:     var(--tap-text-sm);
+  font-weight:   700;
+  background:    linear-gradient(135deg, #f5f3ff, #ede9fe);
+  color:         var(--tap-violet-700);
+  border:        1px solid var(--tap-violet-200);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CLEAR ALL BUTTON
+───────────────────────────────────────────────────────────────────────────── */
+
+.clearAllBtn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       7px 14px;
+  border-radius: var(--tap-radius-md);
+  cursor:        pointer;
+  font-size:     var(--tap-text-sm);
+  font-weight:   700;
+  background:    var(--tap-rose-50);
+  border:        1.5px solid var(--tap-rose-200);
+  color:         var(--tap-rose-600);
+  transition:    background 0.15s;
+  font-family:   inherit;
+}
+.clearAllBtn:hover { background: var(--tap-rose-100); }
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ADMIN QUICK-ASSIGN — global toggle row
+───────────────────────────────────────────────────────────────────────────── */
+
+.quickAssignLabel {
+  font-size:      10.5px;
+  font-weight:    700;
+  color:          var(--tap-slate-400);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.scopeToggleRow {
+  display:   flex;
+  flex-wrap: wrap;
+  gap:       8px;
+}
+
+.scopeToggleBtn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           6px;
+  padding:       8px 16px;
+  border-radius: var(--tap-radius-full);
+  font-size:     var(--tap-text-md);
+  font-weight:   700;
+  border:        1.5px solid var(--tap-slate-200);
+  background:    var(--tap-slate-50);
+  color:         var(--tap-slate-500);
+  cursor:        pointer;
+  transition:    all 0.15s;
+  font-family:   inherit;
+}
+.scopeToggleBtn:hover:not(:disabled) {
+  border-color: var(--tap-slate-300);
+  background:   var(--tap-white);
+  color:        var(--tap-slate-700);
+}
+.scopeToggleBtn:disabled {
+  opacity: 0.5;
+  cursor:  not-allowed;
+}
+
+/* active colours applied inline via style prop in TSX 
+.scopeToggleBtnActive {} */
+
+.scopeToggleIconWrap {
+  display:     inline-flex;
+  align-items: center;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCOPE-SPECIFIC GRID + CARDS
+───────────────────────────────────────────────────────────────────────────── */
+
+.scopeSpecificGrid {
+  display:               grid;
+  grid-template-columns: 1fr 1fr;
+  gap:                   16px;
+}
+@media (max-width: 680px) {
+  .scopeSpecificGrid { grid-template-columns: 1fr; }
+}
+
+.scopeSpecificCard {
+  background:     var(--tap-slate-50);
+  border:         1.5px solid var(--tap-slate-200);
+  border-radius:  var(--tap-radius-lg);
+  padding:        16px 18px;
+  display:        flex;
+  flex-direction: column;
+  gap:            10px;
+}
+
+.scopeSpecificTitle {
+  display:        flex;
+  align-items:    center;
+  gap:            6px;
+  font-size:      var(--tap-text-sm);
+  font-weight:    700;
+  color:          var(--tap-slate-600);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scopeSpecificRow {
+  display:     flex;
+  gap:         8px;
+  align-items: center;
+}
+
+.scopeSpecificSelect {
+  flex:          1;
+  padding:       9px 12px;
+  border:        1.5px solid var(--tap-slate-200);
+  border-radius: var(--tap-radius-md);
+  font-size:     var(--tap-text-md);
+  font-weight:   500;
+  color:         var(--tap-slate-700);
+  background:    var(--tap-white);
+  outline:       none;
+  cursor:        pointer;
+  font-family:   inherit;
+  appearance:    auto;
+  transition:    border-color 0.15s;
+}
+.scopeSpecificSelect:focus {
+  border-color: var(--tap-blue-600);
+  box-shadow:   0 0 0 3px rgba(37, 99, 235, 0.09);
+}
+.scopeSpecificSelect:disabled {
+  opacity: 0.5;
+  cursor:  not-allowed;
+}
+
+.scopeAddBtn {
+  padding:       9px 16px;
+  border-radius: var(--tap-radius-md);
+  border:        1.5px solid var(--tap-slate-200);
+  background:    var(--tap-slate-100);
+  color:         var(--tap-slate-400);
+  font-size:     var(--tap-text-md);
+  font-weight:   700;
+  cursor:        not-allowed;
+  white-space:   nowrap;
+  transition:    all 0.15s;
+  font-family:   inherit;
+}
+
+.scopeAddBtnActive {
+  background:   var(--tap-blue-600);
+  border-color: var(--tap-blue-600);
+  color:        var(--tap-white);
+  cursor:       pointer;
+  box-shadow:   0 2px 6px rgba(37, 99, 235, 0.25);
+}
+.scopeAddBtnActive:hover { background: var(--tap-blue-700); }
+
+.scopeChipRow {
+  display:   flex;
+  flex-wrap: wrap;
+  gap:       6px;
+}
+
+.scopeActiveChip {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       4px 10px;
+  border-radius: var(--tap-radius-full);
+  font-size:     var(--tap-text-sm);
+  font-weight:   700;
+  background:    #ecfeff;
+  color:         #0891b2;
+  border:        1px solid #a5f3fc;
+}
+
+.scopeChipRemove {
+  background:  none;
+  border:      none;
+  cursor:      pointer;
+  color:       inherit;
+  opacity:     0.6;
+  padding:     0 0 0 2px;
+  display:     flex;
+  align-items: center;
+  transition:  opacity 0.12s;
+}
+.scopeChipRemove:hover { opacity: 1; }
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   RULE BUILDER  (Panel B)
+───────────────────────────────────────────────────────────────────────────── */
+
+.stepIndicatorRow {
+  display:     flex;
+  align-items: center;
+  gap:         6px;
+  flex-wrap:   wrap;
+}
+
+.stepBadge {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       5px 14px;
+  border-radius: var(--tap-radius-full);
+  font-size:     var(--tap-text-sm);
+  font-weight:   700;
+  background:    var(--tap-slate-100);
+  color:         var(--tap-slate-400);
+  border:        1.5px solid var(--tap-slate-200);
+  transition:    all 0.15s;
+}
+
+.stepBadgeDone {
+  background:   var(--tap-blue-50);
+  color:        var(--tap-blue-700);
+  border-color: var(--tap-blue-200);
+}
+
+/* Per-step colours when done */
+.stepBadgeDoneDesig {
+  background:   #eff6ff;
+  color:        #1e40af;
+  border-color: #bfdbfe;
+}
+.stepBadgeDoneDept {
+  background:   #f0fdf4;
+  color:        #166534;
+  border-color: #bbf7d0;
+}
+.stepBadgeDoneSub {
+  background:   #fef9c3;
+  color:        #854d0e;
+  border-color: #fde68a;
+}
+
+.builderGrid {
+  display:               grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:                   16px;
+}
+@media (max-width: 840px) {
+  .builderGrid { grid-template-columns: 1fr; }
+}
+
+.builderField {
+  display:        flex;
+  flex-direction: column;
+  gap:            8px;
+}
+
+.builderLabel {
+  display:        flex;
+  align-items:    center;
+  gap:            6px;
+  font-size:      10.5px;
+  font-weight:    700;
+  color:          var(--tap-slate-400);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.builderStep {
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  width:           18px;
+  height:          18px;
+  border-radius:   50%;
+  background:      var(--tap-blue-50);
+  color:           var(--tap-blue-700);
+  font-size:       9px;
+  font-weight:     900;
+  flex-shrink:     0;
+}
+
+.requiredStar { color: #ef4444; }
+
+.optionalTag {
+  font-size:      var(--tap-text-xs);
+  font-weight:    600;
+  color:          var(--tap-slate-400);
+  background:     var(--tap-slate-100);
+  border-radius:  var(--tap-radius-full);
+  padding:        1px 7px;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left:    4px;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BRANCH PREVIEW PANEL
+───────────────────────────────────────────────────────────────────────────── */
+
+.branchPreviewPanel {
+  background:    var(--tap-slate-50);
+  border:        1.5px solid var(--tap-slate-200);
+  border-radius: var(--tap-radius-lg);
+  padding:       16px 18px;
+}
+
+.branchPreviewEmpty {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  gap:             16px;
+  flex-wrap:       wrap;
+}
+
+.branchPreviewEmptyText {
+  font-size:   var(--tap-text-md);
+  color:       var(--tap-slate-400);
+  margin:      0;
+  line-height: 1.5;
+}
+
+.branchPreviewHeader {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  margin-bottom:   14px;
+  gap:             12px;
+  flex-wrap:       wrap;
+}
+
+.branchPreviewInfo {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+}
+
+.branchPreviewLabel {
+  font-size:   var(--tap-text-md);
+  font-weight: 600;
+  color:       var(--tap-slate-500);
+}
+
+.branchPreviewCount {
+  display:       inline-flex;
+  align-items:   center;
+  padding:       2px 10px;
+  border-radius: var(--tap-radius-full);
+  font-size:     var(--tap-text-sm);
+  font-weight:   800;
+  background:    var(--tap-blue-50);
+  color:         var(--tap-blue-800);
+  border:        1px solid var(--tap-blue-200);
+}
+
+.addRuleBtn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           7px;
+  padding:       9px 18px;
+  border-radius: var(--tap-radius-md);
+  border:        none;
+  background:    var(--tap-blue-600);
+  color:         var(--tap-white);
+  font-size:     var(--tap-text-md);
+  font-weight:   700;
+  cursor:        pointer;
+  transition:    background 0.15s, box-shadow 0.15s;
+  box-shadow:    0 2px 8px rgba(37, 99, 235, 0.22);
+  font-family:   inherit;
+}
+.addRuleBtn:hover:not(:disabled) {
+  background: var(--tap-blue-700);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+}
+.addRuleBtn:disabled {
+  background: var(--tap-slate-200);
+  color:      var(--tap-slate-400);
+  cursor:     not-allowed;
+  box-shadow: none;
+}
+
+.branchChipList {
+  display:   flex;
+  flex-wrap: wrap;
+  gap:       7px;
+}
+
+.branchPreviewChip {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       4px 11px;
+  border-radius: var(--tap-radius-full);
+  font-size:     var(--tap-text-sm);
+  font-weight:   600;
+  background:    #f5f3ff;
+  color:         #5b21b6;
+  border:        1.5px solid #ddd6fe;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DIRECT EMPLOYEE  (Panel C)
+───────────────────────────────────────────────────────────────────────────── */
+
+.directEmployeeField {
+  max-width:      600px;
+  display:        flex;
+  flex-direction: column;
+  gap:            8px;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CREATE DEPT / BRANCH  (Panel D)
+───────────────────────────────────────────────────────────────────────────── */
+
+.createActionsRow {
+  display:               grid;
+  grid-template-columns: 1fr 1fr;
+  gap:                   14px;
+}
+@media (max-width: 600px) {
+  .createActionsRow { grid-template-columns: 1fr; }
+}
+
+.createActionBtn {
+  display:       flex;
+  align-items:   center;
+  gap:           16px;
+  padding:       16px 18px;
+  border-radius: var(--tap-radius-lg);
+  border:        1.5px solid var(--tap-slate-200);
+  background:    var(--tap-white);
+  cursor:        pointer;
+  transition:    border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  text-align:    left;
+  width:         100%;
+  font-family:   inherit;
+}
+.createActionBtn:hover {
+  border-color: var(--tap-slate-300);
+  background:   var(--tap-slate-50);
+  box-shadow:   0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.createActionIcon {
+  width:           42px;
+  height:          42px;
+  border-radius:   var(--tap-radius-md);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+}
+
+.createActionTitle {
+  font-size:     var(--tap-text-lg);
+  font-weight:   700;
+  color:         var(--tap-slate-900);
+  margin-bottom: 3px;
+}
+
+.createActionSub {
+  font-size:   var(--tap-text-md);
+  color:       var(--tap-slate-400);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCOPE & DIRECT RULE BARS
+───────────────────────────────────────────────────────────────────────────── */
+
+.ruleBarsSection { margin-bottom: 4px; }
+
+.ruleBarsLabel {
+  font-size:      10.5px;
+  font-weight:    700;
+  color:          var(--tap-slate-400);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin:         0 0 10px;
+}
+
+.ruleBarsList {
+  display:        flex;
+  flex-direction: column;
+  gap:            7px;
+}
+
+.ruleBar {
+  display:       flex;
+  align-items:   center;
+  gap:           12px;
+  background:    var(--tap-white);
+  border:        1.5px solid var(--tap-slate-200);
+  border-radius: 10px;
+  padding:       10px 14px;
+  position:      relative;
+  overflow:      hidden;
+  transition:    box-shadow 0.15s, border-color 0.15s;
+}
+.ruleBar:hover {
+  box-shadow:   0 2px 10px rgba(0, 0, 0, 0.06);
+  border-color: var(--tap-slate-300);
+}
+
+.ruleBarStripe {
+  position:      absolute;
+  left:          0;
+  top:           0;
+  bottom:        0;
+  width:         4px;
+  border-radius: 10px 0 0 10px;
+}
+
+.ruleBarIcon {
+  width:           32px;
+  height:          32px;
+  border-radius:   50%;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+  margin-left:     4px;
+}
+
+.ruleBarContent {
+  flex:           1;
+  min-width:      0;
+  display:        flex;
+  flex-direction: column;
+  gap:            3px;
+}
+
+.ruleBarScopeLabel {
+  font-size:   var(--tap-text-md);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ruleBarBadges {
+  display:   flex;
+  gap:       5px;
+  flex-wrap: wrap;
+}
+
+.ruleBarAllNote {
+  font-size:   var(--tap-text-xs);
+  color:       var(--tap-slate-400);
+  font-weight: 500;
+  font-style:  italic;
+}
+
+.ruleBarRemove {
+  background:    none;
+  border:        none;
+  cursor:        pointer;
+  color:         var(--tap-slate-400);
+  padding:       5px;
+  border-radius: var(--tap-radius-sm);
+  display:       flex;
+  align-items:   center;
+  transition:    color 0.12s, background 0.12s;
+  flex-shrink:   0;
+}
+.ruleBarRemove:hover {
+  color:      #dc2626;
+  background: #fff1f2;
+}
+
+/* User bar avatar */
+.userBarAvatar {
+  width:         36px;
+  height:        36px;
+  border-radius: 50%;
+  display:       flex;
+  align-items:   center;
+  justify-content: center;
+  flex-shrink:   0;
+  background:    #f0fdf4;
+  border:        1.5px solid #bbf7d0;
+  margin-left:   4px;
+}
+
+.userBarName {
+  font-size:   var(--tap-text-md);
+  font-weight: 700;
+  color:       var(--tap-slate-800);
+  line-height: 1.2;
+}
+
+.userBarLabel {
+  font-size:   var(--tap-text-xs);
+  color:       var(--tap-slate-400);
+  font-weight: 500;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BADGE COMPONENTS
+───────────────────────────────────────────────────────────────────────────── */
+
+.badge {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       3px 9px;
+  border-radius: var(--tap-radius-full);
+  font-size:     var(--tap-text-sm);
+  font-weight:   700;
+  border:        1px solid transparent;
+  align-self:    flex-start;
+  max-width:     100%;
+  overflow:      hidden;
+}
+
+.badgeDesig   { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+.badgeDept    { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.badgeSubdept { background: var(--tap-blue-50);    color: var(--tap-blue-800);  border-color: var(--tap-blue-200); }
+.badgeBranch  { background: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; }
+.badgeCountry { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   COMBINATION RULES TABLE
+───────────────────────────────────────────────────────────────────────────── */
+
+.comboTableSection { margin-top: 4px; }
+
+.comboTableWrap {
+  background:    var(--tap-white);
+  border:        1px solid #e4e9f0;
+  border-radius: 14px;
+  overflow:      hidden;
+  box-shadow:    var(--tap-shadow-card);
+}
+
+.comboTable {
+  width:            100%;
+  border-collapse:  collapse;
+  table-layout:     fixed;
+  font-size:        12px;
+  font-family:      inherit;
+}
+
+/* Rounded top corners */
+.comboTable thead tr th:first-child { border-radius: 13px 0 0 0; }
+.comboTable thead tr th:last-child  { border-radius: 0 13px 0 0; }
+
+/* Header cells */
+.comboTable thead th {
+  background:     var(--tap-white);
+  padding:        10px 14px;
+  text-align:     left;
+  font-size:      10px;
+  font-weight:    700;
+  color:          var(--tap-slate-900);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom:  1px solid var(--tap-slate-100);
+  border-right:   1px solid var(--tap-slate-100);
+  white-space:    nowrap;
+}
+.comboTable thead th:last-child { border-right: none; }
+.comboTable thead th svg        { display: inline; vertical-align: -2px; margin-right: 5px; }
+
+/* Column widths */
+.comboColDesig  { width: 16%; }
+.comboColDept   { width: 19%; }
+.comboColSub    { width: 17%; }
+.comboColBranch { width: 34%; }
+.comboColMatch  { width: 10%; text-align: center; }
+.comboColAction { width:  7%; text-align: center; color: var(--tap-slate-600) !important; }
+
+/* Body rows */
+.comboTableRow { transition: background 0.12s; }
+.comboTableRow:hover { background: #fafbff; }
+.comboTable tbody tr:last-child .comboTd,
+.comboTable tbody tr:last-child .comboTdCenter { border-bottom: none; }
+
+/* Body cells */
+.comboTd {
+  padding:         11px 14px;
+  vertical-align:  top;
+  border-bottom:   1px solid var(--tap-slate-100);
+  border-right:    1px solid var(--tap-slate-100);
+  color:           var(--tap-slate-700);
+}
+.comboTd:last-child { border-right: none; }
+
+.comboTdCenter {
+  padding:        11px 14px;
+  vertical-align: top;
+  text-align:     center;
+  border-bottom:  1px solid var(--tap-slate-100);
+  border-right:   1px solid var(--tap-slate-100);
+}
+.comboTdCenter:last-child { border-right: none; }
+
+/* Coloured pills */
+.comboPill {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       4px 10px;
+  border-radius: var(--tap-radius-full);
+  font-size:     11px;
+  font-weight:   600;
+  white-space:   nowrap;
+  max-width:     100%;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+}
+.comboPill svg { flex-shrink: 0; }
+
+.comboPillDesig { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+.comboPillDept  { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.comboPillSub   { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
+
+/* Branch chips */
+.comboBranchSet {
+  display:        flex;
+  flex-direction: column;
+  gap:            5px;
+  align-items:    flex-start;
+}
+
+.comboBranchChip {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       4px 9px;
+  border-radius: 7px;
+  font-size:     11px;
+  font-weight:   600;
+  background:    #ffffff;
+  color:         var(--tap-slate-700);
+  border:        1.5px solid var(--tap-slate-200);
+  white-space:   nowrap;
+  transition:    border-color 0.12s;
+  width:         fit-content;
+}
+.comboBranchChip:hover { border-color: var(--tap-slate-300); }
+
+.comboBranchChipRemove {
+  background:  none;
+  border:      none;
+  cursor:      pointer;
+  color:       var(--tap-slate-400);
+  padding:     0 0 0 2px;
+  display:     inline-flex;
+  align-items: center;
+  transition:  color 0.12s;
+}
+.comboBranchChipRemove:hover { color: #e11d48; }
+
+/* "All matching branches" note */
+.comboAllBranchNote {
+  display:     inline-flex;
+  align-items: center;
+  gap:         5px;
+  font-size:   11px;
+  color:       var(--tap-slate-400);
+  font-style:  italic;
+  font-weight: 500;
+}
+
+/* Match count */
+.comboMatchBadge {
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  gap:             4px;
+  font-size:       11px;
+  font-weight:     700;
+  color:           #7c3aed;
+}
+
+/* Row remove button */
+.comboRemoveBtn {
+  background:    none;
+  border:        none;
+  cursor:        pointer;
+  color:         var(--tap-slate-400);
+  padding:       4px 6px;
+  border-radius: var(--tap-radius-sm);
+  display:       inline-flex;
+  align-items:   center;
+  transition:    color 0.12s, background 0.12s;
+}
+.comboRemoveBtn:hover {
+  color:      #e11d48;
+  background: #fff1f2;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BOTTOM ACTIONS
+───────────────────────────────────────────────────────────────────────────── */
+
+.bottomActionsWrapper {
+  display:        flex;
+  flex-direction: column;
+  gap:            14px;
+  margin-top:     8px;
+}
+
+.actionBar {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  gap:             12px;
+  padding:         16px 24px;
+  background:      var(--tap-white);
+  border:          1.5px solid var(--tap-slate-200);
+  border-radius:   var(--tap-radius-xl);
+  box-shadow:      0 -4px 24px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
+  position:        sticky;
+  bottom:          16px;
+  z-index:         10;
+}
+
+.actionBarLeft {
+  font-size:   var(--tap-text-md);
+  color:       var(--tap-slate-500);
+  font-weight: 500;
+}
+
+.actionBarRight {
+  display:     flex;
+  gap:         10px;
+  align-items: center;
+}
+
+.discardBtn {
+  padding:       10px 22px;
+  border-radius: var(--tap-radius-md);
+  border:        1.5px solid var(--tap-slate-200);
+  background:    var(--tap-white);
+  color:         var(--tap-slate-500);
+  font-size:     var(--tap-text-md);
+  font-weight:   700;
+  cursor:        pointer;
+  transition:    all 0.15s;
+  font-family:   inherit;
+}
+.discardBtn:hover {
+  background:   var(--tap-slate-50);
+  border-color: var(--tap-slate-300);
+}
+
+.saveBtn {
+  padding:       10px 26px;
+  border-radius: var(--tap-radius-md);
+  border:        none;
+  color:         var(--tap-white);
+  font-size:     var(--tap-text-md);
+  font-weight:   800;
+  display:       inline-flex;
+  align-items:   center;
+  gap:           7px;
+  transition:    all 0.2s ease;
+  font-family:   inherit;
+  cursor:        pointer;
+}
+
+.saveBtnActive {
+  background: #372fc8;
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.3);
+}
+.saveBtnActive:hover {
+  background:  #4f46e5;
+  box-shadow:  0 6px 22px rgba(79, 70, 229, 0.4);
+  transform:   translateY(-1px);
+}
+
+.saveBtnBlocked {
+  cursor:     not-allowed;
+  background: var(--tap-slate-200);
+  color:      var(--tap-slate-400);
+  box-shadow: none;
+}
+
+.navBtnsRow {
+  display:   flex;
+  gap:       12px;
+  flex-wrap: wrap;
+}
+
+.navBtn {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           7px;
+  padding:       10px 20px;
+  border-radius: var(--tap-radius-md);
+  border:        1.5px solid var(--tap-slate-200);
+  background:    var(--tap-white);
+  color:         var(--tap-slate-600);
+  font-size:     var(--tap-text-md);
+  font-weight:   700;
+  cursor:        pointer;
+  transition:    all 0.15s;
+  box-shadow:    var(--tap-shadow-sm);
+  font-family:   inherit;
+}
+.navBtn:hover {
+  background:   var(--tap-slate-50);
+  border-color: var(--tap-slate-300);
+  color:        var(--tap-slate-900);
+  transform:    translateY(-1px);
+  box-shadow:   0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.navBtnPrimary {
+  background:   var(--tap-blue-50);
+  border-color: var(--tap-blue-200);
+  color:        var(--tap-blue-700);
+}
+.navBtnPrimary:hover {
+  background:   var(--tap-blue-100);
+  border-color: var(--tap-blue-600);
+  color:        var(--tap-blue-800);
+  box-shadow:   0 4px 14px rgba(37, 99, 235, 0.15);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MODALS
+───────────────────────────────────────────────────────────────────────────── */
+
+.modalOverlay {
+  position:        fixed;
+  inset:           0;
+  z-index:         9999;
+  background:      rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  animation:       tapFadeIn 0.15s ease;
+}
+
+.modalBox {
+  background:    var(--tap-white);
+  border-radius: 20px;
+  width:         440px;
+  max-width:     90vw;
+  box-shadow:    var(--tap-shadow-float);
+  border:        1px solid var(--tap-slate-100);
+  overflow:      hidden;
+}
+
+.modalHeader {
+  display:         flex;
+  align-items:     flex-start;
+  justify-content: space-between;
+  padding:         22px 26px 18px;
+  gap:             12px;
+  border-bottom:   1px solid var(--tap-slate-100);
+}
+
+.modalHeaderLeft {
+  display:     flex;
+  align-items: center;
+  gap:         14px;
+}
+
+.modalIconWrap {
+  width:           42px;
+  height:          42px;
+  border-radius:   var(--tap-radius-lg);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+}
+
+.modalTitle {
+  font-size:      16px;
+  font-weight:    700;
+  color:          var(--tap-slate-900);
+  margin:         0 0 3px;
+  letter-spacing: -0.2px;
+}
+
+.modalSubtitle {
+  font-size:   var(--tap-text-md);
+  color:       var(--tap-slate-400);
+  margin:      0;
+  font-weight: 400;
+}
+
+.modalCloseBtn {
+  background:    none;
+  border:        none;
+  cursor:        pointer;
+  color:         var(--tap-slate-400);
+  padding:       4px;
+  border-radius: var(--tap-radius-sm);
+  display:       flex;
+  align-items:   center;
+  transition:    color 0.12s, background 0.12s;
+  flex-shrink:   0;
+}
+.modalCloseBtn:hover {
+  color:      var(--tap-slate-700);
+  background: var(--tap-slate-100);
+}
+
+.modalBody {
+  padding:        20px 26px;
+  display:        flex;
+  flex-direction: column;
+  gap:            15px;
+}
+
+.modalField {
+  display:        flex;
+  flex-direction: column;
+  gap:            6px;
+}
+
+.modalLabel {
+  font-size:      10.5px;
+  font-weight:    700;
+  color:          var(--tap-slate-500);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display:        block;
+}
+
+.modalLabelNote {
+  font-size:      var(--tap-text-xs);
+  font-weight:    400;
+  color:          var(--tap-slate-400);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left:    6px;
+}
+
+.modalInput {
+  padding:        10px 13px;
+  border:         1.5px solid var(--tap-slate-200);
+  border-radius:  var(--tap-radius-md);
+  font-size:      var(--tap-text-lg);
+  font-weight:    500;
+  color:          var(--tap-slate-800);
+  outline:        none;
+  font-family:    inherit;
+  background:     var(--tap-slate-50);
+  transition:     border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  box-sizing:     border-box;
+  width:          100%;
+}
+.modalInput:focus {
+  border-color: var(--tap-blue-600);
+  box-shadow:   0 0 0 3px rgba(37, 99, 235, 0.10);
+  background:   var(--tap-white);
+}
+.modalInput::placeholder {
+  color:       var(--tap-slate-300);
+  font-weight: 400;
+}
+
+.modalSelect {
+  padding:       10px 13px;
+  border:        1.5px solid var(--tap-slate-200);
+  border-radius: var(--tap-radius-md);
+  font-size:     var(--tap-text-lg);
+  font-weight:   500;
+  color:         var(--tap-slate-700);
+  outline:       none;
+  font-family:   inherit;
+  background:    var(--tap-slate-50);
+  cursor:        pointer;
+  box-sizing:    border-box;
+  width:         100%;
+  appearance:    auto;
+  transition:    border-color 0.15s;
+}
+.modalSelect:focus {
+  border-color: var(--tap-blue-600);
+  box-shadow:   0 0 0 3px rgba(37, 99, 235, 0.10);
+  background:   var(--tap-white);
+}
+
+.modalFooter {
+  display:         flex;
+  justify-content: flex-end;
+  gap:             10px;
+  padding:         14px 26px 22px;
+  border-top:      1px solid var(--tap-slate-100);
+}
+
+.modalCancelBtn {
+  padding:       9px 20px;
+  border-radius: var(--tap-radius-md);
+  border:        1.5px solid var(--tap-slate-200);
+  background:    var(--tap-slate-50);
+  color:         var(--tap-slate-500);
+  font-size:     var(--tap-text-md);
+  font-weight:   700;
+  cursor:        pointer;
+  transition:    background 0.15s;
+  font-family:   inherit;
+}
+.modalCancelBtn:hover { background: var(--tap-slate-100); }
+
+.modalConfirmBtn {
+  padding:       9px 22px;
+  border-radius: var(--tap-radius-md);
+  border:        none;
+  background:    var(--tap-blue-600);
+  color:         var(--tap-white);
+  font-size:     var(--tap-text-md);
+  font-weight:   700;
+  cursor:        pointer;
+  transition:    background 0.15s, opacity 0.15s;
+  box-shadow:    0 2px 6px rgba(37, 99, 235, 0.25);
+  font-family:   inherit;
+}
+.modalConfirmBtn:hover:not(:disabled) { background: var(--tap-blue-700); }
+.modalConfirmBtn:disabled {
+  opacity:    0.5;
+  cursor:     not-allowed;
+  box-shadow: none;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   RESPONSIVE
+───────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .panelBody   { padding: 16px 18px; }
+  .panelHeader { padding: 16px 18px 13px; }
+  .actionBar   { padding: 14px 18px; }
+}
+
+@media (max-width: 768px) {
+  .comboTable thead th,
+  .comboTd,
+  .comboTdCenter { padding: 8px 10px; }
+
+  .comboColDesig  { width: 18%; }
+  .comboColDept   { width: 22%; }
+  .comboColSub    { width: 18%; }
+  .comboColBranch { width: 30%; }
+  .comboColMatch  { width:  8%; }
+  .comboColAction { width:  4%; }
+}
+
+@media (max-width: 640px) {
+  .pageHeader  { flex-direction: column; align-items: flex-start; }
+  .headerStats { align-self: flex-start; }
+  .actionBar   { flex-direction: column; align-items: stretch; }
+  .navBtnsRow  { flex-direction: column; }
+  .navBtn      { justify-content: center; }
+}

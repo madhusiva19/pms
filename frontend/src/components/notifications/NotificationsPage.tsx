@@ -1,280 +1,622 @@
-import viewStyles from '../../styles/views.module.css';
-// Notifications page: displays evaluation alerts and lets users mark them as read.
-import { useState, useEffect } from 'react';
-import Link, { useRoutes } from '../../lib/routing';
-import { getNotifications, markNotificationRead, invalidateCache } from '../../lib/api';
-import Sidebar from '../sidebar/Sidebar';
-import LoadingScreen from '../LoadingScreen';
-import { formatNotificationTime } from '../../lib/formatters';
-import type { EntityId, NotificationItem } from '../../lib/types';
+"use client";
 
-export default function Notifications() {
-  const routes = useRoutes();
-  // Stores all notifications returned from the backend.
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  // Tracks notification IDs that are already read in the current UI state.
-  const [readNotifications, setReadNotifications] = useState<Set<EntityId>>(new Set());
-  // Controls loading and loaded notification states.
-  const [loading, setLoading] = useState(true);
-  // Stores a readable message when the notification API cannot be reached.
-  const [errorMessage, setErrorMessage] = useState('');
-  // Tracks which page of notifications is currently visible (1-indexed).
-  const [currentPage, setCurrentPage] = useState(1);
+import React, { useEffect, useState, useCallback } from "react";
+import Sidebar    from "@/components/sidebar/Sidebar";
+import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
+import styles from "./notifications.module.css";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useAuth } from "@/lib/auth-context";
+import { logger } from "@/utils/logger";
 
-  // Loads notifications and initializes the local read-status set.
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      // Always bust the cache so the page shows the latest notifications from
-      // the backend rather than a 30-second-old snapshot.
-      invalidateCache('/evaluation-notifications');
-      try {
-        const response = await getNotifications();
-        const notificationRows = Array.isArray(response.data) ? response.data : [];
-        setNotifications(notificationRows);
-        setCurrentPage(1);
-        setReadNotifications(
-          new Set(notificationRows.filter((notif) => notif.is_read).map((notif) => notif.id))
-        );
-        setErrorMessage('');
-      } catch (error) {
-        console.error('Error fetching notifications:', error);
-        setErrorMessage('Could not load notifications. Please check that the Flask backend is running on port 5000.');
-      } finally {
-        setLoading(false);
-      }
-    };
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-    fetchNotifications();
-  }, []);
+type Tab = "approvals" | "cutoff" | "pa" | "manual";
 
-  // Chooses the icon shown beside a notification based on its type.
-  const getNotificationIcon = (type?: string) => {
-    switch (type) {
-      case 'new_evaluation':    return '📋';
-      case 'rejection':         return '❌';
-      case 'approval_required': return '👤';
-      case 'approval_approved': return '✅';
-      case 'status_update':     return '🔄';
-      case 'enquiry':           return '❓';
-      case 'cutoff_reminder':   return '🔔';
-      default:                  return '📌';
-    }
-  };
+interface DBNotification {
+  id:           string;
+  type:         string;
+  title:        string;
+  message:      string;
+  action_link:  string | null;
+  triggered_by: string | null;
+  is_read:      boolean;
+  read_at:      string | null;
+  pms_cycle_id: number | null;
+  trigger_key:  string | null;
+  created_at:   string;
+}
 
-  // Returns a CSS module key for the left border colour — replaces broken Tailwind strings.
-  const getNotificationTypeClass = (type?: string): string => {
-    switch (type) {
-      case 'new_evaluation':    return 'notifTypeBlue';
-      case 'rejection':         return 'notifTypeRed';
-      case 'approval_required': return 'notifTypePurple';
-      case 'approval_approved': return 'notifTypeGreen';
-      case 'status_update':     return 'notifTypeBlue';
-      case 'enquiry':           return 'notifTypeCyan';
-      case 'cutoff_reminder':   return 'notifTypeOrange';
-      default:                  return 'notifTypeGray';
-    }
-  };
+interface ScheduleEntry {
+  trigger_date: string;
+  role:         string;
+  level:        number;
+  title:        string;
+  message:      string;
+  action_link:  string;
+  trigger_key:  string;
+  is_triggered: boolean;
+  days_until:   number;
+}
 
-  // Returns a CSS module key for the icon wrapper background.
-  const getNotificationIconClass = (type?: string): string => {
-    switch (type) {
-      case 'new_evaluation':    return 'notifIconBlue';
-      case 'rejection':         return 'notifIconRed';
-      case 'approval_required': return 'notifIconPurple';
-      case 'approval_approved': return 'notifIconGreen';
-      case 'status_update':     return 'notifIconBlue';
-      case 'enquiry':           return 'notifIconCyan';
-      case 'cutoff_reminder':   return 'notifIconOrange';
-      default:                  return '';
-    }
-  };
+interface CycleInfo {
+  id:                    number;
+  pms_year:              number;
+  objective_setting_end: string;
+  grace_period_end:      string;
+}
 
-  // Optimistically marks one notification as read, then persists that change through the API.
-  const markAsRead = async (notificationId: EntityId) => {
-    setReadNotifications(prev => new Set([...prev, notificationId]));
-    setNotifications((prev) =>
-      prev.map((notif) => notif.id === notificationId ? { ...notif, is_read: true } : notif)
-    );
+// ── Wathsala's types ──────────────────────────────────────────────────────────
+type ReminderType = "period_opened" | "deadline_warning" | "supervisor_alert" | "manual_reminder";
 
+type ManualRatingNotification = {
+  id: string;
+  type: ReminderType;
+  title: string;
+  message: string;
+  period: string;
+  pmsYear: number;
+  isRead: boolean;
+  createdAt: string;
+};
+
+type PaNotificationType =
+  | "self_submitted" | "supervisor_completed" | "reconsideration_request"
+  | "reconsideration_fyi" | "reconsideration_approved" | "reconsideration_rejected"
+  | "reconsideration_approved_supervisor" | "reconsideration_rejected_supervisor";
+
+type PaNotification = {
+  id: string;
+  type: PaNotificationType;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  actionUrl: string;
+  assessmentId?: string;
+  reconsiderationAction?: string | null;
+};
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:5000";
+const API  = BASE + "/api";
+
+const _rawApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5000";
+const WAPI = _rawApiUrl.endsWith("/api") ? _rawApiUrl.slice(0, -4) : _rawApiUrl;
+
+const ROLE_PREFIXES: Record<number, string> = {
+  1:  "/hq-admin",
+  2:  "/country-admin",
+  3:  "/branch-admin",
+  4:  "/dept-admin",
+  5:  "/sub-dept-admin",
+};
+
+const ROLE_BADGE_COLOR: Record<string, string> = {
+  hq_admin:      "#7C3AED",
+  country_admin: "#0369A1",
+  branch_admin:  "#0F766E",
+  dept_admin:    "#B45309",
+  sub_dept_admin:"#BE185D",
+  all:           "#374151",
+};
+
+const ROLE_DISPLAY: Record<string, string> = {
+  hq_admin:      "HQ Admin",
+  country_admin: "Country Admin",
+  branch_admin:  "Branch Admin",
+  dept_admin:    "Dept Admin",
+  sub_dept_admin:"Sub Dept Admin",
+  all:           "All Users",
+};
+
+const LEVEL_LABEL: Record<number, string> = {
+  1:  "HQ Admin",
+  2:  "Country Admin",
+  3:  "Branch Admin",
+  4:  "Dept Admin",
+  5:  "Sub Dept Admin",
+  99: "User",
+};
+
+// ── Wathsala's badge configs ──────────────────────────────────────────────────
+const REMINDER_STYLES: Record<ReminderType, { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }> = {
+  period_opened:    { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "🔔 Window Open",     borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  deadline_warning: { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon",         borderColor: "#FDE047", bg: "#FFFBEB" },
+  supervisor_alert: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "🔴 Action Required", borderColor: "#FECACA", bg: "#FEF2F2" },
+  manual_reminder:  { badge: "#F3E8FF", badgeColor: "#6B21A8", badgeText: "📢 Reminder",        borderColor: "#D8B4FE", bg: "#FAF5FF" },
+};
+
+const PA_STYLES: Record<PaNotificationType, { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }> = {
+  self_submitted:                      { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Self Submitted",                  borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  supervisor_completed:                { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "Review Completed",                 borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  reconsideration_request:             { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "Requires Your Review",             borderColor: "#FDE047", bg: "#FFFBEB" },
+  reconsideration_fyi:                 { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "Reconsideration Requested (FYI)", borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  reconsideration_approved:            { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "Reconsideration Approved",         borderColor: "#86EFAC", bg: "#F0FDF4" },
+  reconsideration_rejected:            { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "Reconsideration Rejected",         borderColor: "#FECACA", bg: "#FEF2F2" },
+  reconsideration_approved_supervisor: { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "Reconsideration Approved",         borderColor: "#86EFAC", bg: "#F0FDF4" },
+  reconsideration_rejected_supervisor: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "Reconsideration Rejected",         borderColor: "#FECACA", bg: "#FEF2F2" },
+};
+
+const PA_APPRAISEE_FACING: PaNotificationType[] = ["supervisor_completed", "reconsideration_approved", "reconsideration_rejected"];
+const PA_SUPERVISOR_OUTCOME_FACING: PaNotificationType[] = ["reconsideration_approved_supervisor", "reconsideration_rejected_supervisor"];
+
+function resolvePaActionUrl(type: PaNotificationType, roleSlug: string, assessmentId?: string): string {
+  if (PA_APPRAISEE_FACING.includes(type)) return roleSlug === "employee" ? "/employee/potential-assessment" : `/${roleSlug}/potential-assessment/self-assessment`;
+  if (PA_SUPERVISOR_OUTCOME_FACING.includes(type)) return roleSlug === "hq-admin" ? "/hq-admin/potential-assessment" : `/${roleSlug}/potential-assessment/supervisor-review`;
+  if (type === "reconsideration_fyi") return roleSlug === "hq-admin" ? "/hq-admin/potential-assessment" : `/${roleSlug}/potential-assessment/supervisor-review`;
+  if (type === "reconsideration_request") return assessmentId ? `/${roleSlug}/potential-assessment/reconsideration/${assessmentId}` : (roleSlug === "hq-admin" ? "/hq-admin/potential-assessment" : `/${roleSlug}/potential-assessment/supervisor-review`);
+  return roleSlug === "hq-admin" ? "/hq-admin/potential-assessment" : `/${roleSlug}/potential-assessment/supervisor-review`;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function parseLocalDate(iso: string): Date {
+  const [year, month, day] = iso.split("T")[0].split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function daysRemaining(endDateStr: string): number {
+  if (!endDateStr) return 0;
+  const end = parseLocalDate(endDateStr);
+  const now = new Date();
+  end.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000));
+}
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    const d = iso.includes("T") ? new Date(iso) : parseLocalDate(iso);
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  } catch { return "—"; }
+}
+
+function roleFromTriggerKey(key: string | null): string {
+  if (!key) return "all";
+  return key.split(":")[1] ?? "all";
+}
+
+// ─── Props ───────────────────────────────────────────────────────────────────
+
+interface NotificationsPageProps {
+  level?: number;
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function NotificationsPage({ level = 1 }: NotificationsPageProps) {
+  const [activeTab,        setActiveTab]        = useState<Tab>("cutoff");
+  const [notifications,    setNotifications]    = useState<DBNotification[]>([]);
+  const [upcoming,         setUpcoming]         = useState<ScheduleEntry[]>([]);
+  const [cycle,            setCycle]            = useState<CycleInfo | null>(null);
+  const [freezeStatus,     setFreezeStatus]     = useState<"open" | "grace" | "frozen">("open");
+  const [loading,          setLoading]          = useState(true);
+  const [refreshing,       setRefreshing]       = useState(false);
+  const [achievementNotifs, setAchievementNotifs] = useState<any[]>([]);
+
+  // ── Wathsala's state ──────────────────────────────────────────────────────
+  const [manualReminderList, setManualReminderList] = useState<ManualRatingNotification[]>([]);
+  const [paList,             setPaList]             = useState<PaNotification[]>([]);
+  const [wLoading,           setWLoading]           = useState(true);
+
+  const currentUser = useCurrentUser();
+  const { user: authUser } = useAuth() as any;
+
+  const userId   = authUser?.id ?? "";
+  const roleSlug = authUser?.role?.replace(/_/g, "-") ?? "hq-admin";
+
+  const levelLabel = LEVEL_LABEL[level] ?? "Admin";
+  const headers    = { "X-User-Level": String(level) };
+  const rolePrefix = ROLE_PREFIXES[level] ?? "/hq-admin";
+  const templateManagementPath = `${rolePrefix}/template-management`;
+
+  // ── Their fetch functions (unchanged) ─────────────────────────────────────
+  const fetchNotifications = useCallback(async () => {
     try {
-      await markNotificationRead(notificationId);
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
+      const res = await fetch(`${API}/notifications/by-level`, { headers });
+      if (res.ok) setNotifications(await res.json());
+    } catch (e) { console.error("fetchNotifications:", e); }
+  }, [level]);
+
+  const fetchSchedule = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/notifications/cutoff-schedule`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setCycle(data.cycle ?? null);
+        setUpcoming((data.schedule ?? []).filter((s: ScheduleEntry) => !s.is_triggered));
+      }
+    } catch (e) { console.error("fetchSchedule:", e); }
+  }, [level]);
+
+  const fetchFreezeStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${BASE}/pms-cycles/active`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setFreezeStatus(data.freeze_status ?? "open");
+        setCycle((prev) => prev ?? { id: data.id, pms_year: data.pms_year, objective_setting_end: data.objective_setting_end, grace_period_end: data.grace_period_end });
+      }
+    } catch (e) { console.error("fetchFreezeStatus:", e); }
+  }, [level]);
+
+  const fetchAchievements = useCallback(async () => {
+    if (!currentUser?.employee_id) return;
+    try {
+      const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${currentUser.employee_id}`);
+      const data = await res.json();
+      const mapped = (data.notifications || [])
+        .filter((n: any) => n.type === "diary_approval")
+        .map((n: any) => ({ id: n.id, fromName: n.title, submittedAt: n.created_at?.split("T")[0], achievement: n.message, isRead: n.is_read, actionUrl: n.action_link }));
+      setAchievementNotifs(mapped);
+    } catch (e) { console.error("fetchAchievements:", e); }
+  }, [currentUser?.employee_id]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchNotifications(), fetchSchedule(), fetchFreezeStatus(), fetchAchievements()]);
+    setLoading(false);
+    setRefreshing(false);
+  }, [fetchNotifications, fetchSchedule, fetchFreezeStatus, fetchAchievements]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  // ── Wathsala's fetch (PA + Manual Rating) ────────────────────────────────
+  useEffect(() => {
+    if (!userId) { setWLoading(false); return; }
+
+    async function loadWathsala() {
+      setWLoading(true);
+      try {
+        const reminderTypes: ReminderType[] = ["period_opened", "deadline_warning", "supervisor_alert", "manual_reminder"];
+
+        const notifRes  = await fetch(`${WAPI}/api/manual-rating-notifications/${userId}`);
+        const notifData = await notifRes.json();
+        const allNotifs = Array.isArray(notifData) ? notifData : [];
+
+        const reminders: ManualRatingNotification[] = allNotifs
+          .filter((n: any) => reminderTypes.includes(n.type as ReminderType))
+          .map((n: any) => ({
+            id: n.id, type: n.type, title: n.title, message: n.message,
+            period: n.period, pmsYear: n.pms_year, isRead: n.is_read,
+            createdAt: n.created_at ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "",
+          }));
+        setManualReminderList(reminders);
+
+        const paRes  = await fetch(`${WAPI}/api/potential-assessment-notifications/${userId}`);
+        const paData = await paRes.json();
+        const paNotifs: PaNotification[] = (paData.data ?? []).map((n: any) => ({
+          id: n.id, type: n.type, title: n.title, message: n.message,
+          isRead: n.is_read,
+          createdAt: n.created_at ? new Date(n.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "",
+          assessmentId: n.assessment_id,
+          actionUrl: resolvePaActionUrl(n.type, roleSlug, n.assessment_id),
+          reconsiderationAction: n.reconsideration_action ?? null,
+        }));
+        setPaList(paNotifs);
+
+      } catch (err) {
+        logger.error('Failed to load PA/manual notifications', err);
+      }
+      setWLoading(false);
     }
+
+    loadWathsala();
+  }, [userId, roleSlug]);
+
+  // ── Mark read helpers ─────────────────────────────────────────────────────
+  const markRead = async (id: string) => {
+    try {
+      await fetch(`${API}/notifications/${id}/read`, { method: "PATCH", headers });
+      setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
+    } catch (e) { console.error("markRead:", e); }
   };
 
-  // Marks all notifications as read in the current UI state.
-  const markAllAsRead = () => {
-    const allIds = new Set(notifications.map(notif => notif.id));
-    setReadNotifications(allIds);
+  const markAllRead = async () => {
+    try {
+      await fetch(`${API}/notifications/mark-all-read`, { method: "PATCH", headers });
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch (e) { console.error("markAllRead:", e); }
   };
 
-  const unreadCount = notifications.filter(n => !readNotifications.has(n.id) && !n.is_read).length;
+  const markPaRead = async (id: string) => {
+    setPaList(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    try { await fetch(`${WAPI}/api/potential-assessment-notifications/${id}/read`, { method: "PATCH" }); }
+    catch (err) { logger.error('Failed to mark PA notification as read', err); }
+  };
 
-  const PAGE_SIZE = 10;
-  const totalPages = Math.ceil(notifications.length / PAGE_SIZE);
-  const pagedNotifications = notifications.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const markManualRead = async (id: string) => {
+    setManualReminderList(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    try { await fetch(`${WAPI}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" }); }
+    catch (err) { logger.error('Failed to mark manual notification as read', err); }
+  };
 
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const unreadCount    = notifications.filter((n) => !n.is_read).length;
+  const unreadPa       = paList.filter(n => !n.isRead).length;
+  const unreadManual   = manualReminderList.filter(n => !n.isRead).length;
+
+  const renderBanner = () => null;
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className={viewStyles.v031}>
-      <Sidebar />
+    <div className={styles.dashShell}>
+      <main className={styles.mainContent}>
+        <div className={styles.page}>
+          <Breadcrumb />
 
-      <main className={viewStyles.v032}>
-        <div className={viewStyles.v136}>
-          {/* Breadcrumb */}
-          <div className={viewStyles.v034}>
-            <Link href={routes.myTeam} className={viewStyles.v035}>
-              My Team
-            </Link>
-            {' > Notifications'}
+          {/* Header */}
+          <div className={styles.headerRow}>
+            <div>
+              <h1 className={styles.title}>Notifications</h1>
+              <p className={styles.subtitle}>
+                Stay updated on approvals and upcoming deadlines ·{" "}
+                <strong>{levelLabel}</strong>
+              </p>
+            </div>
+            <div className={styles.headerActions}>
+              {unreadCount > 0 && activeTab === "cutoff" && (
+                <button className={styles.markAllBtn} onClick={markAllRead}>
+                  Mark all as read
+                </button>
+              )}
+              <button className={styles.refreshBtn} onClick={refresh} disabled={refreshing}>
+                <RefreshIcon spinning={refreshing} />
+                Refresh
+              </button>
+            </div>
           </div>
 
-          {/* Hero banner */}
-          <div className={viewStyles.notifHero}>
-            <div className={viewStyles.notifHeroIcon}>🔔</div>
-            <div className={viewStyles.notifHeroText}>
-              <h1 className={viewStyles.notifHeroTitle}>Notifications</h1>
-              <p className={viewStyles.notifHeroSub}>Stay updated on evaluation approvals, rejections, and workflow changes.</p>
-            </div>
-            <div className={viewStyles.notifHeroCount}>
-              <span className={viewStyles.notifHeroNum}>{unreadCount}</span>
-              <span className={viewStyles.notifHeroNumLabel}>Unread</span>
-            </div>
-          </div>
-
-          {/* Action bar: read count + mark-all button */}
-          <div className={viewStyles.notifActions}>
-            <div className={viewStyles.notifReadCount}>
-              <span className={viewStyles.notifReadPill}>{readNotifications.size}/{notifications.length}</span>
-              notifications read
-            </div>
-            <button onClick={markAllAsRead} className={viewStyles.notifMarkAllBtn}>
-              Mark all as read
+          {/* Tabs — their 2 + Wathsala's 2 */}
+          <div className={styles.tabRow}>
+            <button className={activeTab === "approvals" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("approvals")}>
+              Achievement Approvals
+            </button>
+            <button className={activeTab === "cutoff" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("cutoff")}>
+              Objectives Cut-off
+              {unreadCount > 0 && <span className={styles.tabBadge}>{unreadCount}</span>}
+            </button>
+            <button className={activeTab === "pa" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("pa")}>
+              Potential Assessment
+              {unreadPa > 0 && <span className={styles.tabBadge}>{unreadPa}</span>}
+            </button>
+            <button className={activeTab === "manual" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("manual")}>
+              Manual Rating Reminders
+              {unreadManual > 0 && <span className={styles.tabBadge}>{unreadManual}</span>}
             </button>
           </div>
 
-          {/* Notification cards update read state when clicked. */}
-          {loading ? (
-            <LoadingScreen />
-          ) : errorMessage ? (
-            <div className={viewStyles.v140}>
-              {errorMessage}
-            </div>
-          ) : notifications.length > 0 ? (
-            <div className={viewStyles.notifList}>
-              {pagedNotifications.map((notif) => {
-                const isRead = readNotifications.has(notif.id) || notif.is_read;
-                const typeClass = getNotificationTypeClass(notif.type);
-                const iconClass = getNotificationIconClass(notif.type);
-                return (
-                  <div
-                    key={String(notif.id)}
-                    onClick={() => markAsRead(notif.id)}
-                    className={`${viewStyles.notifCard} ${(viewStyles as Record<string,string>)[typeClass]} ${isRead ? viewStyles.notifCardRead : viewStyles.notifCardUnread}`}
-                  >
-                    <div className={viewStyles.notifCardInner}>
-                      <div className={`${viewStyles.notifIconWrap} ${(viewStyles as Record<string,string>)[iconClass]}`}>
-                        {getNotificationIcon(notif.type)}
-                      </div>
-                      <div className={viewStyles.notifBody}>
-                        <div className={viewStyles.notifMeta}>
-                          <div className={viewStyles.notifTitleRow}>
-                            <span className={isRead ? viewStyles.notifTitleTextRead : viewStyles.notifTitleText}>
-                              {notif.title}
-                            </span>
-                            {!isRead && <span className={viewStyles.notifUnreadDot} />}
-                          </div>
-                          <span className={viewStyles.notifTimeText}>
-                            {formatNotificationTime(notif.timestamp)}
-                          </span>
+          {/* Achievement Approvals — their tab, unchanged */}
+          {activeTab === "approvals" && (
+            <div className={styles.notifList}>
+              {achievementNotifs.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIcon}><BellIcon /></div>
+                  <p className={styles.emptyTitle}>No approval notifications yet.</p>
+                  <p className={styles.emptyBody}>Approval requests will appear here when team members submit their achievements.</p>
+                </div>
+              ) : (
+                achievementNotifs.map((n) => (
+                  <div key={n.id} className={`${styles.notifCard} ${!n.isRead ? styles.unread : ""}`}>
+                    <div className={styles.notifTop}>
+                      <div className={styles.notifMeta}>
+                        {!n.isRead && <span className={styles.unreadDot} />}
+                        <div>
+                          <p className={styles.notifTitle}>{n.fromName.includes("Approved") || n.fromName.includes("Rejected") ? n.fromName : `Achievement submitted by ${n.fromName}`}</p>
+                          <span className={styles.notifDate}>{n.submittedAt}</span>
                         </div>
-                        <p className={isRead ? viewStyles.notifDescTextRead : viewStyles.notifDescText}>
-                          {notif.description}
-                        </p>
                       </div>
+                      {!n.isRead && <button className={styles.readBtn} onClick={() => markRead(n.id)}>Mark as read</button>}
+                    </div>
+                    <p className={styles.notifBody}>{n.achievement}</p>
+                    <div className={styles.notifActions}>
+                      <button type="button" className={styles.actionBtn} onClick={() => { markRead(n.id); window.location.href = n.actionUrl; }}>Review Achievement →</button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className={viewStyles.notifEmpty}>
-              <div className={viewStyles.notifEmptyIcon}>📭</div>
-              <h2 className={viewStyles.notifEmptyTitle}>No notifications yet</h2>
-              <p className={viewStyles.notifEmptyDesc}>
-                Workflow updates will appear here after you save drafts, submit evaluations, approve, or reject.
-              </p>
+                ))
+              )}
             </div>
           )}
 
-          {!loading && !errorMessage && totalPages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginTop: '24px', marginBottom: '40px' }}>
-              <button
-                onClick={() => setCurrentPage(p => p - 1)}
-                disabled={currentPage === 1}
-                className={viewStyles.v048}
-                style={{ opacity: currentPage === 1 ? 0.4 : 1 }}
-              >
-                Previous
-              </button>
-              <span style={{ fontSize: '14px', color: '#64748b' }}>
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(p => p + 1)}
-                disabled={currentPage === totalPages}
-                className={viewStyles.v048}
-                style={{ opacity: currentPage === totalPages ? 0.4 : 1 }}
-              >
-                Next
-              </button>
+          {/* Objectives Cut-off — their tab, unchanged */}
+          {activeTab === "cutoff" && (
+            <>
+              {renderBanner()}
+              {loading ? (
+                <div className={styles.loadingWrap}>
+                  {[1, 2, 3].map((i) => <div key={i} className={styles.skeletonCard} />)}
+                </div>
+              ) : (
+                <>
+                  {notifications.length === 0 ? (
+                    <div className={styles.emptyState}>
+                      <div className={styles.emptyIcon}><BellIcon /></div>
+                      <p className={styles.emptyTitle}>No cut-off notifications yet.</p>
+                      <p className={styles.emptyBody}>Notifications are sent automatically on schedule and will appear here when triggered.</p>
+                    </div>
+                  ) : (
+                    <div className={styles.notifList}>
+                      {notifications.map((n) => (
+                        <NotifCard key={n.id} notif={n} role={roleFromTriggerKey(n.trigger_key)} templateManagementPath={templateManagementPath} onMarkRead={() => markRead(n.id)} />
+                      ))}
+                    </div>
+                  )}
+                  {upcoming.length > 0 && (
+                    <div className={styles.upcomingSection}>
+                      <h2 className={styles.upcomingTitle}>Upcoming Notifications</h2>
+                      <div className={styles.timelineList}>
+                        {upcoming.map((s) => (
+                          <div key={s.trigger_key} className={styles.timelineItem}>
+                            <div className={styles.timelineDot} />
+                            <div className={styles.timelineContent}>
+                              <div className={styles.timelineHeader}>
+                                <span className={styles.roleBadge} style={{ background: (ROLE_BADGE_COLOR[s.role] ?? "#374151") + "18", color: ROLE_BADGE_COLOR[s.role] ?? "#374151" }}>
+                                  {ROLE_DISPLAY[s.role] ?? s.role}
+                                </span>
+                                <span className={styles.timelineDate}>
+                                  {formatDate(s.trigger_date)}
+                                  {s.days_until > 0 && <span className={styles.daysLeft}> · {s.days_until}d away</span>}
+                                </span>
+                              </div>
+                              <p className={styles.timelineMsg}>{s.message}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {/* Potential Assessment — Wathsala's tab */}
+          {activeTab === "pa" && (
+            <div className={styles.notifList}>
+              {wLoading ? (
+                <div className={styles.loadingWrap}>{[1,2,3].map(i => <div key={i} className={styles.skeletonCard} />)}</div>
+              ) : paList.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIcon}><BellIcon /></div>
+                  <p className={styles.emptyTitle}>No potential assessment notifications yet.</p>
+                </div>
+              ) : (
+                paList.map(n => {
+                  const alreadyReviewed = n.type === 'reconsideration_request' && !!n.reconsiderationAction;
+                  const reviewedStyle = { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "Already Reviewed", borderColor: "#86EFAC", bg: "#F0FDF4" };
+                  const s = alreadyReviewed ? reviewedStyle : (PA_STYLES[n.type] ?? PA_STYLES.self_submitted);
+                  return (
+                    <div key={n.id} className={`${styles.notifCard} ${!n.isRead ? styles.unread : ""}`} style={{ background: s.bg, borderColor: s.borderColor }}>
+                      <div className={styles.notifTop}>
+                        <div className={styles.notifMeta}>
+                          {!n.isRead && <span className={styles.unreadDot} />}
+                          <div>
+                            <p className={styles.notifTitle}>{n.title}</p>
+                            <p className={styles.notifRole}>{n.createdAt}</p>
+                          </div>
+                        </div>
+                        <span style={{ padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, background: s.badge, color: s.badgeColor, whiteSpace: "nowrap" }}>{s.badgeText}</span>
+                      </div>
+                      <p className={styles.notifBody}>{n.message}</p>
+                      <div className={styles.notifActions}>
+                        {n.type === 'reconsideration_fyi' ? (
+                          <span style={{ fontSize: '13px', color: '#64748B' }}>ℹ️ Informational only — awaiting senior supervisor review</span>
+                        ) : alreadyReviewed ? (
+                          <button type="button" className={styles.actionBtn} onClick={() => { markPaRead(n.id); window.location.href = n.actionUrl; }}>
+                            View Review →
+                          </button>
+                        ) : (
+                          <button type="button" className={styles.actionBtn} onClick={() => { markPaRead(n.id); window.location.href = n.actionUrl; }}>
+                            {n.type === 'reconsideration_request' && "Review Reconsideration →"}
+                            {PA_APPRAISEE_FACING.includes(n.type) && "View My Assessment →"}
+                            {PA_SUPERVISOR_OUTCOME_FACING.includes(n.type) && "View Assessment →"}
+                            {!n.type.includes('reconsideration') && !PA_APPRAISEE_FACING.includes(n.type) && "Review Assessment →"}
+                          </button>
+                        )}
+                        {!n.isRead && <button type="button" className={styles.readBtn} onClick={() => markPaRead(n.id)}>Mark as read</button>}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
 
-          {/* Static helper cards explain the evaluation process and approver levels. */}
-          <div className={viewStyles.notifInfoGrid}>
-            {/* Process Flow */}
-            <div className={viewStyles.notifInfoCard}>
-              <h3 className={viewStyles.notifInfoTitle}>Process Flow</h3>
-              <div className={viewStyles.notifProcessList}>
-                {[
-                  'Self Evaluation',
-                  'Sub Dept Admin Evaluation',
-                  'Dept Admin Approval',
-                  'Branch Admin Review',
-                  'Country Admin Final Approval',
-                  'HQ Admin Finalization',
-                ].map((step, idx) => (
-                  <div key={idx} className={viewStyles.notifProcessStep}>
-                    <span className={viewStyles.notifProcessNum}>{idx + 1}</span>
-                    <span className={viewStyles.notifProcessText}>{step}</span>
-                  </div>
-                ))}
-              </div>
+          {/* Manual Rating Reminders — Wathsala's tab */}
+          {activeTab === "manual" && (
+            <div className={styles.notifList}>
+              {wLoading ? (
+                <div className={styles.loadingWrap}>{[1,2,3].map(i => <div key={i} className={styles.skeletonCard} />)}</div>
+              ) : manualReminderList.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIcon}><BellIcon /></div>
+                  <p className={styles.emptyTitle}>No manual rating reminders yet.</p>
+                </div>
+              ) : (
+                manualReminderList.map(n => {
+                  const s = REMINDER_STYLES[n.type] ?? REMINDER_STYLES.manual_reminder;
+                  return (
+                    <div key={n.id} className={`${styles.notifCard} ${!n.isRead ? styles.unread : ""}`} style={{ background: s.bg, borderColor: s.borderColor }}>
+                      <div className={styles.notifTop}>
+                        <div className={styles.notifMeta}>
+                          {!n.isRead && <span className={styles.unreadDot} />}
+                          <div>
+                            <p className={styles.notifTitle}>{n.title}</p>
+                            <p className={styles.notifRole}>{n.period} {n.pmsYear} · {n.createdAt}</p>
+                          </div>
+                        </div>
+                        <span style={{ padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, background: s.badge, color: s.badgeColor, whiteSpace: "nowrap" }}>{s.badgeText}</span>
+                      </div>
+                      <p className={styles.notifBody}>{n.message}</p>
+                      <div className={styles.notifActions}>
+                        <button type="button" className={styles.actionBtn} onClick={() => { markManualRead(n.id); window.location.href = `/${roleSlug}/manual-rating`; }}>Go to Manual Ratings →</button>
+                        {!n.isRead && <button type="button" className={styles.readBtn} onClick={() => markManualRead(n.id)}>Mark as read</button>}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
+          )}
 
-            {/* Roles & Levels */}
-            <div className={viewStyles.notifInfoCard}>
-              <h3 className={viewStyles.notifInfoTitle}>Roles & Levels</h3>
-              <div className={viewStyles.notifRoleList}>
-                {[
-                  { icon: '👤', label: 'Level 1: HQ Admin' },
-                  { icon: '👥', label: 'Level 2: Country Admin' },
-                  { icon: '🏢', label: 'Level 3: Branch Admin' },
-                  { icon: '⭐', label: 'Level 4: Dept Admin' },
-                  { icon: '⭐', label: 'Level 5: Sub Department Admin' },
-                  { icon: '👤', label: 'Level 6: Employees' },
-                ].map((role, idx) => (
-                  <div key={idx} className={viewStyles.notifRoleItem}>
-                    <div className={viewStyles.notifRoleIcon}>{role.icon}</div>
-                    <span className={viewStyles.notifRoleLabel}>{role.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       </main>
     </div>
+  );
+}
+
+// ─── NotifCard ────────────────────────────────────────────────────────────────
+
+function NotifCard({ notif, role, templateManagementPath, onMarkRead }: { notif: DBNotification; role: string; templateManagementPath: string; onMarkRead: () => void; }) {
+  const isUnread  = !notif.is_read;
+  const roleColor = ROLE_BADGE_COLOR[role] ?? "#374151";
+  const isTemplateAction = notif.action_link === "/template-management";
+  const viewHref = isTemplateAction ? templateManagementPath : null;
+
+  return (
+    <div className={`${styles.notifCard} ${isUnread ? styles.unread : ""}`}>
+      <div className={styles.notifTop}>
+        <div className={styles.notifMeta}>
+          {isUnread && <span className={styles.unreadDot} />}
+          <div>
+            <p className={styles.notifTitle}>{notif.title}</p>
+            <div className={styles.notifRoleRow}>
+              <span className={styles.roleBadge} style={{ background: roleColor + "18", color: roleColor }}>{ROLE_DISPLAY[role] ?? role}</span>
+              <span className={styles.notifDate}>{formatDate(notif.created_at)}</span>
+            </div>
+          </div>
+        </div>
+        {isUnread && <button className={styles.readBtn} onClick={onMarkRead}>Mark as read</button>}
+      </div>
+      <p className={styles.notifBody}>{notif.message}</p>
+      {viewHref && (
+        <div className={styles.notifActions}>
+          <a href={viewHref} className={styles.actionBtn}>Go to Templates →</a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
+function RefreshIcon({ spinning }: { spinning: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={spinning ? { animation: "spin 0.8s linear infinite" } : {}}>
+      <polyline points="23 4 23 10 17 10" />
+      <polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
   );
 }

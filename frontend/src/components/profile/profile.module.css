@@ -1,0 +1,513 @@
+.shell{
+  min-height: 100vh;
+  display: flex;
+  background: #F9FAFB;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* ── Sidebar ── */
+.sidebar{
+  width: 250px;
+  background: #1C398E;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand{
+  height: 80px;
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+}
+
+.brandLogoImg{
+  height: auto;
+  width: auto;
+  max-width: 180px;
+  object-fit: contain;
+}
+
+.sideNav{
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  flex: 1;
+}
+
+.sideItem{
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: #DBEAFE;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  background: transparent;
+  border: none;
+  text-align: left;
+}
+
+.sideItem:hover{ background: rgba(255,255,255,0.10); }
+
+.active{
+  background: #3B82F6;
+  color: #fff;
+}
+
+.navSvg{
+  width: 20px;
+  height: 20px;
+  color: currentColor;
+  flex: 0 0 auto;
+}
+
+.sideLabel{
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.sideFooter{
+  margin-top: auto;
+  padding: 16px;
+  border-top: 0.8px solid #1E40AF;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profileRow{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatarCircle{
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: rgba(255,255,255,0.18);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.25);
+}
+
+.profileText{ display: flex; flex-direction: column; }
+
+.profileName{
+  font-family: "Segoe UI", Inter, sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.profileRole{
+  font-size: 12px;
+  line-height: 16px;
+  color: #BEDBFF;
+  text-transform: capitalize;
+}
+
+.logoutBtn{
+  width: 100%;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #DBEAFE;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  padding: 8px 12px;
+}
+
+.logoutBtn:hover{ background: rgba(255,255,255,0.08); }
+
+/* ── Main ── */
+.main{
+  flex: 1;
+  margin-left: 111px;
+  padding: 32px;
+  overflow: auto;
+}
+
+.breadcrumb{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 20px;
+  margin-bottom: 16px;
+}
+
+.crumbLink{
+  color: #64748B;
+  cursor: pointer;
+}
+
+.crumbLink:hover{ text-decoration: underline; }
+
+.crumbSep{ color: #64748B; }
+.crumbCurrent{ color: #1E293B; }
+
+.headerRow{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.title{
+  margin: 0;
+  font-family: "Segoe UI", Inter, sans-serif;
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 36px;
+  color: #101828;
+}
+
+.subtitle{
+  margin: 8px 0 0 0;
+  font-size: 16px;
+  line-height: 24px;
+  color: #4A5565;
+}
+
+.backBtn{
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #E5E7EB;
+  background: #fff;
+  color: #1E293B;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.backBtn:hover{ background: #F3F4F6; }
+
+/* Profile top card */
+.profileTopCard {
+  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #3B82F6 100%);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(37, 99, 235, 0.18);
+}
+
+.profileHero {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Avatar wrapper — no background, just flex */
+.heroAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.heroName {
+  font-family: "Segoe UI", Inter, sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 28px;
+  color: #FFFFFF;
+  letter-spacing: -0.3px;
+}
+
+.heroMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  background: rgba(255, 255, 255, 0.18);
+  color: #EFF6FF;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.dot {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+}
+
+.muted {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.heroEmail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+/* Decorative accent */
+.heroAccent {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+
+.heroAccent::after {
+  content: "";
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+
+/* ── Grid ── */
+.grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.card{
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cardHead{
+  padding: 18px 20px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #F1F5F9;
+}
+
+.cardTitle{
+  margin: 0;
+  font-family: "Segoe UI", Inter, sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 28px;
+  color: #101828;
+}
+
+/* ── Personal Details ── */
+.detailGrid{
+  padding: 18px 20px 22px 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.field{
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 12px;
+  background: #F9FAFB;
+}
+
+.label{
+  font-size: 12px;
+  color: #64748B;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.value{
+  font-size: 14px;
+  color: #1E293B;
+  font-weight: 600;
+}
+
+/* ── Achievements ── */
+.textAreaWrap{
+  padding: 18px 20px 14px 20px;
+}
+
+.textArea{
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid #E5E7EB;
+  padding: 12px;
+  outline: none;
+  color: #000;
+  font-size: 14px;
+  line-height: 20px;
+  background: #FFFFFF;
+  box-sizing: border-box;
+}
+
+.textArea:focus{
+  border-color: rgba(59,130,246,0.6);
+  box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
+}
+
+.textArea:disabled{
+  background: #F9FAFB;
+  color: #9CA3AF;
+  cursor: not-allowed;
+}
+
+.textAreaFooter{
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mutedSmall{
+  font-size: 12px;
+  color: #64748B;
+}
+
+.saveBtn{
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: none;
+  background: #3B82F6;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.saveBtn:disabled{
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.saveBtn:not(:disabled):hover{
+  filter: brightness(0.96);
+}
+
+/* ── Tip Box ── */
+.tipBox{
+  margin: 0 20px 20px 20px;
+  border-radius: 12px;
+  border: 1px solid #DBEAFE;
+  background: #EFF6FF;
+  padding: 12px;
+}
+
+.tipTitle{
+  font-weight: 800;
+  color: #155DFC;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.tipText{
+  color: #1E293B;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* ── Score Cards Row ── */
+.scoreRow {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  align-items: stretch;
+}
+
+.scoreCard {
+  border-radius: 100px;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 130px;
+  gap: 8px;
+}
+
+.scoreCardPerformance {
+  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 100%);
+  box-shadow: 0 4px 24px rgba(37,99,235,0.18);
+}
+
+.scoreCardHigh {
+  background: linear-gradient(135deg, #065F46 0%, #10B981 100%);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.scoreCardMedium {
+  background: linear-gradient(135deg, #92400E 0%, #F59E0B 100%);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.scoreCardLow {
+  background: linear-gradient(135deg, #991B1B 0%, #EF4444 100%);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.scoreCardEmpty {
+  background: linear-gradient(135deg, #374151 0%, #6B7280 100%);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.scoreLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+.scoreValue {
+  font-size: 30px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1100px){
+  .grid{ grid-template-columns: 1fr; }
+}
