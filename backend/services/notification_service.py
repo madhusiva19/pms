@@ -648,4 +648,50 @@ def send_reminder(
         "is_read":      False,
     }).execute()
 
+
+# ── Denusha's evaluation workflow notification helper ─────────────────────────
+
+import uuid as _uuid
+from datetime import datetime as _datetime
+
+_EVAL_TYPE_MAP = {
+    "status_update":      "new_evaluation",
+    "enquiry":            "approval_required",
+    "approval_approved":  "approval_required",
+}
+_eval_notifications_fallback: list = []
+
+
+def create_notification(notification_type, title, description, related_evaluation_id=None):
+    created_at = f"{_datetime.utcnow().isoformat()}Z"
+    supabase_type = _EVAL_TYPE_MAP.get(notification_type, notification_type)
+    original_type = notification_type if supabase_type != notification_type else None
+    payload = {
+        "notification_id":       str(_uuid.uuid4()),
+        "notification_type":     supabase_type,
+        "title":                 title,
+        "description":           description,
+        "related_evaluation_id": related_evaluation_id,
+        "is_read":               False,
+        "created_at":            created_at,
+        "message":               original_type,
+    }
+    try:
+        result = supabase.table("evaluation_notifications").insert(payload).execute()
+        if result.data:
+            return result.data[0]
+    except Exception:
+        pass
+    fallback = {
+        "id":                    str(len(_eval_notifications_fallback) + 1),
+        "type":                  notification_type,
+        "title":                 title,
+        "description":           description,
+        "timestamp":             created_at,
+        "is_read":               False,
+        "related_evaluation_id": related_evaluation_id,
+    }
+    _eval_notifications_fallback.insert(0, fallback)
+    return fallback
+
     return {"success": True}

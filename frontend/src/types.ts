@@ -1,6 +1,8 @@
 // Shared frontend data types for API responses and route/query identifiers.
 import type { ParsedUrlQueryInput } from 'querystring';
 
+export type * from './types/index';
+
 export type EntityId = string | number | string[] | undefined;
 export type TeamMemberStatus = 'pending' | 'in progress' | 'completed' | string;
 

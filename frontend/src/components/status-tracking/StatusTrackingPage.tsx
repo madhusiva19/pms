@@ -3,7 +3,6 @@ import viewStyles from '../../styles/views.module.css';
 import { useState, useEffect } from 'react';
 import Link, { useRouter } from '../../lib/routing';
 import { getEvaluationStatus, getTeamMember, getTeamMembers } from '../../lib/api';
-import Sidebar from '../sidebar/Sidebar';
 import LoadingScreen from '../LoadingScreen';
 import { useRoutes } from '../../lib/routing';
 import { EVALUATION_DEFAULTS } from '../../lib/constants';
@@ -116,9 +115,7 @@ export default function StatusTracking({ forceAllCompleted = false }: { forceAll
 
   if (!evaluationStatus) {
     return (
-      <div className={viewStyles.v031}>
-        <Sidebar />
-        <main className={viewStyles.v032}>
+    <main className={viewStyles.v032}>
           <div className={viewStyles.v033}>
             <div className={viewStyles.v034}>
               <Link href={routes.myTeam} className={viewStyles.v035}>My Team</Link>
@@ -130,7 +127,6 @@ export default function StatusTracking({ forceAllCompleted = false }: { forceAll
             </div>
           </div>
         </main>
-      </div>
     );
   }
 
@@ -150,10 +146,7 @@ export default function StatusTracking({ forceAllCompleted = false }: { forceAll
     : displayedStages.filter(s => normalizeStatus(s.status) === 'completed');
 
   return (
-    <div className={viewStyles.v031}>
-      <Sidebar />
-
-      <main className={viewStyles.v032}>
+    <main className={viewStyles.v032}>
         <div className={viewStyles.v033}>
           {/* Breadcrumb */}
           <div className={viewStyles.v034}>
@@ -282,6 +275,5 @@ export default function StatusTracking({ forceAllCompleted = false }: { forceAll
           </div>
         </div>
       </main>
-    </div>
   );
 }

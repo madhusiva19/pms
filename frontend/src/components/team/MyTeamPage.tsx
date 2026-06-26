@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from '../../lib/routing';
 import { useRoutes } from '../../lib/routing';
 import { getTeamMembers } from '../../lib/api';
-import Sidebar from '../sidebar/Sidebar';
+import { useAuth } from '../../lib/auth-context';
 import LoadingScreen from '../LoadingScreen';
 import { TEAM_MEMBER_STATUS } from '../../lib/constants';
 import { saveStoredMember, readTeamMembersCache, saveTeamMembersCache } from '../../lib/currentMember';
@@ -18,14 +18,19 @@ const STATUS_FILTERS = [
   { label: 'Completed', value: TEAM_MEMBER_STATUS.completed },
 ] as const;
 
-export default function MyTeam({ roleFilter }: { roleFilter?: string } = {}) {
+export default function MyTeam() {
   const routes = useRoutes();
+  const { user, loading: authLoading } = useAuth();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeStatus, setActiveStatus] = useState<TeamMemberStatus>(TEAM_MEMBER_STATUS.all);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Wait until auth finishes reading from localStorage before fetching,
+    // so we always fetch with the correct manager_id and never flash all-member data.
+    if (authLoading) return;
+
     const cached = readTeamMembersCache();
     if (cached.length > 0) {
       setTeamMembers(cached);
@@ -34,12 +39,10 @@ export default function MyTeam({ roleFilter }: { roleFilter?: string } = {}) {
 
     const fetchTeamMembers = async () => {
       try {
-        const response = await getTeamMembers();
-        const members = roleFilter
-          ? response.data.filter((m) => m.role === roleFilter)
-          : response.data;
-        setTeamMembers(members);
-        saveTeamMembersCache(members);
+        const params = user?.id ? { manager_id: user.id } : {};
+        const response = await getTeamMembers(params);
+        setTeamMembers(response.data);
+        saveTeamMembersCache(response.data);
       } catch (error) {
         console.error('Error fetching team members:', error);
       } finally {
@@ -48,7 +51,7 @@ export default function MyTeam({ roleFilter }: { roleFilter?: string } = {}) {
     };
 
     fetchTeamMembers();
-  }, [roleFilter]);
+  }, [user?.id, authLoading]);
 
   // Pending = total minus those already in-progress or completed.
   const inProgressCount = teamMembers.filter((m) => normalizeStatus(m.status) === TEAM_MEMBER_STATUS.inProgress).length;
@@ -75,10 +78,7 @@ export default function MyTeam({ roleFilter }: { roleFilter?: string } = {}) {
   });
 
   return (
-    <div className={viewStyles.v031}>
-      <Sidebar />
-
-      <main className={viewStyles.v032}>
+    <main className={viewStyles.v032}>
         <div className={viewStyles.v081}>
           {/* Header */}
           <div className={viewStyles.v054}>
@@ -242,6 +242,5 @@ export default function MyTeam({ roleFilter }: { roleFilter?: string } = {}) {
 
         </div>
       </main>
-    </div>
   );
 }

@@ -3,7 +3,6 @@ import viewStyles from '../../styles/views.module.css';
 import Link, { useRouter, useRoutes } from '../../lib/routing';
 import { useEffect, useState } from 'react';
 import { getApproval, updateApproval } from '../../lib/api';
-import Sidebar from '../sidebar/Sidebar';
 import LoadingScreen from '../LoadingScreen';
 import { saveStoredMember, updateStoredApproval, readStoredMember, readEvaluationDate } from '../../lib/currentMember';
 import { ROLE_EVALUATOR_LABEL } from '../../lib/constants';
@@ -101,7 +100,7 @@ export default function RejectionDetail() {
   }
 
   return (
-    <div className={viewStyles.v031}>
+    <>
 
       {/* Rejection success overlay — mirrors green success overlay but in red. */}
       {showRejectSuccess && (
@@ -150,9 +149,6 @@ export default function RejectionDetail() {
           </div>
         </div>
       )}
-
-      <Sidebar />
-
       <main className={viewStyles.v032}>
         <div className={viewStyles.v136}>
           {/* Breadcrumb */}
@@ -241,6 +237,6 @@ export default function RejectionDetail() {
           </div>
         </div>
       </main>
-    </div>
+  </>
   );
 }

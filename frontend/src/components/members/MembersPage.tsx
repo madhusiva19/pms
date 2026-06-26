@@ -2,7 +2,6 @@ import viewStyles from '../../styles/views.module.css';
 // Members page: displays the full team directory with search and department filters.
 import { useState, useEffect } from 'react';
 import { getTeamMembers } from '../../lib/api';
-import Sidebar from '../sidebar/Sidebar';
 import { formatRole, getStatusBadgeClass, normalizeStatus } from '../../lib/formatters';
 import type { TeamMember } from '../../lib/types';
 
@@ -52,10 +51,7 @@ export default function Members() {
   });
 
   return (
-    <div className={viewStyles.v031}>
-      <Sidebar />
-
-      <main className={viewStyles.v032}>
+    <main className={viewStyles.v032}>
         <div className={viewStyles.v081}>
           {/* Header */}
           <div className={viewStyles.v054}>
@@ -194,6 +190,5 @@ export default function Members() {
           )}
         </div>
       </main>
-    </div>
   );
 }

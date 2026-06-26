@@ -7,6 +7,7 @@ import {
   LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell,
   LucideFileBarChart, User, Target, ChevronDown, ChevronRight,
   ClipboardList, UserCheck, CalendarDays, Settings, BarChart2,
+  FilePlus, GitBranch, History, Snowflake,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
@@ -41,9 +42,16 @@ function Badge({ count }: { count: number }) {
 // ── HQ Admin — Level 1 ───────────────────────────────────────────────────────
 const hqAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/hq-admin/dashboard',           icon: LayoutDashboard    },
-  { name: 'Template Management', href: '/hq-admin/template-management', icon: FileText           },
+  { name: 'Template Management', href: '/hq-admin/template-management', icon: FileText, children: [
+    { name: 'Overview',            href: '/hq-admin/template-management',                    icon: FileText           },
+    { name: 'Template Creation',   href: '/hq-admin/template-management/template-creation',  icon: FilePlus           },
+    { name: 'Template Assignment', href: '/hq-admin/template-management/template-assignment', icon: UserCheck          },
+    { name: 'Template Variants',   href: '/hq-admin/template-management/template-variants',   icon: GitBranch          },
+    { name: 'Template History',    href: '/hq-admin/template-management/template-history',    icon: History            },
+    { name: 'Freeze Management',   href: '/hq-admin/template-management/freeze-management',   icon: Snowflake          },
+  ]},
   { name: 'Appraisal Cycle',     href: '/hq-admin/appraisal-cycle',     icon: CalendarDays       },
-  { name: 'My Team',             href: '/hq-admin/team',                icon: Users              },
+  { name: 'My Team',             href: '/hq-admin/my-team',             icon: Users              },
   { name: 'Rating Settings',     href: '/hq-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/hq-admin/reports',             icon: BarChart2          },
   { name: 'Notifications',       href: '/hq-admin/notification',        icon: Bell               },
@@ -59,7 +67,7 @@ const hqAdminNavItems: NavItem[] = [
 const countryAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/country-admin/dashboard',           icon: LayoutDashboard    },
   { name: 'Template Management', href: '/country-admin/template-management', icon: FileText           },
-  { name: 'My Team',             href: '/my-team',                           icon: Users              },
+  { name: 'My Team',             href: '/country-admin/my-team',             icon: Users              },
   { name: 'My Performance',      href: '/country-admin/my-performance',      icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/country-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/country-admin/reports',             icon: BarChart2          },
@@ -76,7 +84,7 @@ const countryAdminNavItems: NavItem[] = [
 const branchAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/branch-admin/dashboard',           icon: LayoutDashboard    },
   { name: 'Template Management', href: '/branch-admin/template-management', icon: FileText           },
-  { name: 'My Team',             href: '/my-team',                          icon: Users              },
+  { name: 'My Team',             href: '/branch-admin/my-team',             icon: Users              },
   { name: 'My Performance',      href: '/branch-admin/my-performance',      icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/branch-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/branch-admin/reports',             icon: FileText           },
@@ -93,7 +101,7 @@ const branchAdminNavItems: NavItem[] = [
 const deptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/dept-admin/dashboard',           icon: LayoutDashboard    },
   { name: 'Template Management', href: '/dept-admin/template-management', icon: FileText           },
-  { name: 'My Team',             href: '/my-team',                        icon: Users              },
+  { name: 'My Team',             href: '/dept-admin/my-team',             icon: Users              },
   { name: 'My Performance',      href: '/dept-admin/my-performance',      icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/dept-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/dept-admin/reports',             icon: FileText           },
@@ -110,7 +118,7 @@ const deptAdminNavItems: NavItem[] = [
 const subDeptAdminNavItems: NavItem[] = [
   { name: 'Dashboard',           href: '/sub-dept-admin/dashboard',           icon: LayoutDashboard    },
   { name: 'Template Management', href: '/sub-dept-admin/template-management', icon: FileText           },
-  { name: 'My Team',             href: '/my-team',                             icon: Users              },
+  { name: 'My Team',             href: '/sub-dept-admin/my-team',              icon: Users              },
   { name: 'My Performance',      href: '/sub-dept-admin/my-performance',      icon: TrendingUp         },
   { name: 'Rating Settings',     href: '/sub-dept-admin/rating-settings',     icon: Settings           },
   { name: 'Reports',             href: '/sub-dept-admin/reports',             icon: FileText           },
@@ -153,9 +161,20 @@ export default function Sidebar() {
   const role = user?.role ?? roleFromPath;
   const navItems = getNavItems(role);
 
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [openMenus, setOpenMenus] = useState<Set<string>>(new Set());
+
+  const toggleMenu = (name: string) =>
+    setOpenMenus(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+
   useEffect(() => {
-    if (pathname?.includes('/potential-assessment/')) setDropdownOpen(true);
+    if (pathname?.includes('/potential-assessment/'))
+      setOpenMenus(prev => new Set([...prev, 'Potential Assessment']));
+    if (pathname?.includes('/template-management/'))
+      setOpenMenus(prev => new Set([...prev, 'Template Management']));
   }, [pathname]);
 
   const userInitials = user?.full_name
@@ -200,12 +219,12 @@ export default function Sidebar() {
 
           if (hasChildren) {
             const isChildActive = item.children!.some(c => pathname === c.href);
-            const isOpen = dropdownOpen;
+            const isOpen = openMenus.has(item.name);
             return (
               <React.Fragment key={item.name}>
                 <button
                   type="button"
-                  onClick={() => setDropdownOpen(prev => !prev)}
+                  onClick={() => toggleMenu(item.name)}
                   className={`${styles.sideItem}${isChildActive ? ' ' + styles.active : ''}`}
                 >
                   <Icon className={styles.navSvg} />

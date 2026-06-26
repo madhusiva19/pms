@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from '../../lib/routing';
 import { useRoutes } from '../../lib/routing';
 import { getApprovals, invalidateCache } from '../../lib/api';
-import Sidebar from '../sidebar/Sidebar';
+import { useAuth } from '../../lib/auth-context';
 import LoadingScreen from '../LoadingScreen';
 import { TEAM_MEMBER_STATUS } from '../../lib/constants';
 import { normalizeStatus } from '../../lib/formatters';
@@ -40,16 +40,20 @@ const getInitials = (name?: string) =>
 
 export default function Approvals({ roleFilter }: { roleFilter?: string } = {}) {
   const routes = useRoutes();
+  const { user, loading: authLoading } = useAuth();
   const [rows, setRows] = useState<Approval[]>([]);
   const [activeTab, setActiveTab] = useState<string>(APPROVAL_TAB.pending);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
+
     const fetchData = async () => {
       setLoading(true);
       invalidateCache('/approvals');
       try {
-        const approvalsRes = await getApprovals();
+        const params = user?.id ? { manager_id: user.id } : {};
+        const approvalsRes = await getApprovals(params);
         // Backend already filters to real submissions (evaluation_id IS NOT NULL)
         // and resolves employee / evaluator names via FK joins.
         const records: Approval[] = approvalsRes.data ?? [];
@@ -62,7 +66,7 @@ export default function Approvals({ roleFilter }: { roleFilter?: string } = {}) 
     };
 
     fetchData();
-  }, []);
+  }, [user?.id, authLoading]);
 
   const filteredRows = activeTab === APPROVAL_TAB.pending
     ? rows.filter(r => normalizeStatus(r.status) === TEAM_MEMBER_STATUS.pending)
@@ -73,10 +77,7 @@ export default function Approvals({ roleFilter }: { roleFilter?: string } = {}) 
   const rejectedCount = rows.filter(r => normalizeStatus(r.status) === 'rejected').length;
 
   return (
-    <div className={viewStyles.v031}>
-      <Sidebar />
-
-      <main className={viewStyles.v032}>
+    <main className={viewStyles.v032}>
         <div className={viewStyles.v033}>
           {/* Breadcrumb */}
           <div className={viewStyles.v034}>
@@ -194,6 +195,5 @@ export default function Approvals({ roleFilter }: { roleFilter?: string } = {}) 
           )}
         </div>
       </main>
-    </div>
   );
 }
