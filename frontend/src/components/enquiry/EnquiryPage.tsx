@@ -3,7 +3,6 @@ import viewStyles from '../../styles/views.module.css';
 import { useEffect, useState } from 'react';
 import Link, { useRouter } from '../../lib/routing';
 import { getEvaluationStatus, getTeamMember, getTeamMembers, submitEnquiry } from '../../lib/api';
-import Sidebar from '../sidebar/Sidebar';
 import LoadingScreen from '../LoadingScreen';
 import { useRoutes } from '../../lib/routing';
 import { EVALUATION_DEFAULTS, TEAM_MEMBER_STATUS, ROLE_EVALUATOR_LABEL, ROLE_STAGE_LABEL, STORAGE_KEYS } from '../../lib/constants';
@@ -135,10 +134,7 @@ export default function Enquiry() {
   }
 
   return (
-    <div className={viewStyles.v031}>
-      <Sidebar />
-
-      <main className={viewStyles.v032}>
+    <main className={viewStyles.v032}>
         <div className={viewStyles.v053}>
           {/* Breadcrumb */}
           <div className={viewStyles.v034}>
@@ -251,6 +247,5 @@ export default function Enquiry() {
           </section>
         </div>
       </main>
-    </div>
   );
 }

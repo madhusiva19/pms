@@ -3,7 +3,7 @@ import viewStyles from '../../styles/views.module.css';
 // This page is the review screen for one submitted evaluation. It loads the
 // approval request, finds the matching employee, displays objective scores and
 // evaluator feedback, then lets the reviewer approve or reject the evaluation.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from '../../lib/routing';
 import Link from '../../lib/routing';
 import {
@@ -12,11 +12,9 @@ import {
   getTeamMember,
   updateApproval,
 } from '../../lib/api';
-import Sidebar from '../sidebar/Sidebar';
 import LoadingScreen from '../LoadingScreen';
 import { useRoutes } from '../../lib/routing';
 import { EVALUATION_DEFAULTS, ROLE_EVALUATOR_LABEL } from '../../lib/constants';
-import { DEFAULT_ADMIN_FEEDBACK, DEFAULT_OBJECTIVES } from '../../lib/evaluationDefaults';
 import { formatRole, formatScore, getRatingBadgeClass, valueOrDash } from '../../lib/formatters';
 import { isNumericId } from '../../lib/performanceRecords';
 import { saveStoredMember, updateStoredApproval } from '../../lib/currentMember';
@@ -89,12 +87,12 @@ export default function EvaluationApproval() {
           setAdminFeedback(
             data.evaluation?.feedback ??
             (memberData?.evaluation?.feedback as string | undefined) ??
-            DEFAULT_ADMIN_FEEDBACK
+            ''
           );
         } catch {
           setNoRecords(true);
           setAdminFeedback(
-            (memberData?.evaluation?.feedback as string | undefined) ?? DEFAULT_ADMIN_FEEDBACK
+            (memberData?.evaluation?.feedback as string | undefined) ?? ''
           );
         }
 
@@ -119,10 +117,7 @@ export default function EvaluationApproval() {
     fetchApprovalDetails();
   }, [id, routeMemberId]);
 
-  const objectiveGroups = useMemo(() => {
-    if (dbGroups.length) return dbGroups;
-    return member?.evaluation?.objectives?.length ? member.evaluation.objectives : DEFAULT_OBJECTIVES;
-  }, [dbGroups, member]);
+  const objectiveGroups: ObjectiveGroup[] = dbGroups;
 
   const overallScore =
     (summary as { total_score?: number }).total_score ??
@@ -174,10 +169,8 @@ export default function EvaluationApproval() {
   }
 
   return (
-    <div className={viewStyles.v002}>
-      <Sidebar />
-
-      <main className={viewStyles.v003}>
+    <>
+    <main className={viewStyles.v003}>
         <div className={viewStyles.v004}>
           {/* Breadcrumb shows where the reviewer is inside the approval workflow. */}
           <div className={viewStyles.v005}>
@@ -200,7 +193,7 @@ export default function EvaluationApproval() {
                 <h2 className={viewStyles.v011}>{approval.employee || member.name}</h2>
                 <p className={viewStyles.v012}>{formatRole(member.role)}</p>
                 <p className={viewStyles.v013}>
-                  Evaluated By: {ROLE_EVALUATOR_LABEL[member.role] || EVALUATION_DEFAULTS.evaluatorRole}
+                  Evaluated By: {(member.role && ROLE_EVALUATOR_LABEL[member.role]) || EVALUATION_DEFAULTS.evaluatorRole}
                 </p>
               </div>
             </div>
@@ -231,13 +224,10 @@ export default function EvaluationApproval() {
                   <div>Rating</div>
                 </div>
 
-                {objectiveGroups.map((group) => (
+                {objectiveGroups.map((group: ObjectiveGroup) => (
                   <div key={group.category}>
-                    {/* Category header groups related objectives together. */}
-                    <div className={viewStyles.v021}>
-                      {group.category}
-                    </div>
-                    {group.items.map((item, index) => (
+                    <div className={viewStyles.v021}>{group.category}</div>
+                    {group.items.map((item: ObjectiveGroup['items'][number], index: number) => (
                       <div
                         key={`${group.category}-${item.name}-${index}`}
                         className={viewStyles.v022}
@@ -248,8 +238,7 @@ export default function EvaluationApproval() {
                         <div>{valueOrDash(item.actual)}</div>
                         <div>{valueOrDash(item.achieve)}{valueOrDash(item.achieve) !== '-' ? '%' : ''}</div>
                         <div>
-                          {/* Rating badge color changes based on score value. */}
-                          <span className={`${viewStyles.v030} ${(viewStyles as Record<string,string>)[getRatingBadgeClass(item.rating)]}`}>
+                          <span className={[viewStyles.v030, (viewStyles as Record<string, string>)[getRatingBadgeClass(item.rating) ?? ''] ?? ''].filter(Boolean).join(' ')}>
                             {formatScore(item.rating)}
                           </span>
                         </div>
@@ -263,8 +252,25 @@ export default function EvaluationApproval() {
 
           {/* Feedback panel displays the admin recommendation for the approver. */}
           <section className={viewStyles.v024}>
-            <h3 className={viewStyles.v025}>Evaluator Feedback</h3>
-            <p className={viewStyles.v026}>{adminFeedback}</p>
+            <div className={viewStyles.v071}>
+              <h3 className={viewStyles.v072}>Evaluator Feedback</h3>
+              <button
+                type="button"
+                className={viewStyles.v073}
+                onClick={() => setAdminFeedback('')}
+                title="Clear"
+              >
+                ×
+              </button>
+            </div>
+            <textarea
+              className={viewStyles.v074}
+              rows={5}
+              value={adminFeedback}
+              onChange={(e) => setAdminFeedback(e.target.value)}
+              placeholder="Enter reviewer feedback…"
+            />
+            <p className={viewStyles.v074CharCount}>{adminFeedback.length} characters</p>
           </section>
 
           {/* Final actions either reject the evaluation or approve it. */}
@@ -411,6 +417,6 @@ export default function EvaluationApproval() {
           `}</style>
         </div>
       )}
-    </div>
+    </>
   );
 }

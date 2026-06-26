@@ -255,6 +255,59 @@ def mark_all_read():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# GET /notifications/evaluation-events
+# ─────────────────────────────────────────────────────────────────────────────
+
+@notifications_bp.route("/evaluation-notifications", methods=["GET"])
+def get_evaluation_notifications():
+    """Return evaluation approval/rejection notifications.
+
+    Merges rows from the evaluation_notifications DB table with the in-memory
+    fallback list so notifications appear even when the DB insert failed.
+    """
+    from services.notification_service import _eval_notifications_fallback
+
+    # ── DB rows ───────────────────────────────────────────────────────────────
+    try:
+        db_rows = (
+            supabase.table("evaluation_notifications")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(50)
+            .execute()
+        ).data or []
+    except Exception:
+        db_rows = []
+
+    # ── In-memory fallback ────────────────────────────────────────────────────
+    fallback_rows = [
+        {
+            "notification_id":   n.get("id"),
+            "notification_type": n.get("type"),
+            "title":             n.get("title"),
+            "description":       n.get("description"),
+            "created_at":        n.get("timestamp") or n.get("created_at"),
+            "is_read":           n.get("is_read", False),
+        }
+        for n in _eval_notifications_fallback
+    ]
+
+    return jsonify(db_rows + fallback_rows), 200
+
+
+@notifications_bp.route("/evaluation-notifications/<notif_id>/read", methods=["PUT", "PATCH"])
+def mark_evaluation_notification_read(notif_id: str):
+    """Mark one evaluation notification as read."""
+    try:
+        supabase.table("evaluation_notifications").update({
+            "is_read": True,
+        }).eq("notification_id", notif_id).execute()
+        return jsonify({"message": "Marked as read"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # GET /notifications/cutoff-schedule
 # ─────────────────────────────────────────────────────────────────────────────
 

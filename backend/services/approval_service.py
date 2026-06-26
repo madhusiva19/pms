@@ -21,13 +21,22 @@ def get_approvals():
     if USE_SUPABASE:
         try:
             approval_table = resolve_table_name("approvals")
+            manager_id = request.args.get("manager_id")
+
+            # When manager_id is supplied, scope to that manager's direct reports.
+            team_member_filter = None
+            tm_ids = []
+            if manager_id:
+                user_rows = fetch_rows("users", {"select": "id", "manager_id": f"eq.{manager_id}"})
+                user_ids  = [str(u["id"]) for u in (user_rows or [])]
+                if user_ids:
+                    tm_rows = fetch_rows("team_members", {"select": "id", "user_id": f"in.({','.join(user_ids)})"})
+                    tm_ids  = [str(t["id"]) for t in (tm_rows or [])]
+                    team_member_filter = f"in.({','.join(tm_ids)})" if tm_ids else None
 
             # One query: join team_members for employee name and evaluations
-            # for period / overall_score. Filter out old test rows that have
-            # no evaluation_id — those were never submitted through the app.
-            rows = raw_supabase_request(
-                approval_table,
-                params={
+            # for period / overall_score.
+            query_params = {
                     "select": (
                         "*,"
                         "team_members(id,full_name,name,designation,role,email),"
@@ -36,8 +45,15 @@ def get_approvals():
                     "team_member_id": "not.is.null",
                     "order": "id.desc",
                     "limit": 200,
-                },
-            )
+            }
+            if team_member_filter:
+                query_params["team_member_id"] = team_member_filter
+            elif manager_id and not tm_ids:
+                # Manager has no linked team members via users table — skip
+                # the approvals query and rely on the completed-members step.
+                rows = []
+            if "rows" not in locals():
+                rows = raw_supabase_request(approval_table, params=query_params) or []
 
             # Mirrors ROLE_EVALUATOR_LABEL in the frontend constants.
             ROLE_EVALUATOR = {
@@ -97,6 +113,40 @@ def get_approvals():
                     seen_members.add(member_key)
 
                 normalized_rows.append(approval)
+
+            # ── Supplement with completed team members that have no approval row ──
+            # Team members whose status='completed' in My Team should always
+            # appear in the Approvals page even if no approvals row exists yet.
+            completed_q = {
+                "select": "id,full_name,name,designation,role,user_id",
+                "status": "eq.completed",
+                "order": "id.desc",
+                "limit": 200,
+            }
+            if team_member_filter:
+                completed_q["id"] = team_member_filter
+            # If manager_id was given but no users/team_members link was found,
+            # show all completed members (the users table may not have manager_id
+            # populated yet, so we don't restrict and let everything through).
+
+            completed_members = fetch_rows("team_members", completed_q) or []
+            seen_tm_ids = {str(r.get("team_member_id") or "") for r in normalized_rows}
+            for tm in completed_members:
+                tm_id = str(tm.get("id", ""))
+                if tm_id and tm_id in seen_tm_ids:
+                    continue
+                member_role = tm.get("role") or tm.get("designation") or ""
+                name = tm.get("full_name") or tm.get("name") or "Unknown"
+                normalized_rows.append({
+                    "id": f"member-{tm_id}",
+                    "employee": name,
+                    "team_member_id": tm.get("id"),
+                    "employee_id": tm.get("user_id"),
+                    "level": tm.get("designation") or member_role,
+                    "status": "pending",
+                    "evaluationBy": ROLE_EVALUATOR.get(member_role, DEFAULT_EVALUATOR_NAME),
+                    "dueDate": None,
+                })
 
             return jsonify(normalized_rows), 200
         except Exception as error:

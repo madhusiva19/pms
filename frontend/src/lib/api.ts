@@ -16,9 +16,10 @@ import type {
 } from '../types';
 
 // Backend URL can be overridden with NEXT_PUBLIC_API_BASE_URL in frontend/.env.local.
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  'http://127.0.0.1:5000/api';
+// Normalise so the baseURL always ends with /api regardless of whether the env
+// var was set with or without the /api suffix.
+const _rawBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:5001';
+const API_BASE_URL = _rawBase.endsWith('/api') ? _rawBase : `${_rawBase}/api`;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -59,7 +60,8 @@ export function invalidateCache(prefix: string) {
 }
 
 // Fetch all team members shown in My Team and Members pages.
-export const getTeamMembers = (): Promise<AxiosResponse<TeamMember[]>> => cachedGet('/team-members');
+// Pass { manager_id } to scope results to that admin's direct reports.
+export const getTeamMembers = (params?: QueryParams): Promise<AxiosResponse<TeamMember[]>> => cachedGet('/team-members', params);
 // Fetch one team member for the evaluation page.
 export const getTeamMember = (id: EntityId): Promise<AxiosResponse<TeamMember>> => cachedGet(`/team-members/${id}`);
 // Update a member evaluation status when workflow actions require it.
@@ -69,7 +71,8 @@ export const updateTeamMemberStatus = (id: EntityId, status: TeamMemberStatus) =
 };
 
 // Fetch all approval requests for the approvals table.
-export const getApprovals = (): Promise<AxiosResponse<Approval[]>> => cachedGet('/approvals');
+// Pass { manager_id } to scope results to that admin's direct reports.
+export const getApprovals = (params?: QueryParams): Promise<AxiosResponse<Approval[]>> => cachedGet('/approvals', params);
 // Fetch one approval request for the approval detail page.
 export const getApproval = (id: EntityId): Promise<AxiosResponse<Approval>> => cachedGet(`/approvals/${id}`);
 // Update approval status, comments, or other workflow fields.

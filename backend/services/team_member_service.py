@@ -10,11 +10,27 @@ from .notification_service import create_notification
 
 
 def get_team_members():
-    """Return all team members for My Team and Members pages."""
+    """Return team members. Pass ?manager_id=<uuid> to scope to direct reports only."""
+    manager_id = request.args.get("manager_id")
 
     if USE_SUPABASE:
         try:
-            rows = supabase_request("team_members", params={"select": "*", "order": "id.asc"})
+            if manager_id:
+                # Look up user IDs of everyone whose manager is the logged-in admin.
+                user_rows = supabase_request("users", params={
+                    "select": "id",
+                    "manager_id": f"eq.{manager_id}",
+                })
+                user_ids = [u["id"] for u in user_rows]
+                if not user_ids:
+                    return jsonify([]), 200
+                rows = supabase_request("team_members", params={
+                    "select": "*",
+                    "user_id": f"in.({','.join(user_ids)})",
+                    "order": "id.asc",
+                })
+            else:
+                rows = supabase_request("team_members", params={"select": "*", "order": "id.asc"})
             return jsonify([normalize_member(row) for row in rows]), 200
         except Exception as error:
             current_app.logger.warning("Falling back to in-memory team members: %s", error)

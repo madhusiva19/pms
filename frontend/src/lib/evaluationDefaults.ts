@@ -138,7 +138,7 @@ function profileBaseScore(profile: ObjectiveGroup[]): number {
  *     and ratings proportionally so the numbers match the displayed score.
  */
 export function generateObjectivesForScore(
-  score: number | string | undefined,
+  score: number | string | undefined | null,
   memberId?: string | number,
 ): ObjectiveGroup[] {
   // Using % 7 then % 3 produces a better spread than % 3 alone — IDs that are

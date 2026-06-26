@@ -2,7 +2,6 @@ import viewStyles from '../../styles/views.module.css';
 // Rejection page: shows rejection details for the stored member and links back to approvals.
 import { useState, useEffect } from 'react';
 import Link, { useRoutes } from '../../lib/routing';
-import Sidebar from '../sidebar/Sidebar';
 import LoadingScreen from '../LoadingScreen';
 import { ROLE_EVALUATOR_LABEL } from '../../lib/constants';
 import { readStoredMember, readEvaluationDate } from '../../lib/currentMember';
@@ -48,10 +47,7 @@ export default function Rejection() {
   const approverLine = `${evaluatorLabel}${evalDate ? ' (' + evalDate + ')' : ''}`;
 
   return (
-    <div className={viewStyles.v031}>
-      <Sidebar />
-
-      <main className={viewStyles.v032}>
+    <main className={viewStyles.v032}>
         <div className={viewStyles.v136}>
           {/* Breadcrumb */}
           <div className={viewStyles.v034}>
@@ -125,6 +121,5 @@ export default function Rejection() {
           </div>
         </div>
       </main>
-    </div>
   );
 }
