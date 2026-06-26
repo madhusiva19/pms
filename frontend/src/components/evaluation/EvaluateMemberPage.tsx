@@ -29,11 +29,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from '../../lib/routing';
 import Link from '../../lib/routing';
 import { getApprovals, getObjectives, getTeamMember, submitEvaluation, updateTeamMemberStatus } from '../../lib/api';
-import Sidebar from '../sidebar/Sidebar';
 import LoadingScreen from '../LoadingScreen';
 import { useRoutes } from '../../lib/routing';
 import { EVALUATION_DEFAULTS, ROLE_EVALUATOR_LABEL } from '../../lib/constants';
-import { DEFAULT_ADMIN_FEEDBACK, generateObjectivesForScore } from '../../lib/evaluationDefaults';
 import { formatRole, formatScore, getRatingBadgeClass, valueOrDash } from '../../lib/formatters';
 import { isNumericId } from '../../lib/performanceRecords';
 import { saveStoredMember } from '../../lib/currentMember';
@@ -99,12 +97,12 @@ export default function EvaluateMemberPage() {
           setAdminFeedback(
             data.evaluation?.feedback ??
             (member_.evaluation?.feedback as string | undefined) ??
-            DEFAULT_ADMIN_FEEDBACK
+            ''
           );
         } catch {
           setNoRecords(true);
           setAdminFeedback(
-            (member_.evaluation?.feedback as string | undefined) ?? DEFAULT_ADMIN_FEEDBACK
+            (member_.evaluation?.feedback as string | undefined) ?? ''
           );
         }
       } catch (error: unknown) {
@@ -140,14 +138,8 @@ export default function EvaluateMemberPage() {
   const evaluatorLabel =
     ROLE_EVALUATOR_LABEL[member?.role as string] ?? EVALUATION_DEFAULTS.evaluatorName;
 
-  // Objective groups: real DB data when present, template fallback otherwise
-  const objectiveGroups: ObjectiveGroup[] = useMemo(() => {
-    if (dbGroups.length > 0) return dbGroups;
-    return generateObjectivesForScore(
-      overallScore,
-      Array.isArray(member?.id) ? member?.id[0] : member?.id
-    );
-  }, [dbGroups, member, overallScore]);
+  // Objective groups: always from the database (performance_records → objectives → categories)
+  const objectiveGroups: ObjectiveGroup[] = dbGroups;
 
   // ── AI insights (derived from loaded performance data) ──────────────────
   const aiInsights = useMemo(() => {
@@ -260,10 +252,8 @@ export default function EvaluateMemberPage() {
   if (!member)  return <div className={viewStyles.v001}>Member not found</div>;
 
   return (
-    <div className={viewStyles.v002}>
-      <Sidebar />
-
-      <main className={viewStyles.v003}>
+    <>
+    <main className={viewStyles.v003}>
         <div className={viewStyles.v004}>
 
           {/* Breadcrumb */}
@@ -310,15 +300,6 @@ export default function EvaluateMemberPage() {
           )}
 
           {/* ── Objectives table ──────────────────────────────────────────── */}
-          {/*
-            OBJECTIVE  ← objectives.name
-            WEIGHT     ← performance_records.weight  else  objectives.weight
-            TARGET     ← performance_records.target
-            ACTUAL     ← performance_records.actual
-            ACHIEVE %  ← performance_records.achievement_percentage
-                         or  computed (actual / target * 100)
-            RATING     ← manual_rating → rating → score
-          */}
           <section className={viewStyles.v017}>
             <div className={viewStyles.v018}>
               <div className={viewStyles.v019}>
@@ -366,7 +347,7 @@ export default function EvaluateMemberPage() {
                         <div>
                           <span
                             className={`${viewStyles.v030} ${
-                              (viewStyles as Record<string, string>)[getRatingBadgeClass(item.rating)]
+                              (viewStyles as Record<string, string>)[getRatingBadgeClass(item.rating) ?? ''] ?? ''
                             }`}
                           >
                             {formatScore(item.rating)}
@@ -381,7 +362,6 @@ export default function EvaluateMemberPage() {
           </section>
 
           {/* ── Evaluator feedback ────────────────────────────────────────── */}
-          {/* Pre-filled from evaluations.admin_recommendation */}
           <section className={viewStyles.v024}>
             <div className={viewStyles.v071}>
               <h3 className={viewStyles.v072}>Evaluator Feedback</h3>
@@ -478,7 +458,6 @@ export default function EvaluateMemberPage() {
 
               {/* ── Category breakdown table ── */}
               <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:'14px', overflow:'hidden', marginBottom:'20px', position:'relative', zIndex:1, border:'1px solid rgba(255,255,255,0.10)' }}>
-                {/* Table header */}
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 90px 90px 110px', padding:'12px 18px', background:'rgba(255,255,255,0.08)', fontSize:'10px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(255,255,255,0.55)', borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
                   <div>Focus Area</div>
                   <div style={{ textAlign:'right' }}>Avg Score</div>
@@ -507,7 +486,6 @@ export default function EvaluateMemberPage() {
 
               {/* ── Strengths & Gaps ── */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px', position:'relative', zIndex:1 }}>
-                {/* Strengths */}
                 <div style={{ background:'rgba(74,222,128,0.08)', borderRadius:'14px', padding:'18px', border:'1px solid rgba(74,222,128,0.20)' }}>
                   <p style={{ margin:'0 0 12px', fontSize:'12px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#4ade80', display:'flex', alignItems:'center', gap:'6px' }}>
                     ▲ Top Strengths
@@ -520,7 +498,6 @@ export default function EvaluateMemberPage() {
                   ))}
                 </div>
 
-                {/* Gaps */}
                 <div style={{ background:'rgba(248,113,113,0.08)', borderRadius:'14px', padding:'18px', border:'1px solid rgba(248,113,113,0.20)' }}>
                   <p style={{ margin:'0 0 12px', fontSize:'12px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#f87171', display:'flex', alignItems:'center', gap:'6px' }}>
                     ▼ Improvement Areas
@@ -546,7 +523,6 @@ export default function EvaluateMemberPage() {
               Cancel
             </button>
 
-            {/* Save Draft */}
             <button
               type="button"
               onClick={handleSaveDraft}
@@ -591,29 +567,19 @@ export default function EvaluateMemberPage() {
           position:'fixed', inset:0, zIndex:9999,
           display:'flex', alignItems:'center', justifyContent:'center',
           background:'rgba(0,0,0,0.65)', backdropFilter:'blur(6px)',
-          animation:'fadeIn 0.2s ease',
         }}>
           <div style={{
             width:'100%', maxWidth:'460px', margin:'0 16px',
             borderRadius:'24px',
             background:'linear-gradient(160deg,#0f172a 0%,#1e293b 100%)',
             border:'1px solid rgba(255,255,255,0.10)',
-            boxShadow:'0 32px 80px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.08)',
+            boxShadow:'0 32px 80px rgba(0,0,0,0.60)',
             overflow:'hidden',
-            animation:'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)',
           }}>
-            {/* Slate accent bar */}
             <div style={{ height:'4px', background:'linear-gradient(90deg,#475569,#7c3aed,#6366f1)' }} />
-
             <div style={{ padding:'36px 36px 32px' }}>
-              {/* Icon */}
               <div style={{ display:'flex', justifyContent:'center', marginBottom:'20px' }}>
-                <div style={{
-                  width:'72px', height:'72px', borderRadius:'50%',
-                  background:'radial-gradient(circle at 35% 35%,#7c3aed,#4c1d95)',
-                  boxShadow:'0 0 0 12px rgba(124,58,237,0.12), 0 8px 24px rgba(124,58,237,0.30)',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                }}>
+                <div style={{ width:'72px', height:'72px', borderRadius:'50%', background:'radial-gradient(circle at 35% 35%,#7c3aed,#4c1d95)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
                     <polyline points="17 21 17 13 7 13 7 21"/>
@@ -621,75 +587,16 @@ export default function EvaluateMemberPage() {
                   </svg>
                 </div>
               </div>
-
-              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#f1f5f9', letterSpacing:'-0.02em' }}>
-                Draft Saved
-              </h2>
-              <p style={{ margin:'0 0 24px', textAlign:'center', fontSize:'14px', color:'rgba(255,255,255,0.50)', lineHeight:1.5 }}>
-                Your progress has been saved. You can continue editing anytime.
-              </p>
-
-              {/* Member info */}
-              <div style={{
-                borderRadius:'14px', background:'rgba(255,255,255,0.05)',
-                border:'1px solid rgba(255,255,255,0.08)',
-                padding:'16px 20px', marginBottom:'20px',
-                display:'grid', gridTemplateColumns:'1fr auto', alignItems:'center', gap:'12px',
-              }}>
-                <div>
-                  <p style={{ margin:0, fontSize:'13px', color:'rgba(255,255,255,0.45)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.07em' }}>Employee</p>
-                  <p style={{ margin:'4px 0 0', fontSize:'15px', fontWeight:700, color:'#f1f5f9' }}>{member.name}</p>
-                  <p style={{ margin:'2px 0 0', fontSize:'12px', color:'rgba(255,255,255,0.40)' }}>{period}</p>
-                </div>
-                <div style={{
-                  minWidth:'64px', height:'64px', borderRadius:'14px',
-                  background:'linear-gradient(135deg,#4c1d95,#7c3aed)',
-                  border:'1px solid rgba(124,58,237,0.40)',
-                  display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                }}>
-                  <span style={{ fontSize:'11px', fontWeight:700, color:'rgba(255,255,255,0.70)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Draft</span>
-                  <span style={{ fontSize:'11px', fontWeight:600, color:'rgba(255,255,255,0.50)', marginTop:'2px' }}>Saved</span>
-                </div>
-              </div>
-
-              {/* Status pill */}
-              <div style={{ display:'flex', justifyContent:'center', marginBottom:'28px' }}>
-                <div style={{
-                  display:'inline-flex', alignItems:'center', gap:'7px',
-                  padding:'7px 16px', borderRadius:'999px',
-                  background:'rgba(124,58,237,0.12)', border:'1px solid rgba(124,58,237,0.30)',
-                  color:'#a78bfa', fontSize:'12px', fontWeight:700,
-                }}>
-                  <span style={{ width:'7px', height:'7px', borderRadius:'50%', background:'#a78bfa', display:'inline-block' }} />
-                  In Progress
-                </div>
-              </div>
-
+              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#f1f5f9' }}>Draft Saved</h2>
+              <p style={{ margin:'0 0 24px', textAlign:'center', fontSize:'14px', color:'rgba(255,255,255,0.50)' }}>Your progress has been saved. You can continue editing anytime.</p>
               <div style={{ display:'flex', gap:'10px' }}>
-                <button type="button"
-                  onClick={() => setShowDraftSaved(false)}
-                  style={{
-                    flex:1, padding:'13px', borderRadius:'12px',
-                    border:'1.5px solid rgba(255,255,255,0.12)',
-                    background:'rgba(255,255,255,0.05)',
-                    color:'rgba(255,255,255,0.65)', fontSize:'14px', fontWeight:600,
-                    cursor:'pointer',
-                  }}>
+                <button type="button" onClick={() => setShowDraftSaved(false)}
+                  style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1.5px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.65)', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
                   Continue Editing
                 </button>
-                <button type="button"
-                  onClick={() => router.push(routes.myTeam)}
-                  style={{
-                    flex:2, padding:'13px', borderRadius:'12px', border:'none',
-                    background:'linear-gradient(135deg,#4c1d95,#7c3aed)',
-                    boxShadow:'0 6px 20px rgba(124,58,237,0.40)',
-                    color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer',
-                    display:'flex', alignItems:'center', justifyContent:'center', gap:'7px',
-                  }}>
+                <button type="button" onClick={() => router.push(routes.myTeam)}
+                  style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#4c1d95,#7c3aed)', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>
                   Go to My Team
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
                 </button>
               </div>
             </div>
@@ -703,67 +610,27 @@ export default function EvaluateMemberPage() {
           position:'fixed', inset:0, zIndex:9999,
           display:'flex', alignItems:'center', justifyContent:'center',
           background:'rgba(0,0,0,0.65)', backdropFilter:'blur(6px)',
-          animation:'fadeIn 0.2s ease',
         }}>
           <div style={{
             width:'100%', maxWidth:'440px', margin:'0 16px',
             borderRadius:'24px',
             background:'linear-gradient(160deg,#0f172a 0%,#1c1917 100%)',
             border:'1px solid rgba(255,255,255,0.10)',
-            boxShadow:'0 32px 80px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.08)',
             overflow:'hidden',
-            animation:'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)',
           }}>
-            {/* Amber accent bar */}
             <div style={{ height:'4px', background:'linear-gradient(90deg,#92400e,#f59e0b,#fcd34d)' }} />
-
             <div style={{ padding:'36px 36px 32px' }}>
-              {/* Icon */}
-              <div style={{ display:'flex', justifyContent:'center', marginBottom:'20px' }}>
-                <div style={{
-                  width:'72px', height:'72px', borderRadius:'50%',
-                  background:'radial-gradient(circle at 35% 35%,#d97706,#92400e)',
-                  boxShadow:'0 0 0 12px rgba(217,119,6,0.12), 0 8px 24px rgba(217,119,6,0.30)',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                }}>
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                </div>
-              </div>
-
-              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#f1f5f9', letterSpacing:'-0.02em' }}>
-                Leave Without Saving?
-              </h2>
+              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#f1f5f9' }}>Leave Without Saving?</h2>
               <p style={{ margin:'0 0 28px', textAlign:'center', fontSize:'14px', color:'rgba(255,255,255,0.50)', lineHeight:1.6 }}>
-                Any unsaved changes to <strong style={{ color:'rgba(255,255,255,0.75)' }}>{member.name}&apos;s</strong> evaluation will be lost. Consider saving a draft first.
+                Any unsaved changes to <strong style={{ color:'rgba(255,255,255,0.75)' }}>{member.name}&apos;s</strong> evaluation will be lost.
               </p>
-
               <div style={{ display:'flex', gap:'10px' }}>
-                <button type="button"
-                  onClick={() => setShowCancelConfirm(false)}
-                  style={{
-                    flex:2, padding:'13px', borderRadius:'12px', border:'none',
-                    background:'linear-gradient(135deg,#92400e,#d97706)',
-                    boxShadow:'0 6px 20px rgba(217,119,6,0.35)',
-                    color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer',
-                  }}>
+                <button type="button" onClick={() => setShowCancelConfirm(false)}
+                  style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#92400e,#d97706)', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>
                   Stay Here
                 </button>
-                <button type="button"
-                  onClick={async () => {
-                    router.push(routes.myTeam);
-                    updateTeamMemberStatus(member.id, 'pending').catch(() => {});
-                  }}
-                  style={{
-                    flex:1, padding:'13px', borderRadius:'12px',
-                    border:'1.5px solid rgba(255,255,255,0.12)',
-                    background:'rgba(255,255,255,0.05)',
-                    color:'rgba(255,255,255,0.55)', fontSize:'14px', fontWeight:600,
-                    cursor:'pointer',
-                  }}>
+                <button type="button" onClick={() => { router.push(routes.myTeam); updateTeamMemberStatus(member.id, 'pending').catch(() => {}); }}
+                  style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1.5px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.55)', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
                   Leave Page
                 </button>
               </div>
@@ -774,155 +641,34 @@ export default function EvaluateMemberPage() {
 
       {/* ── Submit Success Modal ─────────────────────────────────────────── */}
       {showSuccess && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.65)',
-          backdropFilter: 'blur(6px)',
-          animation: 'fadeIn 0.2s ease',
-        }}>
-          <div style={{
-            width: '100%', maxWidth: '480px', margin: '0 16px',
-            borderRadius: '24px',
-            background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 100%)',
-            border: '1px solid rgba(255,255,255,0.10)',
-            boxShadow: '0 32px 80px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.08)',
-            overflow: 'hidden',
-            animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)',
-          }}>
-
-            {/* Green accent bar */}
-            <div style={{ height: '4px', background: 'linear-gradient(90deg, #16a34a, #4ade80, #22d3ee)' }} />
-
-            <div style={{ padding: '36px 36px 32px' }}>
-
-              {/* Icon */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-                <div style={{
-                  width: '72px', height: '72px', borderRadius: '50%',
-                  background: 'radial-gradient(circle at 35% 35%, #22c55e, #15803d)',
-                  boxShadow: '0 0 0 12px rgba(34,197,94,0.12), 0 8px 24px rgba(34,197,94,0.30)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
+        <div style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.65)', backdropFilter:'blur(6px)' }}>
+          <div style={{ width:'100%', maxWidth:'480px', margin:'0 16px', borderRadius:'24px', background:'linear-gradient(160deg,#0f172a 0%,#1e293b 100%)', border:'1px solid rgba(255,255,255,0.10)', overflow:'hidden' }}>
+            <div style={{ height:'4px', background:'linear-gradient(90deg,#16a34a,#4ade80,#22d3ee)' }} />
+            <div style={{ padding:'36px 36px 32px' }}>
+              <div style={{ display:'flex', justifyContent:'center', marginBottom:'20px' }}>
+                <div style={{ width:'72px', height:'72px', borderRadius:'50%', background:'radial-gradient(circle at 35% 35%,#22c55e,#15803d)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
               </div>
-
-              {/* Title */}
-              <h2 style={{
-                margin: '0 0 8px', textAlign: 'center',
-                fontSize: '22px', fontWeight: 800, color: '#f1f5f9',
-                letterSpacing: '-0.02em',
-              }}>
-                Evaluation Submitted
-              </h2>
-              <p style={{
-                margin: '0 0 24px', textAlign: 'center',
-                fontSize: '14px', color: 'rgba(255,255,255,0.50)', lineHeight: 1.5,
-              }}>
-                The evaluation has been sent for approval review.
-              </p>
-
-              {/* Member info card */}
-              <div style={{
-                borderRadius: '14px',
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                padding: '16px 20px',
-                marginBottom: '28px',
-                display: 'grid',
-                gridTemplateColumns: '1fr auto',
-                alignItems: 'center',
-                gap: '12px',
-              }}>
-                <div>
-                  <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.45)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Employee</p>
-                  <p style={{ margin: '4px 0 0', fontSize: '15px', fontWeight: 700, color: '#f1f5f9' }}>{member.name}</p>
-                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'rgba(255,255,255,0.40)' }}>{period}</p>
-                </div>
-                {overallScore !== null && (
-                  <div style={{
-                    minWidth: '64px', height: '64px', borderRadius: '14px',
-                    background: 'linear-gradient(135deg, #1e3a8a, #1d4ed8)',
-                    border: '1px solid rgba(99,102,241,0.40)',
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{formatScore(overallScore)}</span>
-                    <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.55)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Score</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Status pill */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '28px' }}>
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '7px',
-                  padding: '7px 16px', borderRadius: '999px',
-                  background: 'rgba(234,179,8,0.12)',
-                  border: '1px solid rgba(234,179,8,0.30)',
-                  color: '#fbbf24', fontSize: '12px', fontWeight: 700,
-                }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#fbbf24', display: 'inline-block' }} />
-                  Pending Approval
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSuccess(false)}
-                  style={{
-                    flex: 1, padding: '13px', borderRadius: '12px',
-                    border: '1.5px solid rgba(255,255,255,0.12)',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: 'rgba(255,255,255,0.65)', fontSize: '14px', fontWeight: 600,
-                    cursor: 'pointer', transition: 'background 0.2s',
-                  }}
-                >
+              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#f1f5f9' }}>Evaluation Submitted</h2>
+              <p style={{ margin:'0 0 24px', textAlign:'center', fontSize:'14px', color:'rgba(255,255,255,0.50)' }}>The evaluation has been sent for approval review.</p>
+              <div style={{ display:'flex', gap:'10px' }}>
+                <button type="button" onClick={() => setShowSuccess(false)}
+                  style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1.5px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.65)', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
                   Stay on Page
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { if (!submitting) router.push(routes.approvals); }}
-                  disabled={submitting}
-                  style={{
-                    flex: 2, padding: '13px', borderRadius: '12px',
-                    border: 'none',
-                    background: submitting
-                      ? 'linear-gradient(135deg,#1e3a5f,#1e40af)'
-                      : 'linear-gradient(135deg,#1d4ed8,#2563eb)',
-                    boxShadow: '0 6px 20px rgba(37,99,235,0.40)',
-                    color: '#ffffff', fontSize: '14px', fontWeight: 700,
-                    cursor: submitting ? 'not-allowed' : 'pointer',
-                    opacity: submitting ? 0.7 : 1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
-                    transition: 'all 0.2s',
-                  }}
-                >
+                <button type="button" onClick={() => { if (!submitting) router.push(routes.approvals); }} disabled={submitting}
+                  style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#1d4ed8,#2563eb)', color:'#fff', fontSize:'14px', fontWeight:700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
                   {submitting ? 'Saving…' : 'View Approvals'}
-                  {!submitting && (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                  )}
                 </button>
               </div>
-
             </div>
           </div>
-
-          {/* Keyframe styles injected inline */}
-          <style>{`
-            @keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
-            @keyframes scaleIn { from { opacity:0; transform:scale(0.85) } to { opacity:1; transform:scale(1) } }
-          `}</style>
+          <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes scaleIn{from{opacity:0;transform:scale(0.85)}to{opacity:1;transform:scale(1)}}`}</style>
         </div>
       )}
-
-    </div>
+    </>
   );
 }

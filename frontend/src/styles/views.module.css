@@ -19,13 +19,11 @@
   padding-right: 16px;
   padding-top: 20px;
   padding-bottom: 20px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #dde5f5 0%, #eaf0ff 45%, #dde8fb 100%);
 }
 
 @media (min-width: 768px) {
-
-  .v003 {
-    margin-left: 280px;
-  }
 
   .v003 {
     padding-left: 24px;
@@ -407,13 +405,10 @@
 .v032 {
   flex: 1 1 0%;
   padding: 32px 24px 24px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #dde5f5 0%, #eaf0ff 45%, #dde8fb 100%);
 }
 
-@media (min-width: 768px) {
-  .v032 {
-    margin-left: 280px;
-  }
-}
 
 .v033 {
   max-width: 1152px;

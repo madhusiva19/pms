@@ -20,6 +20,8 @@ export default function Home() {
     if (loading) return;
     if (user?.role) {
       router.replace(ROLE_HOME[user.role] ?? '/hq-admin/dashboard');
+    } else {
+      router.replace('/login');
     }
   }, [user, loading, router]);
 

@@ -9,6 +9,17 @@ from .common import *
 from .notification_service import create_notification
 
 
+def get_enquiries():
+    """Return all enquiry records for the notification tab."""
+    if USE_SUPABASE:
+        try:
+            rows = fetch_rows("enquiries", params={"select": "*", "order": "id.desc", "limit": 200}) or []
+            return jsonify(rows), 200
+        except Exception as error:
+            current_app.logger.warning("Falling back to in-memory enquiries: %s", error)
+    return fallback_response(enquiries)
+
+
 def create_enquiry():
     """Create an employee enquiry and notify the evaluator's superior."""
 

@@ -10,7 +10,7 @@ import { logger } from "@/utils/logger";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Tab = "approvals" | "cutoff" | "pa" | "manual";
+type Tab = "approvals" | "cutoff" | "pa" | "manual" | "evaluation";
 
 interface DBNotification {
   id:           string;
@@ -119,6 +119,14 @@ const LEVEL_LABEL: Record<number, string> = {
   99: "User",
 };
 
+// ── Denusha's evaluation badge configs ───────────────────────────────────────
+const EVAL_STYLES: Record<string, { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string; message: string }> = {
+  approval_pending:  { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⏳ Pending Approval", borderColor: "#FDE047", bg: "#FFFBEB", message: "Evaluation submitted and awaiting approval."               },
+  approval_done:     { badge: "#DCFCE7", badgeColor: "#166534", badgeText: "✓ Approved",          borderColor: "#86EFAC", bg: "#F0FDF4", message: "Evaluation has been approved."                           },
+  approval_rejected: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "✗ Rejected",          borderColor: "#FCA5A5", bg: "#FFF5F5", message: "Evaluation was rejected and returned for resubmission." },
+  enquiry:           { badge: "#EDE9FE", badgeColor: "#6D28D9", badgeText: "🔄 Enquiry",          borderColor: "#C4B5FD", bg: "#F5F3FF", message: "A re-evaluation enquiry has been submitted."             },
+};
+
 // ── Wathsala's badge configs ──────────────────────────────────────────────────
 const REMINDER_STYLES: Record<ReminderType, { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }> = {
   period_opened:    { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "🔔 Window Open",     borderColor: "#BFDBFE", bg: "#F0F7FF" },
@@ -201,6 +209,37 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   const [paList,             setPaList]             = useState<PaNotification[]>([]);
   const [wLoading,           setWLoading]           = useState(true);
 
+  // ── Evaluation Approvals state ────────────────────────────────────────────
+  const [evalApprovals,  setEvalApprovals]  = useState<any[]>([]);
+  const [evalLoading,    setEvalLoading]    = useState(true);
+  const [readEvalIds,    setReadEvalIds]    = useState<Set<string>>(new Set());
+  const [evalNotifs,     setEvalNotifs]     = useState<any[]>([]);
+
+  // Load previously-read notification IDs from localStorage on mount.
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("pms_eval_read") || "[]");
+      setReadEvalIds(new Set(stored as string[]));
+    } catch { /* ignore parse errors */ }
+  }, []);
+
+  const markEvalAllRead = useCallback(() => {
+    const ids = evalApprovals.map(a => a.id as string);
+    setReadEvalIds(prev => {
+      const next = new Set([...prev, ...ids]);
+      try { localStorage.setItem("pms_eval_read", JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  }, [evalApprovals]);
+
+  const markEvalRead = useCallback((id: string) => {
+    setReadEvalIds(prev => {
+      const next = new Set([...prev, id]);
+      try { localStorage.setItem("pms_eval_read", JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
   const currentUser = useCurrentUser();
   const { user: authUser } = useAuth() as any;
 
@@ -254,12 +293,55 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
     } catch (e) { console.error("fetchAchievements:", e); }
   }, [currentUser?.employee_id]);
 
+  const fetchEvalApprovals = useCallback(async () => {
+    setEvalLoading(true);
+    try {
+      const withTimeout = (url: string, ms = 3000) => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), ms);
+        return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+      };
+
+      const toList = async (p: Promise<Response>, type: string) => {
+        try {
+          const res = await p;
+          if (!res.ok) return [];
+          const data = await res.json();
+          return (Array.isArray(data) ? data : []).map((item: any) => {
+            const status = (item.status ?? "pending").toLowerCase();
+            const label = type === "enquiry"
+              ? "Re-evaluation Enquiry"
+              : status === "approved" ? "Evaluation Approved"
+              : status === "rejected" ? "Evaluation Rejected"
+              : "Evaluation Submitted";
+            return {
+              _type:  type,
+              _label: label,
+              id:     `${type}-${item.id}`,
+              name:   item.employee || item.employee_name || item.member_name || item.name || "Team Member",
+              status,
+              date:   item.dueDate || item.created_at || item.date || "",
+            };
+          });
+        } catch { return []; }
+      };
+
+      const [approvals, enquiries] = await Promise.all([
+        toList(withTimeout(`${WAPI}/api/approvals`),  "approval"),
+        toList(withTimeout(`${WAPI}/api/enquiries`),  "enquiry"),
+      ]);
+
+      setEvalApprovals([...approvals, ...enquiries]);
+    } catch { /* silently ignore — backend may not be running */ }
+    finally { setEvalLoading(false); }
+  }, []);
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchNotifications(), fetchSchedule(), fetchFreezeStatus(), fetchAchievements()]);
+    await Promise.all([fetchNotifications(), fetchSchedule(), fetchFreezeStatus(), fetchAchievements(), fetchEvalApprovals()]);
     setLoading(false);
     setRefreshing(false);
-  }, [fetchNotifications, fetchSchedule, fetchFreezeStatus, fetchAchievements]);
+  }, [fetchNotifications, fetchSchedule, fetchFreezeStatus, fetchAchievements, fetchEvalApprovals]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -306,6 +388,20 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
     loadWathsala();
   }, [userId, roleSlug]);
 
+  // ── Evaluation notifications (approval/rejection events from notifications table) ──
+  useEffect(() => {
+    async function loadEvalNotifs() {
+      try {
+        const res = await fetch(`${API}/evaluation-notifications`);
+        if (res.ok) {
+          const data = await res.json();
+          setEvalNotifs(Array.isArray(data) ? data : []);
+        }
+      } catch (e) { console.error("loadEvalNotifs:", e); }
+    }
+    loadEvalNotifs();
+  }, []);
+
   // ── Mark read helpers ─────────────────────────────────────────────────────
   const markRead = async (id: string) => {
     try {
@@ -337,6 +433,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   const unreadCount    = notifications.filter((n) => !n.is_read).length;
   const unreadPa       = paList.filter(n => !n.isRead).length;
   const unreadManual   = manualReminderList.filter(n => !n.isRead).length;
+  const unreadEval     = evalApprovals.filter(a => !readEvalIds.has(a.id as string)).length;
 
   const renderBanner = () => null;
 
@@ -385,6 +482,10 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
             <button className={activeTab === "manual" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("manual")}>
               Manual Rating Reminders
               {unreadManual > 0 && <span className={styles.tabBadge}>{unreadManual}</span>}
+            </button>
+            <button className={activeTab === "evaluation" ? styles.tabActive : styles.tabInactive} onClick={() => { setActiveTab("evaluation"); markEvalAllRead(); }}>
+              Evaluation Approvals
+              {unreadEval > 0 && <span className={styles.tabBadge}>{unreadEval}</span>}
             </button>
           </div>
 
@@ -557,6 +658,78 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                     </div>
                   );
                 })
+              )}
+            </div>
+          )}
+
+          {/* Evaluation Approvals — Denusha's tab */}
+          {activeTab === "evaluation" && (
+            <div className={styles.notifList}>
+              {evalLoading ? (
+                <div className={styles.loadingWrap}>{[1,2,3].map(i => <div key={i} className={styles.skeletonCard} />)}</div>
+              ) : evalApprovals.length === 0 && evalNotifs.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIcon}><BellIcon /></div>
+                  <p className={styles.emptyTitle}>No evaluation notifications yet.</p>
+                  <p className={styles.emptyBody}>Evaluation submissions, approvals, and enquiries from your team will appear here.</p>
+                </div>
+              ) : (
+                <>
+                  {evalApprovals.map((a) => {
+                    const isRead   = readEvalIds.has(a.id as string);
+                    const status   = (a.status ?? "").toLowerCase();
+                    const styleKey = a._type === "enquiry" ? "enquiry"
+                                   : status === "approved"  ? "approval_done"
+                                   : status === "rejected"  ? "approval_rejected"
+                                   : "approval_pending";
+                    const s        = EVAL_STYLES[styleKey];
+                    return (
+                      <div key={a.id} className={`${styles.notifCard} ${!isRead ? styles.unread : ""}`} style={{ background: s.bg, borderColor: s.borderColor }}>
+                        <div className={styles.notifTop}>
+                          <div className={styles.notifMeta}>
+                            {!isRead && <span className={styles.unreadDot} />}
+                            <div>
+                              <p className={styles.notifTitle}>{a.name} — {a._label}</p>
+                              <p className={styles.notifRole}>{a.date ? formatDate(a.date) : ""}</p>
+                            </div>
+                          </div>
+                          <span style={{ padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, background: s.badge, color: s.badgeColor, whiteSpace: "nowrap" }}>{s.badgeText}</span>
+                        </div>
+                        <p className={styles.notifBody}>{s.message}</p>
+                        <div className={styles.notifActions}>
+                          {!isRead && <button type="button" className={styles.readBtn} onClick={() => markEvalRead(a.id as string)}>Mark as read</button>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {evalNotifs.map((n) => {
+                    const ntype    = (n.notification_type ?? "").toLowerCase();
+                    const styleKey = ntype === "rejection" ? "approval_rejected"
+                                   : ntype === "approval_approved" ? "approval_done"
+                                   : "approval_pending";
+                    const s        = EVAL_STYLES[styleKey];
+                    const notifId     = `evalnotif-${n.notification_id ?? n.id}`;
+                    const isRead      = readEvalIds.has(notifId);
+                    return (
+                      <div key={notifId} className={`${styles.notifCard} ${!isRead ? styles.unread : ""}`} style={{ background: s.bg, borderColor: s.borderColor }}>
+                        <div className={styles.notifTop}>
+                          <div className={styles.notifMeta}>
+                            {!isRead && <span className={styles.unreadDot} />}
+                            <div>
+                              <p className={styles.notifTitle}>{n.title ?? "Evaluation Update"}</p>
+                              <p className={styles.notifRole}>{n.created_at ? formatDate(n.created_at) : ""}</p>
+                            </div>
+                          </div>
+                          <span style={{ padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, background: s.badge, color: s.badgeColor, whiteSpace: "nowrap" }}>{s.badgeText}</span>
+                        </div>
+                        <p className={styles.notifBody}>{n.description ?? n.message ?? ""}</p>
+                        <div className={styles.notifActions}>
+                          {!isRead && <button type="button" className={styles.readBtn} onClick={() => markEvalRead(notifId)}>Mark as read</button>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
               )}
             </div>
           )}

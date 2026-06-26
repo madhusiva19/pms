@@ -36,6 +36,15 @@ from routes.saved_reports        import saved_reports_bp
 from routes.potential_assessment import potential_assessment_bp
 from routes.report_cycle         import report_cycle_bp
 
+# ── Denusha's blueprints ─────────────────────────────────────────────────────
+from routes.approval_routes         import approval_bp
+from routes.enquiry_routes          import enquiry_bp
+from routes.evaluation_routes       import evaluation_bp
+from routes.evaluation_status_routes import evaluation_status_bp
+from routes.objectives_routes       import objectives_bp
+from routes.system_routes           import system_bp
+from routes.team_member_routes      import team_member_bp
+
 # ── Minimuthu's blueprints ────────────────────────────────────────────────────
 from routes.evaluator_routes        import evaluator_bp
 from routes.manual_rating_routes    import manual_rating_bp
@@ -87,6 +96,15 @@ app.register_blueprint(comparisons_bp)
 app.register_blueprint(saved_reports_bp)
 app.register_blueprint(potential_assessment_bp)
 app.register_blueprint(report_cycle_bp)
+
+# Register Denusha's blueprints
+app.register_blueprint(approval_bp)
+app.register_blueprint(enquiry_bp)
+app.register_blueprint(evaluation_bp)
+app.register_blueprint(evaluation_status_bp)
+app.register_blueprint(objectives_bp)
+app.register_blueprint(system_bp)
+app.register_blueprint(team_member_bp)
 
 # Register minimuthu's blueprints
 app.register_blueprint(evaluator_bp)
@@ -141,4 +159,4 @@ if __name__ == "__main__":
     start_scheduler(
         rollover_fn=lambda: auto_rollover_if_needed(seed_notifications_for_cycle)
     )
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5001, debug=True)
