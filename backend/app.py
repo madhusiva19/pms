@@ -159,4 +159,4 @@ if __name__ == "__main__":
     start_scheduler(
         rollover_fn=lambda: auto_rollover_if_needed(seed_notifications_for_cycle)
     )
-    app.run(host="127.0.0.1", port=5001, debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=True)
