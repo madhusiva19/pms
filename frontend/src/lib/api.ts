@@ -18,7 +18,7 @@ import type {
 // Backend URL can be overridden with NEXT_PUBLIC_API_BASE_URL in frontend/.env.local.
 // Normalise so the baseURL always ends with /api regardless of whether the env
 // var was set with or without the /api suffix.
-const _rawBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:5001';
+const _rawBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:5000';
 const API_BASE_URL = _rawBase.endsWith('/api') ? _rawBase : `${_rawBase}/api`;
 
 const api = axios.create({
