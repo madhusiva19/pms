@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from models import supabase
 from services.training_service import (
     get_training_attended, add_training_attended,
     add_training_suggestion, get_training_suggestions,
@@ -96,6 +97,15 @@ def review_suggestion_route(suggestion_id):
         if not caller_id:
             return jsonify({"message": "Unauthorized"}), 401
 
+        suggestion_res = supabase.table("training_suggestions")\
+            .select("supervisor_id")\
+            .eq("id", suggestion_id)\
+            .execute()
+        if not suggestion_res.data:
+            return jsonify({"message": "Suggestion not found"}), 404
+        if caller_id != suggestion_res.data[0].get("supervisor_id"):
+            return jsonify({"message": "Forbidden"}), 403
+
         result, status = review_suggestion(suggestion_id, request.get_json(silent=True) or {})
         return jsonify(result), status
     except Exception as e:
@@ -108,6 +118,15 @@ def delete_training_attended_route(record_id):
         caller_id = require_auth(request)
         if not caller_id:
             return jsonify({"message": "Unauthorized"}), 401
+
+        record_res = supabase.table("training_passport")\
+            .select("user_id")\
+            .eq("id", record_id)\
+            .execute()
+        if not record_res.data:
+            return jsonify({"message": "Training record not found"}), 404
+        if not is_authorized_for(caller_id, record_res.data[0].get("user_id")):
+            return jsonify({"message": "Forbidden"}), 403
 
         result, status = delete_training_attended(record_id)
         return jsonify(result), status

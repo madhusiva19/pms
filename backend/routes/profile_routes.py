@@ -27,6 +27,10 @@ def upload_avatar_route():
         if not caller_id:
             return jsonify({"message": "Unauthorized"}), 401
 
+        employee_id = request.form.get("employee_id")
+        if not is_authorized_for(caller_id, employee_id):
+            return jsonify({"message": "Forbidden"}), 403
+
         result, status = upload_avatar(request)
         return jsonify(result), status
     except Exception as e:
@@ -39,6 +43,8 @@ def remove_avatar_route(employee_id):
         caller_id = require_auth(request)
         if not caller_id:
             return jsonify({"message": "Unauthorized"}), 401
+        if not is_authorized_for(caller_id, employee_id):
+            return jsonify({"message": "Forbidden"}), 403
 
         result, status = remove_avatar(employee_id)
         return jsonify(result), status
