@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import styles from "./login.module.css";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { logger } from "@/utils/logger";
 
 export default function LoginPage() {
   const router    = useRouter();
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [loading,  setLoading]  = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   // Forgot password state
   const [forgotMode,    setForgotMode]    = useState(false);
@@ -22,7 +24,8 @@ export default function LoginPage() {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleSignIn = async () => {
-    if (!email || !password) { alert("Email and password are required"); return; }
+    setLoginError("");
+    if (!email || !password) { setLoginError("Email and password are required"); return; }
     setLoading(true);
     try {
       const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
@@ -32,7 +35,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
 
-      if (!res.ok) { alert(data.message || "Login failed"); return; }
+      if (!res.ok) { setLoginError(data.message || "Login failed"); return; }
 
       if (data.redirect) {
         const userData = {
@@ -50,15 +53,18 @@ export default function LoginPage() {
           avatar_url:       data.user.avatar_url || null,
         };
         localStorage.setItem("pms_user", JSON.stringify(userData));
+        if (data.access_token) {
+          localStorage.setItem("pms_token", data.access_token);
+        }
         document.cookie = "pms_auth=1; path=/; SameSite=Lax";
         setUser(userData);
         router.push(data.redirect);
       } else {
-        alert("Login successful, but no dashboard path was found for your role.");
+        setLoginError("Login successful, but no dashboard path was found for your role.");
       }
     } catch (err) {
-      alert("Cannot connect to the server. Is the Flask backend running? ❌");
-      console.error(err);
+      setLoginError("Cannot connect to the server. Is the Flask backend running? ❌");
+      logger.error("Login failed", err);
     } finally {
       setLoading(false);
     }
@@ -190,6 +196,13 @@ export default function LoginPage() {
                       disabled={loading} />
                   </div>
                 </div>
+
+                {loginError && (
+                  <div className={`${styles.statusBox} ${styles.statusError}`}>
+                    <span>⚠️</span>
+                    {loginError}
+                  </div>
+                )}
 
                 <button className={styles.primaryBtn} type="button"
                   onClick={handleSignIn} disabled={loading}>

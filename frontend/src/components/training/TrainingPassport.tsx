@@ -4,16 +4,11 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./training.module.css";
+import { apiFetch } from "@/lib/apiFetch";
+import { logger } from "@/utils/logger";
+import { Role, ROLE_LABELS, ROLE_AVATAR_LABELS } from "@/lib/roleConfig";
 
 // ── Types ──────────────────────────────────────────────────────────────────
-export type Role =
-  | "HQ Admin"
-  | "Country Admin"
-  | "Branch Admin"
-  | "Dept Admin"
-  | "Sub Dept Admin"
-  | "Employee";
-
 type TrainingAttended = {
   id: string;
   trainingName: string;
@@ -61,12 +56,12 @@ const ROLE_CONFIG: Record<Role, {
   canReview: boolean;
   showAI: boolean;
 }> = {
-  "HQ Admin":       { avatarLabel: "HQ", roleLabel: "hq admin",      canLog: true,  canSuggest: false, canReview: true,  showAI: false },
-  "Country Admin":  { avatarLabel: "CA", roleLabel: "country admin",  canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
-  "Branch Admin":   { avatarLabel: "BA", roleLabel: "branch admin",   canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
-  "Dept Admin":     { avatarLabel: "DA", roleLabel: "dept admin",     canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
-  "Sub Dept Admin": { avatarLabel: "SD", roleLabel: "sub dept admin", canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
-  "Employee":       { avatarLabel: "EM", roleLabel: "employee",       canLog: true,  canSuggest: true,  canReview: false, showAI: true  },
+  "HQ Admin":       { avatarLabel: ROLE_AVATAR_LABELS["HQ Admin"],       roleLabel: ROLE_LABELS["HQ Admin"],       canLog: true,  canSuggest: false, canReview: true,  showAI: false },
+  "Country Admin":  { avatarLabel: ROLE_AVATAR_LABELS["Country Admin"],  roleLabel: ROLE_LABELS["Country Admin"],  canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
+  "Branch Admin":   { avatarLabel: ROLE_AVATAR_LABELS["Branch Admin"],   roleLabel: ROLE_LABELS["Branch Admin"],   canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
+  "Dept Admin":     { avatarLabel: ROLE_AVATAR_LABELS["Dept Admin"],     roleLabel: ROLE_LABELS["Dept Admin"],     canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
+  "Sub Dept Admin": { avatarLabel: ROLE_AVATAR_LABELS["Sub Dept Admin"], roleLabel: ROLE_LABELS["Sub Dept Admin"], canLog: true,  canSuggest: true,  canReview: true,  showAI: true  },
+  "Employee":       { avatarLabel: ROLE_AVATAR_LABELS["Employee"],       roleLabel: ROLE_LABELS["Employee"],       canLog: true,  canSuggest: true,  canReview: false, showAI: true  },
 };
 
 // ── Status badge styles ────────────────────────────────────────────────────
@@ -108,6 +103,8 @@ export default function TrainingPassport({
   const [addingTraining, setAddingTraining] = useState(false);
   const [savingTraining, setSavingTraining] = useState(false);
   const [trainingMsg, setTrainingMsg]     = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTargetId, setDeleteTargetId]   = useState<string | null>(null);
 
   // ── Suggestions state ──
   const [suggestionList, setSuggestionList]             = useState<TrainingSuggestion[]>(initialSuggestions);
@@ -128,7 +125,7 @@ export default function TrainingPassport({
     setSavingTraining(true);
     setTrainingMsg("");
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended`, {
+      const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -160,10 +157,16 @@ export default function TrainingPassport({
     }
   };
 
-  const handleDeleteTraining = async (recordId: string) => {
-    if (!confirm("Remove this training record?")) return;
+  const openDeleteModal = (recordId: string) => {
+    setDeleteTargetId(recordId);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteTraining = async () => {
+    if (!deleteTargetId) return;
+    const recordId = deleteTargetId;
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/training/attended/${recordId}`,
         { method: "DELETE" }
       );
@@ -177,6 +180,9 @@ export default function TrainingPassport({
     } catch {
       setTrainingMsg("Backend connection failed ❌");
       setTimeout(() => setTrainingMsg(""), 3000);
+    } finally {
+      setShowDeleteModal(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -189,7 +195,7 @@ export default function TrainingPassport({
     }
     setSavingSuggestion(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions`, {
+      const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -224,7 +230,7 @@ export default function TrainingPassport({
   // ── Review subordinate suggestion — approve or reject ──
   const handleReview = async (id: string, action: "approved" | "rejected") => {
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions/${id}`,
         {
           method: "PATCH",
@@ -242,7 +248,7 @@ export default function TrainingPassport({
         refreshBadges();
       }
     } catch (err) {
-      console.error("Failed to review suggestion:", err);
+      logger.error("Failed to review suggestion", err);
     }
   };
 
@@ -253,6 +259,7 @@ export default function TrainingPassport({
   const reviewedOwnCount        = suggestionList.filter(s => s.status === "approved" || s.status === "rejected").length;
 
   return (
+    <>
       <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
       <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
 
@@ -440,7 +447,7 @@ export default function TrainingPassport({
                         <td className={styles.td}>{t.provider}</td>
                         <td className={styles.td}>
                           <button
-                            onClick={() => handleDeleteTraining(t.id)}
+                            onClick={() => openDeleteModal(t.id)}
                             title="Delete record"
                             style={{
                               background: "none",
@@ -657,5 +664,76 @@ export default function TrainingPassport({
 
       </div>
       </main>
+
+      {/* ── Delete Confirmation Modal ── */}
+      {showDeleteModal && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000, backdropFilter: "blur(4px)",
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: "20px", padding: "32px 28px",
+            width: "400px", maxWidth: "calc(100vw - 32px)",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
+          }}>
+
+            <div style={{
+              width: "48px", height: "48px", borderRadius: "50%",
+              background: "#FEF2F2", display: "flex", alignItems: "center",
+              justifyContent: "center", margin: "0 auto 16px",
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="#EF4444" strokeWidth="2" strokeLinecap="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </div>
+
+            <h3 style={{
+              margin: "0 0 4px", fontSize: "17px", fontWeight: 700,
+              color: "#111827", textAlign: "center",
+            }}>
+              Delete Training Record
+            </h3>
+            <p style={{
+              margin: "0 0 24px", fontSize: "13px", color: "#9CA3AF",
+              textAlign: "center",
+            }}>
+              This training record will be permanently removed and cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => { setShowDeleteModal(false); setDeleteTargetId(null); }}
+                style={{
+                  flex: 1, padding: "10px", borderRadius: "10px",
+                  border: "1.5px solid #E5E7EB", background: "#fff",
+                  cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#374151",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteTraining}
+                style={{
+                  flex: 1, padding: "10px", borderRadius: "10px",
+                  border: "none", background: "#EF4444",
+                  color: "#fff", cursor: "pointer",
+                  fontSize: "13px", fontWeight: 700, transition: "background 0.2s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#DC2626")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#EF4444")}
+              >
+                Delete
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+    </>
   );
 }

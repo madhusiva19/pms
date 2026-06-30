@@ -2,17 +2,16 @@ import requests as req
 from models import supabase, SUPABASE_URL, SUPABASE_KEY
 
 
-def get_score(entity_id: str, entity_type: str) -> float:
-    url      = f"{SUPABASE_URL}/rest/v1/performance_scores"
-    headers  = {
-        "apikey":        SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type":  "application/json"
-    }
-    full_url = f"{url}?select=avg_score&entity_type=eq.{entity_type}&entity_id=eq.{entity_id}"
-    res      = req.get(full_url, headers=headers)
-    data = res.json()
-    return float(data[0]["avg_score"]) if data else 0.0
+def get_scores_map(entity_ids: list, entity_type: str) -> dict:
+    """Fetch avg_score for many entities in a single query instead of one request per entity."""
+    if not entity_ids:
+        return {}
+    res = supabase.table("performance_scores")\
+        .select("entity_id, avg_score")\
+        .eq("entity_type", entity_type)\
+        .in_("entity_id", entity_ids)\
+        .execute()
+    return {row["entity_id"]: float(row["avg_score"]) for row in (res.data or [])}
 
 
 def get_stats(employee_id):
@@ -89,7 +88,8 @@ def get_stats(employee_id):
 
         return {"stats": stats}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] get_stats: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def get_charts(employee_id):
@@ -115,10 +115,11 @@ def get_charts(employee_id):
             countries = supabase.table("countries")\
                 .select("id, name, total_employees")\
                 .execute()
+            score_map = get_scores_map([c["id"] for c in countries.data], "country")
             for i, c in enumerate(countries.data):
                 bar.append({
                     "name":  c["name"],
-                    "score": get_score(c["id"], "country"),
+                    "score": score_map.get(c["id"], 0.0),
     
                 })
                 pie.append({
@@ -134,10 +135,11 @@ def get_charts(employee_id):
                 .execute()
 
             if branches.data:
+                score_map = get_scores_map([b["id"] for b in branches.data], "branch")
                 for i, b in enumerate(branches.data):
                     bar.append({
                         "name":  b.get("name", "Unknown"),
-                        "score": get_score(b["id"], "branch"),
+                        "score": score_map.get(b["id"], 0.0),
                         
                     })
                     pie.append({
@@ -151,10 +153,11 @@ def get_charts(employee_id):
                     .select("id, name, total_employees")\
                     .eq("country_id", country_id)\
                     .execute()
+                score_map = get_scores_map([d["id"] for d in depts.data], "department")
                 for i, d in enumerate(depts.data):
                     bar.append({
                         "name":  d["name"],
-                        "score": get_score(d["id"], "department"),
+                        "score": score_map.get(d["id"], 0.0),
                         
                     })
                     pie.append({
@@ -168,10 +171,11 @@ def get_charts(employee_id):
                 .select("id, name, total_employees")\
                 .eq("branch_id", branch_id)\
                 .execute()
+            score_map = get_scores_map([d["id"] for d in depts.data], "department")
             for i, d in enumerate(depts.data):
                 bar.append({
                     "name":  d["name"],
-                    "score": get_score(d["id"], "department"),
+                    "score": score_map.get(d["id"], 0.0),
                     
                 })
                 pie.append({
@@ -185,10 +189,11 @@ def get_charts(employee_id):
                 .select("id, name, total_employees")\
                 .eq("department_id", dept_id)\
                 .execute()
+            score_map = get_scores_map([sd["id"] for sd in subdepts.data], "sub_department")
             for i, sd in enumerate(subdepts.data):
                 bar.append({
                     "name":  sd["name"],
-                    "score": get_score(sd["id"], "sub_department"),
+                    "score": score_map.get(sd["id"], 0.0),
                     
                 })
                 pie.append({
@@ -202,15 +207,17 @@ def get_charts(employee_id):
                 .select("id, full_name")\
                 .eq("manager_id", employee_id)\
                 .execute()
+            score_map = get_scores_map([e["id"] for e in employees.data], "employee")
             for i, e in enumerate(employees.data):
                 parts = e["full_name"].split(" ")
                 short = f"{parts[0][0]}. {parts[-1]}" if len(parts) > 1 else e["full_name"]
                 bar.append({
                     "name":  short,
-                    "score": get_score(e["id"], "employee"),
+                    "score": score_map.get(e["id"], 0.0),
                     
                 })
 
         return {"data": {"bar": bar, "pie": pie}}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] get_charts: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500

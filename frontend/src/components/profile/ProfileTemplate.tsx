@@ -1,21 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./profile.module.css";
 import AvatarUpload from "./AvatarUpload";
+import { apiFetch } from "@/lib/apiFetch";
+import { Role, ROLE_AVATAR_LABELS } from "@/lib/roleConfig";
 
 // ── Types ──────────────────────────────────────────────
-export type Role =
-  | "HQ Admin"
-  | "Country Admin"
-  | "Branch Admin"
-  | "Dept Admin"
-  | "Sub Dept Admin"
-  | "Employee";
-
 export type SelfAchievement = {
   id: string;
   date: string;
@@ -67,12 +60,12 @@ const ROLE_CONFIG: Record<Role, {
   approvedBy: string;
   avatarLabel: string;
 }> = {
-  "HQ Admin":       { isHQ: true,  showSupervisorComments: false, showBranch: false, showDepartment: false, approvedBy: "",              avatarLabel: "HQ" },
-  "Country Admin":  { isHQ: false, showSupervisorComments: true,  showBranch: false, showDepartment: false, approvedBy: "HQ Admin",       avatarLabel: "CA" },
-  "Branch Admin":   { isHQ: false, showSupervisorComments: true,  showBranch: true,  showDepartment: false, approvedBy: "Country Admin",  avatarLabel: "BA" },
-  "Dept Admin":     { isHQ: false, showSupervisorComments: true,  showBranch: true,  showDepartment: true,  approvedBy: "Branch Admin",   avatarLabel: "DA" },
-  "Sub Dept Admin": { isHQ: false, showSupervisorComments: true,  showBranch: true,  showDepartment: true,  approvedBy: "Dept Admin",     avatarLabel: "SD" },
-  "Employee":       { isHQ: false, showSupervisorComments: true,  showBranch: true,  showDepartment: true,  approvedBy: "Sub Dept Admin", avatarLabel: "EM" },
+  "HQ Admin":       { isHQ: true,  showSupervisorComments: false, showBranch: false, showDepartment: false, approvedBy: "",              avatarLabel: ROLE_AVATAR_LABELS["HQ Admin"]       },
+  "Country Admin":  { isHQ: false, showSupervisorComments: true,  showBranch: false, showDepartment: false, approvedBy: "HQ Admin",       avatarLabel: ROLE_AVATAR_LABELS["Country Admin"]  },
+  "Branch Admin":   { isHQ: false, showSupervisorComments: true,  showBranch: true,  showDepartment: false, approvedBy: "Country Admin",  avatarLabel: ROLE_AVATAR_LABELS["Branch Admin"]   },
+  "Dept Admin":     { isHQ: false, showSupervisorComments: true,  showBranch: true,  showDepartment: true,  approvedBy: "Branch Admin",   avatarLabel: ROLE_AVATAR_LABELS["Dept Admin"]     },
+  "Sub Dept Admin": { isHQ: false, showSupervisorComments: true,  showBranch: true,  showDepartment: true,  approvedBy: "Dept Admin",     avatarLabel: ROLE_AVATAR_LABELS["Sub Dept Admin"] },
+  "Employee":       { isHQ: false, showSupervisorComments: true,  showBranch: true,  showDepartment: true,  approvedBy: "Sub Dept Admin", avatarLabel: ROLE_AVATAR_LABELS["Employee"]       },
 };
 
 // ── Component ──────────────────────────────────────────
@@ -118,7 +111,7 @@ const avatarBg = "#F9BE00";
     setSaving(true);
     setStatus("idle");
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/save`, {
+      const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -162,7 +155,7 @@ const avatarBg = "#F9BE00";
     setSaving(true);
     setStatus("idle");
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/submit`, {
+      const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -205,7 +198,7 @@ const avatarBg = "#F9BE00";
   const handleDelete = async () => {
     if (!deleteTargetId) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${deleteTargetId}`, {
+      const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${deleteTargetId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ employee_id: employeeId }),
@@ -232,7 +225,7 @@ const avatarBg = "#F9BE00";
     if (processingIds.includes(diaryId)) return;
     setProcessingIds((prev) => [...prev, diaryId]);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/diary/${diaryId}/approve`,
         {
           method: "PATCH",
@@ -265,7 +258,7 @@ const avatarBg = "#F9BE00";
     if (processingIds.includes(diaryId)) return;
     setProcessingIds((prev) => [...prev, diaryId]);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/diary/${diaryId}/reject`,
         {
           method: "PATCH",
@@ -299,7 +292,7 @@ const avatarBg = "#F9BE00";
     setSaving(true);
     setStatus("idle");
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/diary/supervisor`,
         {
           method: "POST",

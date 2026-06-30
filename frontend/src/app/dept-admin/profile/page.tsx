@@ -10,6 +10,7 @@ interface RawProfileData {
   date_of_birth?: string;
   date_joined?: string;
   designation: string;
+  department?: string | null;
   email: string;
   avatar_url?: string | null;
   iata_branch_code?: string;
@@ -114,7 +115,7 @@ export default function DeptAdminProfilePage() {
         email: profileData.email,
         avatarUrl: profileData.avatar_url || null,
         branch: profileData.iata_branch_code,
-        department: "Operations",
+        department: profileData.department || undefined,
         performanceScore: profileData.performance_score ?? null,
         potentialBlock:   profileData.potential_block   ?? null,
         cycleYear:        profileData.cycle_year        ?? null,

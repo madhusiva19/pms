@@ -3,6 +3,8 @@
 import styles from "./dashboard.module.css";
 import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { apiFetch } from "@/lib/apiFetch";
+import { logger } from "@/utils/logger";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   PieChart, Pie, Cell, Legend
@@ -12,13 +14,29 @@ interface BarEntry { name: string; score: number; fill: string; }
 interface PieEntry { name: string; value: number; color: string; }
 interface ChartData { bar: BarEntry[]; pie: PieEntry[]; }
 
+interface RoleDashboardConfig {
+  role: string;
+  stats: string[];
+  barTitle: string;
+  pieTitle: string;
+  showPie: boolean;
+}
+
 const COLORS = [
   "#2563EB", "#00C49F", "#FFBB28", "#FF8042", "#8884D8",
   "#4F39F6", "#E11D48", "#0891B2", "#65A30D", "#D97706",
 ];
 
-function renderPieLabel(props: any) {
-  const { cx, cy, midAngle, outerRadius, value } = props;
+interface PieLabelProps {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  outerRadius?: number;
+  value?: number;
+}
+
+function renderPieLabel(props: PieLabelProps) {
+  const { cx = 0, cy = 0, midAngle = 0, outerRadius = 0, value } = props;
   const RADIAN = Math.PI / 180;
   const r = outerRadius + 22;
   const x = cx + r * Math.cos(-midAngle * RADIAN);
@@ -39,7 +57,7 @@ function renderPieLabel(props: any) {
   );
 }
 
-const ROLE_CONFIG: Record<number, any> = {
+const ROLE_CONFIG: Record<number, RoleDashboardConfig> = {
   1: { role: "HQ Admin",       stats: ["Total Countries", "Total Employees", "Total Branches"],    barTitle: "Average Performance by Country",        pieTitle: "Employee Distribution by Country",        showPie: true  },
   2: { role: "Country Admin",  stats: ["Total Branches", "Total Employees", "Total Departments"],  barTitle: "Average Performance by Branch",         pieTitle: "Employee Distribution by Branch",         showPie: true  },
   3: { role: "Branch Admin",   stats: ["Total Departments", "Total Employees", "Total Sub-Depts"], barTitle: "Average Performance by Department",     pieTitle: "Employee Distribution by Department",     showPie: true  },
@@ -61,8 +79,8 @@ export default function DashboardBase({ level }: { level: number }) {
     const fetchData = async () => {
       try {
         const [statsRes, chartRes] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats/${currentUser.employee_id}`),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/charts/${currentUser.employee_id}`),
+          apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats/${currentUser.employee_id}`),
+          apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/charts/${currentUser.employee_id}`),
         ]);
 
         const statsJson = await statsRes.json();
@@ -75,7 +93,7 @@ export default function DashboardBase({ level }: { level: number }) {
         setChartData(freshChart);
 
       } catch (err) {
-        console.error("Failed to fetch dashboard data:", err);
+        logger.error("Failed to fetch dashboard data", err);
       } finally {
         setLoading(false);
       }
@@ -84,12 +102,12 @@ export default function DashboardBase({ level }: { level: number }) {
     fetchData();
   }, []);
 
-  const coloredBar = (chartData.bar || []).map((item: any, i: number) => ({
+  const coloredBar = (chartData.bar || []).map((item: Omit<BarEntry, "fill">, i: number) => ({
     ...item,
     fill: COLORS[i % COLORS.length],
   }));
 
-  const coloredPie = (chartData.pie || []).map((item: any, i: number) => ({
+  const coloredPie = (chartData.pie || []).map((item: Omit<PieEntry, "color">, i: number) => ({
     ...item,
     color: COLORS[i % COLORS.length],
   }));

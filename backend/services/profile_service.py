@@ -7,7 +7,7 @@ def get_profile(employee_id):
     try:
         # ── Fetch user profile ──
         result = supabase.table("users")\
-            .select("*, designations!fk_designation(name)")\
+            .select("*, designations!fk_designation(name), departments(name)")\
             .eq("id", employee_id)\
             .execute()
 
@@ -17,6 +17,8 @@ def get_profile(employee_id):
         profile = result.data[0]
         if profile.get("designations"):
             profile["designation"] = profile["designations"]["name"]
+        if profile.get("departments"):
+            profile["department"] = profile["departments"]["name"]
 
         # ── Fetch latest performance score ──
         performance_score = None
@@ -51,7 +53,8 @@ def get_profile(employee_id):
 
         return {"profile": profile}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] get_profile: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def upload_avatar(request):
@@ -111,7 +114,8 @@ def upload_avatar(request):
 
         return {"avatar_url": avatar_url}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] upload_avatar: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def remove_avatar(employee_id):
@@ -139,4 +143,5 @@ def remove_avatar(employee_id):
 
         return {"message": "Avatar removed"}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] remove_avatar: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500

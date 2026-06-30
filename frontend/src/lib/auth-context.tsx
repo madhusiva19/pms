@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface User {
   id: string;
@@ -68,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       // ── Notification badge ──
-      const notifRes  = await fetch(`${API}/api/notifications/${employeeId}`);
+      const notifRes  = await apiFetch(`${API}/api/notifications/${employeeId}`);
       const notifData = await notifRes.json();
       const unread = (notifData.notifications || []).filter((n: any) => !n.is_read).length;
       setNotificationCount(unread);
@@ -78,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       let trainingBadge = 0;
 
-      const suggRes  = await fetch(`${API}/api/training/suggestions/${employeeId}`);
+      const suggRes  = await apiFetch(`${API}/api/training/suggestions/${employeeId}`);
       const suggData = await suggRes.json();
       const reviewed = (suggData.suggestions || []).filter(
         (s: any) => s.status === "approved" || s.status === "rejected"
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       trainingBadge += reviewed;
 
       if (isSupervisor) {
-        const subRes  = await fetch(`${API}/api/training/subordinate-suggestions/${employeeId}`);
+        const subRes  = await apiFetch(`${API}/api/training/subordinate-suggestions/${employeeId}`);
         const subData = await subRes.json();
         trainingBadge += (subData.suggestions || []).length;
       }

@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface AvatarUploadProps {
   currentUrl:  string | null;
@@ -46,7 +47,7 @@ export default function AvatarUpload({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("employee_id", employeeId);
-      const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/upload-avatar`, {
+      const res  = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/upload-avatar`, {
         method: "POST", body: formData
       });
       const data = await res.json();
@@ -65,7 +66,7 @@ export default function AvatarUpload({
 
   const handleRemove = async () => {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/remove-avatar/${employeeId}`,
+      await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/remove-avatar/${employeeId}`,
         { method: "DELETE" });
       onUpdate(null);
     } catch {

@@ -54,8 +54,10 @@ def login_user(body):
         redirect = role_redirects.get(role, "/employee/profile")
 
         return {
-            "message":  "Login successful",
-            "redirect": redirect,
+            "message":      "Login successful",
+            "redirect":     redirect,
+            "access_token":  auth_data.get("access_token"),
+            "refresh_token": auth_data.get("refresh_token"),
             "user": {
                 "id":               auth_id,
                 "email":            user.get("email"),
@@ -71,7 +73,8 @@ def login_user(body):
             }
         }, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] login_user: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def forgot_password(body):
@@ -96,7 +99,8 @@ def forgot_password(body):
         # Always return 200 — don't reveal if email exists (security)
         return {"message": "Reset link sent if account exists"}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] forgot_password: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def reset_password(body):
@@ -142,4 +146,5 @@ def reset_password(body):
 
         return {"message": "Reset failed"}, 400
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] reset_password: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500

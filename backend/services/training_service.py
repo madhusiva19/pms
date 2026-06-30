@@ -13,7 +13,8 @@ def get_training_attended(employee_id):
 
         return {"trainings": result.data}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] get_training_attended: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def add_training_attended(body):
@@ -38,7 +39,8 @@ def add_training_attended(body):
             "data":    result.data[0] if result.data else {}
         }, 201
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] add_training_attended: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def add_training_suggestion(body):
@@ -72,7 +74,8 @@ def add_training_suggestion(body):
             "data":    result.data[0] if result.data else {}
         }, 201
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] add_training_suggestion: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def get_training_suggestions(employee_id):
@@ -85,7 +88,8 @@ def get_training_suggestions(employee_id):
 
         return {"suggestions": result.data}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] get_training_suggestions: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def get_subordinate_suggestions(supervisor_id):
@@ -119,7 +123,8 @@ def get_subordinate_suggestions(supervisor_id):
 
         return {"suggestions": suggestions}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] get_subordinate_suggestions: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def review_suggestion(suggestion_id, body):
@@ -151,7 +156,8 @@ def review_suggestion(suggestion_id, body):
 
         return {"message": f"Failed: {response.text}"}, 400
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] review_suggestion: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
 
 
 def delete_training_attended(record_id):
@@ -162,4 +168,5 @@ def delete_training_attended(record_id):
             .execute()
         return {"message": "Training record deleted"}, 200
     except Exception as e:
-        return {"message": str(e)}, 500
+        print(f"[ERROR] delete_training_attended: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
