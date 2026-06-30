@@ -47,7 +47,7 @@ function fiscalLabel(year: number, period: string): string {
   return `H2 ${year - 1}/${String(year).slice(-2)}`;
 }
 
-const API          = 'http://127.0.0.1:5000';
+const API          = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 const EVALUATOR_ID = process.env.NEXT_PUBLIC_LOCKED_ADMIN_UUID ?? 'aaaaaaaa-0001-0001-0001-000000000001';
 
 export default function ManualRatingsPage() {

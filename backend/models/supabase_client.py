@@ -113,3 +113,75 @@ class SupabaseTable:
 
 # Legacy client — used by branches that import SupabaseClient directly
 supabase_http = SupabaseClient(SUPABASE_URL, SUPABASE_KEY)
+
+# ── Compatibility exports for Denusha's services (services/common.py) ─────────
+import json
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request as _UrllibRequest, urlopen
+
+USE_SUPABASE = bool(SUPABASE_URL and SUPABASE_KEY)
+
+TABLE_ALIASES: dict = {
+    "users": ["users"],
+    "team_members": ["team_members"],
+    "performance_records": ["performance_records", "performance_record"],
+    "performance_summary": ["performance_summaries", "performance_summary"],
+    "evaluations": ["evaluations"],
+    "evaluation_status": ["evaluation_status", "evaluation_ststus"],
+    "evaluation_scores": ["evaluation_scores", "evaluation_score"],
+    "rejection_comments": ["evaluation_rejection_comments", "evaluation_regection_commments", "rejection_comments"],
+    "notifications": ["evaluation_notifications", "evaluation_notificartiion", "notifications"],
+    "approvals": ["evaluation_approvals", "evalaution_apporovals", "approvals"],
+    "evaluation_stages": ["evaluation_stages"],
+}
+_TABLE_CACHE: dict = {}
+
+
+def resolve_table_name(table: str) -> str:
+    if table in _TABLE_CACHE:
+        return _TABLE_CACHE[table]
+    candidates = TABLE_ALIASES.get(table, [table])
+    last_error = None
+    for candidate in candidates:
+        try:
+            raw_supabase_request(candidate, params={"select": "id", "limit": 1})
+            _TABLE_CACHE[table] = candidate
+            return candidate
+        except Exception as error:
+            last_error = error
+            if "PGRST205" not in str(error) and "Could not find the table" not in str(error):
+                _TABLE_CACHE[table] = candidate
+                return candidate
+    raise last_error or RuntimeError(f"No Supabase table found for {table}")
+
+
+def raw_supabase_request(table: str, method: str = "GET", params=None, payload=None):
+    if not USE_SUPABASE:
+        raise RuntimeError("Supabase credentials are not configured")
+    query = f"?{urlencode(params, doseq=True)}" if params else ""
+    url = f"{SUPABASE_URL}/rest/v1/{table}{query}"
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = _UrllibRequest(
+        url, data=body, method=method,
+        headers={
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Prefer": "return=representation",
+        },
+    )
+    try:
+        with urlopen(req, timeout=10) as response:
+            content = response.read().decode("utf-8")
+            return json.loads(content) if content else []
+    except HTTPError as error:
+        detail = error.read().decode("utf-8")
+        raise RuntimeError(f"Supabase {error.code}: {detail}") from error
+    except URLError as error:
+        raise RuntimeError(f"Supabase connection failed: {error.reason}") from error
+
+
+def supabase_request(table: str, method: str = "GET", params=None, payload=None):
+    return raw_supabase_request(resolve_table_name(table), method=method, params=params, payload=payload)

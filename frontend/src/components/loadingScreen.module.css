@@ -1,0 +1,156 @@
+.fullPage {
+  position: fixed;
+  inset: 0;
+  background: #f0f4ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  width: 100%;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 40px 56px;
+  box-shadow: 0 4px 24px rgba(28, 57, 142, 0.10);
+}
+
+.logo {
+  width: 180px;
+  object-fit: contain;
+}
+
+.spinnerWrap {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+
+.spinnerTrack {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 5px solid #e2e8f8;
+}
+
+.spinnerArc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 5px solid transparent;
+  border-top-color: #1c398e;
+  border-right-color: #1c398e;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1c398e;
+  opacity: 0.2;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.85); }
+  50%       { opacity: 1;   transform: scale(1);    }
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c398e;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── Skeleton shimmer (inline loading) ── */
+.skeleton {
+  width: 100%;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 4px 16px rgba(28, 57, 142, 0.07);
+}
+
+.skeletonAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #e8edf8 25%, #d0d9ef 50%, #e8edf8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  flex-shrink: 0;
+}
+
+.skeletonLines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeletonLine {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e8edf8 25%, #d0d9ef 50%, #e8edf8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonLine:first-child { width: 55%; animation-delay: 0.05s; }
+.skeletonLine:last-child  { width: 35%; animation-delay: 0.10s; }
+
+.skeletonBadge {
+  width: 80px;
+  height: 26px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e8edf8 25%, #d0d9ef 50%, #e8edf8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  animation-delay: 0.15s;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
