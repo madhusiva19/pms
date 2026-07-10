@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import TrainingPassport from "@/components/training/TrainingPassport";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CurrentUser } from "@/hooks/useCurrentUser";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; }
 interface RawSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; supervisor_comment?: string; }
@@ -22,13 +23,13 @@ export default function EmployeeTrainingPage() {
 
     const fetchData = async () => {
       try {
-        const attRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended/${currentUser.employee_id}`);
+        const attRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended/${currentUser.employee_id}`);
         const attData = await attRes.json();
         const mappedAttended = (attData.trainings || []).map((t: RawTraining) => ({
           id: t.id, trainingName: t.training_name, date: t.training_date, provider: t.trainer_provider,
         }));
 
-        const suggRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions/${currentUser.employee_id}`);
+        const suggRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions/${currentUser.employee_id}`);
         const suggData = await suggRes.json();
         const mappedSuggestions = (suggData.suggestions || []).map((s: RawSuggestion) => ({
           id: s.id, trainingName: s.training_name, justification: s.justification,

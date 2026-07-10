@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./profile.module.css";
 import AvatarUpload from "./AvatarUpload";
 import { apiFetch } from "@/lib/apiFetch";
 import { Role, ROLE_AVATAR_LABELS } from "@/lib/roleConfig";
+import { generateProfilePDF, preloadProfilePDFAssets } from "@/utils/generateProfilePDF";
 
 // ── Types ──────────────────────────────────────────────
 export type SelfAchievement = {
@@ -95,6 +96,35 @@ export default function ProfileTemplate({
   const [supervisorCommentsList, setSupervisorCommentsList] = useState<SupervisorComment[]>(initialSupervisorComments);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl || null);
   const [processingIds, setProcessingIds] = useState<string[]>([]);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  // ── Preload PDF assets (logo) in the background on mount ──
+  useEffect(() => { preloadProfilePDFAssets(); }, []);
+
+  // ── Download profile as PDF ──
+  const handleDownloadPDF = async () => {
+    setPdfLoading(true);
+    try {
+      await generateProfilePDF({
+        name:             profile.fullName,
+        role,
+        email:            profile.email,
+        designation:      profile.designation,
+        department:       profile.department,
+        branch:           profile.branch,
+        country:          profile.country,
+        avatarUrl:        avatarUrl,
+        performanceScore: profile.performanceScore,
+        potentialBlock:   profile.potentialBlock,
+        cycleYear:        profile.cycleYear,
+        cyclePeriod:      profile.cyclePeriod,
+        achievements:     selfAchievements,
+        supervisorComments: config.showSupervisorComments ? supervisorCommentsList : [],
+      });
+    } finally {
+      setPdfLoading(false);
+    }
+  };
   const initials = profile?.fullName
     ? profile.fullName
     .split(" ")
@@ -350,9 +380,37 @@ const avatarBg = "#F9BE00";
             </h1>
             <p className={styles.subtitle}>Personal Details and Performance Highlights</p>
           </div>
-          <button className={styles.backBtn} type="button" onClick={() => router.back()}>
-            Back
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              className={styles.backBtn}
+              onClick={handleDownloadPDF}
+              disabled={pdfLoading}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '130px', justifyContent: 'center' }}
+            >
+              {pdfLoading ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                  </svg>
+                  Exporting…
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Download PDF
+                </>
+              )}
+            </button>
+            <button className={styles.backBtn} type="button" onClick={() => router.back()}>
+              Back
+            </button>
+          </div>
         </div>
 
         {/* Profile Hero Card + Score Cards */}

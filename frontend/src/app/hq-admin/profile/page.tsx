@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ProfileTemplate from "@/components/profile/ProfileTemplate";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CurrentUser } from "@/hooks/useCurrentUser";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface RawProfileData {
   full_name: string;
@@ -30,6 +31,7 @@ export default function HQAdminProfilePage() {
   const [selfEntries, setSelfEntries] = useState([]);
   const [supervisorEntries, setSupervisorEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     if (!currentUser) { router.push("/login"); return; }
@@ -39,10 +41,11 @@ export default function HQAdminProfilePage() {
 
     const fetchData = async () => {
       try {
-        const profileRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${targetId}`);
+        const profileRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${targetId}`);
+        if (!profileRes.ok) { setFetchError(true); return; }
         const profileJson = await profileRes.json();
 
-        const diaryRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${targetId}`);
+        const diaryRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${targetId}`);
         const diaryJson = await diaryRes.json();
 
         const mappedSelf = (diaryJson.self_entries || []).map((e: RawDiaryEntry) => ({
@@ -67,7 +70,7 @@ export default function HQAdminProfilePage() {
   const targetId = searchParams.get("employee_id") || user?.employee_id || "";
   const isOwnProfile = user ? targetId === user.employee_id : false;
 
-  if (loading || !user || !profileData) {
+  if (loading) {
     return (
       <div style={{ padding: "32px" }}>
         <style>{`
@@ -98,6 +101,20 @@ export default function HQAdminProfilePage() {
             <div className="skeleton" style={{ height: 56, width: "100%", borderRadius: 12 }} />
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (fetchError || !profileData) {
+    return (
+      <div style={{ padding: "48px 32px", textAlign: "center" }}>
+        <p style={{ fontSize: "16px", color: "#EF4444", fontWeight: 600, marginBottom: 8 }}>
+          Failed to load profile
+        </p>
+        <p style={{ fontSize: "13px", color: "#6B7280" }}>
+          Your session may have expired. Please{" "}
+          <a href="/login" style={{ color: "#2563EB" }}>log in again</a>.
+        </p>
       </div>
     );
   }
