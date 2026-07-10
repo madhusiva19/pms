@@ -118,14 +118,15 @@ def get_charts(employee_id):
             score_map = get_scores_map([c["id"] for c in countries.data], "country")
             for i, c in enumerate(countries.data):
                 bar.append({
-                    "name":  c["name"],
-                    "score": score_map.get(c["id"], 0.0),
-    
+                    "name":      c["name"],
+                    "score":     score_map.get(c["id"], 0.0),
+                    "entity_id": c["id"],
+                    "entity_type": "country",
+                    "drillable": True,
                 })
                 pie.append({
                     "name":  c["name"],
                     "value": c.get("total_employees") or 0,
-                    
                 })
 
         elif org_level == 2:
@@ -138,14 +139,15 @@ def get_charts(employee_id):
                 score_map = get_scores_map([b["id"] for b in branches.data], "branch")
                 for i, b in enumerate(branches.data):
                     bar.append({
-                        "name":  b.get("name", "Unknown"),
-                        "score": score_map.get(b["id"], 0.0),
-                        
+                        "name":        b.get("name", "Unknown"),
+                        "score":       score_map.get(b["id"], 0.0),
+                        "entity_id":   b["id"],
+                        "entity_type": "branch",
+                        "drillable":   True,
                     })
                     pie.append({
                         "name":  b.get("name", "Unknown"),
                         "value": b.get("total_employees") or 0,
-                        
                     })
             else:
                 # No branches (e.g. Sri Lanka) — fall back to departments
@@ -156,14 +158,15 @@ def get_charts(employee_id):
                 score_map = get_scores_map([d["id"] for d in depts.data], "department")
                 for i, d in enumerate(depts.data):
                     bar.append({
-                        "name":  d["name"],
-                        "score": score_map.get(d["id"], 0.0),
-                        
+                        "name":        d["name"],
+                        "score":       score_map.get(d["id"], 0.0),
+                        "entity_id":   d["id"],
+                        "entity_type": "department",
+                        "drillable":   True,
                     })
                     pie.append({
                         "name":  d["name"],
                         "value": d.get("total_employees") or 0,
-                        
                     })
 
         elif org_level == 3:
@@ -174,14 +177,15 @@ def get_charts(employee_id):
             score_map = get_scores_map([d["id"] for d in depts.data], "department")
             for i, d in enumerate(depts.data):
                 bar.append({
-                    "name":  d["name"],
-                    "score": score_map.get(d["id"], 0.0),
-                    
+                    "name":        d["name"],
+                    "score":       score_map.get(d["id"], 0.0),
+                    "entity_id":   d["id"],
+                    "entity_type": "department",
+                    "drillable":   True,
                 })
                 pie.append({
                     "name":  d["name"],
                     "value": d.get("total_employees") or 0,
-                    
                 })
 
         elif org_level == 4:
@@ -192,14 +196,15 @@ def get_charts(employee_id):
             score_map = get_scores_map([sd["id"] for sd in subdepts.data], "sub_department")
             for i, sd in enumerate(subdepts.data):
                 bar.append({
-                    "name":  sd["name"],
-                    "score": score_map.get(sd["id"], 0.0),
-                    
+                    "name":        sd["name"],
+                    "score":       score_map.get(sd["id"], 0.0),
+                    "entity_id":   sd["id"],
+                    "entity_type": "sub_department",
+                    "drillable":   True,
                 })
                 pie.append({
                     "name":  sd["name"],
                     "value": sd.get("total_employees") or 0,
-                    
                 })
 
         elif org_level == 5:
@@ -212,12 +217,122 @@ def get_charts(employee_id):
                 parts = e["full_name"].split(" ")
                 short = f"{parts[0][0]}. {parts[-1]}" if len(parts) > 1 else e["full_name"]
                 bar.append({
-                    "name":  short,
-                    "score": score_map.get(e["id"], 0.0),
-                    
+                    "name":        short,
+                    "score":       score_map.get(e["id"], 0.0),
+                    "entity_id":   e["id"],
+                    "entity_type": "employee",
+                    "drillable":   False,
                 })
 
         return {"data": {"bar": bar, "pie": pie}}, 200
     except Exception as e:
         print(f"[ERROR] get_charts: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
+
+
+def get_drilldown(entity_type: str, entity_id: str):
+    try:
+        bar = []
+        pie = []
+
+        if entity_type == "country":
+            branches = supabase.table("branches")\
+                .select("id, name, total_employees")\
+                .eq("country_id", entity_id)\
+                .execute()
+
+            if branches.data:
+                score_map = get_scores_map([b["id"] for b in branches.data], "branch")
+                for b in branches.data:
+                    bar.append({
+                        "name":        b["name"],
+                        "score":       score_map.get(b["id"], 0.0),
+                        "entity_id":   b["id"],
+                        "entity_type": "branch",
+                        "drillable":   True,
+                    })
+                    pie.append({
+                        "name":  b["name"],
+                        "value": b.get("total_employees") or 0,
+                    })
+            else:
+                depts = supabase.table("departments")\
+                    .select("id, name, total_employees")\
+                    .eq("country_id", entity_id)\
+                    .execute()
+                score_map = get_scores_map([d["id"] for d in depts.data], "department")
+                for d in depts.data:
+                    bar.append({
+                        "name":        d["name"],
+                        "score":       score_map.get(d["id"], 0.0),
+                        "entity_id":   d["id"],
+                        "entity_type": "department",
+                        "drillable":   True,
+                    })
+                    pie.append({
+                        "name":  d["name"],
+                        "value": d.get("total_employees") or 0,
+                    })
+
+        elif entity_type == "branch":
+            depts = supabase.table("departments")\
+                .select("id, name, total_employees")\
+                .eq("branch_id", entity_id)\
+                .execute()
+            score_map = get_scores_map([d["id"] for d in depts.data], "department")
+            for d in depts.data:
+                bar.append({
+                    "name":        d["name"],
+                    "score":       score_map.get(d["id"], 0.0),
+                    "entity_id":   d["id"],
+                    "entity_type": "department",
+                    "drillable":   True,
+                })
+                pie.append({
+                    "name":  d["name"],
+                    "value": d.get("total_employees") or 0,
+                })
+
+        elif entity_type == "department":
+            subdepts = supabase.table("sub_departments")\
+                .select("id, name, total_employees")\
+                .eq("department_id", entity_id)\
+                .execute()
+            score_map = get_scores_map([sd["id"] for sd in subdepts.data], "sub_department")
+            for sd in subdepts.data:
+                bar.append({
+                    "name":        sd["name"],
+                    "score":       score_map.get(sd["id"], 0.0),
+                    "entity_id":   sd["id"],
+                    "entity_type": "sub_department",
+                    "drillable":   True,
+                })
+                pie.append({
+                    "name":  sd["name"],
+                    "value": sd.get("total_employees") or 0,
+                })
+
+        elif entity_type == "sub_department":
+            employees = supabase.table("users")\
+                .select("id, full_name")\
+                .eq("sub_department_id", entity_id)\
+                .eq("org_level", 6)\
+                .execute()
+            score_map = get_scores_map([e["id"] for e in employees.data], "employee")
+            for e in employees.data:
+                parts = e["full_name"].split(" ")
+                short = f"{parts[0][0]}. {parts[-1]}" if len(parts) > 1 else e["full_name"]
+                bar.append({
+                    "name":        short,
+                    "score":       score_map.get(e["id"], 0.0),
+                    "entity_id":   e["id"],
+                    "entity_type": "employee",
+                    "drillable":   False,
+                })
+
+        # employee is terminal — returns empty bar and pie lists
+
+        return {"data": {"bar": bar, "pie": pie}}, 200
+    except Exception as e:
+        print(f"[ERROR] get_drilldown: {e}")
         return {"message": "Something went wrong. Please try again."}, 500

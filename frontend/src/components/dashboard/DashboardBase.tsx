@@ -10,9 +10,22 @@ import {
   PieChart, Pie, Cell, Legend
 } from "recharts";
 
-interface BarEntry { name: string; score: number; fill: string; }
+interface BarEntry {
+  name: string;
+  score: number;
+  fill: string;
+  entity_id?: string;
+  entity_type?: string;
+  drillable?: boolean;
+}
 interface PieEntry { name: string; value: number; color: string; }
 interface ChartData { bar: BarEntry[]; pie: PieEntry[]; }
+
+interface DrillLevel {
+  label: string;
+  entityType: string | null;
+  entityId: string | null;
+}
 
 interface RoleDashboardConfig {
   role: string;
@@ -26,6 +39,13 @@ const COLORS = [
   "#2563EB", "#00C49F", "#FFBB28", "#FF8042", "#8884D8",
   "#4F39F6", "#E11D48", "#0891B2", "#65A30D", "#D97706",
 ];
+
+const DRILL_TITLES: Record<string, { bar: string; pie: string }> = {
+  branch:         { bar: "Average Performance by Branch",         pie: "Employee Distribution by Branch"         },
+  department:     { bar: "Average Performance by Department",     pie: "Employee Distribution by Department"     },
+  sub_department: { bar: "Average Performance by Sub-Department", pie: "Employee Distribution by Sub-Department" },
+  employee:       { bar: "Team Member Performance",               pie: ""                                        },
+};
 
 interface PieLabelProps {
   cx?: number;
@@ -65,13 +85,27 @@ const ROLE_CONFIG: Record<number, RoleDashboardConfig> = {
   5: { role: "Sub-Dept Admin", stats: ["Total Employees"],                                         barTitle: "Team Member Performance",           pieTitle: "",                                        showPie: false },
 };
 
+function addColors(data: { bar: any[]; pie: any[] }): ChartData {
+  const bar = (data.bar || []).map((item: any, i: number) => ({
+    ...item,
+    fill: COLORS[i % COLORS.length],
+  }));
+  const pie = (data.pie || []).map((item: any, i: number) => ({
+    ...item,
+    color: COLORS[i % COLORS.length],
+  }));
+  return { bar, pie };
+}
+
 export default function DashboardBase({ level }: { level: number }) {
   const config = ROLE_CONFIG[level] || ROLE_CONFIG[1];
   const currentUser = useCurrentUser();
 
-  const [stats,     setStats]     = useState<Record<string, number>>({});
-  const [chartData, setChartData] = useState<ChartData>({ bar: [], pie: [] });
-  const [loading,   setLoading]   = useState(true);
+  const [stats,        setStats]        = useState<Record<string, number>>({});
+  const [chartData,    setChartData]    = useState<ChartData>({ bar: [], pie: [] });
+  const [loading,      setLoading]      = useState(true);
+  const [drillPath,    setDrillPath]    = useState<DrillLevel[]>([{ label: "Overview", entityType: null, entityId: null }]);
+  const [drillLoading, setDrillLoading] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -90,7 +124,7 @@ export default function DashboardBase({ level }: { level: number }) {
         const freshChart = chartJson.data || { bar: [], pie: [] };
 
         setStats(freshStats);
-        setChartData(freshChart);
+        setChartData(addColors(freshChart));
 
       } catch (err) {
         logger.error("Failed to fetch dashboard data", err);
@@ -102,15 +136,60 @@ export default function DashboardBase({ level }: { level: number }) {
     fetchData();
   }, []);
 
-  const coloredBar = (chartData.bar || []).map((item: Omit<BarEntry, "fill">, i: number) => ({
-    ...item,
-    fill: COLORS[i % COLORS.length],
-  }));
+  async function handleBarClick(data: any) {
+    if (data?.drillable !== true) return;
+    setDrillLoading(true);
+    try {
+      const res = await apiFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/drilldown?entity_type=${data.entity_type}&entity_id=${data.entity_id}`
+      );
+      const json = await res.json();
+      setChartData(addColors(json.data || { bar: [], pie: [] }));
+      setDrillPath(prev => [...prev, { label: data.name, entityType: data.entity_type, entityId: data.entity_id }]);
+    } catch (err) {
+      logger.error("Failed to load drilldown data", err);
+    } finally {
+      setDrillLoading(false);
+    }
+  }
 
-  const coloredPie = (chartData.pie || []).map((item: Omit<PieEntry, "color">, i: number) => ({
-    ...item,
-    color: COLORS[i % COLORS.length],
-  }));
+  async function handleBreadcrumbClick(index: number) {
+    if (index >= drillPath.length - 1) return;
+    const target = drillPath[index];
+    setDrillLoading(true);
+    try {
+      let res;
+      if (index === 0) {
+        res = await apiFetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/charts/${currentUser!.employee_id}`
+        );
+      } else {
+        res = await apiFetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/drilldown?entity_type=${target.entityType}&entity_id=${target.entityId}`
+        );
+      }
+      const json = await res.json();
+      setChartData(addColors(json.data || { bar: [], pie: [] }));
+      setDrillPath(prev => prev.slice(0, index + 1));
+    } catch (err) {
+      logger.error("Failed to navigate breadcrumb", err);
+    } finally {
+      setDrillLoading(false);
+    }
+  }
+
+  const coloredBar = chartData.bar;
+  const coloredPie = chartData.pie;
+
+  const currentEntityType = coloredBar[0]?.entity_type;
+  const barTitle  = drillPath.length > 1 && currentEntityType
+    ? (DRILL_TITLES[currentEntityType]?.bar ?? config.barTitle)
+    : config.barTitle;
+  const pieTitle  = drillPath.length > 1 && currentEntityType
+    ? (DRILL_TITLES[currentEntityType]?.pie ?? config.pieTitle)
+    : config.pieTitle;
+  const showPie   = drillPath.length > 1 ? coloredPie.length > 0 : config.showPie;
+  const isDrillable = coloredBar.some(b => b.drillable === true);
 
   return (
     <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
@@ -136,17 +215,34 @@ export default function DashboardBase({ level }: { level: number }) {
           ))}
         </section>
 
+        {/* ── Drill Breadcrumb ── */}
+        {drillPath.length > 1 && (
+          <div className={styles.breadcrumb} style={{ marginBottom: "12px" }}>
+            {drillPath.map((crumb, idx) => (
+              <span key={idx}>
+                {idx > 0 && <span className={styles.crumbSep}>›</span>}
+                {idx < drillPath.length - 1 ? (
+                  <span className={styles.crumbLink} style={{ cursor: "pointer" }} onClick={() => handleBreadcrumbClick(idx)}>
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <span className={styles.crumbCurrent}>{crumb.label}</span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* ── Charts ── */}
         <section className={styles.chartsRow}>
 
           {/* Bar Chart */}
-          <div className={!config.showPie ? styles.chartBoxFull : styles.chartBox}>
+          <div className={!showPie ? styles.chartBoxFull : styles.chartBox}>
             <div className={styles.chartHead}>
-              <h3>{config.barTitle}</h3>
-      
+              <h3>{barTitle}</h3>
             </div>
             <div className={styles.chartBody}>
-              {loading ? (
+              {loading || drillLoading ? (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9CA3AF" }}>
                   Loading...
                 </div>
@@ -155,8 +251,13 @@ export default function DashboardBase({ level }: { level: number }) {
                   No data available
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={coloredBar} margin={{ top: 16, right: 16, left: 0, bottom: 40 }}>
+                <ResponsiveContainer width="100%" height={340}>
+                  <BarChart
+                    data={coloredBar}
+                    margin={{ top: 16, right: 16, left: 0, bottom: 40 }}
+                    style={{ outline: "none" }}
+                    tabIndex={-1}
+                  >
                     <CartesianGrid strokeDasharray="4 4" vertical={false} />
                     <XAxis
                       dataKey="name"
@@ -169,7 +270,12 @@ export default function DashboardBase({ level }: { level: number }) {
                       height={55}
                     />
                     <YAxis domain={[0, 5]} ticks={[0,1,2,3,4,5]} axisLine={false} tickLine={false} />
-                    <Bar dataKey="score" radius={[10, 10, 0, 0]}>
+                    <Bar
+                      dataKey="score"
+                      radius={[10, 10, 0, 0]}
+                      cursor={isDrillable ? "pointer" : "default"}
+                      onClick={(data) => handleBarClick(data)}
+                    >
                       {coloredBar.map((entry: BarEntry, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} fillOpacity={0.85} />
                       ))}
@@ -181,19 +287,15 @@ export default function DashboardBase({ level }: { level: number }) {
           </div>
 
           {/* Pie Chart */}
-          {config.showPie && (
+          {showPie && coloredPie.length > 0 && (
             <div className={styles.chartBox}>
               <div className={styles.chartHead}>
-                <h3>{config.pieTitle}</h3>
+                <h3>{pieTitle}</h3>
               </div>
               <div className={styles.chartBody}>
                 {loading ? (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
                     Loading...
-                  </div>
-                ) : coloredPie.length === 0 ? (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
-                    No data available
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>

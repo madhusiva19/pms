@@ -31,7 +31,6 @@ export default function BranchAdminProfilePage() {
   const [selfEntries, setSelfEntries] = useState([]);
   const [supervisorEntries, setSupervisorEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     if (!currentUser) { router.push("/login"); return; }
@@ -42,7 +41,7 @@ export default function BranchAdminProfilePage() {
     const fetchData = async () => {
       try {
         const profileRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${targetId}`);
-        if (!profileRes.ok) { setFetchError(true); return; }
+        if (!profileRes.ok) { router.push("/login"); return; }
         const profileJson = await profileRes.json();
 
         const diaryRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/diary/${targetId}`);
@@ -105,19 +104,7 @@ export default function BranchAdminProfilePage() {
     );
   }
 
-  if (fetchError || !profileData) {
-    return (
-      <div style={{ padding: "48px 32px", textAlign: "center" }}>
-        <p style={{ fontSize: "16px", color: "#EF4444", fontWeight: 600, marginBottom: 8 }}>
-          Failed to load profile
-        </p>
-        <p style={{ fontSize: "13px", color: "#6B7280" }}>
-          Your session may have expired. Please{" "}
-          <a href="/login" style={{ color: "#2563EB" }}>log in again</a>.
-        </p>
-      </div>
-    );
-  }
+  if (!profileData) { return null; }
 
   return (
     <ProfileTemplate

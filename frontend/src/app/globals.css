@@ -84,3 +84,8 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
+
+.recharts-wrapper *:focus,
+.recharts-wrapper *:focus-visible {
+  outline: none !important;
+}

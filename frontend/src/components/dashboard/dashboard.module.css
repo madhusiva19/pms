@@ -108,14 +108,12 @@
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  overflow: hidden;
 }
 
 .chartBoxFull {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  overflow: hidden;
   grid-column: span 2;
 }
 
@@ -177,4 +175,13 @@
 .chartBox :global(.recharts-pie-label-text) {
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   font-size: 16px;
+}
+
+.chartBox :global(.recharts-wrapper),
+.chartBox :global(.recharts-wrapper svg),
+.chartBoxFull :global(.recharts-wrapper),
+.chartBoxFull :global(.recharts-wrapper svg),
+.chartBox :global(.recharts-surface),
+.chartBoxFull :global(.recharts-surface) {
+  outline: none;
 }
