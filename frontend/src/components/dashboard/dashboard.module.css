@@ -177,7 +177,6 @@
 .chartBox :global(.recharts-pie-label-text) {
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   font-size: 16px;
-<<<<<<< HEAD
 }
 
 .chartBox :global(.recharts-wrapper),
@@ -187,6 +186,5 @@
 .chartBox :global(.recharts-surface),
 .chartBoxFull :global(.recharts-surface) {
   outline: none;
-=======
->>>>>>> dev-final
+
 }
