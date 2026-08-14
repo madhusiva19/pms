@@ -573,7 +573,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
             </>
           )}
 
-          {/* Potential Assessment — Wathsala's tab */}
+          {/* Potential Assessment */}
           {activeTab === "pa" && (
             <div className={styles.notifList}>
               {wLoading ? (
@@ -625,7 +625,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
             </div>
           )}
 
-          {/* Manual Rating Reminders — Wathsala's tab */}
+          {/* Manual Rating Reminders —  tab */}
           {activeTab === "manual" && (
             <div className={styles.notifList}>
               {wLoading ? (
