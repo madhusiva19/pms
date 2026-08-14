@@ -17,7 +17,8 @@
   padding: 16px;
   display: flex;
   align-items: center;
-  justify-content: left;
+  justify-content: space-between;
+  gap: 8px;
   height: 80px;
   overflow: hidden;
 }
@@ -26,6 +27,46 @@
   height: auto;
   width: 251px;
   object-fit: contain;
+}
+
+.bellButton {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #fff;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.bellButton:hover {
+  background: #1e40af;
+}
+
+.bellIcon {
+  width: 18px;
+  height: 18px;
+}
+
+.bellBadge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 14px;
 }
 
 /* Make sideNav scrollable if nav items overflow */

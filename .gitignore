@@ -29,3 +29,5 @@ database/
 .idea/
 
 node_modules/
+
+frontend/next-env.d.ts
