@@ -73,7 +73,6 @@ app = Flask(__name__)
 CORS(app)
 
 # Register dev-final's blueprints
-app.register_blueprint(notification_bp)
 app.register_blueprint(notifications_bp)
 app.register_blueprint(pms_cycle_bp)
 app.register_blueprint(template_bp)
@@ -82,6 +81,7 @@ app.register_blueprint(org_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(profile_bp)
 app.register_blueprint(diary_bp)
+app.register_blueprint(notification_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(dashboard_bp)
 

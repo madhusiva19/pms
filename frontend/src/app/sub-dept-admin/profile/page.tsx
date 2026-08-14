@@ -70,7 +70,7 @@ export default function SubDeptAdminProfilePage() {
   const targetId = searchParams.get("employee_id") || user?.employee_id || "";
   const isOwnProfile = user ? targetId === user.employee_id : false;
 
-  if (loading) {
+  if (loading || !user) {
     return (
       <div style={{ padding: "32px" }}>
         <style>{`

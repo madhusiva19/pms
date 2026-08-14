@@ -297,6 +297,10 @@ export default function DashboardBase({ level }: { level: number }) {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
                     Loading...
                   </div>
+                ) : coloredPie.length === 0 ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
+                    No data available
+                  </div>
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
