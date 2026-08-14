@@ -127,12 +127,12 @@ const EVAL_STYLES: Record<string, { badge: string; badgeColor: string; badgeText
   enquiry:           { badge: "#EDE9FE", badgeColor: "#6D28D9", badgeText: "🔄 Enquiry",          borderColor: "#C4B5FD", bg: "#F5F3FF", message: "A re-evaluation enquiry has been submitted."             },
 };
 
-// ── Wathsala's badge configs ──────────────────────────────────────────────────
+
 const REMINDER_STYLES: Record<ReminderType, { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }> = {
-  period_opened:    { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: "🔔 Window Open",     borderColor: "#BFDBFE", bg: "#F0F7FF" },
-  deadline_warning: { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "⚠ Due Soon",         borderColor: "#FDE047", bg: "#FFFBEB" },
-  supervisor_alert: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: "🔴 Action Required", borderColor: "#FECACA", bg: "#FEF2F2" },
-  manual_reminder:  { badge: "#F3E8FF", badgeColor: "#6B21A8", badgeText: "📢 Reminder",        borderColor: "#D8B4FE", bg: "#FAF5FF" },
+  period_opened:    { badge: "#EFF6FF", badgeColor: "#1D4ED8", badgeText: " Window Open",     borderColor: "#BFDBFE", bg: "#F0F7FF" },
+  deadline_warning: { badge: "#FEF9C3", badgeColor: "#92400E", badgeText: "Due Soon",         borderColor: "#FDE047", bg: "#FFFBEB" },
+  supervisor_alert: { badge: "#FEE2E2", badgeColor: "#991B1B", badgeText: " Action Required", borderColor: "#FECACA", bg: "#FEF2F2" },
+  manual_reminder:  { badge: "#F3E8FF", badgeColor: "#6B21A8", badgeText: "Reminder",        borderColor: "#D8B4FE", bg: "#FAF5FF" },
 };
 
 const PA_STYLES: Record<PaNotificationType, { badge: string; badgeColor: string; badgeText: string; borderColor: string; bg: string }> = {
@@ -603,7 +603,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                       <p className={styles.notifBody}>{n.message}</p>
                       <div className={styles.notifActions}>
                         {n.type === 'reconsideration_fyi' ? (
-                          <span style={{ fontSize: '13px', color: '#64748B' }}>ℹ️ Informational only — awaiting senior supervisor review</span>
+                          <span style={{ fontSize: '13px', color: '#64748B' }}>Informational only - awaiting senior supervisor review</span>
                         ) : alreadyReviewed ? (
                           <button type="button" className={styles.actionBtn} onClick={() => { markPaRead(n.id); window.location.href = n.actionUrl; }}>
                             View Review →
