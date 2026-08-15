@@ -160,6 +160,20 @@ def review_suggestion(suggestion_id, body):
         return {"message": "Something went wrong. Please try again."}, 500
 
 
+def mark_suggestions_viewed(employee_id):
+    try:
+        supabase.table("training_suggestions")\
+            .update({"employee_viewed": True})\
+            .eq("employee_id", employee_id)\
+            .in_("status", ["approved", "rejected"])\
+            .execute()
+
+        return {"message": "Suggestions marked as viewed"}, 200
+    except Exception as e:
+        print(f"[ERROR] mark_suggestions_viewed: {e}")
+        return {"message": "Something went wrong. Please try again."}, 500
+
+
 def delete_training_attended(record_id):
     try:
         supabase.table("training_passport")\
