@@ -9,22 +9,33 @@ import os
 
 load_dotenv()
 
-# ── Notification blueprint and service ────────────────────────────────────────
+# ── Notification & Cycle Management ─────────────────────────────────────────
 from routes.notification_routes import notifications_bp
 from services.notification_service import (
     init_notifications,
     start_scheduler,
     seed_notifications_for_cycle,
 )
+from routes.pms_cycle_routes import pms_cycle_bp, init_pms_cycle_routes
 
-# ── Dev-final's blueprints ────────────────────────────────────────────────────
-from routes.pms_cycle_routes  import pms_cycle_bp, init_pms_cycle_routes
+# ── User & Role Management ──────────────────────────────────────────────────
+# NOTE: filenames below (auth_routes / profile_routes / diary_routes /
+# training_routes / dashboard_routes) are inferred from convention — verify
+# against your actual routes/__init__.py before running this.
+from routes.auth_routes         import auth_bp
+from routes.profile_routes      import profile_bp
+from routes.diary_routes        import diary_bp
+from routes.notification_routes import notification_bp
+from routes.training_routes     import training_bp
+from routes.dashboard_routes    import dashboard_bp
+from routes.org_routes          import org_bp
+from routes.map_routes          import map_bp
+
+# ── System Administration & Configuration ───────────────────────────────────
 from routes.template_routes   import template_bp
 from routes.assignment_routes import assignment_bp
-from routes.org_routes        import org_bp
-from routes import auth_bp, profile_bp, diary_bp, notification_bp, training_bp, dashboard_bp
 
-# (Dashboard & Reporting) ─────────────────────────────────────────────────────
+# ── Dashboard & Reporting ────────────────────────────────────────────────────
 from routes.countries            import countries_bp
 from routes.branches             import branches_bp
 from routes.reports              import reports_bp
@@ -36,16 +47,16 @@ from routes.saved_reports        import saved_reports_bp
 from routes.potential_assessment import potential_assessment_bp
 from routes.report_cycle         import report_cycle_bp
 
-# ── Denusha's blueprints ─────────────────────────────────────────────────────
-from routes.approval_routes         import approval_bp
-from routes.enquiry_routes          import enquiry_bp
-from routes.evaluation_routes       import evaluation_bp
+# ── Workflow & Approval ──────────────────────────────────────────────────────
+from routes.approval_routes          import approval_bp
+from routes.enquiry_routes           import enquiry_bp
+from routes.evaluation_routes        import evaluation_bp
 from routes.evaluation_status_routes import evaluation_status_bp
-from routes.objectives_routes       import objectives_bp
-from routes.system_routes           import system_bp
-from routes.team_member_routes      import team_member_bp
+from routes.objectives_routes        import objectives_bp
+from routes.system_routes            import system_bp
+from routes.team_member_routes       import team_member_bp
 
-# ── Minimuthu's blueprints ────────────────────────────────────────────────────
+# ── Performance Evaluation ───────────────────────────────────────────────────
 from routes.evaluator_routes        import evaluator_bp
 from routes.manual_rating_routes    import manual_rating_bp
 from routes.performance_routes      import performance_bp
@@ -72,20 +83,25 @@ from services.pms_cycle_service import auto_rollover_if_needed
 app = Flask(__name__)
 CORS(app)
 
-# Register dev-final's blueprints
+# Register Notification & Cycle Management blueprints
 app.register_blueprint(notifications_bp)
 app.register_blueprint(pms_cycle_bp)
-app.register_blueprint(template_bp)
-app.register_blueprint(assignment_bp)
-app.register_blueprint(org_bp)
+
+# Register User & Role Management blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(profile_bp)
 app.register_blueprint(diary_bp)
 app.register_blueprint(notification_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(dashboard_bp)
+app.register_blueprint(org_bp)
+app.register_blueprint(map_bp)
 
-# Register reporting and dashboard blueprints
+# Register System Administration & Configuration blueprints
+app.register_blueprint(template_bp)
+app.register_blueprint(assignment_bp)
+
+# Register Dashboard & Reporting blueprints
 app.register_blueprint(countries_bp)
 app.register_blueprint(branches_bp)
 app.register_blueprint(reports_bp)
@@ -97,7 +113,7 @@ app.register_blueprint(saved_reports_bp)
 app.register_blueprint(potential_assessment_bp)
 app.register_blueprint(report_cycle_bp)
 
-# Register Denusha's blueprints
+# Register Workflow & Approval blueprints
 app.register_blueprint(approval_bp)
 app.register_blueprint(enquiry_bp)
 app.register_blueprint(evaluation_bp)
@@ -106,7 +122,7 @@ app.register_blueprint(objectives_bp)
 app.register_blueprint(system_bp)
 app.register_blueprint(team_member_bp)
 
-# Register minimuthu's blueprints
+# Register Performance Evaluation blueprints
 app.register_blueprint(evaluator_bp)
 app.register_blueprint(manual_rating_bp)
 app.register_blueprint(performance_bp)
@@ -118,7 +134,7 @@ app.register_blueprint(workforce_report_bp)
 init_pms_cycle_routes(seed_notifications_for_cycle)
 init_notifications(supabase)
 
-# Initialise minimuthu's scheduler
+# Initialise scheduler (Performance Evaluation module)
 init_scheduler()
 
 # ── DB WARMUP (runs under WSGI/Gunicorn too) ──────────────────────────────────
