@@ -17,6 +17,10 @@ from services.notification_service import (
     seed_notifications_for_cycle,
 )
 
+# ── Web push (desktop/OS notification popups) ────────────────────────────────
+from routes.push_routes import push_bp
+from services.push_service import init_push_scheduler
+
 # ── Dev-final's blueprints ────────────────────────────────────────────────────
 from routes.pms_cycle_routes  import pms_cycle_bp, init_pms_cycle_routes
 from routes.template_routes   import template_bp
@@ -74,6 +78,7 @@ CORS(app)
 
 # Register dev-final's blueprints
 app.register_blueprint(notifications_bp)
+app.register_blueprint(push_bp)
 app.register_blueprint(pms_cycle_bp)
 app.register_blueprint(template_bp)
 app.register_blueprint(assignment_bp)
@@ -120,6 +125,9 @@ init_notifications(supabase)
 
 # Initialise minimuthu's scheduler
 init_scheduler()
+
+# Initialise web push scheduler (polls for new personal notifications)
+init_push_scheduler()
 
 # ── DB WARMUP (runs under WSGI/Gunicorn too) ──────────────────────────────────
 with app.app_context():
