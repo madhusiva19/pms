@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Clock, CheckCircle, Send, Calendar, Settings, Lock } from 'lucide-react';
@@ -957,25 +956,12 @@ export default function RatingSettings() {
 
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
-        {/* ── Breadcrumb ─────────────────────────────────────────── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          fontSize: 13.5, color: '#6B7280', marginBottom: 16,
-        }}>
-          <Link href="/dashboard" style={{ color: '#6B7280', textDecoration: 'none' }}>Home</Link>
-          <span>›</span>
-          <span style={{ color: '#101828' }}>Rating Settings</span>
-        </div>
-
         {/* ── Page header ────────────────────────────────────────── */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           marginBottom: 32, flexWrap: 'wrap', gap: 12,
         }}>
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 600, color: '#101828', margin: '0 0 6px' }}>
-              Rating Settings
-            </h1>
             <p style={{ fontSize: 15, color: '#4A5565', margin: 0 }}>
               Manage manual ratings and monitor team progress
             </p>

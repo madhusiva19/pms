@@ -7,7 +7,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import SelfAssessmentForm from '@/components/potential-assessment/SelfAssessmentForm';
 import CompletedSummary from '@/components/potential-assessment/CompletedSummary';
@@ -65,10 +64,7 @@ export default function EmployeePotentialAssessmentPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
-      <Breadcrumb />
-
       <div className="flex flex-col gap-1">
-        <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>
         {cycle && <p className="text-[15px] text-[#4A5565]">Appraisal Cycle: <strong>{cycle.pms_year}</strong></p>}
       </div>
 

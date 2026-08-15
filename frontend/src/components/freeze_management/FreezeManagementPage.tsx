@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Sidebar    from "@/components/sidebar/Sidebar";
-import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles    from "./FreezeManagementPage.module.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -661,7 +660,6 @@ function FreezeManagementInner() {
   return (
     <div className={styles.dashShell}>
       <main className={styles.mainContent}>
-        <Breadcrumb />
         <div className={styles.pageWrapper}>
 
       {/* ── Page header ── */}
@@ -671,7 +669,6 @@ function FreezeManagementInner() {
             <ShieldCheck size={22} color="#ea580c" />
           </div>
           <div>
-            <h1 className={styles.pageTitle}>Template Freeze Management</h1>
             <p className={styles.pageSubtitle}>
               Manage freeze exceptions and content variants for{" "}
               <strong>{template.name}</strong>

@@ -2,6 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 import Sidebar from '@/components/sidebar/Sidebar';
+import Header from './Header';
+import styles from './AppShell.module.css';
 
 const AUTH_ROUTES = ['/login', '/', '/reset-password'];
 
@@ -13,15 +15,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8F9FC' }}>
+    <div className={styles.shell}>
       <Sidebar />
-      <main style={{
-        marginLeft: '251px',
-        flex: 1,
-        minWidth: 0,
-        overflowY: 'auto',
-        display: 'block',
-      }}>
+      <Header />
+      <main className={styles.main}>
         {children}
       </main>
     </div>

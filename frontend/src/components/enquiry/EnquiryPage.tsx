@@ -1,7 +1,7 @@
 import viewStyles from '../../styles/views.module.css';
 // Enquiry page: lets an employee request re-evaluation from the evaluator's superior.
 import { useEffect, useState } from 'react';
-import Link, { useRouter } from '../../lib/routing';
+import { useRouter } from '../../lib/routing';
 import { getEvaluationStatus, getTeamMember, getTeamMembers, submitEnquiry } from '../../lib/api';
 import LoadingScreen from '../LoadingScreen';
 import { useRoutes } from '../../lib/routing';
@@ -136,19 +136,10 @@ export default function Enquiry() {
   return (
     <main className={viewStyles.v032}>
         <div className={viewStyles.v053}>
-          {/* Breadcrumb */}
-          <div className={viewStyles.v034}>
-            <Link href={routes.statusTracking} className={viewStyles.v035}>
-              Status Tracking
-            </Link>
-            {' > Enquiry'}
-          </div>
-
           {/* Hero banner */}
           <div className={viewStyles.enquiryHero}>
             <div className={viewStyles.enquiryHeroIcon}>📋</div>
             <div className={viewStyles.enquiryHeroText}>
-              <h1>Evaluation Enquiry</h1>
               <p>Request a re-evaluation from the direct evaluator&apos;s superior. Your enquiry will be reviewed promptly.</p>
             </div>
           </div>

@@ -10,7 +10,6 @@ import React, { useState, useEffect } from 'react';
 import { Building, BarChart2 } from 'lucide-react';
 import BranchCard from '@/components/shared/BranchCard';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { branchesApi } from '@/services/api';
@@ -65,13 +64,9 @@ export default function CountryAdminReportsPage() {
     <div className="px-4 py-2 pb-10 flex flex-col gap-8">
       <div className="max-w-[1225px] mx-auto w-full flex flex-col gap-8">
 
-        {/* Breadcrumb */}
-        <Breadcrumb />
-
         {/* Title & Stats Overview */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="flex flex-col gap-2">
-            <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Branch Reports</h1>
             <p className="text-[15px] text-[#4A5565]">
               Select a branch to view detailed performance metrics and generate reports.
             </p>

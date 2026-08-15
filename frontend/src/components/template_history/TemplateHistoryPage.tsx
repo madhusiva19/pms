@@ -31,7 +31,6 @@ import {
 import { toast }      from "sonner";
 import styles         from "./TemplateHistoryPage.module.css";
 import Sidebar        from "@/components/sidebar/Sidebar";
-import Breadcrumb     from "@/components/breadcrumb/Breadcrumb";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -337,7 +336,6 @@ export default function TemplateHistoryPage({ level = 1 }: { level?: number }) {
   return (
     <div className={styles.shell}>
       <main className={styles.main}>
-        <Breadcrumb />
         <div className={styles.wrapper}>
 
           {/* ── Page header ── */}
@@ -347,7 +345,6 @@ export default function TemplateHistoryPage({ level = 1 }: { level?: number }) {
       <History size={20} />
     </div>
     <div style={{ flex: 1 }}>
-      <h1 className={styles.pageTitle}>Template History</h1>
       <p className={styles.pageSubtitle}>
         Archived templates from previous PMS cycles — permanently frozen, view only
       </p>

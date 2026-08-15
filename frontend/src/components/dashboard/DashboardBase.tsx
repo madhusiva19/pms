@@ -197,7 +197,6 @@ export default function DashboardBase({ level }: { level: number }) {
       <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
         <div className={styles.headerRow}>
           <div>
-            <h1 className={styles.pageTitle}>{config.role} Dashboard</h1>
             <p className={styles.pageSub}>Performance overview for {config.role} scope.</p>
           </div>
         </div>

@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Download } from 'lucide-react';
 
@@ -226,15 +225,8 @@ export default function WorkforceReport() {
     <div style={{minHeight:'100vh',background:C.pageBg,fontFamily:'Inter, system-ui, sans-serif'}}>
       <div style={{padding:'24px 32px',maxWidth:1100,margin:'0 auto'}}>
 
-        <div style={{display:'flex',gap:6,marginBottom:16,fontSize:13,color:C.textMuted,alignItems:'center'}}>
-          <Link href="/dashboard" style={{color:C.textMuted,textDecoration:'none'}}>Home</Link>
-          <span>›</span>
-          <span style={{color:C.textDark}}>Workforce Report</span>
-        </div>
-
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:24,flexWrap:'wrap',gap:12}}>
           <div>
-            <h1 style={{fontSize:26,fontWeight:600,color:C.textMain,margin:'0 0 4px'}}>Workforce Performance Report</h1>
             <p style={{fontSize:14,color:C.textSub,margin:0}}>
               {fiscalYear(reportYear)} · {user?.role === 'country_admin' ? (requesterCountry ?? 'Your country') : 'All countries'}
             </p>

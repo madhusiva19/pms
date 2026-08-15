@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import { toast }    from "sonner";
 import Sidebar      from "@/components/sidebar/Sidebar";
-import Breadcrumb   from "@/components/breadcrumb/Breadcrumb";
 import styles       from "./TemplateVariantsPage.module.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -780,7 +779,6 @@ export default function TemplateVariantsPage() {
   return (
     <div className={styles.shell}>
       <main className={styles.main}>
-        <Breadcrumb />
         <div className={styles.wrapper}>
 
           {/* Delete confirm modal */}
@@ -800,7 +798,6 @@ export default function TemplateVariantsPage() {
                 <Layers size={22} color="#3b82f6" />
               </div>
               <div>
-                <h1 className={styles.pageTitle}>Template Variants</h1>
                 <p className={styles.pageSubtitle}>
                   All branch and country content variants across every template
                 </p>

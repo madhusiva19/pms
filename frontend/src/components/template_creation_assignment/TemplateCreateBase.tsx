@@ -50,7 +50,6 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/freezeUtils";
 import Sidebar    from "@/components/sidebar/Sidebar";
-import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles       from "./TemplateCreateBase.module.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1015,7 +1014,6 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   return (
     <div className={styles.dashShell}>
       <main className={styles.mainContent}>
-        <Breadcrumb />
         <div className={styles.pageWrapper}>
 
       {/* ── Variant mode banner ──────────────────────────────────────────── */}

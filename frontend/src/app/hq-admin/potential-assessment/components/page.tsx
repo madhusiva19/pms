@@ -5,7 +5,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { assessmentComponentsApi } from '@/services/potentialAssessmentApi';
 import type { AssessmentComponent, PillarType, AppraiseeRole } from '@/types';
@@ -170,8 +169,6 @@ export default function HQAdminAssessmentComponentsPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
-      <Breadcrumb />
-
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -179,7 +176,6 @@ export default function HQAdminAssessmentComponentsPage() {
             <Settings2 className="w-5 h-5 text-[#1D4ED8]" />
           </div>
           <div>
-            <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Assessment Components</h1>
             <p className="text-[15px] text-[#4A5565] mt-0.5">
               Manage questions used in Potential Assessments. Assign globally or to specific roles.
             </p>

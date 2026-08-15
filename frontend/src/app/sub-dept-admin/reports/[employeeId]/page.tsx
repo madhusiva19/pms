@@ -8,7 +8,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import {
   ChevronLeft,
   Users,
@@ -210,19 +209,9 @@ export default function SubDeptAdminReportDetailPage() {
         {/* ── Header Block ── */}
         <div className="flex flex-col gap-4">
 
-          {/* Breadcrumb */}
-          <Breadcrumb items={[
-            { label: 'Home', href: '/sub-dept-admin' },
-            { label: 'Reports', href: '/sub-dept-admin/reports' },
-            { label: empName },
-          ]} />
-
           {/* Title Row */}
           <div className="flex items-start justify-between">
             <div className="flex flex-col gap-2">
-              <h1 className="text-[28px] font-semibold text-[#101828] leading-9">
-                Performance Reports
-              </h1>
               <p className="text-[15px] text-[#4A5565]">
                 {empName} — Mid-Year & Year-End {reportYear! - 1}/{String(reportYear!).slice(-2)} Analytics
               </p>

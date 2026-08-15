@@ -151,19 +151,10 @@ export default function RejectionDetail() {
       )}
       <main className={viewStyles.v032}>
         <div className={viewStyles.v136}>
-          {/* Breadcrumb */}
-          <div className={viewStyles.v034}>
-            <Link href={routes.myTeam} className={viewStyles.v035}>
-              My Team
-            </Link>
-            {' > Evaluation Rejected'}
-          </div>
-
           {/* Alert explains that the evaluation is rejected and needs resubmission. */}
           <div className={viewStyles.v163}>
             <div className={viewStyles.v142}>⚠️</div>
             <div>
-              <h2 className={viewStyles.v164}>Evaluation Rejected</h2>
               <p className={viewStyles.v165}>The evaluation has been rejected and sent back for re-submission.</p>
             </div>
           </div>

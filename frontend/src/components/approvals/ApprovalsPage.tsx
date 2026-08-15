@@ -79,15 +79,7 @@ export default function Approvals({ roleFilter }: { roleFilter?: string } = {}) 
   return (
     <main className={viewStyles.v032}>
         <div className={viewStyles.v033}>
-          {/* Breadcrumb */}
-          <div className={viewStyles.v034}>
-            <Link href={routes.myTeam} className={viewStyles.v035}>My Team</Link>
-            <span>&rsaquo;</span>
-            <span>Approvals</span>
-          </div>
-
           {/* Header */}
-          <h1 className={viewStyles.v036}>Approvals</h1>
           <p className={viewStyles.v037}>Review and manage pending evaluation requests</p>
 
           {/* Stats bar */}

@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
@@ -322,17 +321,9 @@ export default function MyPerformance() {
     <div style={{ minHeight: '100vh', background: C.pageBg, fontFamily: 'Inter, sans-serif', padding: '0 36px' }}>
       <div style={{ padding: '24px' }}>
 
-        {/* Breadcrumb */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, fontSize: 13, color: C.textMuted, alignItems: 'center' }}>
-          <Link href="/dashboard" style={{ color: C.textMuted, textDecoration: 'none' }}>Home</Link>
-          <span>›</span>
-          <span style={{ color: C.textDark }}>My Performance</span>
-        </div>
-
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 600, color: C.textMain, margin: '0 0 4px' }}>My Performance</h1>
             <p style={{ fontSize: 15, color: C.textSub, margin: 0 }}>
               {isStillLoading ? 'Loading…'
                 : displayName

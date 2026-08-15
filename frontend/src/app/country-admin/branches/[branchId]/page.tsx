@@ -10,7 +10,6 @@ import { logger } from '@/utils/logger';
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import {
   ChevronLeft,
   Users,
@@ -278,19 +277,9 @@ export default function BranchReportPage() {
         {/* ── Header Block ── */}
         <div className="flex flex-col gap-4">
 
-          {/* Breadcrumb */}
-          <Breadcrumb items={[
-            { label: 'Home', href: '/country-admin' },
-            { label: 'Branches', href: '/country-admin/branches' },
-            { label: branch.name },
-          ]} />
-
           {/* Title Row with Download button */}
           <div className="flex items-start justify-between">
             <div className="flex flex-col gap-2">
-              <h1 className="text-[28px] font-semibold text-[#101828] leading-9">
-                Performance Reports
-              </h1>
               <p className="text-[15px] text-[#4A5565]">
                 {branch.name} - Mid-Year &amp; Year-End Analytics
               </p>

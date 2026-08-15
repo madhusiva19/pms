@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
 import type { AppraisalCycle, SubordinateAssessmentSummary } from '@/types';
@@ -48,10 +47,7 @@ export default function HQAdminPotentialAssessmentPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
-      <Breadcrumb />
-
       <div className="flex flex-col gap-1">
-        <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Potential Assessment</h1>
         <p className="text-[15px] text-[#4A5565]">
           Review potential assessments for Country Admins.
           {cycle && <span className="ml-2 text-[#64748B]">Cycle: <strong>{cycle.pms_year}</strong></span>}
