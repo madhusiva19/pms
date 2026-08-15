@@ -20,7 +20,8 @@
   padding-top: 20px;
   padding-bottom: 20px;
   min-height: 100vh;
-  background: linear-gradient(135deg, #dde5f5 0%, #eaf0ff 45%, #dde8fb 100%);
+  background: #F9FAFB;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
 @media (min-width: 768px) {
@@ -406,7 +407,8 @@
   flex: 1 1 0%;
   padding: 32px 24px 24px;
   min-height: 100vh;
-  background: linear-gradient(135deg, #dde5f5 0%, #eaf0ff 45%, #dde8fb 100%);
+  background: #F9FAFB;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
 
@@ -437,11 +439,12 @@
 
 /* Page heading */
 .v036 {
-  font-size: 32px;
-  font-weight: 800;
+  font-size: 27.7px;
+  font-weight: 600;
   color: #0f172a;
   margin-bottom: 4px;
   letter-spacing: -0.02em;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
 .v037 {
@@ -1295,6 +1298,8 @@
 
 .v082 {
   color: #4b5563;
+  font-size: 14.6px;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
 .v083 {
@@ -1384,7 +1389,7 @@
 .v090 {
   background: #ffffff;
   padding: 24px;
-  border-radius: 8px;
+  border-radius: 12px;
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
   transition: all 0.2s ease;
   border-top: 4px solid #e5e7eb;
@@ -1599,6 +1604,7 @@
   border-radius: 8px;
   font-weight: 500;
   transition: all 0.2s ease;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
 .v116 {
@@ -1625,7 +1631,7 @@
   border-radius: 999px;
   font-size: 12px;
   line-height: 16px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .v119 {
@@ -1638,7 +1644,7 @@
 @media (min-width: 768px) {
 
   .v119 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
 }
@@ -1649,8 +1655,8 @@
   border: 2px solid #e5e7eb;
   border-color: #2563eb;
   color: #2563eb;
-  border-radius: 8px;
-  font-weight: 500;
+  border-radius: 12px;
+  font-weight: 600;
   transition: all 0.2s ease;
   text-align: center;
 }
@@ -1668,20 +1674,20 @@
 
 .v121 {
   padding: 12px;
-  background: #fef2f2;
+  background: #eff6ff;
   border: 2px solid #e5e7eb;
-  border-color: #dc2626;
-  color: #dc2626;
-  border-radius: 8px;
-  font-weight: 500;
+  border-color: #2563eb;
+  color: #2563eb;
+  border-radius: 12px;
+  font-weight: 600;
   transition: all 0.2s ease;
   text-align: center;
 }
 
 .v121:hover {
-  background: #fee2e2;
+  background: #dbeafe;
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.20);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
 }
 
 .v121:active {
@@ -1691,20 +1697,20 @@
 
 .v122 {
   padding: 12px;
-  background: #faf5ff;
+  background: #eff6ff;
   border: 2px solid #e5e7eb;
-  border-color: #9333ea;
-  color: #9333ea;
-  border-radius: 8px;
-  font-weight: 500;
+  border-color: #2563eb;
+  color: #2563eb;
+  border-radius: 12px;
+  font-weight: 600;
   transition: all 0.2s ease;
   text-align: center;
 }
 
 .v122:hover {
-  background: #ede9fe;
+  background: #dbeafe;
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(147, 51, 234, 0.20);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
 }
 
 .v122:active {
@@ -1714,20 +1720,20 @@
 
 .v123 {
   padding: 12px;
-  background: #fff7ed;
+  background: #eff6ff;
   border: 2px solid #e5e7eb;
-  border-color: #f97316;
-  color: #f97316;
-  border-radius: 8px;
-  font-weight: 500;
+  border-color: #2563eb;
+  color: #2563eb;
+  border-radius: 12px;
+  font-weight: 600;
   transition: all 0.2s ease;
   text-align: center;
 }
 
 .v123:hover {
-  background: #fed7aa;
+  background: #dbeafe;
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.20);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
 }
 
 .v123:active {
@@ -1745,6 +1751,7 @@
   border-color: #d1d5db;
   border-radius: 8px;
   color: #111827;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
 .v124:focus {
@@ -1812,14 +1819,11 @@
 }
 
 .v130 {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   padding: 24px;
   border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(28, 57, 142, 0.08);
-  transition: box-shadow 0.2s ease;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
   transition: all 0.2s ease;
   display: flex;
   justify-content: space-between;

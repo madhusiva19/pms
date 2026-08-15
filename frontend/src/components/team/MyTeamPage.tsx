@@ -106,12 +106,6 @@ export default function MyTeam() {
             >
                Status Tracking
             </Link>
-            <Link
-              href={routes.notifications}
-              className={viewStyles.v123}
-            >
-               Notifications
-            </Link>
           </div>
 
 
