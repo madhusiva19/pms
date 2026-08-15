@@ -97,6 +97,7 @@ export default function ProfileTemplate({
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl || null);
   const [processingIds, setProcessingIds] = useState<string[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [diaryStatusFilter, setDiaryStatusFilter] = useState<"approved" | "rejected" | "pending">("approved");
 
   // ── Preload PDF assets (logo) in the background on mount ──
   useEffect(() => { preloadProfilePDFAssets(); }, []);
@@ -134,6 +135,17 @@ export default function ProfileTemplate({
     .toUpperCase()
     : "??";
 const avatarBg = "#F9BE00";
+
+  // ── Status filter tabs for "My Submissions" table (own, non-HQ mode) ──
+  const showStatusFilter = viewMode === "own" && !config.isHQ;
+  const STATUS_META: Record<"pending" | "approved" | "rejected", { label: string; bg: string; border: string }> = {
+    pending:  { label: "Pending",  bg: "#FEF9C3", border: "#FDE047" },
+    approved: { label: "Approved", bg: "#DCFCE7", border: "#86EFAC" },
+    rejected: { label: "Rejected", bg: "#FEE2E2", border: "#F87171" },
+  };
+  const displayedAchievements = showStatusFilter
+    ? selfAchievements.filter((item) => item.status === diaryStatusFilter)
+    : selfAchievements;
 
   // ── Save (HQ Admin own profile only) ──
   const handleSave = async () => {
@@ -548,53 +560,6 @@ const avatarBg = "#F9BE00";
               </div>
             )}
 
-
-            
-
-            {/* Textarea + Button */}
-            <div className={styles.textAreaWrap}>
-              <textarea
-                className={styles.textArea}
-                placeholder={
-                  viewMode === "supervisor"
-                    ? "Add a supervisor comment about this employee's performance..."
-                    : "Write your achievements here (e.g., awards, targets reached, process improvements...)"
-                }
-                value={achievement}
-                onChange={(e) => setAchievement(e.target.value)}
-                maxLength={600}
-              />
-              <div className={styles.textAreaFooter}>
-                <span className={styles.mutedSmall}>{achievement.length}/600</span>
-
-                {/* Own mode buttons */}
-                {viewMode === "own" && (
-                  <button
-                    type="button"
-                    className={styles.saveBtn}
-                    onClick={config.isHQ ? handleSave : openSubmitModal}
-                    disabled={achievement.trim().length === 0 || saving}
-                  >
-                    {saving
-                      ? (config.isHQ ? "Saving..." : "Submitting...")
-                      : (config.isHQ ? "Save" : "Submit for Approval")}
-                  </button>
-                )}
-
-                {/* Supervisor mode button */}
-                {viewMode === "supervisor" && (
-                  <button
-                    type="button"
-                    className={styles.saveBtn}
-                    onClick={handleSupervisorComment}
-                    disabled={achievement.trim().length === 0 || saving}
-                  >
-                    {saving ? "Adding..." : "Add Supervisor Comment"}
-                  </button>
-                )}
-              </div>
-            </div>
-
             {/* Table 2: Self Submissions */}
             <div style={{ padding: "14px 20px 0 20px" }}>
               <p style={{ margin: "0 0 8px 0", fontSize: "13px", fontWeight: 600, color: "#374151" }}>
@@ -602,13 +567,30 @@ const avatarBg = "#F9BE00";
                   config.isHQ ? "My Achievements" : (
                     <>
                       My Submissions
-                      <span style={{ marginLeft: "10px", fontSize: "12px", fontWeight: 400, color: "#6B7280" }}>
-                        <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "2px", background: "#FEF9C3", border: "1px solid #FDE047", marginRight: "4px" }} />
-                        Pending
-                        <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "2px", background: "#DCFCE7", border: "1px solid #86EFAC", marginRight: "4px", marginLeft: "10px" }} />
-                        Approved
-                        <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "2px", background: "#FEE2E2", border: "1px solid #F87171", marginRight: "4px", marginLeft: "10px" }} />
-                        Rejected
+                      <span style={{ marginLeft: "10px", display: "inline-flex", gap: "6px", verticalAlign: "middle" }}>
+                        {(["pending", "approved", "rejected"] as const).map((key) => {
+                          const meta = STATUS_META[key];
+                          const active = diaryStatusFilter === key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => setDiaryStatusFilter(key)}
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: "4px",
+                                padding: "3px 8px", borderRadius: "6px", cursor: "pointer",
+                                fontSize: "12px", fontWeight: active ? 700 : 400,
+                                color: "#374151", background: meta.bg,
+                                border: active ? `1.5px solid ${meta.border}` : "1px solid transparent",
+                                boxShadow: active ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
+                                opacity: active ? 1 : 0.55,
+                              }}
+                            >
+                              <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "2px", background: meta.bg, border: `1px solid ${meta.border}` }} />
+                              {meta.label}
+                            </button>
+                          );
+                        })}
                       </span>
                     </>
                   )
@@ -624,10 +606,10 @@ const avatarBg = "#F9BE00";
                     </tr>
                   </thead>
                   <tbody>
-                    {selfAchievements.length === 0 ? (
+                    {displayedAchievements.length === 0 ? (
                       <tr><td colSpan={3} style={{ padding: "12px", textAlign: "center", color: "#9CA3AF", fontSize: "13px" }}>No entries yet</td></tr>
                     ) : (
-                      selfAchievements.map((item) => (
+                      displayedAchievements.map((item) => (
                         <tr key={item.id} style={{
                           background:
                             item.status === "approved" ? "#DCFCE7" :
@@ -716,6 +698,50 @@ const avatarBg = "#F9BE00";
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            {/* Textarea + Button */}
+            <div className={styles.textAreaWrap}>
+              <textarea
+                className={styles.textArea}
+                placeholder={
+                  viewMode === "supervisor"
+                    ? "Add a supervisor comment about this employee's performance..."
+                    : "Write your achievements here (e.g., awards, targets reached, process improvements...)"
+                }
+                value={achievement}
+                onChange={(e) => setAchievement(e.target.value)}
+                maxLength={600}
+              />
+              <div className={styles.textAreaFooter}>
+                <span className={styles.mutedSmall}>{achievement.length}/600</span>
+
+                {/* Own mode buttons */}
+                {viewMode === "own" && (
+                  <button
+                    type="button"
+                    className={styles.saveBtn}
+                    onClick={config.isHQ ? handleSave : openSubmitModal}
+                    disabled={achievement.trim().length === 0 || saving}
+                  >
+                    {saving
+                      ? (config.isHQ ? "Saving..." : "Submitting...")
+                      : (config.isHQ ? "Save" : "Submit for Approval")}
+                  </button>
+                )}
+
+                {/* Supervisor mode button */}
+                {viewMode === "supervisor" && (
+                  <button
+                    type="button"
+                    className={styles.saveBtn}
+                    onClick={handleSupervisorComment}
+                    disabled={achievement.trim().length === 0 || saving}
+                  >
+                    {saving ? "Adding..." : "Add Supervisor Comment"}
+                  </button>
+                )}
               </div>
             </div>
 
