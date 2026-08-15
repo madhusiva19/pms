@@ -27,7 +27,6 @@ import MetricCard from '@/components/shared/MetricCard';
 import BellCurveChart from '@/components/bell-curve/BellCurveChart';
 import ComparisonChart from '@/components/comparison/ComparisonChart';
 import AIInsightCard from '@/components/ai/AIInsightCard';
-import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
 import YearEndEmptyState from '@/components/reports/YearEndEmptyState';
 
 import {
@@ -42,7 +41,6 @@ import { reportRequestApi } from '@/services/reportRequestApi';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
 import { useAuth } from '@/lib/auth-context';
 import {
-  DEFAULT_RECOMMENDATIONS,
   FALLBACK_INSIGHT_MID_YEAR,
   FALLBACK_INSIGHT_YEAR_END,
 } from '@/utils/constants';
@@ -422,11 +420,6 @@ export default function BranchReportPage() {
                 />
               ))}
             </div>
-          )}
-
-          {/* Recommendations (mid-year only) */}
-          {activeTab === 'mid_year' && (
-            <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
           )}
 
            {/* Comparison chart — always shown when data available */}

@@ -23,7 +23,6 @@ import {
 
 import MetricCard from '@/components/shared/MetricCard';
 import AIInsightCard from '@/components/ai/AIInsightCard';
-import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
 import SubDeptScoreBarChart from '@/components/reports/SubDeptScoreBarChart';
 import type { TeamScoreEntry } from '@/components/reports/SubDeptScoreBarChart';
 
@@ -34,7 +33,7 @@ import {
   activeReportYearApi,
 } from '@/services/api';
 import { downloadReportAsPDF } from '@/utils/downloadReport';
-import { DEFAULT_RECOMMENDATIONS, OVERALL_TEAM_INSIGHT } from '@/utils/constants';
+import { OVERALL_TEAM_INSIGHT } from '@/utils/constants';
 
 type DownloadStatus = 'idle' | 'generating' | 'success' | 'failed';
 
@@ -323,9 +322,6 @@ export default function SubDeptAdminReportDetailPage() {
             insight={OVERALL_TEAM_INSIGHT}
             type="info"
           />
-
-          {/* Recommendations */}
-          <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
 
         </div>
 

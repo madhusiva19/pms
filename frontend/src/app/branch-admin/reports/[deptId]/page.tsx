@@ -27,7 +27,6 @@ import MetricCard from '@/components/shared/MetricCard';
 import BellCurveChart from '@/components/bell-curve/BellCurveChart';
 import ComparisonChart from '@/components/comparison/ComparisonChart';
 import AIInsightCard from '@/components/ai/AIInsightCard';
-import AIRecommendationsList from '@/components/ai/AIRecommendationsList';
 
 
 import {
@@ -57,13 +56,6 @@ const FALLBACK_INSIGHT_MID_YEAR =
 
 const FALLBACK_INSIGHT_YEAR_END =
   'Year-end performance shows improvement across all bands. Top performers increased by 37%. Distribution normalized successfully with 21% in exceptional category';
-
-const DEFAULT_RECOMMENDATIONS = [
-  { text: 'Launch targeted coaching programs for the lower 15% to move them out of the 1.0–2.0 band.' },
-  { text: 'Recognize and reward the high-performing 3.5–4.0 group to maintain their momentum.' },
-  { text: 'Introduce leadership development programs to grow the top performer pool beyond 4.5.' },
-  { text: 'Focus mid-level employees in the 3.0–3.5 band on skill development to push them into higher ratings.' },
-];
 
 export default function BranchAdminReportDetailPage() {
   const params = useParams();
@@ -398,10 +390,6 @@ export default function BranchAdminReportDetailPage() {
             </div>
           )}
 
-          {/* Recommendations (mid-year only) */}
-          {activeTab === 'mid_year' && (
-            <AIRecommendationsList recommendations={DEFAULT_RECOMMENDATIONS} />
-          )}
 
           {/* Comparison chart — shown for year-end when data available */}
           {activeTab === 'year_end' && (
