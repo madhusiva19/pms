@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { apiFetch } from "@/lib/apiFetch";
 import { logger } from "@/utils/logger";
+import OrgMapFooter from "@/components/dashboard/orgMap/OrgMapFooter";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   PieChart, Pie, Cell, Legend
@@ -326,6 +327,18 @@ export default function DashboardBase({ level }: { level: number }) {
             </div>
           )}
         </section>
+
+        {/* ── Org Map Footer ── */}
+        {config.role === "HQ Admin" && (
+          <section style={{ marginTop: "24px" }}>
+            <OrgMapFooter mode="world" />
+          </section>
+        )}
+        {config.role === "Country Admin" && currentUser?.country_id && (
+          <section style={{ marginTop: "24px" }}>
+            <OrgMapFooter mode="country" countryId={currentUser.country_id} />
+          </section>
+        )}
       </div>
     </main>
   );
