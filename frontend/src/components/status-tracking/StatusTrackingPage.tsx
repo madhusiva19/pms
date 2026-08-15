@@ -117,10 +117,6 @@ export default function StatusTracking({ forceAllCompleted = false }: { forceAll
     return (
     <main className={viewStyles.v032}>
           <div className={viewStyles.v033}>
-            <div className={viewStyles.v034}>
-              <Link href={routes.myTeam} className={viewStyles.v035}>My Team</Link>
-              {' > Status Tracking'}
-            </div>
             <div className={viewStyles.v052}>
               No evaluation status found. Please select a team member from{' '}
               <Link href={routes.myTeam} className={viewStyles.v035}>My Team</Link> first.
@@ -148,14 +144,6 @@ export default function StatusTracking({ forceAllCompleted = false }: { forceAll
   return (
     <main className={viewStyles.v032}>
         <div className={viewStyles.v033}>
-          {/* Breadcrumb */}
-          <div className={viewStyles.v034}>
-            <Link href={routes.myTeam} className={viewStyles.v035}>
-              My Team
-            </Link>
-            {' > Status Tracking'}
-          </div>
-
           {/* Hero banner with employee avatar */}
           <div className={viewStyles.trackHero}>
             <div className={viewStyles.trackAvatar}>{initials}</div>

@@ -172,17 +172,6 @@ export default function EvaluationApproval() {
     <>
     <main className={viewStyles.v003}>
         <div className={viewStyles.v004}>
-          {/* Breadcrumb shows where the reviewer is inside the approval workflow. */}
-          <div className={viewStyles.v005}>
-            <Link href={routes.home} className={viewStyles.v006}>Home</Link>
-            <span className={viewStyles.v007}>&gt;</span>
-            <Link href={routes.approvals} className={viewStyles.v006}>Approvals</Link>
-            <span className={viewStyles.v007}>&gt;</span>
-            <span className={viewStyles.v008}>Review Evaluation</span>
-          </div>
-
-          <h1 className={viewStyles.v009}>Review Evaluation for Approval</h1>
-
           {/* Header card identifies the employee and shows the overall score. */}
           <section className={viewStyles.v010}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>

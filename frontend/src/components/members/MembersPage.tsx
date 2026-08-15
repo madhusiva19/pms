@@ -55,7 +55,6 @@ export default function Members() {
         <div className={viewStyles.v081}>
           {/* Header */}
           <div className={viewStyles.v054}>
-            <h1 className={viewStyles.v036}>Member Directory</h1>
             <p className={viewStyles.v082}>View all team members and their details</p>
           </div>
 

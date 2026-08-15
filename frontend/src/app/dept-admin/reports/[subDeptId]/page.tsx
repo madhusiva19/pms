@@ -9,7 +9,6 @@ import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import YearEndEmptyState from '@/components/reports/YearEndEmptyState';
 import {
   ChevronLeft,
@@ -250,18 +249,9 @@ export default function DeptAdminReportDetailPage() {
         <div className="flex flex-col gap-4">
 
           {/* Breadcrumb */}
-          <Breadcrumb items={[
-            { label: 'Home', href: '/dept-admin' },
-            { label: 'Reports', href: '/dept-admin/reports' },
-            { label: teamName },
-          ]} />
-
           {/* Title Row */}
           <div className="flex items-start justify-between">
             <div className="flex flex-col gap-2">
-              <h1 className="text-[28px] font-semibold text-[#101828] leading-9">
-                Performance Reports
-              </h1>
               <p className="text-[15px] text-[#4A5565]">
                 {teamName} - Mid-Year &amp; Year-End Analytics
               </p>

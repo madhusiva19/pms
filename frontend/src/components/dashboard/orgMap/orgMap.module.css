@@ -1,0 +1,204 @@
+.mapCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.mapHead {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mapHead h3 {
+  margin: 0;
+  font-family: "Segoe UI", Inter, sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 28px;
+  color: #101828;
+}
+
+.backLink {
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.backLink:hover {
+  color: #1d4ed8;
+}
+
+.mapBody {
+  padding: 0 24px 24px 24px;
+}
+
+.mapCanvasWrap {
+  position: relative;
+  height: 420px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.worldViewBtn {
+  position: absolute;
+  top: 10px;
+  left: 50px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.worldViewBtn:hover {
+  background: #f9fafb;
+}
+
+.centerMessage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 420px;
+  color: #9ca3af;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 14px;
+}
+
+/* Leaflet popup — align to the app's card look */
+.mapCanvasWrap :global(.leaflet-popup-content-wrapper) {
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.mapCanvasWrap :global(.leaflet-popup-content) {
+  margin: 12px 14px;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.mapCanvasWrap :global(.leaflet-popup-content-wrapper) {
+  overflow: hidden;
+}
+
+.popupBranchName {
+  margin: 0 0 6px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #101828;
+}
+
+.approxBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+.sectionLabel {
+  margin: 0 0 4px 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.subSectionLabel {
+  margin: 0 0 3px 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #b0b6c0;
+}
+
+.deptList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deptRow {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.deptRowHead {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #f9fafb;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  text-align: left;
+}
+
+.deptRowHead:hover {
+  background: #f3f4f6;
+}
+
+.deptChevron {
+  transition: transform 0.15s ease;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.deptChevronOpen {
+  transform: rotate(90deg);
+}
+
+.subDeptList {
+  padding: 6px 10px 8px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.subDeptItem {
+  font-size: 12px;
+  color: #4a5565;
+}
+
+.noDeptText {
+  display: inline-block;
+  font-size: 11px;
+  font-style: italic;
+  color: #9ca3af;
+  padding: 4px 8px;
+  background: #f9fafb;
+  border: 1px dashed #e5e7eb;
+  border-radius: 6px;
+}

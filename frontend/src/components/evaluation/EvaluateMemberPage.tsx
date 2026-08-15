@@ -256,17 +256,6 @@ export default function EvaluateMemberPage() {
     <main className={viewStyles.v003}>
         <div className={viewStyles.v004}>
 
-          {/* Breadcrumb */}
-          <div className={viewStyles.v005}>
-            <Link href={routes.home}   className={viewStyles.v006}>Home</Link>
-            <span className={viewStyles.v007}>&gt;</span>
-            <Link href={routes.myTeam} className={viewStyles.v006}>My Team</Link>
-            <span className={viewStyles.v007}>&gt;</span>
-            <span className={viewStyles.v008}>{member.name}</span>
-          </div>
-
-          <h1 className={viewStyles.v009}>Evaluate Team Member</h1>
-
           {/* ── Member header card ─────────────────────────────────────────── */}
           <section className={viewStyles.v010}>
             <div>

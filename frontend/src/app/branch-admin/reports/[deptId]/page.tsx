@@ -21,7 +21,6 @@ import {
   XCircle,
 } from 'lucide-react';
 
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import YearEndEmptyState from '@/components/reports/YearEndEmptyState';
 import MetricCard from '@/components/shared/MetricCard';
 import BellCurveChart from '@/components/bell-curve/BellCurveChart';
@@ -251,19 +250,9 @@ export default function BranchAdminReportDetailPage() {
         {/* ── Header Block ── */}
         <div className="flex flex-col gap-4">
 
-          {/* Breadcrumb */}
-          <Breadcrumb items={[
-            { label: 'Home', href: '/branch-admin' },
-            { label: 'Reports', href: '/branch-admin/reports' },
-            { label: deptName },
-          ]} />
-
           {/* Title Row */}
           <div className="flex items-start justify-between">
             <div className="flex flex-col gap-2">
-              <h1 className="text-[28px] font-semibold text-[#101828] leading-9">
-                Performance Reports
-              </h1>
               <p className="text-[15px] text-[#4A5565]">
                 {deptName} - Mid-Year &amp; Year-End Analytics
               </p>

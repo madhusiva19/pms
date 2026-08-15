@@ -375,21 +375,12 @@ const avatarBg = "#F9BE00";
       <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
       <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
 
-        {/* Breadcrumb */}
-        <div className={styles.breadcrumb}>
-          <span className={styles.crumbLink} onClick={() => router.push(dashboardPath)}>Home</span>
-          <span className={styles.crumbSep}>›</span>
-          <span className={styles.crumbCurrent}>
-            {viewMode === "supervisor" ? `${profile.fullName}'s Profile` : "My Profile"}
-          </span>
-        </div>
-
         {/* Header */}
         <div className={styles.headerRow}>
           <div>
-            <h1 className={styles.title}>
-              {viewMode === "supervisor" ? `${profile.fullName}'s Profile` : "My Profile"}
-            </h1>
+            {viewMode === "supervisor" && (
+              <h1 className={styles.title}>{`${profile.fullName}'s Profile`}</h1>
+            )}
             <p className={styles.subtitle}>Personal Details and Performance Highlights</p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>

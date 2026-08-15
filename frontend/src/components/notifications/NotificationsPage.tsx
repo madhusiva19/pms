@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Sidebar    from "@/components/sidebar/Sidebar";
-import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles from "./notifications.module.css";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useAuth } from "@/lib/auth-context";
@@ -442,12 +441,9 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
     <div className={styles.dashShell}>
       <main className={styles.mainContent}>
         <div className={styles.page}>
-          <Breadcrumb />
-
           {/* Header */}
           <div className={styles.headerRow}>
             <div>
-              <h1 className={styles.title}>Notifications</h1>
               <p className={styles.subtitle}>
                 Stay updated on approvals and upcoming deadlines ·{" "}
                 <strong>{levelLabel}</strong>
@@ -468,12 +464,12 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
 
           {/* Tabs — their 2 + Wathsala's 2 */}
           <div className={styles.tabRow}>
-            <button className={activeTab === "approvals" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("approvals")}>
-              Achievement Approvals
-            </button>
             <button className={activeTab === "cutoff" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("cutoff")}>
               Objectives Cut-off
               {unreadCount > 0 && <span className={styles.tabBadge}>{unreadCount}</span>}
+            </button>
+            <button className={activeTab === "approvals" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("approvals")}>
+              Achievement Approvals
             </button>
             <button className={activeTab === "pa" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("pa")}>
               Potential Assessment

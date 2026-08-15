@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Sidebar    from "@/components/sidebar/Sidebar";
-import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles     from "./CycleDatesPage.module.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -463,7 +462,6 @@ function CycleDatesInner() {
   return (
     <div className={styles.dashShell}>
       <main className={styles.mainContent}>
-        <Breadcrumb />
         <div className={styles.pageWrapper}>
 
           {/* ── Page header ── */}
@@ -473,7 +471,6 @@ function CycleDatesInner() {
                 <Settings size={22} color="#3b82f6" />
               </div>
               <div>
-                <h1 className={styles.pageTitle}>Manage Appraisal Cycle Dates</h1>
                 <p className={styles.pageSubtitle}>
                   Adjust milestone dates for the active performance management cycle.
                   These dates will be used to auto-create next year's cycle.

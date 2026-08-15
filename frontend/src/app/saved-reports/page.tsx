@@ -25,16 +25,8 @@ export default function SavedReportsPage() {
     <div className="px-4 py-2 pb-10 flex flex-col gap-8">
       <div className="max-w-[1225px] mx-auto w-full flex flex-col gap-8">
 
-        {/* Breadcrumb */}
-        <nav className="flex items-center text-[13px] text-[#64748B]">
-          <a href="/dashboard" className="hover:text-[#1E293B] transition-colors">Home</a>
-          <ChevronRight className="w-3.5 h-3.5 mx-1.5" />
-          <span className="text-[#1E293B] font-medium">Saved Reports</span>
-        </nav>
-
         {/* Title */}
         <div>
-          <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Saved Reports</h1>
           <p className="text-[15px] text-[#4A5565] mt-1">Your saved and downloaded reports.</p>
         </div>
 

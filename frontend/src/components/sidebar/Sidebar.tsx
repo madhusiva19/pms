@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, FileText, Users, LogOut, TrendingUp, Bell,
+  LayoutDashboard, FileText, Users, LogOut, TrendingUp,
   LucideFileBarChart, User, Target, ChevronDown, ChevronRight,
   ClipboardList, UserCheck, CalendarDays, Settings, BarChart2,
   FilePlus, GitBranch, History, Snowflake,
@@ -146,27 +146,14 @@ function getNavItems(role: string | undefined): NavItem[] {
   }
 }
 
-function getNotificationHref(role: string | undefined): string | undefined {
-  switch (role) {
-    case 'hq_admin':       return '/hq-admin/notification';
-    case 'country_admin':  return '/country-admin/notification';
-    case 'branch_admin':   return '/branch-admin/notification';
-    case 'dept_admin':     return '/dept-admin/notification';
-    case 'sub_dept_admin': return '/sub-dept-admin/notification';
-    case 'employee':       return '/employee/notification';
-    default:                return undefined;
-  }
-}
-
 export default function Sidebar() {
   const pathname = usePathname();
   const router   = useRouter();
-  const { user, notificationCount, trainingBadgeCount, logout } = useAuth();
+  const { user, trainingBadgeCount, logout } = useAuth();
 
   const roleFromPath = pathname?.split('/')[1]?.replace(/-/g, '_');
   const role = user?.role ?? roleFromPath;
   const navItems = getNavItems(role);
-  const notificationHref = getNotificationHref(role);
 
   const [openMenus, setOpenMenus] = useState<Set<string>>(new Set());
 
@@ -216,16 +203,6 @@ export default function Sidebar() {
           priority
           style={{ width: '100%', height: 'auto', maxWidth: '160px' }}
         />
-        {notificationHref && (
-          <Link href={notificationHref} className={styles.bellButton} aria-label="Notifications">
-            <Bell className={styles.bellIcon} />
-            {notificationCount > 0 && (
-              <span className={styles.bellBadge}>
-                {notificationCount > 99 ? '99+' : notificationCount}
-              </span>
-            )}
-          </Link>
-        )}
       </div>
 
       {/* Nav */}

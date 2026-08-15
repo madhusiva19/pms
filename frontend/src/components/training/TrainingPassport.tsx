@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
 import styles from "./training.module.css";
 import { apiFetch } from "@/lib/apiFetch";
 import { logger } from "@/utils/logger";
@@ -91,7 +90,6 @@ export default function TrainingPassport({
   initialSubordinateSuggestions = [],
   aiRecommendations = DUMMY_AI,
 }: TrainingPassportProps) {
-  const router = useRouter();
   const config = ROLE_CONFIG[role];
   const { refreshBadges, clearTrainingBadge } = useAuth();
 
@@ -263,17 +261,9 @@ export default function TrainingPassport({
       <main style={{ flex: 1, minHeight: '100vh', background: '#F9FAFB', overflow: 'auto' }}>
       <div style={{ maxWidth: '1225px', margin: '0 auto', width: '100%', padding: '24px 32px 40px' }}>
 
-        {/* Breadcrumb */}
-        <div className={styles.breadcrumb}>
-          <span className={styles.crumbLink} onClick={() => router.push(dashboardPath)}>Home</span>
-          <span className={styles.crumbSep}>›</span>
-          <span className={styles.crumbCurrent}>Training Passport</span>
-        </div>
-
         {/* Header */}
         <div className={styles.headerRow}>
           <div>
-            <h1 className={styles.title}>Training Passport</h1>
             <p className={styles.subtitle}>Track attended trainings, suggest future ones and get AI-powered recommendations</p>
           </div>
         </div>

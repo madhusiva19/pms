@@ -82,7 +82,6 @@ export default function MyTeam() {
         <div className={viewStyles.v081}>
           {/* Header */}
           <div className={viewStyles.v054}>
-            <h1 className={viewStyles.v036}>My Team</h1>
             <p className={viewStyles.v082}>Evaluate and manage your team members' performance</p>
           </div>
 

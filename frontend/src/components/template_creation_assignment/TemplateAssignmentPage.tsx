@@ -49,7 +49,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import Sidebar    from "@/components/sidebar/Sidebar";
-import Breadcrumb from "@/components/breadcrumb/Breadcrumb";
 import styles from "./TemplateAssignmentPage.module.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1005,13 +1004,11 @@ export default function TemplateAssignmentPage({ level = 1 }: TemplateAssignment
   return (
     <div className={styles.dashShell}>
       <main className={styles.mainContent}>
-        <Breadcrumb />
         <div className={styles.pageWrapper}>
 
       {/* ── Page Header ──────────────────────────────────────────────────── */}
       <div className={styles.pageHeader}>
         <div className={styles.pageTitleBlock}>
-          <h1 className={styles.pageTitle}>Template Assignment</h1>
           <p className={styles.pageSubtitle}>
             Configure distribution for{" "}
             <strong style={{ color: "#0f172a" }}>{templateName || `Template #${templateId}`}</strong>

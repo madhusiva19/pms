@@ -12,7 +12,6 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import EmployeeCard from '@/components/shared/EmployeeCard';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { employeesApi } from '@/services/api';
@@ -62,12 +61,8 @@ export default function SubDeptAdminReportsPage() {
     <div className="px-4 py-2 pb-10 flex flex-col gap-8">
       <div className="max-w-[1225px] mx-auto w-full flex flex-col gap-8">
 
-        {/* Breadcrumb */}
-        <Breadcrumb />
-
         {/* Title */}
         <div>
-          <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Team Performance Reports</h1>
           <p className="text-[15px] text-[#4A5565] mt-1">View performance reports for your direct reports.</p>
         </div>
 

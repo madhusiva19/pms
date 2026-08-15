@@ -29,7 +29,7 @@ interface AuthContextType {
   notificationCount: number;
   trainingBadgeCount: number;
   refreshBadges: () => void;
-  clearTrainingBadge: () => void;
+  clearTrainingBadge: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -40,7 +40,7 @@ const AuthContext = createContext<AuthContextType>({
   notificationCount: 0,
   trainingBadgeCount: 0,
   refreshBadges: () => {},
-  clearTrainingBadge: () => {},
+  clearTrainingBadge: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -48,7 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
   const [trainingBadgeCount, setTrainingBadgeCount] = useState(0);
-  const clearTrainingBadge = () => setTrainingBadgeCount(0);
 
   useEffect(() => {
     const raw = localStorage.getItem("pms_user");
@@ -83,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const suggRes  = await apiFetch(`${API}/api/training/suggestions/${employeeId}`);
       const suggData = await suggRes.json();
       const reviewed = (suggData.suggestions || []).filter(
-        (s: any) => s.status === "approved" || s.status === "rejected"
+        (s: any) => (s.status === "approved" || s.status === "rejected") && !s.employee_viewed
       ).length;
       trainingBadge += reviewed;
 
@@ -107,6 +106,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user?.employee_id) setupPushNotifications(user.employee_id);
   }, [user?.employee_id]);
+
+  const clearTrainingBadge = useCallback(async () => {
+    const raw = localStorage.getItem("pms_user");
+    if (!raw) return;
+    const currentUser = JSON.parse(raw);
+    const employeeId = currentUser.employee_id;
+    const API = process.env.NEXT_PUBLIC_API_URL;
+    if (!API) return;
+
+    try {
+      await apiFetch(`${API}/api/training/suggestions/mark-viewed/${employeeId}`, {
+        method: "PATCH",
+      });
+    } catch {
+      // silently fail — badges are non-critical
+    }
+    refreshBadges();
+  }, [refreshBadges]);
 
   const logout = () => {
     localStorage.removeItem("pms_user");

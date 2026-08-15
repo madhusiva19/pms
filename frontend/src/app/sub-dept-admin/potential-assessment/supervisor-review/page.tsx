@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
 import { User, ChevronRight } from 'lucide-react';
@@ -35,12 +34,6 @@ export default function SubDeptAdminTeamReviewPage() {
 
   return (
     <div className="flex flex-col gap-10 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
-      <Breadcrumb />
-
-      <div className="flex flex-col gap-1">
-        <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Team Review</h1>
-      </div>
-
       <section className="flex flex-col gap-4">
         <div className="pb-3 border-b border-[#E5E7EB]">
           <h2 className="text-[18px] font-semibold text-[#101828]">Employee Assessments</h2>

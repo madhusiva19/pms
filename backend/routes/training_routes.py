@@ -4,7 +4,7 @@ from services.training_service import (
     get_training_attended, add_training_attended,
     add_training_suggestion, get_training_suggestions,
     get_subordinate_suggestions, review_suggestion,
-    delete_training_attended,
+    mark_suggestions_viewed, delete_training_attended,
 )
 from utils.auth_guard import require_auth, is_authorized_for
 
@@ -70,6 +70,21 @@ def get_training_suggestions_route(employee_id):
             return jsonify({"message": "Forbidden"}), 403
 
         result, status = get_training_suggestions(employee_id)
+        return jsonify(result), status
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+
+@training_bp.patch("/suggestions/mark-viewed/<employee_id>")
+def mark_suggestions_viewed_route(employee_id):
+    try:
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"message": "Unauthorized"}), 401
+        if not is_authorized_for(caller_id, employee_id):
+            return jsonify({"message": "Forbidden"}), 403
+
+        result, status = mark_suggestions_viewed(employee_id)
         return jsonify(result), status
     except Exception as e:
         return jsonify({"message": str(e)}), 500

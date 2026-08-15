@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -374,18 +373,6 @@ export default function ManualRatingsPage() {
       minHeight: '100vh', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
     }}>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-
-        {/* Breadcrumb */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          marginBottom: 14, fontSize: 13, color: '#64748B', flexWrap: 'wrap',
-        }}>
-          <Link href="/" style={{ color: '#64748B', textDecoration: 'none' }}>Home</Link>
-          <span>›</span>
-          <Link href={`/${roleSlug}/rating-settings`} style={{ color: '#64748B', textDecoration: 'none' }}>Rating Settings</Link>
-          <span>›</span>
-          <span style={{ color: '#1E293B', fontWeight: 700 }}>Manual Ratings</span>
-        </div>
 
         {/* Page header */}
         <div style={{

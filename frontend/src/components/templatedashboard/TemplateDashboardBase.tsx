@@ -33,7 +33,6 @@ import {
 import { toast }                  from "sonner";
 import styles                     from "./TemplateDashboardBase.module.css";
 import Sidebar                    from "@/components/sidebar/Sidebar";
-import Breadcrumb                 from "@/components/breadcrumb/Breadcrumb";
 import { formatDate, daysUntil }  from "@/lib/freezeUtils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1771,7 +1770,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
   return (
     <div className={styles.dashShell}>
       <main className={styles.mainContent} ref={mainContentRef}>
-        <Breadcrumb />
         <div className={styles.wrapper}>
 
           {/* Single-delete confirmation modal */}
@@ -1840,7 +1838,6 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
           {/* Page header */}
           <div className={styles.pageHeader}>
             <div>
-              <h1 className={styles.pageTitle}>Template Management</h1>
               <p className={styles.pageSubtitleMain}>
                 Manage and deploy evaluation templates across org
               </p>

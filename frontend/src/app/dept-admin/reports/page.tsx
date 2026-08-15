@@ -12,7 +12,6 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import SubDepartmentCard from '@/components/shared/SubDepartmentCard';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { subDepartmentsApi } from '@/services/api';
@@ -61,12 +60,8 @@ export default function DeptAdminReportsPage() {
     <div className="px-4 py-2 pb-10 flex flex-col gap-8">
       <div className="max-w-[1225px] mx-auto w-full flex flex-col gap-8">
 
-        {/* Breadcrumb */}
-        <Breadcrumb />
-
         {/* Title */}
         <div>
-          <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Performance Reports</h1>
           <p className="text-[15px] text-[#4A5565] mt-1">Select a sub department to view detailed performance metrics and generate reports.</p>
         </div>
 

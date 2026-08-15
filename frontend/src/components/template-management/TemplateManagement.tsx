@@ -201,19 +201,6 @@ export default function TemplatesListPage() {
 
         {/* Header */}
         <div style={{ marginBottom: 28, animation: 'fadeUp 0.32s ease both' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13.5, color: '#64748B' }}>
-            <Link href="/" style={{ color: '#64748B', textDecoration: 'none' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#2563EB')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#64748B')}
-            >Home</Link>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M5 3L9 7L5 11" stroke="#64748B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={{ color: '#1E293B' }}>Template Management</span>
-          </div>
-          <h1 style={{ fontSize: 27.7, fontWeight: 600, color: '#101828', margin: '0 0 8px', lineHeight: '36px' }}>
-            Template Management
-          </h1>
           <p style={{ fontSize: 14.6, color: '#4A5565', margin: 0, lineHeight: '24px' }}>
             Select an evaluation template to view, edit, or manage assignments
           </p>

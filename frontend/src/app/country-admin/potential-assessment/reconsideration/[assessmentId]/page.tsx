@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Breadcrumb from '@/components/breadcrumb/Breadcrumb';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { reconsiderationApi, assessmentComponentsApi } from '@/services/potentialAssessmentApi';
 import { ChevronLeft, ChevronDown } from 'lucide-react';
@@ -163,15 +162,7 @@ export default function CountryAdminReconsiderationReviewPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">
-      <Breadcrumb items={[
-        { label: 'Country Admin', href: '/country-admin' },
-        { label: 'Potential Assessment', href: '/country-admin/potential-assessment' },
-        { label: 'Reconsideration', href: '/country-admin/potential-assessment/reconsideration' },
-        { label: assessment.employee_name ?? 'Review' },
-      ]} />
-
       <div className="flex flex-col gap-1">
-        <h1 className="text-[28px] font-semibold text-[#101828] leading-9">Reconsideration Review</h1>
         <p className="text-[14px] text-[#64748B]">{assessment.employee_name ?? '—'} · Cycle {assessment.appraisal_cycle}</p>
       </div>
 
