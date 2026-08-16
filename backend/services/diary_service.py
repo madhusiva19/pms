@@ -148,6 +148,23 @@ def add_supervisor_diary(body):
             "status":      "approved"
         }).execute()
 
+        user = supabase.table("users")\
+            .select("org_level")\
+            .eq("id", employee_id)\
+            .execute()
+
+        org_level  = user.data[0]["org_level"] if user.data else 6
+        action_url = ROLE_PROFILE_PATHS.get(org_level, "/")
+
+        supabase.table("notifications").insert({
+            "receiver_id":  employee_id,
+            "type":         "diary_approval",
+            "title":        "Supervisor Added a Comment 💬",
+            "message":      f"Your supervisor added a comment to your diary: {description[:100]}",
+            "triggered_by": "system",
+            "action_link":  action_url,
+        }).execute()
+
         return {
             "message": "Supervisor comment added",
             "data":    result.data[0] if result.data else {}
