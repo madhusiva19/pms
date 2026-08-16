@@ -115,16 +115,23 @@ def is_authorized_for_org_entity(caller_id, entity_type, entity_id):
         return False
 
     if entity_type == "department":
-        dept_res = supabase.table("departments").select("country_id, branch_id").eq("id", entity_id).execute()
+        dept_res = supabase.table("departments").select("branch_id").eq("id", entity_id).execute()
         if not dept_res.data:
             return False
-        dept = dept_res.data[0]
-        if caller_level == 2:
-            return caller.get("country_id") == dept.get("country_id")
+        branch_id = dept_res.data[0].get("branch_id")
+
         if caller_level == 3:
-            return caller.get("branch_id") == dept.get("branch_id")
+            return caller.get("branch_id") == branch_id
+
+        if caller_level == 2:
+            branch_res = supabase.table("branches").select("country_id").eq("id", branch_id).execute()
+            if not branch_res.data:
+                return False
+            return caller.get("country_id") == branch_res.data[0].get("country_id")
+
         if caller_level == 4:
             return caller.get("department_id") == entity_id
+
         return False
 
     if entity_type == "sub_department":
@@ -132,10 +139,27 @@ def is_authorized_for_org_entity(caller_id, entity_type, entity_id):
         if not subdept_res.data:
             return False
         dept_id = subdept_res.data[0].get("department_id")
-        if caller_level == 4:
-            return caller.get("department_id") == dept_id
+
         if caller_level == 5:
             return caller.get("sub_department_id") == entity_id
+
+        if caller_level == 4:
+            return caller.get("department_id") == dept_id
+
+        if caller_level in (2, 3):
+            dept_res = supabase.table("departments").select("branch_id").eq("id", dept_id).execute()
+            if not dept_res.data:
+                return False
+            branch_id = dept_res.data[0].get("branch_id")
+
+            if caller_level == 3:
+                return caller.get("branch_id") == branch_id
+
+            branch_res = supabase.table("branches").select("country_id").eq("id", branch_id).execute()
+            if not branch_res.data:
+                return False
+            return caller.get("country_id") == branch_res.data[0].get("country_id")
+
         return False
 
     return False
