@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import SelfAssessmentForm from '@/components/potential-assessment/SelfAssessmentForm';
 import CompletedSummary from '@/components/potential-assessment/CompletedSummary';
 import { useAssessmentData } from '@/hooks/useAssessmentData';
@@ -41,7 +41,7 @@ export default function EmployeePotentialAssessmentPage() {
     }
   }, [assessment?.id, status]);
 
-  if (authLoading || loading) return <LoadingSpinner />;
+  if (authLoading || loading) return <LoadingScreen />;
   if (!user || user.role !== 'employee') return null;
 
   const isCompletedOrReviewed =

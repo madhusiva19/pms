@@ -15,7 +15,6 @@ import {
   Lock,
   Eye,
   FileText,
-  Loader2,
   Inbox,
   Archive,
   ArrowLeft,
@@ -31,6 +30,7 @@ import {
 import { toast }      from "sonner";
 import styles         from "./TemplateHistoryPage.module.css";
 import Sidebar        from "@/components/sidebar/Sidebar";
+import LoadingSpinner from "@/components/shared/LoadingSpinner";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -379,10 +379,7 @@ export default function TemplateHistoryPage({ level = 1 }: { level?: number }) {
 
           {/* ── Body ── */}
           {isLoading ? (
-            <div className={styles.loadingState}>
-              <Loader2 size={28} className={styles.spinner} />
-              <p>Loading archived templates…</p>
-            </div>
+            <LoadingSpinner />
           ) : cycleGroups.length === 0 ? (
             <div className={styles.emptyState}>
               <Inbox size={44} />

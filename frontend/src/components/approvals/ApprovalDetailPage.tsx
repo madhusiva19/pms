@@ -161,7 +161,7 @@ export default function EvaluationApproval() {
   };
 
   if (loading) {
-    return <LoadingScreen fullPage />;
+    return <LoadingScreen />;
   }
 
   if (!approval || !member) {

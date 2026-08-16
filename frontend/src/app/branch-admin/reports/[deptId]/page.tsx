@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import YearEndEmptyState from '@/components/reports/YearEndEmptyState';
+import LoadingScreen from '@/components/LoadingScreen';
 import MetricCard from '@/components/shared/MetricCard';
 import BellCurveChart from '@/components/bell-curve/BellCurveChart';
 import ComparisonChart from '@/components/comparison/ComparisonChart';
@@ -214,15 +215,11 @@ export default function BranchAdminReportDetailPage() {
     }
   };
 
-  if (authLoading) return <div className="flex items-center justify-center p-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+  if (authLoading) return <LoadingScreen />;
   if (!user || user.role !== 'branch_admin') return null;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
-        <div className="text-gray-500 text-sm">Loading...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error || !branch || !summary) {

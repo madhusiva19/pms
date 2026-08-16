@@ -96,7 +96,7 @@ export default function RejectionDetail() {
   };
 
   if (loading) {
-    return <LoadingScreen fullPage />;
+    return <LoadingScreen />;
   }
 
   return (

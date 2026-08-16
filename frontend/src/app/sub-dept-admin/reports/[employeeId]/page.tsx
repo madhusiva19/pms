@@ -20,6 +20,7 @@ import {
   XCircle,
 } from 'lucide-react';
 
+import LoadingScreen from '@/components/LoadingScreen';
 import MetricCard from '@/components/shared/MetricCard';
 import AIInsightCard from '@/components/ai/AIInsightCard';
 import SubDeptScoreBarChart from '@/components/reports/SubDeptScoreBarChart';
@@ -175,19 +176,11 @@ export default function SubDeptAdminReportDetailPage() {
     }
   };
 
-  if (authLoading) return (
-    <div className="flex items-center justify-center p-20">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-    </div>
-  );
+  if (authLoading) return <LoadingScreen />;
   if (!user || user.role !== 'sub_dept_admin') return null;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
-        <div className="text-gray-500 text-sm">Loading...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   // Format employee score string for display

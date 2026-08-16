@@ -49,6 +49,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Sidebar    from "@/components/sidebar/Sidebar";
+import LoadingScreen from "@/components/LoadingScreen";
 import styles from "./TemplateAssignmentPage.module.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -978,12 +979,7 @@ export default function TemplateAssignmentPage({ level = 1 }: TemplateAssignment
   // ─────────────────────────────────────────────────────────────────────────
 
   if (isLoading) {
-    return (
-      <div className={styles.loadingWrapper}>
-        <div className={styles.loadingSpinner} />
-        <p className={styles.loadingText}>Loading assignment data…</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!templateId) {

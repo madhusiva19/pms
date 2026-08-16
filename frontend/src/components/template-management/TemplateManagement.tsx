@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import LoadingScreen from '@/components/LoadingScreen';
 
 // Minimal template shape returned by GET /api/templates
 interface Template {
@@ -152,12 +153,6 @@ export default function TemplatesListPage() {
         .tmpl-card:nth-child(4) { animation-delay: 0.16s; }
         .tmpl-card:nth-child(5) { animation-delay: 0.20s; }
         .tmpl-card:nth-child(6) { animation-delay: 0.24s; }
-        .skel {
-          background: linear-gradient(90deg, #E8EEF8 25%, #F0F4FA 50%, #E8EEF8 75%);
-          background-size: 400px 100%;
-          animation: shimmer 1.4s infinite;
-          border-radius: 6px;
-        }
         .view-btn {
           display: flex; align-items: center; justify-content: center;
           width: 100%; padding: 0 12px; height: 32px;
@@ -273,26 +268,8 @@ export default function TemplatesListPage() {
           </div>
         )}
 
-        {/* Skeletons */}
-        {loading && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28 }}>
-            {[1, 2, 3].map(i => (
-              <div key={i} style={{
-                background: '#fff', borderRadius: 12, padding: '20px',
-                border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 14,
-              }}>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                  <div className="skel" style={{ width: 48, height: 48, borderRadius: 12, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div className="skel" style={{ height: 14, width: '80%', marginBottom: 8 }} />
-                    <div className="skel" style={{ height: 11, width: '50%' }} />
-                  </div>
-                </div>
-                <div className="skel" style={{ height: 32, width: '100%', borderRadius: 6 }} />
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Loading */}
+        {loading && <LoadingScreen />}
 
         {/* Error */}
         {error && !loading && (

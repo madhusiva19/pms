@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Download } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 
@@ -263,11 +264,11 @@ export default function WorkforceReport() {
           <div style={{padding:'16px 20px',borderBottom:`1px solid ${C.border}`,borderLeft:'4px solid #2563EB'}}>
             <h3 style={{margin:0,fontSize:14,fontWeight:600,color:C.textMain}}>{fiscalYear(reportYear)} Annual Report</h3>
             <p style={{margin:'2px 0 0',fontSize:12,color:C.textMuted}}>
-              {loading ? 'Loading…' : `${total} employees · sorted by country, branch, department`}
+              {loading ? '' : `${total} employees · sorted by country, branch, department`}
             </p>
           </div>
 
-          {loading && <div style={{padding:'60px 24px',textAlign:'center',color:C.textMuted,fontSize:14}}>Loading…</div>}
+          {loading && <LoadingSpinner />}
           {!loading && error && <div style={{padding:'32px',textAlign:'center',color:'#DC2626',fontSize:13}}>{error}</div>}
           {!loading && !error && rows.length === 0 && <div style={{padding:'60px 24px',textAlign:'center',color:C.textMuted,fontSize:14}}>No data found for {fiscalYear(reportYear)}.</div>}
 

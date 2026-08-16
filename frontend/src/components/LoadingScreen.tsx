@@ -1,31 +1,6 @@
 import styles from './loadingScreen.module.css';
 
-interface Props {
-  fullPage?: boolean;
-  message?: string;
-}
-
-export default function LoadingScreen({ fullPage = false, message = 'Loading' }: Props) {
-  if (fullPage) {
-    return (
-      <div className={styles.fullPage}>
-        <div className={styles.card}>
-          <img src="/logo.png" alt="Logo" className={styles.logo} />
-          <div className={styles.spinnerWrap}>
-            <div className={styles.spinnerTrack} />
-            <div className={styles.spinnerArc} />
-          </div>
-          <div className={styles.dots}>
-            <div className={styles.dot} />
-            <div className={styles.dot} />
-            <div className={styles.dot} />
-          </div>
-          <p className={styles.label}>{message}</p>
-        </div>
-      </div>
-    );
-  }
-
+export default function LoadingScreen() {
   const ROWS = 4;
   return (
     <div className={styles.skeleton}>

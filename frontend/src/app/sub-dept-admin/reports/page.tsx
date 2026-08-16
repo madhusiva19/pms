@@ -11,7 +11,7 @@ import { User } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import EmployeeCard from '@/components/shared/EmployeeCard';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { employeesApi } from '@/services/api';
@@ -49,7 +49,7 @@ export default function SubDeptAdminReportsPage() {
       .finally(() => setLoading(false));
   }, [user?.sub_dept_id, authLoading]);
 
-  if (authLoading || loading) return <LoadingSpinner />;
+  if (authLoading || loading) return <LoadingScreen />;
   if (!user || user.role !== 'sub_dept_admin') return null;
 
   const filtered = employees.filter(e =>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
 import type { AppraisalCycle, SubordinateAssessmentSummary } from '@/types';
 import { statusBadge } from '@/lib/assessmentStatusBadge';
@@ -42,7 +42,7 @@ export default function HQAdminPotentialAssessmentPage() {
       .finally(() => setLoading(false));
   }, [user, authLoading]);
 
-  if (authLoading || loading) return <LoadingSpinner />;
+  if (authLoading || loading) return <LoadingScreen />;
   if (!user || user.role !== 'hq_admin') return null;
 
   return (

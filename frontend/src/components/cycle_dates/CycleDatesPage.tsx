@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Sidebar    from "@/components/sidebar/Sidebar";
+import LoadingScreen from "@/components/LoadingScreen";
 import styles     from "./CycleDatesPage.module.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -449,12 +450,7 @@ function CycleDatesInner() {
   // ── Loading ───────────────────────────────────────────────────────────────
 
   if (isLoadingCycle) {
-    return (
-      <div className={styles.loadingWrapper}>
-        <Loader2 size={36} className={styles.spinner} color="#3b82f6" />
-        <p className={styles.loadingText}>Loading PMS cycle…</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -599,14 +595,7 @@ function CycleDatesInner() {
 
 export default function CycleDatesPage() {
   return (
-    <Suspense
-      fallback={
-        <div className={styles.loadingWrapper}>
-          <Loader2 size={36} className={styles.spinner} color="#3b82f6" />
-          <p className={styles.loadingText}>Loading…</p>
-        </div>
-      }
-    >
+    <Suspense fallback={<LoadingScreen />}>
       <CycleDatesInner />
     </Suspense>
   );

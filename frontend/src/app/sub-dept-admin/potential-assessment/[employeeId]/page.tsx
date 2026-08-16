@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import SupervisorReviewForm from '@/components/potential-assessment/SupervisorReviewForm';
 import CompletedSummary from '@/components/potential-assessment/CompletedSummary';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
@@ -41,7 +41,7 @@ export default function SubDeptAdminReviewEmployeePage() {
     }).catch((err) => setError(err?.response?.data?.error ?? 'Failed to load.')).finally(() => setLoading(false));
   }, [user, authLoading, employeeId]);
 
-  if (authLoading || loading) return <LoadingSpinner />;
+  if (authLoading || loading) return <LoadingScreen />;
   if (!user || user.role !== 'sub_dept_admin') return null;
   const badge = statusBadge[status] ?? statusBadge.not_started;
 

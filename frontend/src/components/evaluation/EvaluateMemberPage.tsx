@@ -248,7 +248,7 @@ export default function EvaluateMemberPage() {
     });
   };
 
-  if (loading) return <LoadingScreen fullPage />;
+  if (loading) return <LoadingScreen />;
   if (!member)  return <div className={viewStyles.v001}>Member not found</div>;
 
   return (

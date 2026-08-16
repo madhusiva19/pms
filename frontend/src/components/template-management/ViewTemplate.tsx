@@ -7,6 +7,7 @@ import {
   ArrowLeft, Plus, Trash2, Search, Lock, Unlock,
   ChevronDown, ChevronUp, AlertTriangle,
 } from 'lucide-react';
+import LoadingScreen from '@/components/LoadingScreen';
 
 // Full catalogue of supported KPI scales with their rating parameters.
 // ll = lower limit (rating 1), ul = upper limit (rating 5).
@@ -578,11 +579,7 @@ export default function ViewTemplatePage() {
     : cycleState?.reason ?? 'Editing window is not open';
 
   // ── Loading / error states ─────────────────────────────────────
-  if (loading) return (
-    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: '#64748B', fontSize: 14 }}>
-      Loading template…
-    </div>
-  );
+  if (loading) return <LoadingScreen />;
 
   if (error) return (
     <div style={{ padding: '32px 24px', fontFamily: 'Inter, sans-serif' }}>

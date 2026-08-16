@@ -9,6 +9,7 @@ import React, { useEffect } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
+import LoadingScreen from '@/components/LoadingScreen';
 
 export default function SavedReportsPage() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function SavedReportsPage() {
     if (!authLoading && !user) router.push('/');
   }, [user, authLoading, router]);
 
-  if (authLoading) return <div className="flex items-center justify-center p-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+  if (authLoading) return <LoadingScreen />;
   if (!user) return null;
 
   return (

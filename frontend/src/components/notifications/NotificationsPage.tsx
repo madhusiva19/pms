@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Sidebar    from "@/components/sidebar/Sidebar";
+import LoadingScreen from "@/components/LoadingScreen";
 import styles from "./notifications.module.css";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useAuth } from "@/lib/auth-context";
@@ -523,9 +524,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
             <>
               {renderBanner()}
               {loading ? (
-                <div className={styles.loadingWrap}>
-                  {[1, 2, 3].map((i) => <div key={i} className={styles.skeletonCard} />)}
-                </div>
+                <LoadingScreen />
               ) : (
                 <>
                   {notifications.length === 0 ? (
@@ -574,7 +573,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
           {activeTab === "pa" && (
             <div className={styles.notifList}>
               {wLoading ? (
-                <div className={styles.loadingWrap}>{[1,2,3].map(i => <div key={i} className={styles.skeletonCard} />)}</div>
+                <LoadingScreen />
               ) : paList.length === 0 ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIcon}><BellIcon /></div>
@@ -626,7 +625,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
           {activeTab === "manual" && (
             <div className={styles.notifList}>
               {wLoading ? (
-                <div className={styles.loadingWrap}>{[1,2,3].map(i => <div key={i} className={styles.skeletonCard} />)}</div>
+                <LoadingScreen />
               ) : manualReminderList.length === 0 ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIcon}><BellIcon /></div>
@@ -663,7 +662,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
           {activeTab === "evaluation" && (
             <div className={styles.notifList}>
               {evalLoading ? (
-                <div className={styles.loadingWrap}>{[1,2,3].map(i => <div key={i} className={styles.skeletonCard} />)}</div>
+                <LoadingScreen />
               ) : evalApprovals.length === 0 && evalNotifs.length === 0 ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIcon}><BellIcon /></div>

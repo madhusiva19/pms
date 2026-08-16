@@ -9,7 +9,7 @@ import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Building } from 'lucide-react';
 import BranchCard from '@/components/shared/BranchCard';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { branchesApi } from '@/services/api';
@@ -57,7 +57,7 @@ export default function BranchesListingPage() {
   }, [user?.country_id, authLoading, searchTerm]);
 
   if (authLoading) {
-    return <LoadingSpinner />;
+    return <LoadingScreen />;
   }
 
   if (!user || user.role !== 'country_admin') {
@@ -65,7 +65,7 @@ export default function BranchesListingPage() {
   }
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <LoadingScreen />;
   }
 
   return (

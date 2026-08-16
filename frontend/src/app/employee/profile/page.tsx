@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ProfileTemplate from "@/components/profile/ProfileTemplate";
+import LoadingScreen from "@/components/LoadingScreen";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CurrentUser } from "@/hooks/useCurrentUser";
 import { apiFetch } from "@/lib/apiFetch";
@@ -71,38 +72,7 @@ export default function EmployeeProfilePage() {
   const isOwnProfile = user ? targetId === user.employee_id : false;
 
   if (loading || !user) {
-    return (
-      <div style={{ padding: "32px" }}>
-        <style>{`
-          @keyframes shimmer {
-            0%   { background-position: -600px 0; }
-            100% { background-position:  600px 0; }
-          }
-          .skeleton {
-            background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
-            background-size: 600px 100%;
-            animation: shimmer 1.4s infinite linear;
-            border-radius: 8px;
-          }
-        `}</style>
-        <div className="skeleton" style={{ height: 14, width: 180, marginBottom: 28 }} />
-        <div className="skeleton" style={{ height: 22, width: 260, marginBottom: 10 }} />
-        <div className="skeleton" style={{ height: 14, width: 200, marginBottom: 32 }} />
-        <div style={{ display: "flex", gap: 20, marginBottom: 32 }}>
-          <div className="skeleton" style={{ width: 88, height: 88, borderRadius: "50%", flexShrink: 0 }} />
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10, justifyContent: "center" }}>
-            <div className="skeleton" style={{ height: 16, width: "40%" }} />
-            <div className="skeleton" style={{ height: 13, width: "25%" }} />
-            <div className="skeleton" style={{ height: 13, width: "30%" }} />
-          </div>
-        </div>
-        {[1, 2, 3].map((i) => (
-          <div key={i} style={{ marginBottom: 16 }}>
-            <div className="skeleton" style={{ height: 56, width: "100%", borderRadius: 12 }} />
-          </div>
-        ))}
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!profileData) { return null; }

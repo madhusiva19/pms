@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import SelfAssessmentForm from '@/components/potential-assessment/SelfAssessmentForm';
 import CompletedSummary from '@/components/potential-assessment/CompletedSummary';
 import { useAssessmentData } from '@/hooks/useAssessmentData';
@@ -35,7 +35,7 @@ export default function BranchAdminSelfAssessmentPage() {
     }
   }, [assessment?.id, status]);
 
-  if (authLoading || selfLoading) return <LoadingSpinner />;
+  if (authLoading || selfLoading) return <LoadingScreen />;
   if (!user || user.role !== 'branch_admin') return null;
 
   const isCompletedOrReviewed = status === 'completed' || status === 'supervisor_reviewed' as string;

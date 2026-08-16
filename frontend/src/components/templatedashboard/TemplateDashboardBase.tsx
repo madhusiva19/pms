@@ -33,6 +33,7 @@ import {
 import { toast }                  from "sonner";
 import styles                     from "./TemplateDashboardBase.module.css";
 import Sidebar                    from "@/components/sidebar/Sidebar";
+import LoadingSpinner             from "@/components/shared/LoadingSpinner";
 import { formatDate, daysUntil }  from "@/lib/freezeUtils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -2084,10 +2085,7 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
           {/* Template card list */}
           <div className={`${styles.periodWrapper} ${periodWrapperClass}`}>
             {isLoading ? (
-              <div className={styles.loadingWrapper}>
-                <Loader2 size={36} color="#3b82f6" className={styles.spinner} />
-                <p className={styles.loadingText}>Loading templates…</p>
-              </div>
+              <LoadingSpinner />
             ) : filteredTemplates.length === 0 ? (
               <div className={styles.emptyState}>
                 <Inbox size={48} color="#cbd5e1" style={{ margin: "0 auto 16px" }} />

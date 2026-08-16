@@ -12,7 +12,7 @@ import { Briefcase } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import DepartmentCard from '@/components/shared/DepartmentCard';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { branchByCodeApi, departmentsApi } from '@/services/api';
@@ -51,7 +51,7 @@ export default function BranchAdminReportsPage() {
       .finally(() => setLoading(false));
   }, [user?.iata_branch_code, authLoading]);
 
-  if (authLoading || loading) return <LoadingSpinner />;
+  if (authLoading || loading) return <LoadingScreen />;
   if (!user || user.role !== 'branch_admin') return null;
 
   const filtered = departments.filter((d) =>

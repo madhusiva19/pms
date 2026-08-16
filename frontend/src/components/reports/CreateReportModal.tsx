@@ -6,6 +6,7 @@ import {
   CheckCircle, Globe, Clock, Loader2,
 } from 'lucide-react';
 import { generateSavedReportPDF } from '@/utils/generateSavedReportPDF';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { savedReportsApi, countriesApi, dashboardApi, metricsApi } from '@/services/api';
 import type { SavedReport, Country } from '@/types';
 
@@ -523,9 +524,7 @@ export default function CreateReportModal({
                     </div>
 
                     {countriesLoading ? (
-                      <div className="flex items-center justify-center gap-2 p-8 text-[13px] text-[#6B7280]">
-                        <Loader2 className="w-4 h-4 animate-spin" /> Loading countries…
-                      </div>
+                      <LoadingSpinner />
                     ) : (
                       <div className="divide-y divide-[#F3F4F6] max-h-[220px] overflow-y-auto">
                         {countries.map(country => {

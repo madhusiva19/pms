@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import { reconsiderationApi, assessmentComponentsApi } from '@/services/potentialAssessmentApi';
 import { ChevronLeft, ChevronDown } from 'lucide-react';
 import { ASSESSMENT_PILLARS, PILLAR_KEYS, type PillarKey } from '@/utils/assessmentContent';
@@ -102,7 +102,7 @@ export default function BranchAdminReconsiderationReviewPage() {
       .catch(() => {});
   }, [assessment?.appraisee_role]);
 
-  if (authLoading || loading) return <LoadingSpinner />;
+  if (authLoading || loading) return <LoadingScreen />;
   if (!user || user.role !== 'branch_admin') return null;
   if (!assessment) return (
     <div className="flex flex-col gap-8 max-w-[1225px] mx-auto w-full px-8 py-6 pb-10">

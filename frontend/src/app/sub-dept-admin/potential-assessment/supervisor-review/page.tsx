@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import LoadingScreen from '@/components/LoadingScreen';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { appraisalCyclesApi, potentialAssessmentApi } from '@/services/potentialAssessmentApi';
 import { User, ChevronRight } from 'lucide-react';
@@ -29,7 +30,7 @@ export default function SubDeptAdminTeamReviewPage() {
       .finally(() => setTeamLoading(false));
   }, [user, authLoading]);
 
-  if (authLoading) return <LoadingSpinner />;
+  if (authLoading) return <LoadingScreen />;
   if (!user || user.role !== 'sub_dept_admin') return null;
 
   return (
@@ -39,7 +40,7 @@ export default function SubDeptAdminTeamReviewPage() {
           <h2 className="text-[18px] font-semibold text-[#101828]">Employee Assessments</h2>
           <p className="text-[13.5px] text-[#64748B]">Review potential assessments for your direct report employees.</p>
         </div>
-        {teamLoading ? <div className="text-[#94A3B8] text-[14px] py-4">Loading team data...</div> : (
+        {teamLoading ? <LoadingSpinner /> : (
           <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
             <table className="w-full border-collapse">
               <thead>

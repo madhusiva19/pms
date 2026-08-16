@@ -110,7 +110,7 @@ export default function StatusTracking({ forceAllCompleted = false }: { forceAll
   }, [router.query.memberId]);
 
   if (loading) {
-    return <LoadingScreen fullPage />;
+    return <LoadingScreen />;
   }
 
   if (!evaluationStatus) {

@@ -11,7 +11,7 @@ import { BarChart3 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import SubDepartmentCard from '@/components/shared/SubDepartmentCard';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { subDepartmentsApi } from '@/services/api';
@@ -49,7 +49,7 @@ export default function DeptAdminReportsPage() {
       .finally(() => setLoading(false));
   }, [user?.dept_id, authLoading]);
 
-  if (authLoading || loading) return <LoadingSpinner />;
+  if (authLoading || loading) return <LoadingScreen />;
   if (!user || user.role !== 'dept_admin') return null;
 
   const filtered = teams.filter(t =>

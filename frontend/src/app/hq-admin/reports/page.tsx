@@ -10,7 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { MapPin, BarChart2 } from 'lucide-react';
 import CountryCard from '@/components/shared/CountryCard';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import SearchInput from '@/components/shared/SearchInput';
 import EmptyState from '@/components/shared/EmptyState';
 import { countriesApi } from '@/services/api';
@@ -42,7 +42,7 @@ export default function ReportsListingPage() {
     country.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingScreen />;
 
   return (
     <div className="px-4 py-2 pb-10 flex flex-col gap-8">

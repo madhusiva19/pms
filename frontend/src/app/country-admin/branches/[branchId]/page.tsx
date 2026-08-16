@@ -27,6 +27,7 @@ import BellCurveChart from '@/components/bell-curve/BellCurveChart';
 import ComparisonChart from '@/components/comparison/ComparisonChart';
 import AIInsightCard from '@/components/ai/AIInsightCard';
 import YearEndEmptyState from '@/components/reports/YearEndEmptyState';
+import LoadingScreen from '@/components/LoadingScreen';
 
 import {
   branchDashboardApi,
@@ -239,11 +240,7 @@ export default function BranchReportPage() {
   };
 
   if (authLoading || loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
-        <div className="text-gray-500 text-sm">Loading...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!user || user.role !== 'country_admin') {

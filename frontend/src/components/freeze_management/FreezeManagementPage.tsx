@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Sidebar    from "@/components/sidebar/Sidebar";
+import LoadingScreen from "@/components/LoadingScreen";
 import styles    from "./FreezeManagementPage.module.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -633,12 +634,7 @@ function FreezeManagementInner() {
   // ── Loading state ───────────────────────────────────────────────────────────
 
   if (isLoadingTemplate) {
-    return (
-      <div className={styles.loadingWrapper}>
-        <Loader2 size={36} className={styles.spinner} color="#3b82f6" />
-        <p className={styles.loadingText}>Loading template…</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!template) {
@@ -978,14 +974,7 @@ function FreezeManagementInner() {
  */
 export default function FreezeManagementPage() {
   return (
-    <Suspense
-      fallback={
-        <div className={styles.loadingWrapper}>
-          <Loader2 size={36} className={styles.spinner} color="#3b82f6" />
-          <p className={styles.loadingText}>Loading…</p>
-        </div>
-      }
-    >
+    <Suspense fallback={<LoadingScreen />}>
       <FreezeManagementInner />
     </Suspense>
   );

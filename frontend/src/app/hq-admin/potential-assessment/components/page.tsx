@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import LoadingScreen from '@/components/LoadingScreen';
 import { assessmentComponentsApi } from '@/services/potentialAssessmentApi';
 import type { AssessmentComponent, PillarType, AppraiseeRole } from '@/types';
 import { Plus, Edit2, Trash2, AlertCircle, CheckCircle, X, Loader2, Settings2 } from 'lucide-react';
@@ -164,7 +164,7 @@ export default function HQAdminAssessmentComponentsPage() {
   const getPillarCls  = (p: PillarType) => PILLARS.find(x => x.key === p)!;
   const getRoleLabel  = (role: string | null) => ROLES.find(r => r.key === role)?.label ?? role ?? '—';
 
-  if (authLoading || loading) return <LoadingSpinner />;
+  if (authLoading || loading) return <LoadingScreen />;
   if (!user || user.role !== 'hq_admin') return null;
 
   return (

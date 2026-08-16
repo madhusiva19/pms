@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ArrowLeft, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import LoadingScreen from '@/components/LoadingScreen';
 
 // One manual KPI objective belonging to the selected team member's template
 interface ManualObjective {
@@ -295,11 +296,7 @@ export default function ManualRatingsPage() {
     return acc;
   }, {});
 
-  if (loading) return (
-    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: '#64748B', fontSize: 14 }}>
-      Loading…
-    </div>
-  );
+  if (loading) return <LoadingScreen />;
 
   if (globalError) return (
     <div style={{ padding: '32px 24px', fontFamily: 'Inter, sans-serif' }}>

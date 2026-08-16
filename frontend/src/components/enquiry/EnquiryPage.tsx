@@ -130,7 +130,7 @@ export default function Enquiry() {
   };
 
   if (loading) {
-    return <LoadingScreen fullPage />;
+    return <LoadingScreen />;
   }
 
   return (

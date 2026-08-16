@@ -23,6 +23,7 @@ import {
   BarChart2,
 } from 'lucide-react';
 
+import LoadingScreen from '@/components/LoadingScreen';
 import MetricCard from '@/components/shared/MetricCard';
 import BellCurveChart from '@/components/bell-curve/BellCurveChart';
 import ComparisonChart from '@/components/comparison/ComparisonChart';
@@ -251,11 +252,7 @@ export default function CountryReportPage() {
   // ── END NEW ──────────────────────────────────────────────────────────
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F9FAFB]">
-        <div className="text-gray-500 text-sm">Loading...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error || !country || !summary) {

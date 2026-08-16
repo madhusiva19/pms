@@ -148,11 +148,6 @@
 
 /* ─── Keyframes ──────────────────────────────────────────────────────────── */
 
-@keyframes tcbSpin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
 @keyframes tcbFadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -166,34 +161,6 @@
   margin:         0 auto;
   padding-bottom: 60px;
   font-family:    inherit;
-}
-
-
-/* ─── Loading State ──────────────────────────────────────────────────────── */
-
-.loadingWrapper {
-  display:         flex;
-  flex-direction:  column;
-  align-items:     center;
-  justify-content: center;
-  min-height:      60vh;
-  gap:             var(--tcb-space-md);
-}
-
-.loadingSpinner {
-  width:            40px;
-  height:           40px;
-  border:           3px solid var(--tcb-slate-200);
-  border-top-color: var(--tcb-blue-600);
-  border-radius:    50%;
-  animation:        tcbSpin 1s linear infinite;
-}
-
-.loadingText {
-  color:       var(--tcb-slate-500);
-  font-size:   var(--tcb-text-lg);
-  font-weight: 500;
-  margin:      0;
 }
 
 

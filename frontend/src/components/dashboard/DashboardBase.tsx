@@ -6,6 +6,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { apiFetch } from "@/lib/apiFetch";
 import { logger } from "@/utils/logger";
 import OrgMapFooter from "@/components/dashboard/orgMap/OrgMapFooter";
+import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   PieChart, Pie, Cell, Legend
@@ -243,9 +244,7 @@ export default function DashboardBase({ level }: { level: number }) {
             </div>
             <div className={styles.chartBody}>
               {loading || drillLoading ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9CA3AF" }}>
-                  Loading...
-                </div>
+                <LoadingSpinner />
               ) : coloredBar.length === 0 ? (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9CA3AF" }}>
                   No data available
@@ -294,9 +293,7 @@ export default function DashboardBase({ level }: { level: number }) {
               </div>
               <div className={styles.chartBody}>
                 {loading ? (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
-                    Loading...
-                  </div>
+                  <LoadingSpinner />
                 ) : coloredPie.length === 0 ? (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#9CA3AF" }}>
                     No data available

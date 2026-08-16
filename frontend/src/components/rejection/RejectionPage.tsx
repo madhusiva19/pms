@@ -40,7 +40,7 @@ export default function Rejection() {
     load();
   }, []);
 
-  if (loading) return <LoadingScreen fullPage />;
+  if (loading) return <LoadingScreen />;
 
   const commentText = rejectionComments ||
     'The evaluation has been rejected. Please review the feedback and re-submit with the required corrections.';

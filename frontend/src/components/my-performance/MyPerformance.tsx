@@ -7,6 +7,8 @@ import {
 } from 'recharts';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import LoadingScreen from '@/components/LoadingScreen';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 // ── Types ──────────────────────────────────────────────────────────
 // One row from the performance_records table, enriched with KPI metadata
@@ -80,17 +82,6 @@ function isValidData(d: unknown): d is PerformanceData {
   const p = d as PerformanceData;
   return Array.isArray(p.categories) && p.categories.length > 0 &&
     p.categories.some(c => Array.isArray(c.objectives) && c.objectives.length > 0);
-}
-
-// Placeholder bars shown while performance data is loading
-function ChartSkeleton() {
-  return (
-    <div style={{ height: 420, display: 'flex', alignItems: 'flex-end', gap: 12, padding: '20px 24px 0', paddingBottom: 8 }}>
-      {[80, 55, 95, 70, 60, 85, 72, 90].map((h, i) => (
-        <div key={i} style={{ flex: 1, height: `${h}%`, background: '#E2E8F0', borderRadius: '4px 4px 0 0' }} />
-      ))}
-    </div>
-  );
 }
 
 // Wraps long objective names onto two lines so they fit below chart bars
@@ -317,6 +308,8 @@ export default function MyPerformance() {
   const displayName        = data?.employee?.name        ?? user?.full_name ?? null;
   const displayDesignation = data?.employee?.designation ?? null;
 
+  if (isStillLoading) return <LoadingScreen />;
+
   return (
     <div style={{ minHeight: '100vh', background: C.pageBg, fontFamily: 'Inter, sans-serif', padding: '0 36px' }}>
       <div style={{ padding: '24px' }}>
@@ -325,14 +318,12 @@ export default function MyPerformance() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
             <p style={{ fontSize: 15, color: C.textSub, margin: 0 }}>
-              {isStillLoading ? 'Loading…'
-                : displayName
-                  ? displayDesignation ? `${displayName} · ${displayDesignation}` : displayName
-                  : 'No profile found'}
+              {displayName
+                ? displayDesignation ? `${displayName} · ${displayDesignation}` : displayName
+                : 'No profile found'}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {isStillLoading && <span style={{ fontSize: 12, color: C.textMuted }}>Loading…</span>}
             <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 12, padding: 3 }}>
               {(['H1', 'H2'] as const).map(p => {
                 const active = p === selectedPeriod;
@@ -348,13 +339,6 @@ export default function MyPerformance() {
             </div>
           </div>
         </div>
-
-        {/* Loading state */}
-        {isStillLoading && (
-          <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
-            <p style={{ fontSize: 16, color: C.textMuted, margin: 0 }}>Loading performance data…</p>
-          </div>
-        )}
 
         {/* No employee resolved */}
         {noEmployee && (
@@ -379,7 +363,7 @@ export default function MyPerformance() {
         )}
 
         {/* Main content */}
-        {!isStillLoading && !noData && !noEmployee && (
+        {!noData && !noEmployee && (
           <>
             {/* Score Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
@@ -427,7 +411,7 @@ export default function MyPerformance() {
                 </p>
               </div>
               <div style={{ paddingLeft: 24, paddingRight: 24, paddingTop: 8 }}>
-                {chartData.length === 0 ? <ChartSkeleton /> : (
+                {chartData.length === 0 ? <LoadingSpinner /> : (
                   <ResponsiveContainer width="100%" height={460}>
                     <BarChart data={chartData} barCategoryGap="40%" barSize={32} margin={{ top: 20, right: 8, bottom: 60, left: 8 }}>
                       <CartesianGrid strokeDasharray="0" stroke="rgba(0,0,0,0.13)" vertical={false} />

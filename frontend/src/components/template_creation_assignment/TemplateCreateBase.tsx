@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/freezeUtils";
 import Sidebar    from "@/components/sidebar/Sidebar";
+import LoadingScreen from "@/components/LoadingScreen";
 import styles       from "./TemplateCreateBase.module.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -999,12 +1000,7 @@ export default function TemplateCreateBase({ level = 1 }: TemplateCreateBaseProp
   const showDateChips = !!editId;
 
   if (isPageLoading) {
-    return (
-      <div className={styles.loadingWrapper}>
-        <div className={styles.loadingSpinner} />
-        <p className={styles.loadingText}>Loading template…</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   // ─────────────────────────────────────────────────────────────────────────

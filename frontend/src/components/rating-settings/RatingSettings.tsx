@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/apiFetch';
 import { Clock, CheckCircle, Send, Calendar, Settings, Lock } from 'lucide-react';
+import LoadingScreen from '@/components/LoadingScreen';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
 
@@ -754,9 +756,7 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
         </div>
 
         {loadingHier ? (
-          <div style={{ fontSize: 13, color: '#9CA3AF', padding: '12px 0' }}>
-            Loading org structure…
-          </div>
+          <LoadingSpinner />
         ) : (
           <CascadeScopePicker
             hierarchy={hierarchy} isHQ={isHQ}
@@ -907,11 +907,7 @@ export default function RatingSettings() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  if (loading) return (
-    <div style={{ padding: '40px 24px', fontFamily: 'Inter, sans-serif', color: '#6B7280', fontSize: 14 }}>
-      Loading…
-    </div>
-  );
+  if (loading) return <LoadingScreen />;
 
   const renderOverviewStatus = (member: OverviewMember) => {
     if (member.total === 0) return (
