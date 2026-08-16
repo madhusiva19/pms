@@ -19,9 +19,7 @@ from services.notification_service import (
 from routes.pms_cycle_routes import pms_cycle_bp, init_pms_cycle_routes
 
 # ── User & Role Management ──────────────────────────────────────────────────
-# NOTE: filenames below (auth_routes / profile_routes / diary_routes /
-# training_routes / dashboard_routes) are inferred from convention — verify
-# against your actual routes/__init__.py before running this.
+
 from routes.auth_routes         import auth_bp
 from routes.profile_routes      import profile_bp
 from routes.diary_routes        import diary_bp
@@ -175,4 +173,4 @@ if __name__ == "__main__":
     start_scheduler(
         rollover_fn=lambda: auto_rollover_if_needed(seed_notifications_for_cycle)
     )
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=True, threaded=True)
