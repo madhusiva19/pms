@@ -1,7 +1,7 @@
 """Evaluation submission, lookup, and rejection business logic."""
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+from threading import Thread
 
 from flask import current_app, jsonify, request
 
@@ -69,32 +69,40 @@ def create_evaluation():
                     return fallback_response(memory_result, 201)
                 return jsonify({"error": "Team member not found"}), 404
 
-            # Status update is independent — run it in the background while the
-            # evaluation + approval records are created sequentially (approval
-            # depends on the evaluation id).
+            # Status and notification writes do not affect the evaluation
+            # payload, so they must not hold the response open.
+            is_draft = normalize_status_value(data.get("status")) == "draft"
+            member_status = "in progress" if is_draft else "completed"
+            logger = current_app.logger
             def _update_status():
                 try:
                     supabase_request(
                         "team_members",
                         method="PATCH",
                         params={"id": f"eq.{member_id}"},
-                        payload={"status": "completed", "updated_at": datetime.utcnow().isoformat()},
+                        payload={"status": member_status, "updated_at": datetime.utcnow().isoformat()},
                     )
                 except Exception as err:
-                    current_app.logger.info("Could not update team member status after submit: %s", err)
+                    logger.info("Could not update team member status after submit: %s", err)
 
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                status_future = pool.submit(_update_status)
-                evaluation = create_evaluation_record(data, member)
-                approval = create_approval_record(data, member, evaluation)
-                status_future.result(timeout=5)
+            Thread(target=_update_status, daemon=True).start()
+            linked_user = get_user_for_member(member, create_if_missing=True)
+            evaluation = create_evaluation_record(data, member, linked_user)
+            # Drafts stay with the evaluator. Only submitted evaluations create
+            # a pending approval request and its notification.
+            approval = None if is_draft else create_approval_record(data, member, evaluation, linked_user)
 
-            create_notification(
-                "approval_required",
-                "Approval Required",
-                f"{normalize_member(member).get('name', 'Employee')} evaluation is ready for approval.",
-                evaluation.get("id") if evaluation else None,
-            )
+            if not is_draft:
+                Thread(
+                    target=create_notification,
+                    args=(
+                        "approval_required",
+                        "Approval Required",
+                        f"{normalize_member(member).get('name', 'Employee')} evaluation is ready for approval.",
+                        evaluation.get("id") if evaluation else None,
+                    ),
+                    daemon=True,
+                ).start()
 
             return jsonify(
                 {

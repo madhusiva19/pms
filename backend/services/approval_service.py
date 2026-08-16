@@ -1,6 +1,5 @@
 """Approval workflow business logic."""
 
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 from flask import current_app, jsonify, request
@@ -13,9 +12,9 @@ from .notification_service import create_notification
 def get_approvals():
     """Return approval rows for the approvals table.
 
-    Only returns records that originated from a real evaluation submission
-    (evaluation_id IS NOT NULL). Uses PostgREST embedded-resource joins to
-    resolve employee name and evaluator name in a single DB round-trip.
+    Only completed team members are eligible for review. Their approval row is
+    the source of truth for the approval-page status: pending, approved, or
+    rejected.
     """
 
     if USE_SUPABASE:
@@ -42,15 +41,13 @@ def get_approvals():
                         "team_members(id,full_name,name,designation,role,email),"
                         "evaluations(id,overall_score,period,admin_recommendation)"
                     ),
-                    "team_member_id": "not.is.null",
                     "order": "id.desc",
                     "limit": 200,
             }
             if team_member_filter:
                 query_params["team_member_id"] = team_member_filter
             elif manager_id and not tm_ids:
-                # Manager has no linked team members via users table — skip
-                # the approvals query and rely on the completed-members step.
+                # Manager has no linked team members via users table.
                 rows = []
             if "rows" not in locals():
                 rows = raw_supabase_request(approval_table, params=query_params) or []
@@ -114,9 +111,9 @@ def get_approvals():
 
                 normalized_rows.append(approval)
 
-            # ── Supplement with completed team members that have no approval row ──
-            # Team members whose status='completed' in My Team should always
-            # appear in the Approvals page even if no approvals row exists yet.
+            # ── Keep only currently completed team members ───────────────────
+            # The team-member status is the eligibility rule. An old approval
+            # row must disappear if that member is no longer completed.
             completed_q = {
                 "select": "id,full_name,name,designation,role,user_id",
                 "status": "eq.completed",
@@ -125,30 +122,65 @@ def get_approvals():
             }
             if team_member_filter:
                 completed_q["id"] = team_member_filter
-            # If manager_id was given but no users/team_members link was found,
-            # show all completed members (the users table may not have manager_id
-            # populated yet, so we don't restrict and let everything through).
+            # A manager with no direct reports has no eligible approvals. Do
+            # not fall back to all completed members, which leaks other teams
+            # into the current evaluator's Approval page.
+            completed_members = (
+                [] if manager_id and not tm_ids
+                else fetch_rows("team_members", completed_q) or []
+            )
+            completed_by_id = {str(tm.get("id")): tm for tm in completed_members if tm.get("id") is not None}
+            completed_by_user_id = {
+                str(tm.get("user_id")): tm
+                for tm in completed_members
+                if tm.get("user_id") is not None
+            }
+            completed_by_name = {
+                str(tm.get("full_name") or tm.get("name") or "").strip().lower(): tm
+                for tm in completed_members
+                if tm.get("full_name") or tm.get("name")
+            }
 
-            completed_members = fetch_rows("team_members", completed_q) or []
-            seen_tm_ids = {str(r.get("team_member_id") or "") for r in normalized_rows}
+            eligible_rows = []
+            seen_tm_ids = set()
+            for approval in normalized_rows:
+                member = completed_by_id.get(str(approval.get("team_member_id")))
+                if not member:
+                    member = completed_by_user_id.get(str(approval.get("employee_id")))
+                if not member:
+                    member = completed_by_name.get(str(approval.get("employee") or "").strip().lower())
+                if not member:
+                    continue
+
+                member_id = str(member.get("id"))
+                if member_id in seen_tm_ids:
+                    continue
+                seen_tm_ids.add(member_id)
+                approval["team_member_id"] = member.get("id")
+                approval["employee_id"] = approval.get("employee_id") or member.get("user_id")
+                eligible_rows.append(approval)
+
+            # A completed member receives one persisted Pending record the
+            # first time they appear here. This gives Review a real approval ID
+            # instead of a generated placeholder and keeps future status reads
+            # authoritative.
             for tm in completed_members:
                 tm_id = str(tm.get("id", ""))
                 if tm_id and tm_id in seen_tm_ids:
                     continue
+                approval = create_approval_record({}, tm)
+                if not approval:
+                    continue
                 member_role = tm.get("role") or tm.get("designation") or ""
-                name = tm.get("full_name") or tm.get("name") or "Unknown"
-                normalized_rows.append({
-                    "id": f"member-{tm_id}",
-                    "employee": name,
-                    "team_member_id": tm.get("id"),
-                    "employee_id": tm.get("user_id"),
-                    "level": tm.get("designation") or member_role,
-                    "status": "pending",
-                    "evaluationBy": ROLE_EVALUATOR.get(member_role, DEFAULT_EVALUATOR_NAME),
-                    "dueDate": None,
-                })
+                approval["employee"] = approval.get("employee") or tm.get("full_name") or tm.get("name") or "Unknown"
+                approval["team_member_id"] = tm.get("id")
+                approval["employee_id"] = approval.get("employee_id") or tm.get("user_id")
+                approval["level"] = approval.get("level") or tm.get("designation") or member_role
+                approval["evaluationBy"] = approval.get("evaluationBy") or ROLE_EVALUATOR.get(member_role, DEFAULT_EVALUATOR_NAME)
+                approval["status"] = normalize_status_value(approval.get("status")) or "pending"
+                eligible_rows.append(approval)
 
-            return jsonify(normalized_rows), 200
+            return jsonify(eligible_rows), 200
         except Exception as error:
             current_app.logger.warning("Falling back to in-memory approvals: %s", error)
 
@@ -236,6 +268,9 @@ def update_approval(approval_id):
 
     data = request.get_json(silent=True) or {}
     status_value = data.get("status")
+    normalized_status = normalize_status_value(status_value)
+    if normalized_status not in {"approved", "rejected"}:
+        return error_response("Approval status must be approved or rejected", 400)
     # Rejection comments are sent from the frontend but cannot be stored in the
     # approvals table (no column). Include them in the notification description
     # so reviewers can still see the reason on the Notifications page.
@@ -243,9 +278,9 @@ def update_approval(approval_id):
 
     # Map approval status changes to notification categories used by the UI.
     notification_type = "approval_required"
-    if normalize_status_value(status_value) == "approved":
+    if normalized_status == "approved":
         notification_type = "approval_approved"
-    elif normalize_status_value(status_value) == "rejected":
+    elif normalized_status == "rejected":
         notification_type = "rejection"
 
     if USE_SUPABASE:
@@ -260,7 +295,6 @@ def update_approval(approval_id):
                 return jsonify({"error": "Approval not found"}), 404
             approval = normalize_approval(rows[0])
             employee_name = approval.get("employee", "Employee")
-            normalized_status = normalize_status_value(status_value)
             if normalized_status == "rejected" and rejection_comments:
                 description = f"{employee_name}'s evaluation was rejected. Reason: {rejection_comments}"
             else:

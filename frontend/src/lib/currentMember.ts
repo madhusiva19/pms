@@ -1,4 +1,4 @@
-import type { Approval, TeamMember } from '../types';
+import type { Approval, TeamMember, TeamMemberStatus } from '../types';
 import { EVALUATION_DEFAULTS, STORAGE_KEYS } from './constants';
 
 const TEAM_CACHE_KEY = 'pms_team_members_cache';
@@ -15,6 +15,18 @@ export const readTeamMembersCache = (): TeamMember[] => {
     const data = JSON.parse(localStorage.getItem(TEAM_CACHE_KEY) || '[]') as TeamMember[];
     return Array.isArray(data) ? data : [];
   } catch { return []; }
+};
+
+// Keep the My Team cache in sync as soon as an evaluation action is pressed.
+// The API mutation still persists the change, but the next page can render the
+// new workflow state without waiting for a network round trip.
+export const updateStoredTeamMemberStatus = (memberId: TeamMember['id'], status: TeamMemberStatus): void => {
+  const members = readTeamMembersCache();
+  if (!members.length) return;
+
+  saveTeamMembersCache(members.map((member) =>
+    String(member.id) === String(memberId) ? { ...member, status } : member
+  ));
 };
 
 export const saveEvaluationDate = (date: string): void => {

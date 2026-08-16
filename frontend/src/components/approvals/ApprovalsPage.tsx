@@ -14,9 +14,9 @@ const APPROVAL_TAB = {
   all: 'all',
 } as const;
 
-// Maps the approval status to the evaluation flow display label.
-// The flow is only "completed" when the last stage (HQ Admin Finalization) is
-// done, i.e. the approval is approved. Everything before that is "in progress".
+// Approval-page wording follows the workflow requested by the business:
+// Pending → Completed or Rejected. The backend retains "approved" as its
+// persisted value for compatibility with existing approval records.
 const getEvalFlowLabel = (status?: string): string => {
   const s = normalizeStatus(status);
   if (s === 'approved')  return 'completed';
@@ -103,7 +103,7 @@ export default function Approvals({ roleFilter }: { roleFilter?: string } = {}) 
               <div className={`${viewStyles.approvalStatIcon} ${viewStyles.approvalStatIconApproved}`}>✅</div>
               <div className={viewStyles.approvalStatBody}>
                 <span className={`${viewStyles.approvalStatNum} ${viewStyles.approvalStatNumApproved}`}>{approvedCount}</span>
-                <span className={viewStyles.approvalStatLabel}>Approved</span>
+                <span className={viewStyles.approvalStatLabel}>Completed</span>
               </div>
             </div>
             <div className={viewStyles.approvalStatCard}>

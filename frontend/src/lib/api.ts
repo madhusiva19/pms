@@ -14,6 +14,7 @@ import type {
   TeamMember,
   TeamMemberStatus,
 } from '../types';
+import { updateStoredTeamMemberStatus } from './currentMember';
 
 // Backend URL can be overridden with NEXT_PUBLIC_API_BASE_URL in frontend/.env.local.
 // Normalise so the baseURL always ends with /api regardless of whether the env
@@ -65,8 +66,23 @@ export const getTeamMembers = (params?: QueryParams): Promise<AxiosResponse<Team
 // Fetch one team member for the evaluation page.
 export const getTeamMember = (id: EntityId): Promise<AxiosResponse<TeamMember>> => cachedGet(`/team-members/${id}`);
 // Update a member evaluation status when workflow actions require it.
+export const optimisticallyUpdateTeamMemberStatus = (id: EntityId, status: TeamMemberStatus) => {
+  // Update every cached team list optimistically. This makes status chips and
+  // counters correct immediately when the user navigates away from Evaluate.
+  for (const [key, entry] of memCache.entries()) {
+    if (!key.startsWith('/team-members') || !Array.isArray(entry.data)) continue;
+    memCache.set(key, {
+      ts: Date.now(),
+      data: entry.data.map((member: TeamMember) =>
+        String(member.id) === String(id) ? { ...member, status } : member
+      ),
+    });
+  }
+  updateStoredTeamMemberStatus(id, status);
+};
+
 export const updateTeamMemberStatus = (id: EntityId, status: TeamMemberStatus) => {
-  invalidateCache('/team-members');
+  optimisticallyUpdateTeamMemberStatus(id, status);
   return api.put(`/team-members/${id}/status`, { status });
 };
 

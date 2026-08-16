@@ -28,7 +28,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from '../../lib/routing';
 import Link from '../../lib/routing';
-import { getApprovals, getObjectives, getTeamMember, submitEvaluation, updateTeamMemberStatus } from '../../lib/api';
+import { getApprovals, getObjectives, getTeamMember, optimisticallyUpdateTeamMemberStatus, submitEvaluation, updateTeamMemberStatus } from '../../lib/api';
 import LoadingScreen from '../LoadingScreen';
 import { useRoutes } from '../../lib/routing';
 import { EVALUATION_DEFAULTS, ROLE_EVALUATOR_LABEL } from '../../lib/constants';
@@ -203,6 +203,9 @@ export default function EvaluateMemberPage() {
     if (!member || submitting) return;
     setSubmitting(true);
     setShowSuccess(true);
+    // The server completes this transition as part of submission. Updating the
+    // browser cache now keeps My Team responsive while that write finishes.
+    optimisticallyUpdateTeamMemberStatus(member.id, 'completed');
     submitEvaluation({
       team_member_id:  member.id,
       employee:        member.name,
@@ -229,6 +232,9 @@ export default function EvaluateMemberPage() {
     if (!member || savingDraft) return;
     setSavingDraft(true);
     setShowDraftSaved(true);
+    // Start the independent status write immediately instead of waiting for
+    // the evaluation record to be saved first.
+    updateTeamMemberStatus(member.id, 'in progress').catch(() => {});
     submitEvaluation({
       team_member_id: member.id,
       employee:       member.name,
@@ -239,8 +245,6 @@ export default function EvaluateMemberPage() {
       period,
       evaluation_id:  evalRec.id,
       status:         'draft',
-    }).then(() => {
-      updateTeamMemberStatus(member.id, 'in progress').catch(() => {});
     }).catch((error) => {
       console.error('Error saving draft:', error);
     }).finally(() => {
@@ -629,7 +633,7 @@ export default function EvaluateMemberPage() {
                   style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#92400e,#d97706)', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>
                   Stay Here
                 </button>
-                <button type="button" onClick={() => { router.push(routes.myTeam); updateTeamMemberStatus(member.id, 'pending').catch(() => {}); }}
+                <button type="button" onClick={() => { updateTeamMemberStatus(member.id, 'pending').catch(() => {}); router.push(routes.myTeam); }}
                   style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1.5px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.55)', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
                   Leave Page
                 </button>

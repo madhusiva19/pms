@@ -230,7 +230,14 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
       try { localStorage.setItem("pms_eval_read", JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });
-  }, [evalApprovals]);
+    const unreadNotificationIds = evalNotifs
+      .filter((notification) => !notification.is_read)
+      .map((notification) => String(notification.notification_id ?? notification.id));
+    setEvalNotifs((previous) => previous.map((notification) => ({ ...notification, is_read: true })));
+    void Promise.all(unreadNotificationIds.map((notificationId) =>
+      fetch(`${API}/evaluation-notifications/${notificationId}/read`, { method: "PATCH" })
+    ));
+  }, [evalApprovals, evalNotifs]);
 
   const markEvalRead = useCallback((id: string) => {
     setReadEvalIds(prev => {
@@ -238,6 +245,15 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
       try { localStorage.setItem("pms_eval_read", JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });
+  }, []);
+
+  const markEvaluationNotificationRead = useCallback((notificationId: string) => {
+    setEvalNotifs((previous) => previous.map((notification) =>
+      String(notification.notification_id ?? notification.id) === notificationId
+        ? { ...notification, is_read: true }
+        : notification
+    ));
+    void fetch(`${API}/evaluation-notifications/${notificationId}/read`, { method: "PATCH" });
   }, []);
 
   const currentUser = useCurrentUser();
@@ -317,7 +333,10 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
             return {
               _type:  type,
               _label: label,
-              id:     `${type}-${item.id}`,
+              // A status transition is a new notification event. Including the
+              // status keeps a newly approved/rejected evaluation red even if
+              // its earlier Pending notification was already read.
+              id:     `${type}-${item.id}-${status}`,
               name:   item.employee || item.employee_name || item.member_name || item.name || "Team Member",
               status,
               date:   item.dueDate || item.created_at || item.date || "",
@@ -433,7 +452,9 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   const unreadCount    = notifications.filter((n) => !n.is_read).length;
   const unreadPa       = paList.filter(n => !n.isRead).length;
   const unreadManual   = manualReminderList.filter(n => !n.isRead).length;
-  const unreadEval     = evalApprovals.filter(a => !readEvalIds.has(a.id as string)).length;
+  const unreadEval     =
+    evalApprovals.filter(a => !readEvalIds.has(a.id as string)).length +
+    evalNotifs.filter(n => !n.is_read).length;
 
   const renderBanner = () => null;
 
@@ -456,6 +477,11 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
             <div className={styles.headerActions}>
               {unreadCount > 0 && activeTab === "cutoff" && (
                 <button className={styles.markAllBtn} onClick={markAllRead}>
+                  Mark all as read
+                </button>
+              )}
+              {unreadEval > 0 && activeTab === "evaluation" && (
+                <button className={styles.markAllBtn} onClick={markEvalAllRead}>
                   Mark all as read
                 </button>
               )}
@@ -483,7 +509,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
               Manual Rating Reminders
               {unreadManual > 0 && <span className={styles.tabBadge}>{unreadManual}</span>}
             </button>
-            <button className={activeTab === "evaluation" ? styles.tabActive : styles.tabInactive} onClick={() => { setActiveTab("evaluation"); markEvalAllRead(); }}>
+            <button className={activeTab === "evaluation" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("evaluation")}>
               Evaluation Approvals
               {unreadEval > 0 && <span className={styles.tabBadge}>{unreadEval}</span>}
             </button>
@@ -708,8 +734,9 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                                    : ntype === "approval_approved" ? "approval_done"
                                    : "approval_pending";
                     const s        = EVAL_STYLES[styleKey];
-                    const notifId     = `evalnotif-${n.notification_id ?? n.id}`;
-                    const isRead      = readEvalIds.has(notifId);
+                    const notificationId = String(n.notification_id ?? n.id);
+                    const notifId        = `evalnotif-${notificationId}`;
+                    const isRead         = Boolean(n.is_read);
                     return (
                       <div key={notifId} className={`${styles.notifCard} ${!isRead ? styles.unread : ""}`} style={{ background: s.bg, borderColor: s.borderColor }}>
                         <div className={styles.notifTop}>
@@ -724,7 +751,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                         </div>
                         <p className={styles.notifBody}>{n.description ?? n.message ?? ""}</p>
                         <div className={styles.notifActions}>
-                          {!isRead && <button type="button" className={styles.readBtn} onClick={() => markEvalRead(notifId)}>Mark as read</button>}
+                          {!isRead && <button type="button" className={styles.readBtn} onClick={() => markEvaluationNotificationRead(notificationId)}>Mark as read</button>}
                         </div>
                       </div>
                     );

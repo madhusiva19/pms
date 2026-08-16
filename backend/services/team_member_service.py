@@ -1,6 +1,7 @@
 """Team member business logic."""
 
 from datetime import datetime, timedelta
+from threading import Thread
 
 from flask import current_app, jsonify, request
 
@@ -91,11 +92,17 @@ def update_member_status(member_id):
             if not rows:
                 return jsonify({"error": "Team member not found"}), 404
             updated_member = normalize_member(rows[0])
-            create_notification(
-                "status_update",
-                "Team Member Status Updated",
-                f"{updated_member.get('name', 'Team member')} status changed to {normalize_status_value(status_value)}.",
-            )
+            # Notifications must not delay a workflow-status response. They
+            # are independent, best-effort audit messages.
+            Thread(
+                target=create_notification,
+                args=(
+                    "status_update",
+                    "Team Member Status Updated",
+                    f"{updated_member.get('name', 'Team member')} status changed to {normalize_status_value(status_value)}.",
+                ),
+                daemon=True,
+            ).start()
             return jsonify(updated_member), 200
         except Exception as error:
             current_app.logger.warning("Falling back to in-memory status update: %s", error)
@@ -104,10 +111,14 @@ def update_member_status(member_id):
     if not member:
         return jsonify({"error": "Team member not found"}), 404
     member["status"] = status_value or member["status"]
-    create_notification(
-        "status_update",
-        "Team Member Status Updated",
-        f"{member.get('name', 'Team member')} status changed to {normalize_status_value(member['status'])}.",
-    )
+    Thread(
+        target=create_notification,
+        args=(
+            "status_update",
+            "Team Member Status Updated",
+            f"{member.get('name', 'Team member')} status changed to {normalize_status_value(member['status'])}.",
+        ),
+        daemon=True,
+    ).start()
     return fallback_response(member)
 # employee names, evaluator names, approval levels, and status changes.

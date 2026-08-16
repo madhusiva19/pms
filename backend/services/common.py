@@ -218,6 +218,11 @@ def get_user_for_member(member, create_if_missing=False):
         return None
 
     normalized_member = normalize_member(member)
+    # team_members normally already stores the linked users.id. Reusing it
+    # avoids loading the full users table for every evaluation action.
+    linked_user_id = member.get("user_id") or normalized_member.get("user_id")
+    if linked_user_id:
+        return {"id": linked_user_id}
     member_email = str(normalized_member.get("email") or "").strip().lower()
     member_name = str(normalized_member.get("name") or "").strip().lower()
     users = fetch_rows("users", params={"select": "*", "limit": 1000})
@@ -359,18 +364,18 @@ def numeric_or_none(value):
 # route handler so it is easier to test and modify.
 
 
-def create_evaluation_record(data, member):
+def create_evaluation_record(data, member, linked_user=None):
     """Create the main evaluation row for the evaluated team member."""
 
     # The Supabase schema may link evaluations to users, while the UI starts
     # from a team member. Resolve that bridge before writing the evaluation.
     period = data.get("period") or data.get("evaluation_period") or DEFAULT_EVALUATION_PERIOD
-    linked_user = get_user_for_member(member, create_if_missing=True)
+    linked_user = linked_user if linked_user is not None else get_user_for_member(member, create_if_missing=True)
     employee_id = linked_user.get("id") if linked_user else member["id"]
     payload = {
         "employee_id": employee_id,
         "evaluation_period": period,
-        "overall_score": numeric_or_none(data.get("overallScore") or member.get("overall_score") or member.get("overallScore")),
+        "overall_score": numeric_or_none(data.get("overall_score") or data.get("overallScore") or member.get("overall_score") or member.get("overallScore")),
         "admin_recommendation": data.get("feedback") or data.get("adminFeedback") or "",
         "status": data.get("status") or "submitted",
         "updated_at": datetime.utcnow().isoformat(),
@@ -387,13 +392,13 @@ def create_evaluation_record(data, member):
         return None
 
 
-def create_approval_record(data, member, evaluation=None):
+def create_approval_record(data, member, evaluation=None, linked_user=None):
     """Create the approval row connected to a submitted evaluation."""
 
     # This project has used more than one approval table shape. The payload is
     # selected based on the resolved table so old and new schemas both work.
     employee_name = normalize_member(member).get("name") or f"Employee {member['id']}"
-    linked_user = get_user_for_member(member, create_if_missing=True)
+    linked_user = linked_user if linked_user is not None else get_user_for_member(member, create_if_missing=True)
     due_date = (datetime.utcnow() + timedelta(days=14)).date().isoformat()
     approval_table = resolve_table_name("approvals")
 
