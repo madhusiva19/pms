@@ -103,18 +103,27 @@ def send_push_to_employee(employee_id: str, title: str, body: str, url: str = "/
 # POLLER — dispatches a push for any newly-created personal notification
 # ─────────────────────────────────────────────────────────────────────────────
 
-_last_checked_at = datetime.now(timezone.utc)
+# One tracked table per notification source that should trigger a popup.
+# (table_name, recipient_column, url_column_or_None)
+_POLLED_TABLES = [
+    ("notifications", "receiver_id", "action_link"),
+    ("potential_assessment_notifications", "recipient_id", None),
+]
+
+_last_checked_at = {table: datetime.now(timezone.utc) for table, _, _ in _POLLED_TABLES}
 
 
-def _poll_and_dispatch() -> None:
-    global _last_checked_at
+def _poll_table(table: str, recipient_col: str, url_col: str | None) -> None:
+    since = _last_checked_at[table].isoformat()
+    select_cols = f"{recipient_col}, title, message, created_at"
+    if url_col:
+        select_cols += f", {url_col}"
 
-    since = _last_checked_at.isoformat()
     try:
         rows = (
-            supabase.table("notifications")
-            .select("receiver_id, title, message, action_link, created_at")
-            .not_.is_("receiver_id", "null")
+            supabase.table(table)
+            .select(select_cols)
+            .not_.is_(recipient_col, "null")
             .gt("created_at", since)
             .order("created_at")
             .execute()
@@ -122,16 +131,16 @@ def _poll_and_dispatch() -> None:
             or []
         )
     except Exception as exc:
-        log.error("[push] poll failed: %s", exc)
+        log.error("[push] poll(%s) failed: %s", table, exc)
         return
 
-    latest = _last_checked_at
+    latest = _last_checked_at[table]
     for row in rows:
         send_push_to_employee(
-            row["receiver_id"],
+            row[recipient_col],
             row.get("title") or "New notification",
             row.get("message") or "",
-            row.get("action_link") or "/",
+            (row.get(url_col) if url_col else None) or "/",
         )
         try:
             created_at = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
@@ -139,7 +148,12 @@ def _poll_and_dispatch() -> None:
         except (ValueError, TypeError):
             pass
 
-    _last_checked_at = latest if rows else datetime.now(timezone.utc)
+    _last_checked_at[table] = latest if rows else datetime.now(timezone.utc)
+
+
+def _poll_and_dispatch() -> None:
+    for table, recipient_col, url_col in _POLLED_TABLES:
+        _poll_table(table, recipient_col, url_col)
 
 
 def init_push_scheduler() -> None:
