@@ -504,7 +504,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                         {!n.isRead && <span className={styles.unreadDot} />}
                         <div>
                           <p className={styles.notifTitle}>{n.fromName.includes("Approved") || n.fromName.includes("Rejected") ? n.fromName : `Achievement submitted by ${n.fromName}`}</p>
-                          <span className={styles.notifDate}>{n.submittedAt}</span>
+                          <span className={styles.notifDate}>{formatDate(n.submittedAt)}</span>
                         </div>
                       </div>
                       {!n.isRead && <button className={styles.readBtn} onClick={() => markRead(n.id)}>Mark as read</button>}
@@ -680,21 +680,21 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                                    : "approval_pending";
                     const s        = EVAL_STYLES[styleKey];
                     return (
-                      <div key={a.id} className={`${styles.notifCard} ${!isRead ? styles.unread : ""}`} style={{ background: s.bg, borderColor: s.borderColor }}>
+                      <div key={a.id} className={`${styles.notifCard} ${!isRead ? styles.unread : ""}`}>
                         <div className={styles.notifTop}>
                           <div className={styles.notifMeta}>
                             {!isRead && <span className={styles.unreadDot} />}
                             <div>
                               <p className={styles.notifTitle}>{a.name} — {a._label}</p>
-                              <p className={styles.notifRole}>{a.date ? formatDate(a.date) : ""}</p>
+                              <div className={styles.notifRoleRow}>
+                                <span className={styles.roleBadge} style={{ background: s.badge, color: s.badgeColor }}>{s.badgeText}</span>
+                                <span className={styles.notifDate}>{a.date ? formatDate(a.date) : ""}</span>
+                              </div>
                             </div>
                           </div>
-                          <span style={{ padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, background: s.badge, color: s.badgeColor, whiteSpace: "nowrap" }}>{s.badgeText}</span>
-                        </div>
-                        <p className={styles.notifBody}>{s.message}</p>
-                        <div className={styles.notifActions}>
                           {!isRead && <button type="button" className={styles.readBtn} onClick={() => markEvalRead(a.id as string)}>Mark as read</button>}
                         </div>
+                        <p className={styles.notifBody}>{s.message}</p>
                       </div>
                     );
                   })}
@@ -707,21 +707,21 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                     const notifId     = `evalnotif-${n.notification_id ?? n.id}`;
                     const isRead      = readEvalIds.has(notifId);
                     return (
-                      <div key={notifId} className={`${styles.notifCard} ${!isRead ? styles.unread : ""}`} style={{ background: s.bg, borderColor: s.borderColor }}>
+                      <div key={notifId} className={`${styles.notifCard} ${!isRead ? styles.unread : ""}`}>
                         <div className={styles.notifTop}>
                           <div className={styles.notifMeta}>
                             {!isRead && <span className={styles.unreadDot} />}
                             <div>
                               <p className={styles.notifTitle}>{n.title ?? "Evaluation Update"}</p>
-                              <p className={styles.notifRole}>{n.created_at ? formatDate(n.created_at) : ""}</p>
+                              <div className={styles.notifRoleRow}>
+                                <span className={styles.roleBadge} style={{ background: s.badge, color: s.badgeColor }}>{s.badgeText}</span>
+                                <span className={styles.notifDate}>{n.created_at ? formatDate(n.created_at) : ""}</span>
+                              </div>
                             </div>
                           </div>
-                          <span style={{ padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, background: s.badge, color: s.badgeColor, whiteSpace: "nowrap" }}>{s.badgeText}</span>
-                        </div>
-                        <p className={styles.notifBody}>{n.description ?? n.message ?? ""}</p>
-                        <div className={styles.notifActions}>
                           {!isRead && <button type="button" className={styles.readBtn} onClick={() => markEvalRead(notifId)}>Mark as read</button>}
                         </div>
+                        <p className={styles.notifBody}>{n.description ?? n.message ?? ""}</p>
                       </div>
                     );
                   })}
