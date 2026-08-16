@@ -5,7 +5,8 @@ Patches Supabase and APScheduler BEFORE any module imports them.
 """
 
 import sys, os
-from unittest.mock import MagicMock
+import pytest
+from unittest.mock import MagicMock, patch
 
 # ── 1. Stub supabase package ─────────────────────────────────────
 _mock_pkg    = MagicMock()
@@ -45,3 +46,59 @@ for _finder, _name, _ in pkgutil.walk_packages(
             _mod.supabase = _mock_client
     except Exception:
         pass
+
+
+# ── 6. Shared auth-guard mocking fixture ──────────────────────────────────
+#
+# require_auth() normally makes a live HTTP call to Supabase to verify the
+# bearer token, and is_authorized_for() normally queries the `users` table.
+# Route modules import both names directly (`from utils.auth_guard import
+# require_auth, is_authorized_for`), so each module gets its own bound copy
+# that must be patched at the point of use.
+#
+# `mock_auth` patches require_auth + is_authorized_for in every route module
+# that guards its routes with them. By default require_auth returns
+# DEFAULT_CALLER_ID and is_authorized_for returns True (caller is allowed) —
+# override `mock_auth.require_auth.return_value` /
+# `mock_auth.is_authorized_for.return_value` per-test to exercise 401/403
+# paths.
+
+DEFAULT_CALLER_ID = "caller-uuid-1"
+
+_AUTH_GUARDED_MODULES = [
+    "routes.diary_routes",
+    "routes.profile_routes",
+    "routes.training_routes",
+    "routes.dashboard_routes",
+    "routes.notification_routes",
+]
+
+
+@pytest.fixture
+def mock_auth():
+    patchers = []
+    require_auth_mock = MagicMock(return_value=DEFAULT_CALLER_ID)
+    is_authorized_mock = MagicMock(return_value=True)
+
+    for module_path in _AUTH_GUARDED_MODULES:
+        try:
+            module = importlib.import_module(module_path)
+        except Exception:
+            continue
+        if hasattr(module, "require_auth"):
+            p = patch.object(module, "require_auth", require_auth_mock)
+            p.start()
+            patchers.append(p)
+        if hasattr(module, "is_authorized_for"):
+            p = patch.object(module, "is_authorized_for", is_authorized_mock)
+            p.start()
+            patchers.append(p)
+
+    holder = MagicMock()
+    holder.require_auth = require_auth_mock
+    holder.is_authorized_for = is_authorized_mock
+
+    yield holder
+
+    for p in patchers:
+        p.stop()

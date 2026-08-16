@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import styles from "./notifications.module.css";
+import { apiFetch } from "@/lib/apiFetch";
 
 // Strip trailing /api if the env var already includes it, so all
 // fetch() calls below can consistently use ${API}/api/...
@@ -236,7 +237,7 @@ export default function NotificationTemplate({
       setLoading(true);
       try {
         // 1. Achievement / manual-rating notifications
-        const notifRes = await fetch(`${API}/api/manual-rating-notifications/${userId}`);
+        const notifRes = await apiFetch(`${API}/api/manual-rating-notifications/${userId}`);
         const notifData = await notifRes.json();
 
         const allNotifs = Array.isArray(notifData) ? notifData : [];
@@ -352,7 +353,7 @@ export default function NotificationTemplate({
   // Mark read helpers 
   const callMarkRead = async (id: string) => {
     try {
-      await fetch(`${API}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" });
+      await apiFetch(`${API}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" });
     } catch (err) {
       logger.error('Failed to mark notification as read', err);
     }

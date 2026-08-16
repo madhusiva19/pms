@@ -648,6 +648,8 @@ def send_reminder(
         "is_read":      False,
     }).execute()
 
+    return {"success": True}
+
 
 # ── Denusha's evaluation workflow notification helper ─────────────────────────
 

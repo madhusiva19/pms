@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { apiFetch } from '@/lib/apiFetch';
 import { Clock, CheckCircle, Send, Calendar, Settings, Lock } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? 'http://127.0.0.1:5000';
@@ -210,7 +211,7 @@ function ReminderModal({ member, period, pmsYear, senderId, onClose, onSent }: {
   const handleSend = async () => {
     setSending(true);
     try {
-      await fetch(`${API}/api/manual-rating-notifications/send-reminder`, {
+      await apiFetch(`${API}/api/manual-rating-notifications/send-reminder`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sender_id:    senderId,

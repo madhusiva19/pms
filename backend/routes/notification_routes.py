@@ -43,8 +43,18 @@ from services.notification_service import (
     init_notifications,
 )
 from models.supabase_client import supabase
+from utils.auth_guard import require_auth, is_authorized_for
 
 notifications_bp = Blueprint("pms_notifications", __name__, url_prefix="/api")
+
+
+def _verified_user_level(caller_id) -> int:
+    """Looks up the caller's org_level from the DB instead of trusting a
+    client-supplied header. Defaults to 99 (least privileged) if unknown."""
+    res = supabase.table("users").select("org_level").eq("id", caller_id).execute()
+    if not res.data or res.data[0].get("org_level") is None:
+        return 99
+    return res.data[0]["org_level"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -90,7 +100,10 @@ def get_notifications_by_level():
     Header: X-User-Level
     """
     try:
-        user_level = int(request.headers.get("X-User-Level", 99))
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        user_level = _verified_user_level(caller_id)
 
         cycle = get_active_cycle()
         if not cycle:
@@ -126,7 +139,10 @@ def get_unread_count():
     Header: X-User-Level
     """
     try:
-        user_level = int(request.headers.get("X-User-Level", 99))
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        user_level = _verified_user_level(caller_id)
 
         cycle = get_active_cycle()
         if not cycle:
@@ -169,7 +185,10 @@ def get_grace_status():
     Header: X-User-Level (only meaningful for level 1 — HQ Admin)
     """
     try:
-        user_level = int(request.headers.get("X-User-Level", 99))
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        user_level = _verified_user_level(caller_id)
         if user_level != 1:
             return jsonify({"status": "none"}), 200
 
@@ -193,8 +212,28 @@ def get_grace_status():
 
 @notifications_bp.route("/notifications/<notif_id>/read", methods=["PATCH"])
 def mark_notification_read(notif_id):
-    """Marks a single notification as read."""
+    """Marks a single notification as read.
+
+    Notifications either belong to one person (receiver_id set — e.g. diary
+    approval) or are broadcast to a role/level (objective_cutoff, no
+    receiver_id). Person-scoped notifications require the caller to own
+    them or be authorized for the receiver; broadcast ones only require
+    the caller to be authenticated.
+    """
     try:
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        existing = supabase.table("notifications")\
+            .select("receiver_id")\
+            .eq("id", notif_id)\
+            .execute()
+        if existing.data:
+            receiver_id = existing.data[0].get("receiver_id")
+            if receiver_id and caller_id != receiver_id and not is_authorized_for(caller_id, receiver_id):
+                return jsonify({"error": "Forbidden"}), 403
+
         from datetime import timezone
         now = __import__("datetime").datetime.now(timezone.utc).isoformat()
         supabase.table("notifications").update({
@@ -218,7 +257,10 @@ def mark_all_read():
     """
     try:
         from datetime import timezone
-        user_level = int(request.headers.get("X-User-Level", 99))
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        user_level = _verified_user_level(caller_id)
 
         cycle = get_active_cycle()
         if not cycle:
@@ -265,6 +307,10 @@ def get_evaluation_notifications():
     Merges rows from the evaluation_notifications DB table with the in-memory
     fallback list so notifications appear even when the DB insert failed.
     """
+    caller_id = require_auth(request)
+    if not caller_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
     from services.notification_service import _eval_notifications_fallback
 
     # ── DB rows ───────────────────────────────────────────────────────────────
@@ -299,6 +345,10 @@ def get_evaluation_notifications():
 def mark_evaluation_notification_read(notif_id: str):
     """Mark one evaluation notification as read."""
     try:
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+
         supabase.table("evaluation_notifications").update({
             "is_read": True,
         }).eq("notification_id", notif_id).execute()
@@ -319,7 +369,10 @@ def get_cutoff_schedule():
     Header: X-User-Level
     """
     try:
-        user_level      = int(request.headers.get("X-User-Level", 99))
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        user_level      = _verified_user_level(caller_id)
         cycle           = get_active_cycle()
         if not cycle:
             return jsonify({"schedule": [], "cycle": None}), 200
@@ -375,7 +428,10 @@ def refresh_cycle_notifications():
     Header: X-User-Level: 1  (HQ Admin only)
     """
     try:
-        user_level = int(request.headers.get("X-User-Level", 99))
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        user_level = _verified_user_level(caller_id)
         if user_level != 1:
             return jsonify({"error": "Only HQ Admin can refresh cycle notifications"}), 403
 
@@ -407,7 +463,10 @@ def fire_notification_now():
     Header: X-User-Level: 1
     """
     try:
-        user_level = int(request.headers.get("X-User-Level", 99))
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        user_level = _verified_user_level(caller_id)
         if user_level != 1:
             return jsonify({"error": "Only HQ Admin can manually trigger notifications"}), 403
 
@@ -439,20 +498,26 @@ notification_bp = Blueprint("notifications", __name__, url_prefix="/api/notifica
 @notification_bp.get("/<employee_id>")
 def get_notifications_for_employee(employee_id):
     try:
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"message": "Unauthorized"}), 401
+        if not is_authorized_for(caller_id, employee_id):
+            return jsonify({"message": "Forbidden"}), 403
+
         from services.notification_service import get_notifications
         result, status = get_notifications(employee_id)
         return jsonify(result), status
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
-@notification_bp.patch("/<notification_id>/read")
-def mark_notification_read_basic(notification_id):
-    try:
-        from services.notification_service import mark_read
-        result, status = mark_read(notification_id)
-        return jsonify(result), status
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
+# NOTE: PATCH /<notification_id>/read used to be defined here too, but it is
+# unreachable: notifications_bp registers PATCH /notifications/<notif_id>/read
+# first (see app.py), which resolves to the identical URL
+# /api/notifications/<id>/read and always wins the route match. That handler
+# (mark_notification_read, above) already updates the same `notifications`
+# table by id with no type filter, so it covers this case too — the dead
+# route has been removed rather than duplicated. See services/notification_service.py
+# mark_read() — now only used directly by tests documenting the old behavior.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -463,6 +528,12 @@ def mark_notification_read_basic(notification_id):
 def get_manual_rating_notifications(user_id: str):
     """Return all manual rating notifications for a user, newest first."""
     try:
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        if caller_id != user_id and not is_authorized_for(caller_id, user_id):
+            return jsonify({"error": "Forbidden"}), 403
+
         result = (
             supabase.table("manual_rating_notifications")
             .select("*")
@@ -479,6 +550,20 @@ def get_manual_rating_notifications(user_id: str):
 def mark_manual_notification_read(notif_id: str):
     """Flip is_read to True for the given manual rating notification."""
     try:
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        existing = supabase.table("manual_rating_notifications")\
+            .select("recipient_id")\
+            .eq("id", notif_id)\
+            .execute()
+        if not existing.data:
+            return jsonify({"error": "Notification not found"}), 404
+        recipient_id = existing.data[0].get("recipient_id")
+        if caller_id != recipient_id and not is_authorized_for(caller_id, recipient_id):
+            return jsonify({"error": "Forbidden"}), 403
+
         (
             supabase.table("manual_rating_notifications")
             .update({"is_read": True})
@@ -494,15 +579,26 @@ def mark_manual_notification_read(notif_id: str):
 def delete_manual_notification(notif_id: str):
     """Delete a manual rating notification row."""
     try:
-        recipient_id = request.args.get("recipient_id")
-        query = (
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        existing = supabase.table("manual_rating_notifications")\
+            .select("recipient_id")\
+            .eq("id", notif_id)\
+            .execute()
+        if not existing.data:
+            return jsonify({"error": "Notification not found"}), 404
+        recipient_id = existing.data[0].get("recipient_id")
+        if caller_id != recipient_id and not is_authorized_for(caller_id, recipient_id):
+            return jsonify({"error": "Forbidden"}), 403
+
+        (
             supabase.table("manual_rating_notifications")
             .delete()
             .eq("id", notif_id)
+            .execute()
         )
-        if recipient_id:
-            query = query.eq("recipient_id", recipient_id)
-        query.execute()
         return jsonify({"success": True})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -512,6 +608,10 @@ def delete_manual_notification(notif_id: str):
 def send_manual_rating_reminder():
     """Allow a manager to send a personalised reminder to a direct report."""
     try:
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+
         body         = request.get_json()
         sender_id    = body.get("sender_id")
         recipient_id = body.get("recipient_id")
@@ -520,6 +620,8 @@ def send_manual_rating_reminder():
         message      = body.get("message", "")
         if not all([sender_id, recipient_id, period, pms_year]):
             return jsonify({"error": "Missing required fields"}), 400
+        if caller_id != sender_id:
+            return jsonify({"error": "Forbidden"}), 403
         from services.notification_service import send_reminder
         result = send_reminder(
             sender_id    = sender_id,
@@ -539,8 +641,14 @@ def send_manual_rating_reminder():
 
 @notifications_bp.route("/manual-rating-notifications/broadcast", methods=["POST"])
 def broadcast_manual_rating_notification():
-    """Trigger a system-wide broadcast notification."""
+    """Trigger a system-wide broadcast notification. HQ Admin only."""
     try:
+        caller_id = require_auth(request)
+        if not caller_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        if _verified_user_level(caller_id) != 1:
+            return jsonify({"error": "Only HQ Admin can broadcast notifications"}), 403
+
         body       = request.get_json()
         notif_type = body.get("type")
         period     = body.get("period")

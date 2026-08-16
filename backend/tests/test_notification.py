@@ -57,7 +57,7 @@ SAMPLE_NOTIFICATIONS = [
 class TestGetNotifications:
     """Tests for fetching notifications for a specific employee."""
 
-    def test_get_notifications_success(self, client):
+    def test_get_notifications_success(self, client, mock_auth):
         """
         Should return all notifications for a valid employee ID.
         Verifies correct HTTP status and response structure.
@@ -79,7 +79,7 @@ class TestGetNotifications:
             assert "notifications" in data
             assert len(data["notifications"]) == 1
 
-    def test_get_notifications_returns_unread(self, client):
+    def test_get_notifications_returns_unread(self, client, mock_auth):
         """
         Verifies unread notifications appear in the returned list.
         Frontend uses this to calculate badge count.
@@ -102,7 +102,7 @@ class TestGetNotifications:
             assert len(unread) == 1
             assert unread[0]["title"] == "Achievement Approved ✅"
 
-    def test_get_notifications_empty(self, client):
+    def test_get_notifications_empty(self, client, mock_auth):
         """
         Should return empty array when no notifications exist for the user.
         """
@@ -122,7 +122,7 @@ class TestGetNotifications:
             assert response.status_code == 200
             assert data["notifications"] == []
 
-    def test_get_notifications_invalid_employee(self, client):
+    def test_get_notifications_invalid_employee(self, client, mock_auth):
         """
         Should return 200 with empty list for non-existent employee ID.
         Database returns empty result rather than an error.
@@ -145,19 +145,24 @@ class TestGetNotifications:
 
 
 # ── PATCH /api/notifications/<id>/read Tests ─────────────────────────────────
+#
+# NOTE: notifications_bp registers PATCH /notifications/<notif_id>/read
+# (url_prefix "/api") *before* notification_bp registers PATCH
+# /<notification_id>/read (url_prefix "/api/notifications") — both resolve to
+# the identical URL /api/notifications/<id>/read, so the first one always
+# wins Flask's routing. These tests exercise the handler that is actually
+# reachable (routes.notification_routes.mark_notification_read), which
+# updates the `notifications` table directly via the Supabase client rather
+# than a raw REST PATCH call.
 
 class TestMarkNotificationRead:
     """Tests for marking a notification as read."""
 
-    def test_mark_as_read_success(self, client):
-        """
-        Should successfully mark a notification as read.
-        Verifies correct HTTP status and success message.
-        """
-        with patch("services.notification_service.req") as mock_req:
-            mock_response             = MagicMock()
-            mock_response.status_code = 200
-            mock_req.patch.return_value = mock_response
+    def test_mark_as_read_success(self, client, mock_auth):
+        """Should successfully mark a notification as read."""
+        with patch("routes.notification_routes.supabase") as mock_db:
+            mock_db.table.return_value.select.return_value.eq.return_value\
+                .execute.return_value.data = [{"receiver_id": None}]
 
             response = client.patch(f"/api/notifications/{SAMPLE_NOTIFICATION_ID}/read")
             data     = json.loads(response.data)
@@ -165,37 +170,48 @@ class TestMarkNotificationRead:
             assert response.status_code == 200
             assert data["message"] == "Marked as read"
 
-    def test_mark_as_read_database_failure(self, client):
-        """
-        Should return 400 when the database update fails.
-        Tests error handling for failed read status update.
-        """
-        with patch("services.notification_service.req") as mock_req:
-            mock_response             = MagicMock()
-            mock_response.status_code = 500
-            mock_response.text        = "Internal Server Error"
-            mock_req.patch.return_value = mock_response
+    def test_mark_as_read_unauthenticated(self, client, mock_auth):
+        """Missing/invalid auth token returns 401 before touching the DB."""
+        mock_auth.require_auth.return_value = None
+
+        response = client.patch(f"/api/notifications/{SAMPLE_NOTIFICATION_ID}/read")
+        assert response.status_code == 401
+
+    def test_mark_as_read_forbidden_for_other_users_notification(self, client, mock_auth):
+        """A notification with a receiver_id belonging to someone else can't be marked read."""
+        mock_auth.is_authorized_for.return_value = False
+
+        with patch("routes.notification_routes.supabase") as mock_db:
+            mock_db.table.return_value.select.return_value.eq.return_value\
+                .execute.return_value.data = [{"receiver_id": "someone-else"}]
+
+            response = client.patch(f"/api/notifications/{SAMPLE_NOTIFICATION_ID}/read")
+            assert response.status_code == 403
+
+    def test_mark_as_read_database_failure(self, client, mock_auth):
+        """Should return 400 when the database update raises."""
+        with patch("routes.notification_routes.supabase") as mock_db:
+            mock_db.table.return_value.select.return_value.eq.return_value\
+                .execute.return_value.data = [{"receiver_id": None}]
+            mock_db.table.return_value.update.return_value.eq.return_value\
+                .execute.side_effect = Exception("db unavailable")
 
             response = client.patch(f"/api/notifications/{SAMPLE_NOTIFICATION_ID}/read")
             data     = json.loads(response.data)
 
             assert response.status_code == 400
-            assert "Failed" in data["message"]
+            assert "db unavailable" in data["error"]
 
-    def test_mark_as_read_sends_correct_payload(self, client):
-        """
-        Verifies that is_read: True is sent to the database.
-        Ensures the update correctly sets the read flag.
-        """
-        with patch("services.notification_service.req") as mock_req:
-            mock_response             = MagicMock()
-            mock_response.status_code = 200
-            mock_req.patch.return_value = mock_response
+    def test_mark_as_read_sends_correct_payload(self, client, mock_auth):
+        """Verifies that is_read: True is sent to the database update call."""
+        with patch("routes.notification_routes.supabase") as mock_db:
+            mock_db.table.return_value.select.return_value.eq.return_value\
+                .execute.return_value.data = [{"receiver_id": None}]
 
             client.patch(f"/api/notifications/{SAMPLE_NOTIFICATION_ID}/read")
 
-            call_kwargs = mock_req.patch.call_args
-            assert call_kwargs[1]["json"]["is_read"] == True
+            update_call_args = mock_db.table.return_value.update.call_args
+            assert update_call_args[0][0]["is_read"] is True
 
 
 # ── Notification Content Validation Tests ────────────────────────────────────
@@ -203,7 +219,7 @@ class TestMarkNotificationRead:
 class TestNotificationContent:
     """Tests for validating notification data structure and content."""
 
-    def test_notification_has_required_fields(self, client):
+    def test_notification_has_required_fields(self, client, mock_auth):
         """
         Verifies each notification object contains all required fields
         needed by the frontend notification panel.
@@ -227,7 +243,7 @@ class TestNotificationContent:
             for field in required_fields:
                 assert field in notification, f"Missing required field: {field}"
 
-    def test_notification_is_read_is_boolean(self, client):
+    def test_notification_is_read_is_boolean(self, client, mock_auth):
         """
         Verifies is_read field is always a boolean value.
         Frontend badge count logic depends on correct boolean type.

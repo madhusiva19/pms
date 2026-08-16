@@ -132,7 +132,7 @@ class TestGetEvaluatorTeam:
 
 class TestGetNotifications:
 
-    def test_returns_notification_list(self, client, sb):
+    def test_returns_notification_list(self, client, sb, mock_auth):
         _set_sb(sb, returns=_chain([{
             "id": "00000000-0000-0000-0000-000000000099",
             "type": "period_opened",
@@ -148,7 +148,7 @@ class TestGetNotifications:
         assert response.status_code == 200
         assert len(json.loads(response.data)) == 1
 
-    def test_returns_empty_list_when_no_notifications(self, client, sb):
+    def test_returns_empty_list_when_no_notifications(self, client, sb, mock_auth):
         _set_sb(sb, returns=_chain([]))
         response = client.get(
             "/api/manual-rating-notifications/"
@@ -157,24 +157,54 @@ class TestGetNotifications:
         assert response.status_code == 200
         assert json.loads(response.data) == []
 
+    def test_returns_401_when_unauthenticated(self, client, sb, mock_auth):
+        mock_auth.require_auth.return_value = None
+        response = client.get(
+            "/api/manual-rating-notifications/"
+            "00000000-0000-0000-0000-000000000001"
+        )
+        assert response.status_code == 401
+
 
 class TestMarkNotificationRead:
 
-    def test_marks_notification_as_read(self, client, sb):
-        _set_sb(sb, returns=_chain([]))
+    def test_marks_notification_as_read(self, client, sb, mock_auth):
+        # The route looks up the notification's recipient_id first (to check
+        # ownership), then issues the update — both hit sb.table(...), so the
+        # mock must return a row with a recipient_id for the lookup to succeed.
+        _set_sb(sb, returns=_chain([{
+            "recipient_id": "00000000-0000-0000-0000-000000000001",
+        }]))
         response = client.patch(
             "/api/manual-rating-notifications/"
             "00000000-0000-0000-0000-000000000001/read"
         )
         assert response.status_code == 200
 
-    def test_returns_400_when_missing_fields(self, client, sb):
+    def test_returns_404_when_notification_not_found(self, client, sb, mock_auth):
+        _set_sb(sb, returns=_chain([]))
+        response = client.patch(
+            "/api/manual-rating-notifications/"
+            "00000000-0000-0000-0000-000000000001/read"
+        )
+        assert response.status_code == 404
+
+    def test_returns_400_when_missing_fields(self, client, sb, mock_auth):
         response = client.post(
             "/api/manual-rating-notifications/send-reminder",
             data=json.dumps({}),
             content_type="application/json",
         )
         assert response.status_code == 400
+
+    def test_returns_401_when_unauthenticated(self, client, sb, mock_auth):
+        mock_auth.require_auth.return_value = None
+        response = client.post(
+            "/api/manual-rating-notifications/send-reminder",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert response.status_code == 401
 
 
 # ── Org countries ─────────────────────────────────────────────────

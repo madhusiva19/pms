@@ -75,3 +75,67 @@ def is_authorized_for(caller_id, target_id):
         )
 
     return False
+
+
+def is_authorized_for_org_entity(caller_id, entity_type, entity_id):
+    """True if caller_id may view dashboard drilldown data for the org unit
+    identified by (entity_type, entity_id): HQ (level 1) sees everything,
+    lower levels only see entities within their own scope."""
+    if not caller_id or not entity_type or not entity_id:
+        return False
+
+    caller_res = supabase.table("users")\
+        .select("org_level, country_id, branch_id, department_id, sub_department_id")\
+        .eq("id", caller_id)\
+        .execute()
+    if not caller_res.data:
+        return False
+
+    caller = caller_res.data[0]
+    caller_level = caller.get("org_level")
+    if caller_level is None:
+        return False
+    if caller_level == 1:
+        return True
+
+    # entity_type is the scope being drilled INTO, e.g. entity_type="country"
+    # means entity_id is the country whose branches/departments are listed.
+    if entity_type == "country":
+        return caller_level == 2 and caller.get("country_id") == entity_id
+
+    if entity_type == "branch":
+        branch_res = supabase.table("branches").select("country_id").eq("id", entity_id).execute()
+        if not branch_res.data:
+            return False
+        branch = branch_res.data[0]
+        if caller_level == 2:
+            return caller.get("country_id") == branch.get("country_id")
+        if caller_level == 3:
+            return caller.get("branch_id") == entity_id
+        return False
+
+    if entity_type == "department":
+        dept_res = supabase.table("departments").select("country_id, branch_id").eq("id", entity_id).execute()
+        if not dept_res.data:
+            return False
+        dept = dept_res.data[0]
+        if caller_level == 2:
+            return caller.get("country_id") == dept.get("country_id")
+        if caller_level == 3:
+            return caller.get("branch_id") == dept.get("branch_id")
+        if caller_level == 4:
+            return caller.get("department_id") == entity_id
+        return False
+
+    if entity_type == "sub_department":
+        subdept_res = supabase.table("sub_departments").select("department_id").eq("id", entity_id).execute()
+        if not subdept_res.data:
+            return False
+        dept_id = subdept_res.data[0].get("department_id")
+        if caller_level == 4:
+            return caller.get("department_id") == dept_id
+        if caller_level == 5:
+            return caller.get("sub_department_id") == entity_id
+        return False
+
+    return False

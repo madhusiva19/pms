@@ -7,6 +7,7 @@ import Sidebar from "@/components/sidebar/Sidebar";
 import styles from "@/components/notifications/notifications.module.css";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CurrentUser } from "@/hooks/useCurrentUser";
+import { apiFetch } from "@/lib/apiFetch";
 
 const CACHE_TTL = 60_000;
 
@@ -55,7 +56,7 @@ export default function AdminNotificationsPage({ role, dashboardPath, profilePat
       }
 
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${currentUser.employee_id}`);
+        const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${currentUser.employee_id}`);
         const data = await res.json();
 
         const mappedAchievements = (data.notifications || [])

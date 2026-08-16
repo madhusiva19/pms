@@ -6,6 +6,7 @@ import styles from "./notifications.module.css";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useAuth } from "@/lib/auth-context";
 import { logger } from "@/utils/logger";
+import { apiFetch } from "@/lib/apiFetch";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -253,14 +254,14 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   // ── Their fetch functions (unchanged) ─────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/notifications/by-level`, { headers });
+      const res = await apiFetch(`${API}/notifications/by-level`, { headers });
       if (res.ok) setNotifications(await res.json());
     } catch (e) { console.error("fetchNotifications:", e); }
   }, [level]);
 
   const fetchSchedule = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/notifications/cutoff-schedule`, { headers });
+      const res = await apiFetch(`${API}/notifications/cutoff-schedule`, { headers });
       if (res.ok) {
         const data = await res.json();
         setCycle(data.cycle ?? null);
@@ -283,7 +284,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   const fetchAchievements = useCallback(async () => {
     if (!currentUser?.employee_id) return;
     try {
-      const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${currentUser.employee_id}`);
+      const res  = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/notifications/${currentUser.employee_id}`);
       const data = await res.json();
       const mapped = (data.notifications || [])
         .filter((n: any) => n.type === "diary_approval")
@@ -353,7 +354,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
       try {
         const reminderTypes: ReminderType[] = ["period_opened", "deadline_warning", "supervisor_alert", "manual_reminder"];
 
-        const notifRes  = await fetch(`${WAPI}/api/manual-rating-notifications/${userId}`);
+        const notifRes  = await apiFetch(`${WAPI}/api/manual-rating-notifications/${userId}`);
         const notifData = await notifRes.json();
         const allNotifs = Array.isArray(notifData) ? notifData : [];
 
@@ -391,7 +392,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   useEffect(() => {
     async function loadEvalNotifs() {
       try {
-        const res = await fetch(`${API}/evaluation-notifications`);
+        const res = await apiFetch(`${API}/evaluation-notifications`);
         if (res.ok) {
           const data = await res.json();
           setEvalNotifs(Array.isArray(data) ? data : []);
@@ -404,14 +405,14 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   // ── Mark read helpers ─────────────────────────────────────────────────────
   const markRead = async (id: string) => {
     try {
-      await fetch(`${API}/notifications/${id}/read`, { method: "PATCH", headers });
+      await apiFetch(`${API}/notifications/${id}/read`, { method: "PATCH", headers });
       setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
     } catch (e) { console.error("markRead:", e); }
   };
 
   const markAllRead = async () => {
     try {
-      await fetch(`${API}/notifications/mark-all-read`, { method: "PATCH", headers });
+      await apiFetch(`${API}/notifications/mark-all-read`, { method: "PATCH", headers });
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     } catch (e) { console.error("markAllRead:", e); }
   };
@@ -424,7 +425,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
 
   const markManualRead = async (id: string) => {
     setManualReminderList(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    try { await fetch(`${WAPI}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" }); }
+    try { await apiFetch(`${WAPI}/api/manual-rating-notifications/${id}/read`, { method: "PATCH" }); }
     catch (err) { logger.error('Failed to mark manual notification as read', err); }
   };
 

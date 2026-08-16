@@ -132,3 +132,38 @@ def test_reset_password_missing_fields(client):
     """Missing token or password returns 400."""
     res = client.post("/api/auth/reset-password", json={"password": "abc12345"})
     assert res.status_code == 400
+
+
+# ── FORGOT PASSWORD TESTS ─────────────────────────────────
+
+@patch("services.auth_service.req.post")
+def test_forgot_password_success(mock_post, client):
+    """Valid email triggers a recovery email and returns 200."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_post.return_value = mock_response
+
+    res = client.post("/api/auth/forgot-password", json={"email": "test@dgl.com"})
+
+    assert res.status_code == 200
+    assert res.get_json()["message"] == "Reset link sent if account exists"
+
+
+def test_forgot_password_missing_email(client):
+    """Missing email returns 400 before contacting Supabase."""
+    res = client.post("/api/auth/forgot-password", json={})
+    assert res.status_code == 400
+
+
+@patch("services.auth_service.req.post")
+def test_forgot_password_does_not_reveal_unknown_email(mock_post, client):
+    """Should return the same 200 message regardless of whether the account
+    exists, so the endpoint can't be used to enumerate registered emails."""
+    mock_response = MagicMock()
+    mock_response.status_code = 400
+    mock_post.return_value = mock_response
+
+    res = client.post("/api/auth/forgot-password", json={"email": "nobody@dgl.com"})
+
+    assert res.status_code == 200
+    assert res.get_json()["message"] == "Reset link sent if account exists"
