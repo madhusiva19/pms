@@ -467,12 +467,9 @@ function CycleDatesInner() {
           {/* ── Page header ── */}
           <div className={styles.pageHeader}>
             <div className={styles.pageHeaderLeft}>
-              <div className={styles.pageIconWrap}>
-                <Settings size={22} color="#3b82f6" />
-              </div>
               <div>
                 <p className={styles.pageSubtitle}>
-                  Adjust milestone dates for the active performance management cycle.
+                  Adjust milestone dates for the active Appraisal Cycle,
                   These dates will be used to auto-create next year's cycle.
                 </p>
               </div>
