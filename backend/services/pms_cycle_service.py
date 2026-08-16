@@ -86,11 +86,15 @@ def _do_template_rollover(old_cycle_id: int, new_cycle_id: int, caller: str) -> 
     """
     Local-import wrapper for rollover_cycle.
     Avoids circular import — called after new cycle is inserted.
+    Also populates relational categories/objectives tables from template_content
+    JSON so all downstream endpoints work correctly with new cycle templates.
     """
     try:
-        from services.template_service import rollover_cycle
+        from services.template_service import rollover_cycle, populate_relational_tables_from_content
         result = rollover_cycle(old_cycle_id, new_cycle_id)
         print(f"✅  {caller}: rolled over {result['copied']} template(s).")
+        pop_result = populate_relational_tables_from_content(new_cycle_id)
+        print(f"✅  {caller}: relational tables populated — {pop_result}")
     except Exception as e:
         print(f"⚠️  {caller}: template rollover failed — {e}")
 

@@ -941,3 +941,4 @@ def get_kpi_scales():
 
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+    

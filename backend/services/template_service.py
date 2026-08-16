@@ -442,7 +442,87 @@ def rollover_cycle(old_cycle_id: int, new_cycle_id: int) -> dict:
 
     return {"copied": len(new_ids), "template_ids": new_ids}
 
+# ─────────────────────────────────────────────────────────────────────────────
+# POPULATE RELATIONAL TABLES FROM TEMPLATE CONTENT JSON
+# ─────────────────────────────────────────────────────────────────────────────
 
+def populate_relational_tables_from_content(new_cycle_id: int) -> dict:
+    """
+    After a cycle rollover, the new templates only have template_content (JSON).
+    This function populates the relational categories and objectives tables
+    from that JSON so all downstream endpoints work correctly.
+    Idempotent — skips templates that already have categories rows.
+    """
+    new_templates = (
+        supabase.table("templates")
+        .select("id, name, template_content")
+        .eq("pms_cycle_id", new_cycle_id)
+        .execute()
+        .data or []
+    )
+
+    populated = 0
+    skipped   = 0
+
+    for tmpl in new_templates:
+        template_id      = tmpl["id"]
+        template_content = tmpl.get("template_content")
+
+        if not template_content:
+            skipped += 1
+            continue
+
+        # Check if categories already exist for this template — idempotent
+        existing = (
+            supabase.table("categories")
+            .select("id")
+            .eq("template_id", template_id)
+            .limit(1)
+            .execute()
+            .data or []
+        )
+        if existing:
+            skipped += 1
+            continue
+
+        # Insert categories and objectives from template_content JSON
+        for cat in template_content:
+            cat_name   = cat.get("name", "")
+            cat_weight = cat.get("weight", 0)
+
+            cat_res = (
+                supabase.table("categories")
+                .insert({
+                    "template_id": template_id,
+                    "name":        cat_name,
+                    "weight":      cat_weight,
+                    "type":        "Weighted",
+                })
+                .execute()
+            )
+            if not cat_res.data:
+                continue
+
+            cat_id = cat_res.data[0]["id"]
+
+            obj_rows = []
+            for obj in cat.get("objectives", []):
+                obj_rows.append({
+                    "category_id":  cat_id,
+                    "name":         obj.get("name", ""),
+                    "weight":       obj.get("weight", 0),
+                    "max_score":    obj.get("kpiMaxScore") or 5,
+                    "control_type": obj.get("control", "Locked"),
+                    "kpi_scale":    obj.get("kpiScale", ""),
+                })
+
+            if obj_rows:
+                supabase.table("objectives").insert(obj_rows).execute()
+
+        populated += 1
+
+    print(f"✅ populate_relational_tables: populated {populated} templates, skipped {skipped} for cycle {new_cycle_id}")
+    return {"populated": populated, "skipped": skipped}
 # ─────────────────────────────────────────────────────────────────────────────
 # COPY ASSIGNMENTS FOR ROLLED OVER TEMPLATES
 # ─────────────────────────────────────────────────────────────────────────────
