@@ -636,7 +636,7 @@ export default function ManualRatingsPage() {
                                 value={comments[obj.objective_id] ?? ''}
                                 onChange={e => !viewOnly && handleCommentChange(obj.objective_id, e.target.value)}
                                 readOnly={viewOnly}
-                                rows={1}
+                                rows={2}
                                 style={{
                                   width: '100%',
                                   padding: '7px 12px',
@@ -652,7 +652,10 @@ export default function ManualRatingsPage() {
                                   color: '#1E293B',
                                   background: hasCommentError ? '#FFF5F5' : isBelowThree ? '#FFFBEB' : viewOnly ? '#F8F9FC' : '#fff',
                                   outline: 'none',
-                                  resize: 'none',
+                                  resize: 'vertical',
+                                  minHeight: '36px',
+                                  maxHeight: '80px',
+                                  overflow: 'auto',
                                   fontFamily: 'Inter, sans-serif',
                                   lineHeight: '1.5',
                                   boxSizing: 'border-box',
