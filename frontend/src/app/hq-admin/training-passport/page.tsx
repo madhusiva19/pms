@@ -5,6 +5,7 @@ import TrainingPassport from "@/components/training/TrainingPassport";
 import LoadingScreen from "@/components/LoadingScreen";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CurrentUser } from "@/hooks/useCurrentUser";
+import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/apiFetch";
 
 interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; }
@@ -13,6 +14,7 @@ interface RawSubordinateSuggestion { id: string; training_name: string; justific
 export default function HQAdminTrainingPage() {
   const router = useRouter();
   const currentUser = useCurrentUser();
+  const { user: authUser } = useAuth();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [attended, setAttended] = useState([]);
   const [subordinateSuggestions, setSubordinateSuggestions] = useState([]);
@@ -60,7 +62,7 @@ export default function HQAdminTrainingPage() {
       userName={user.full_name}
       designation={user.role}
       employeeId={user.employee_id}
-      avatarUrl={user.avatar_url}
+      avatarUrl={authUser?.avatar_url ?? user.avatar_url}
       initialAttended={attended}
       initialSubordinateSuggestions={subordinateSuggestions}
     />

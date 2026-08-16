@@ -84,7 +84,7 @@ export default function ProfileTemplate({
 
   const router = useRouter();
   const config = ROLE_CONFIG[role];
-  const { refreshBadges, user, setUser } = useAuth();
+  const { refreshBadges, updateUser } = useAuth();
   const [achievement, setAchievement] = useState("");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
@@ -431,16 +431,7 @@ const avatarBg = "#F9BE00";
           employeeId={employeeId}
           onUpdate={(newUrl) => {
             setAvatarUrl(newUrl);
-            if (user) {
-              const updatedUser = { ...user, avatar_url: newUrl };
-              setUser(updatedUser);
-              const raw = localStorage.getItem("pms_user");
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                parsed.avatar_url = newUrl;
-                localStorage.setItem("pms_user", JSON.stringify(parsed));
-              }
-            }
+            updateUser({ avatar_url: newUrl });
           }}
           avatarBg={avatarBg}
           viewMode={viewMode}

@@ -24,6 +24,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   setUser: (user: User | null) => void;
+  updateUser: (updates: Partial<User>) => void;
   logout: () => void;
   notificationCount: number;
   trainingBadgeCount: number;
@@ -35,6 +36,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   setUser: () => {},
+  updateUser: () => {},
   logout: () => {},
   notificationCount: 0,
   trainingBadgeCount: 0,
@@ -120,6 +122,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshBadges();
   }, [refreshBadges]);
 
+  // Merges a partial update (e.g. a new avatar_url) into both the shared
+  // context state and localStorage, so every consumer of useAuth() re-renders.
+  const updateUser = useCallback((updates: Partial<User>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      localStorage.setItem("pms_user", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const logout = () => {
     localStorage.removeItem("pms_user");
     document.cookie = "pms_auth=; path=/; max-age=0; SameSite=Lax";
@@ -133,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       setUser,
+      updateUser,
       logout,
       notificationCount,
       trainingBadgeCount,
