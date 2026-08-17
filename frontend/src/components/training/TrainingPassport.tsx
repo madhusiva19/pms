@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import styles from "./training.module.css";
 import { apiFetch } from "@/lib/apiFetch";
@@ -85,6 +85,13 @@ const todayDateString = new Date().toISOString().split("T")[0];
 // ── Proof of evidence upload constraints ────────────────────────────────────
 const ALLOWED_EVIDENCE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 const MAX_EVIDENCE_SIZE = 5 * 1024 * 1024;
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
+
+function getEvidenceExt(url: string): string {
+  const clean = url.split("?")[0];
+  const dotIndex = clean.lastIndexOf(".");
+  return dotIndex === -1 ? "" : clean.slice(dotIndex + 1).toLowerCase();
+}
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function TrainingPassport({
@@ -108,13 +115,17 @@ export default function TrainingPassport({
   const [attendedList, setAttendedList]   = useState<TrainingAttended[]>(initialAttended);
   const [newTraining, setNewTraining]     = useState({ trainingName: "", date: "", provider: "" });
   const [evidenceFile, setEvidenceFile]   = useState<File | null>(null);
+  const [evidenceFileName, setEvidenceFileName] = useState("");
+  const [evidenceFileExt, setEvidenceFileExt]   = useState("");
   const [evidenceError, setEvidenceError] = useState("");
   const evidenceInputRef = useRef<HTMLInputElement>(null);
+  const evidenceNameInputRef = useRef<HTMLInputElement>(null);
   const [addingTraining, setAddingTraining] = useState(false);
   const [savingTraining, setSavingTraining] = useState(false);
   const [trainingMsg, setTrainingMsg]     = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId]   = useState<string | null>(null);
+  const [previewRecord, setPreviewRecord]     = useState<TrainingAttended | null>(null);
 
   // ── Suggestions state ──
   const [suggestionList, setSuggestionList]             = useState<TrainingSuggestion[]>(initialSuggestions);
@@ -141,7 +152,18 @@ export default function TrainingPassport({
     }
     setEvidenceError("");
     setEvidenceFile(file);
+    const dotIndex = file.name.lastIndexOf(".");
+    setEvidenceFileName(dotIndex > 0 ? file.name.slice(0, dotIndex) : file.name);
+    setEvidenceFileExt(dotIndex > 0 ? file.name.slice(dotIndex + 1) : "");
   };
+
+  // ── Auto-select the editable name so users can just type over it ──
+  useEffect(() => {
+    if (evidenceFile && evidenceNameInputRef.current) {
+      evidenceNameInputRef.current.focus();
+      evidenceNameInputRef.current.select();
+    }
+  }, [evidenceFile]);
 
   // ── Add Training — validates all fields before saving ──
   const handleAddTraining = async () => {
@@ -163,7 +185,10 @@ export default function TrainingPassport({
       formData.append("programme_name", newTraining.trainingName);
       formData.append("training_date", newTraining.date);
       formData.append("trainer_provider", newTraining.provider);
-      formData.append("evidence", evidenceFile);
+      const trimmedName = evidenceFileName.trim();
+      const finalName   = (trimmedName ? trimmedName : evidenceFile.name.replace(/\.[^.]+$/, "")) +
+                           (evidenceFileExt ? `.${evidenceFileExt}` : "");
+      formData.append("evidence", evidenceFile, finalName);
 
       const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended`, {
         method: "POST",
@@ -180,6 +205,8 @@ export default function TrainingPassport({
         }, ...prev]);
         setNewTraining({ trainingName: "", date: "", provider: "" });
         setEvidenceFile(null);
+        setEvidenceFileName("");
+        setEvidenceFileExt("");
         setEvidenceError("");
         if (evidenceInputRef.current) evidenceInputRef.current.value = "";
         setAddingTraining(false);
@@ -426,9 +453,18 @@ export default function TrainingPassport({
                       />
                       {evidenceFile ? (
                         <div className={styles.fileChosenRow}>
-                          <span className={styles.fileChosenName} title={evidenceFile.name}>
-                            📎 {evidenceFile.name}
-                          </span>
+                          <span className={styles.fileChosenIcon}>📎</span>
+                          <input
+                            ref={evidenceNameInputRef}
+                            className={styles.fileNameInput}
+                            title="Evidence file name"
+                            aria-label="Evidence file name"
+                            value={evidenceFileName}
+                            onChange={(e) => setEvidenceFileName(e.target.value)}
+                          />
+                          {evidenceFileExt && (
+                            <span className={styles.fileNameExt}>.{evidenceFileExt}</span>
+                          )}
                           <button
                             type="button"
                             className={styles.fileChangeBtn}
@@ -471,6 +507,8 @@ export default function TrainingPassport({
                           setAddingTraining(false);
                           setTrainingMsg("");
                           setEvidenceFile(null);
+                          setEvidenceFileName("");
+                          setEvidenceFileExt("");
                           setEvidenceError("");
                           if (evidenceInputRef.current) evidenceInputRef.current.value = "";
                         }}
@@ -528,14 +566,16 @@ export default function TrainingPassport({
                         <td className={styles.td}>{t.provider}</td>
                         <td className={styles.td}>
                           {t.evidenceUrl ? (
-                            <a
-                              href={t.evidenceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ color: "#1D4ED8", fontWeight: 600, fontSize: "13px" }}
+                            <button
+                              type="button"
+                              onClick={() => setPreviewRecord(t)}
+                              style={{
+                                color: "#1D4ED8", fontWeight: 600, fontSize: "13px",
+                                background: "none", border: "none", cursor: "pointer", padding: 0,
+                              }}
                             >
                               View
-                            </a>
+                            </button>
                           ) : (
                             <span style={{ color: "#9CA3AF", fontSize: "13px" }}>—</span>
                           )}
@@ -826,6 +866,119 @@ export default function TrainingPassport({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ── Evidence Preview Modal ── */}
+      {previewRecord && previewRecord.evidenceUrl && (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 1000, backdropFilter: "blur(4px)", padding: "24px",
+          }}
+          onClick={() => setPreviewRecord(null)}
+        >
+          <div
+            style={{
+              background: "#fff", borderRadius: "16px",
+              width: "min(720px, 100%)", maxHeight: "calc(100vh - 48px)",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
+              display: "flex", flexDirection: "column", overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "14px 18px", borderBottom: "1px solid #E5E7EB",
+            }}>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: "15px", color: "#111827" }}>
+                  {previewRecord.trainingName}
+                </p>
+                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#9CA3AF" }}>
+                  Proof of Evidence
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewRecord(null)}
+                title="Close preview"
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "#6B7280", padding: "4px", flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            <div style={{
+              flex: 1, overflow: "auto", background: "#F3F4F6",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              minHeight: "320px",
+            }}>
+              {IMAGE_EXTENSIONS.includes(getEvidenceExt(previewRecord.evidenceUrl)) ? (
+                <img
+                  src={previewRecord.evidenceUrl}
+                  alt="Proof of evidence"
+                  style={{ maxWidth: "100%", maxHeight: "70vh", display: "block" }}
+                />
+              ) : getEvidenceExt(previewRecord.evidenceUrl) === "pdf" ? (
+                <iframe
+                  src={previewRecord.evidenceUrl}
+                  title="Proof of evidence"
+                  style={{ width: "100%", height: "70vh", border: "none" }}
+                />
+              ) : (
+                <div style={{ padding: "48px", textAlign: "center", color: "#6B7280", fontSize: "13px" }}>
+                  Preview isn't available for this file type. Use download to view it.
+                </div>
+              )}
+            </div>
+
+            <div style={{
+              display: "flex", justifyContent: "flex-end", gap: "8px",
+              padding: "14px 18px", borderTop: "1px solid #E5E7EB",
+            }}>
+              <button
+                type="button"
+                onClick={() => setPreviewRecord(null)}
+                style={{
+                  padding: "9px 16px", borderRadius: "10px",
+                  border: "1.5px solid #E5E7EB", background: "#fff",
+                  cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#374151",
+                }}
+              >
+                Close
+              </button>
+              <a
+                href={previewRecord.evidenceUrl}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  padding: "9px 16px", borderRadius: "10px",
+                  border: "none", background: "#1C398E", color: "#fff",
+                  cursor: "pointer", fontSize: "13px", fontWeight: 700,
+                  textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px",
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="#fff" strokeWidth="2.2" strokeLinecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download
+              </a>
+            </div>
           </div>
         </div>
       )}
