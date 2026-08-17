@@ -330,6 +330,71 @@
   box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
 }
 
+.fileInputHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.fileChooseBtn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px dashed #3B82F6;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.fileChooseBtn:hover { background: #DBEAFE; }
+
+.fileChosenRow {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 0 6px 0 12px;
+  background: #fff;
+}
+
+.fileChosenName {
+  font-size: 13px;
+  color: #1E293B;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileChangeBtn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  color: #374151;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fileChangeBtn:hover { background: #F3F4F6; }
+
+.formHint {
+  font-size: 11px;
+  color: #9CA3AF;
+  line-height: 1.4;
+}
+
 .formActions {
   display: flex;
   align-items: center;

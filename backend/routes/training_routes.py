@@ -33,11 +33,10 @@ def add_training_attended_route():
         if not caller_id:
             return jsonify({"message": "Unauthorized"}), 401
 
-        body = request.get_json(silent=True) or {}
-        if not is_authorized_for(caller_id, body.get("employee_id")):
+        if not is_authorized_for(caller_id, request.form.get("employee_id")):
             return jsonify({"message": "Forbidden"}), 403
 
-        result, status = add_training_attended(body)
+        result, status = add_training_attended(request)
         return jsonify(result), status
     except Exception as e:
         return jsonify({"message": str(e)}), 500

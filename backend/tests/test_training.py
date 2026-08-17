@@ -1,9 +1,14 @@
+import io
 import pytest
 from unittest.mock import patch, MagicMock
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from app import app
 from tests.conftest import DEFAULT_CALLER_ID
+
+
+def _evidence_file(name="certificate.png"):
+    return (io.BytesIO(b"fake-image-bytes"), name)
 
 
 @pytest.fixture
@@ -53,41 +58,55 @@ def test_get_training_attended_forbidden(client, mock_auth):
 
 # ── POST /api/training/attended ─────────────────────────────────────────────
 
+@patch("services.training_service.req")
 @patch("services.training_service.supabase")
-def test_add_training_attended_success(mock_supabase, client, mock_auth):
+def test_add_training_attended_success(mock_supabase, mock_req, client, mock_auth):
     mock_supabase.table.return_value.insert.return_value\
         .execute.return_value.data = [{"id": "t1"}]
+    mock_req.post.return_value = MagicMock(status_code=200, text="")
 
-    res = client.post("/api/training/attended", json={
+    res = client.post("/api/training/attended", data={
         "employee_id":      "emp-123",
         "programme_name":   "Excel Advanced",
         "training_date":    "2026-01-10",
         "trainer_provider": "Internal L&D",
-    })
+        "evidence":         _evidence_file(),
+    }, content_type="multipart/form-data")
     assert res.status_code == 201
     assert res.get_json()["message"] == "Training record added"
 
 
 def test_add_training_attended_missing_fields(client, mock_auth):
-    res = client.post("/api/training/attended", json={"employee_id": "emp-123"})
+    res = client.post("/api/training/attended", data={"employee_id": "emp-123"},
+                       content_type="multipart/form-data")
+    assert res.status_code == 400
+
+
+def test_add_training_attended_missing_evidence(client, mock_auth):
+    res = client.post("/api/training/attended", data={
+        "employee_id": "emp-123", "programme_name": "x",
+        "training_date": "2026-01-10", "trainer_provider": "y",
+    }, content_type="multipart/form-data")
     assert res.status_code == 400
 
 
 def test_add_training_attended_unauthenticated(client, mock_auth):
     mock_auth.require_auth.return_value = None
-    res = client.post("/api/training/attended", json={
+    res = client.post("/api/training/attended", data={
         "employee_id": "emp-123", "programme_name": "x",
         "training_date": "2026-01-10", "trainer_provider": "y",
-    })
+        "evidence": _evidence_file(),
+    }, content_type="multipart/form-data")
     assert res.status_code == 401
 
 
 def test_add_training_attended_forbidden(client, mock_auth):
     mock_auth.is_authorized_for.return_value = False
-    res = client.post("/api/training/attended", json={
+    res = client.post("/api/training/attended", data={
         "employee_id": "someone-elses-id", "programme_name": "x",
         "training_date": "2026-01-10", "trainer_provider": "y",
-    })
+        "evidence": _evidence_file(),
+    }, content_type="multipart/form-data")
     assert res.status_code == 403
 
 

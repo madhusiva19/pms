@@ -8,7 +8,7 @@ import type { CurrentUser } from "@/hooks/useCurrentUser";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/apiFetch";
 
-interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; }
+interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; evidence_url?: string; }
 interface RawSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; supervisor_comment?: string; }
 interface RawSubordinateSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; users?: { full_name: string; role: string; }; }
 
@@ -31,7 +31,7 @@ export default function BranchAdminTrainingPage() {
         const attRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended/${currentUser.employee_id}`);
         const attData = await attRes.json();
         const mappedAttended = (attData.trainings || []).map((t: RawTraining) => ({
-          id: t.id, trainingName: t.training_name, date: t.training_date, provider: t.trainer_provider,
+          id: t.id, trainingName: t.training_name, date: t.training_date, provider: t.trainer_provider, evidenceUrl: t.evidence_url,
         }));
 
         const suggRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/suggestions/${currentUser.employee_id}`);

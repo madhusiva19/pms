@@ -8,7 +8,7 @@ import type { CurrentUser } from "@/hooks/useCurrentUser";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/apiFetch";
 
-interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; }
+interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; evidence_url?: string; }
 interface RawSubordinateSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; users?: { full_name: string; role: string; }; }
 
 export default function HQAdminTrainingPage() {
@@ -29,7 +29,7 @@ export default function HQAdminTrainingPage() {
         const attRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended/${currentUser.employee_id}`);
         const attData = await attRes.json();
         const mappedAttended = (attData.trainings || []).map((t: RawTraining) => ({
-          id: t.id, trainingName: t.training_name, date: t.training_date, provider: t.trainer_provider,
+          id: t.id, trainingName: t.training_name, date: t.training_date, provider: t.trainer_provider, evidenceUrl: t.evidence_url,
         }));
 
         const subRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/subordinate-suggestions/${currentUser.employee_id}`);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import styles from "./training.module.css";
 import { apiFetch } from "@/lib/apiFetch";
@@ -13,6 +13,7 @@ type TrainingAttended = {
   trainingName: string;
   date: string;
   provider: string;
+  evidenceUrl?: string;
 };
 
 type TrainingSuggestion = {
@@ -77,6 +78,14 @@ const DUMMY_AI: AIRecommendation[] = [
   { id: "3", trainingName: "Data Analytics for Operations Managers",          reason: "Self-suggested interest in digital tools aligns with company roadmap.", basedOn: "Self Suggestion" },
 ];
 
+// ── Training date bounds (no future dates, nothing before 1960) ────────────
+const MIN_TRAINING_DATE = "1960-01-01";
+const todayDateString = new Date().toISOString().split("T")[0];
+
+// ── Proof of evidence upload constraints ────────────────────────────────────
+const ALLOWED_EVIDENCE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const MAX_EVIDENCE_SIZE = 5 * 1024 * 1024;
+
 // ── Component ──────────────────────────────────────────────────────────────
 export default function TrainingPassport({
   role,
@@ -98,6 +107,9 @@ export default function TrainingPassport({
   // ── Attended state ──
   const [attendedList, setAttendedList]   = useState<TrainingAttended[]>(initialAttended);
   const [newTraining, setNewTraining]     = useState({ trainingName: "", date: "", provider: "" });
+  const [evidenceFile, setEvidenceFile]   = useState<File | null>(null);
+  const [evidenceError, setEvidenceError] = useState("");
+  const evidenceInputRef = useRef<HTMLInputElement>(null);
   const [addingTraining, setAddingTraining] = useState(false);
   const [savingTraining, setSavingTraining] = useState(false);
   const [trainingMsg, setTrainingMsg]     = useState("");
@@ -113,25 +125,49 @@ export default function TrainingPassport({
   const [savingSuggestion, setSavingSuggestion]         = useState(false);
   const [suggestionMsg, setSuggestionMsg]               = useState("");
 
+  // ── Evidence file selection — validates type and size ──
+  const handleEvidenceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (!file) { setEvidenceFile(null); return; }
+    if (!ALLOWED_EVIDENCE_TYPES.includes(file.type)) {
+      setEvidenceError("Only JPG, PNG, WebP or PDF files are allowed");
+      setEvidenceFile(null);
+      return;
+    }
+    if (file.size > MAX_EVIDENCE_SIZE) {
+      setEvidenceError("File must be under 5MB");
+      setEvidenceFile(null);
+      return;
+    }
+    setEvidenceError("");
+    setEvidenceFile(file);
+  };
+
   // ── Add Training — validates all fields before saving ──
   const handleAddTraining = async () => {
-    if (!newTraining.trainingName || !newTraining.date || !newTraining.provider) {
-      setTrainingMsg("All fields are required ❌");
+    if (!newTraining.trainingName || !newTraining.date || !newTraining.provider || !evidenceFile) {
+      setTrainingMsg("All fields are required, including proof of evidence ❌");
+      setTimeout(() => setTrainingMsg(""), 3000);
+      return;
+    }
+    if (newTraining.date < MIN_TRAINING_DATE || newTraining.date > todayDateString) {
+      setTrainingMsg(`Date must be between ${MIN_TRAINING_DATE} and ${todayDateString} ❌`);
       setTimeout(() => setTrainingMsg(""), 3000);
       return;
     }
     setSavingTraining(true);
     setTrainingMsg("");
     try {
+      const formData = new FormData();
+      formData.append("employee_id", employeeId || "");
+      formData.append("programme_name", newTraining.trainingName);
+      formData.append("training_date", newTraining.date);
+      formData.append("trainer_provider", newTraining.provider);
+      formData.append("evidence", evidenceFile);
+
       const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/attended`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employee_id:      employeeId,
-          programme_name:   newTraining.trainingName,
-          training_date:    newTraining.date,
-          trainer_provider: newTraining.provider,
-        }),
+        body: formData,
       });
       const data = await res.json();
       if (res.ok) {
@@ -140,8 +176,12 @@ export default function TrainingPassport({
           trainingName: newTraining.trainingName,
           date:         newTraining.date,
           provider:     newTraining.provider,
+          evidenceUrl:  data.data?.evidence_url,
         }, ...prev]);
         setNewTraining({ trainingName: "", date: "", provider: "" });
+        setEvidenceFile(null);
+        setEvidenceError("");
+        if (evidenceInputRef.current) evidenceInputRef.current.value = "";
         setAddingTraining(false);
         setTrainingMsg("Training record saved ✅");
       } else {
@@ -358,6 +398,8 @@ export default function TrainingPassport({
                         type="date"
                         title="Training date"
                         aria-label="Training date"
+                        min={MIN_TRAINING_DATE}
+                        max={todayDateString}
                         value={newTraining.date}
                         onChange={(e) => setNewTraining((p) => ({ ...p, date: e.target.value }))}
                       />
@@ -371,6 +413,48 @@ export default function TrainingPassport({
                         onChange={(e) => setNewTraining((p) => ({ ...p, provider: e.target.value }))}
                       />
                     </div>
+                    <div className={styles.formField}>
+                      <label className={styles.formLabel}>Proof of Evidence *</label>
+                      <input
+                        ref={evidenceInputRef}
+                        className={styles.fileInputHidden}
+                        type="file"
+                        title="Proof of evidence"
+                        aria-label="Proof of evidence"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        onChange={handleEvidenceChange}
+                      />
+                      {evidenceFile ? (
+                        <div className={styles.fileChosenRow}>
+                          <span className={styles.fileChosenName} title={evidenceFile.name}>
+                            📎 {evidenceFile.name}
+                          </span>
+                          <button
+                            type="button"
+                            className={styles.fileChangeBtn}
+                            onClick={() => evidenceInputRef.current?.click()}
+                          >
+                            Change
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.fileChooseBtn}
+                          onClick={() => evidenceInputRef.current?.click()}
+                        >
+                          📎 Choose File
+                        </button>
+                      )}
+                      <span className={styles.formHint}>
+                        Upload your certificate, service letter, or anything that proves you attended this training.
+                      </span>
+                      {evidenceError && (
+                        <span className={styles.formHint} style={{ color: "#991B1B" }}>
+                          {evidenceError}
+                        </span>
+                      )}
+                    </div>
                     <div className={styles.formActions}>
                       <button
                         type="button"
@@ -383,7 +467,13 @@ export default function TrainingPassport({
                       <button
                         type="button"
                         className={styles.cancelBtn}
-                        onClick={() => { setAddingTraining(false); setTrainingMsg(""); }}
+                        onClick={() => {
+                          setAddingTraining(false);
+                          setTrainingMsg("");
+                          setEvidenceFile(null);
+                          setEvidenceError("");
+                          if (evidenceInputRef.current) evidenceInputRef.current.value = "";
+                        }}
                       >
                         Cancel
                       </button>
@@ -410,13 +500,14 @@ export default function TrainingPassport({
                     <th className={styles.th}>Training Name</th>
                     <th className={styles.th}>Date</th>
                     <th className={styles.th}>Provider</th>
+                    <th className={styles.th}>Evidence</th>
                     <th className={styles.th}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {attendedList.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className={styles.emptyCell}>
+                      <td colSpan={6} className={styles.emptyCell}>
                         <div style={{ padding: "32px 16px", textAlign: "center" }}>
                           <div style={{ fontSize: "28px", marginBottom: "8px" }}>📋</div>
                           <div style={{ fontWeight: 600, color: "#374151", fontSize: "14px", marginBottom: "4px" }}>
@@ -435,6 +526,20 @@ export default function TrainingPassport({
                         <td className={styles.td}>{t.trainingName}</td>
                         <td className={styles.td}>{t.date}</td>
                         <td className={styles.td}>{t.provider}</td>
+                        <td className={styles.td}>
+                          {t.evidenceUrl ? (
+                            <a
+                              href={t.evidenceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: "#1D4ED8", fontWeight: 600, fontSize: "13px" }}
+                            >
+                              View
+                            </a>
+                          ) : (
+                            <span style={{ color: "#9CA3AF", fontSize: "13px" }}>—</span>
+                          )}
+                        </td>
                         <td className={styles.td}>
                           <button
                             onClick={() => openDeleteModal(t.id)}

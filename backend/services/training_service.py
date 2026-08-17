@@ -1,6 +1,9 @@
 import requests as req
 from datetime import datetime, timezone
-from models import supabase, SUPABASE_URL, SUPABASE_KEY
+from models import supabase, SUPABASE_URL, SUPABASE_KEY, SERVICE_KEY
+
+ALLOWED_EVIDENCE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
+MAX_EVIDENCE_SIZE      = 5 * 1024 * 1024
 
 
 def get_training_attended(employee_id):
@@ -17,21 +20,48 @@ def get_training_attended(employee_id):
         return {"message": "Something went wrong. Please try again."}, 500
 
 
-def add_training_attended(body):
+def add_training_attended(request):
     try:
-        employee_id      = (body.get("employee_id")      or "").strip()
-        programme_name   = (body.get("programme_name")   or "").strip()
-        training_date    = (body.get("training_date")    or "").strip()
-        trainer_provider = (body.get("trainer_provider") or "").strip()
+        employee_id      = (request.form.get("employee_id")      or "").strip()
+        programme_name   = (request.form.get("programme_name")   or "").strip()
+        training_date    = (request.form.get("training_date")    or "").strip()
+        trainer_provider = (request.form.get("trainer_provider") or "").strip()
+        evidence_file     = request.files.get("evidence")
 
-        if not employee_id or not programme_name or not training_date or not trainer_provider:
-            return {"message": "All fields are required"}, 400
+        if not employee_id or not programme_name or not training_date or not trainer_provider or not evidence_file:
+            return {"message": "All fields are required, including proof of evidence"}, 400
+
+        if evidence_file.content_type not in ALLOWED_EVIDENCE_TYPES:
+            return {"message": "Evidence must be a JPG, PNG, WebP or PDF file"}, 400
+
+        evidence_bytes = evidence_file.read()
+        if len(evidence_bytes) > MAX_EVIDENCE_SIZE:
+            return {"message": "Evidence file must be under 5MB"}, 400
+
+        ext            = evidence_file.filename.rsplit(".", 1)[-1].lower()
+        evidence_name  = f"{employee_id}-{int(datetime.now(timezone.utc).timestamp())}.{ext}"
+
+        upload_res = req.post(
+            f"{SUPABASE_URL}/storage/v1/object/training-evidence/{evidence_name}",
+            headers={
+                "apikey":        SERVICE_KEY,
+                "Authorization": f"Bearer {SERVICE_KEY}",
+                "Content-Type":  evidence_file.content_type,
+            },
+            data=evidence_bytes
+        )
+
+        if upload_res.status_code not in (200, 201):
+            return {"message": f"Evidence upload failed: {upload_res.text}"}, 400
+
+        evidence_url = f"{SUPABASE_URL}/storage/v1/object/public/training-evidence/{evidence_name}"
 
         result = supabase.table("training_passport").insert({
             "user_id":          employee_id,
             "training_name":    programme_name,
             "training_date":    training_date,
             "trainer_provider": trainer_provider,
+            "evidence_url":     evidence_url,
         }).execute()
 
         return {
