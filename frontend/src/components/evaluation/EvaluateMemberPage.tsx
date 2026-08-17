@@ -378,30 +378,26 @@ export default function EvaluateMemberPage() {
             <section style={{
               marginBottom: '20px',
               borderRadius: '20px',
-              background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%)',
+              background: '#ffffff',
               padding: '28px 32px',
-              color: '#ffffff',
-              boxShadow: '0 20px 60px rgba(15,23,42,0.40), inset 0 1px 0 rgba(255,255,255,0.10)',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 1px 2px rgb(15 23 42 / 0.08)',
               position: 'relative',
               overflow: 'hidden',
             }}>
-              {/* Decorative orbs */}
-              <div style={{ position:'absolute', top:'-60px', right:'-60px', width:'220px', height:'220px', borderRadius:'50%', background:'rgba(99,102,241,0.12)', pointerEvents:'none' }} />
-              <div style={{ position:'absolute', bottom:'-80px', left:'-30px', width:'260px', height:'260px', borderRadius:'50%', background:'rgba(37,99,235,0.10)', pointerEvents:'none' }} />
-
               {/* Header */}
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'24px', position:'relative', zIndex:1 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
                   <div style={{
                     width:'44px', height:'44px', borderRadius:'14px',
-                    background:'rgba(255,255,255,0.12)',
-                    border:'1.5px solid rgba(255,255,255,0.20)',
+                    background:'#f1f5f9',
+                    border:'1px solid #e2e8f0',
                     display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize:'20px',
+                    fontSize:'20px', color:'#1c398e',
                   }}>✦</div>
                   <div>
-                    <h3 style={{ margin:0, fontSize:'18px', fontWeight:800, letterSpacing:'-0.01em' }}>AI Performance Recommendation</h3>
-                    <p style={{ margin:0, fontSize:'12px', color:'rgba(255,255,255,0.55)', marginTop:'2px' }}>
+                    <h3 style={{ margin:0, fontSize:'18px', fontWeight:800, letterSpacing:'-0.01em', color:'#0f172a' }}>AI Performance Recommendation</h3>
+                    <p style={{ margin:0, fontSize:'12px', color:'#64748b', marginTop:'2px' }}>
                       Generated from {objectiveGroups.flatMap(g => g.items).filter(i => i.rating !== '-').length} rated objectives
                     </p>
                   </div>
@@ -422,32 +418,32 @@ export default function EvaluateMemberPage() {
               {/* ── Summary cards row ── */}
               <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'14px', marginBottom:'24px', position:'relative', zIndex:1 }}>
                 {/* Avg Rating */}
-                <div style={{ background:'rgba(255,255,255,0.08)', borderRadius:'14px', padding:'18px', border:'1px solid rgba(255,255,255,0.12)' }}>
-                  <p style={{ margin:0, fontSize:'11px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(255,255,255,0.50)' }}>Average Rating</p>
-                  <p style={{ margin:'8px 0 0', fontSize:'30px', fontWeight:800, letterSpacing:'-0.02em' }}>{aiInsights.avgRating.toFixed(2)}</p>
+                <div style={{ background:'#f8fafc', borderRadius:'14px', padding:'18px', border:'1px solid #e2e8f0' }}>
+                  <p style={{ margin:0, fontSize:'11px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#64748b' }}>Average Rating</p>
+                  <p style={{ margin:'8px 0 0', fontSize:'30px', fontWeight:800, letterSpacing:'-0.02em', color:'#0f172a' }}>{aiInsights.avgRating.toFixed(2)}</p>
                   <p style={{ margin:'4px 0 0', fontSize:'12px', color: aiInsights.levelColor, fontWeight:700 }}>{aiInsights.level}</p>
                 </div>
 
                 {/* % meeting target */}
-                <div style={{ background:'rgba(255,255,255,0.08)', borderRadius:'14px', padding:'18px', border:'1px solid rgba(255,255,255,0.12)' }}>
-                  <p style={{ margin:0, fontSize:'11px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(255,255,255,0.50)' }}>Targets Met</p>
-                  <p style={{ margin:'8px 0 0', fontSize:'30px', fontWeight:800, letterSpacing:'-0.02em' }}>{aiInsights.pctMeetingTarget}%</p>
-                  <p style={{ margin:'4px 0 0', fontSize:'12px', color:'rgba(255,255,255,0.55)' }}>of objectives ≥ 100% achieved</p>
+                <div style={{ background:'#f8fafc', borderRadius:'14px', padding:'18px', border:'1px solid #e2e8f0' }}>
+                  <p style={{ margin:0, fontSize:'11px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#64748b' }}>Targets Met</p>
+                  <p style={{ margin:'8px 0 0', fontSize:'30px', fontWeight:800, letterSpacing:'-0.02em', color:'#0f172a' }}>{aiInsights.pctMeetingTarget}%</p>
+                  <p style={{ margin:'4px 0 0', fontSize:'12px', color:'#64748b' }}>of objectives ≥ 100% achieved</p>
                 </div>
 
                 {/* Objectives count */}
-                <div style={{ background:'rgba(255,255,255,0.08)', borderRadius:'14px', padding:'18px', border:'1px solid rgba(255,255,255,0.12)' }}>
-                  <p style={{ margin:0, fontSize:'11px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'rgba(255,255,255,0.50)' }}>Objectives Rated</p>
-                  <p style={{ margin:'8px 0 0', fontSize:'30px', fontWeight:800, letterSpacing:'-0.02em' }}>
+                <div style={{ background:'#f8fafc', borderRadius:'14px', padding:'18px', border:'1px solid #e2e8f0' }}>
+                  <p style={{ margin:0, fontSize:'11px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#64748b' }}>Objectives Rated</p>
+                  <p style={{ margin:'8px 0 0', fontSize:'30px', fontWeight:800, letterSpacing:'-0.02em', color:'#0f172a' }}>
                     {objectiveGroups.flatMap(g => g.items).filter(i => i.rating !== '-').length}
                   </p>
-                  <p style={{ margin:'4px 0 0', fontSize:'12px', color:'rgba(255,255,255,0.55)' }}>of {objectiveGroups.flatMap(g => g.items).length} total</p>
+                  <p style={{ margin:'4px 0 0', fontSize:'12px', color:'#64748b' }}>of {objectiveGroups.flatMap(g => g.items).length} total</p>
                 </div>
               </div>
 
               {/* ── Category breakdown table ── */}
-              <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:'14px', overflow:'hidden', marginBottom:'20px', position:'relative', zIndex:1, border:'1px solid rgba(255,255,255,0.10)' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 90px 90px 110px', padding:'12px 18px', background:'rgba(255,255,255,0.08)', fontSize:'10px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(255,255,255,0.55)', borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ background:'#f8fafc', borderRadius:'14px', overflow:'hidden', marginBottom:'20px', position:'relative', zIndex:1, border:'1px solid #e2e8f0' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 90px 90px 110px', padding:'12px 18px', background:'#f1f5f9', fontSize:'10px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'#64748b', borderBottom:'1px solid #e2e8f0' }}>
                   <div>Focus Area</div>
                   <div style={{ textAlign:'right' }}>Avg Score</div>
                   <div style={{ textAlign:'right' }}>Objectives</div>
@@ -456,17 +452,17 @@ export default function EvaluateMemberPage() {
 
                 {aiInsights.categoryScores.map(({ category, avg }, i) => {
                   const catItems = objectiveGroups.find(g => g.category === category)?.items ?? [];
-                  let badge = 'Needs Work'; let badgeColor = '#f87171';
-                  if (avg >= 4) { badge = 'Excellent'; badgeColor = '#4ade80'; }
-                  else if (avg >= 3) { badge = 'Good'; badgeColor = '#60a5fa'; }
-                  else if (avg >= 2) { badge = 'Fair'; badgeColor = '#facc15'; }
+                  let badge = 'Needs Work'; let badgeBg = '#fee2e2'; let badgeColor = '#991b1b'; let badgeBorder = '#fecaca';
+                  if (avg >= 4) { badge = 'Excellent'; badgeBg = '#dcfce7'; badgeColor = '#15803d'; badgeBorder = '#bbf7d0'; }
+                  else if (avg >= 3) { badge = 'Good'; badgeBg = '#dbeafe'; badgeColor = '#1e40af'; badgeBorder = '#bfdbfe'; }
+                  else if (avg >= 2) { badge = 'Fair'; badgeBg = '#fef9c3'; badgeColor = '#92400e'; badgeBorder = '#fde68a'; }
                   return (
-                    <div key={category} style={{ display:'grid', gridTemplateColumns:'1fr 90px 90px 110px', padding:'14px 18px', borderBottom: i < aiInsights.categoryScores.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none', alignItems:'center' }}>
-                      <div style={{ fontSize:'13px', fontWeight:600, color:'rgba(255,255,255,0.90)' }}>{category}</div>
-                      <div style={{ textAlign:'right', fontSize:'15px', fontWeight:800 }}>{avg.toFixed(2)}</div>
-                      <div style={{ textAlign:'right', fontSize:'13px', color:'rgba(255,255,255,0.55)' }}>{catItems.length}</div>
+                    <div key={category} style={{ display:'grid', gridTemplateColumns:'1fr 90px 90px 110px', padding:'14px 18px', borderBottom: i < aiInsights.categoryScores.length - 1 ? '1px solid #e2e8f0' : 'none', alignItems:'center' }}>
+                      <div style={{ fontSize:'13px', fontWeight:600, color:'#0f172a' }}>{category}</div>
+                      <div style={{ textAlign:'right', fontSize:'15px', fontWeight:800, color:'#0f172a' }}>{avg.toFixed(2)}</div>
+                      <div style={{ textAlign:'right', fontSize:'13px', color:'#64748b' }}>{catItems.length}</div>
                       <div style={{ textAlign:'right' }}>
-                        <span style={{ padding:'3px 10px', borderRadius:'999px', fontSize:'11px', fontWeight:700, color: badgeColor, background:`${badgeColor}22`, border:`1px solid ${badgeColor}55` }}>{badge}</span>
+                        <span style={{ padding:'3px 10px', borderRadius:'999px', fontSize:'11px', fontWeight:700, color: badgeColor, background: badgeBg, border:`1px solid ${badgeBorder}` }}>{badge}</span>
                       </div>
                     </div>
                   );
@@ -475,26 +471,26 @@ export default function EvaluateMemberPage() {
 
               {/* ── Strengths & Gaps ── */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px', position:'relative', zIndex:1 }}>
-                <div style={{ background:'rgba(74,222,128,0.08)', borderRadius:'14px', padding:'18px', border:'1px solid rgba(74,222,128,0.20)' }}>
-                  <p style={{ margin:'0 0 12px', fontSize:'12px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#4ade80', display:'flex', alignItems:'center', gap:'6px' }}>
+                <div style={{ background:'#f0fdf4', borderRadius:'14px', padding:'18px', border:'1px solid #bbf7d0' }}>
+                  <p style={{ margin:'0 0 12px', fontSize:'12px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#15803d', display:'flex', alignItems:'center', gap:'6px' }}>
                     ▲ Top Strengths
                   </p>
                   {aiInsights.strengths.map((item, i) => (
                     <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: i < 2 ? '8px' : 0 }}>
-                      <span style={{ fontSize:'12px', color:'rgba(255,255,255,0.80)', flex:1, marginRight:'8px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.name}</span>
-                      <span style={{ fontSize:'12px', fontWeight:800, color:'#4ade80', flexShrink:0 }}>{Number(item.ratingNum).toFixed(2)}</span>
+                      <span style={{ fontSize:'12px', color:'#334155', flex:1, marginRight:'8px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.name}</span>
+                      <span style={{ fontSize:'12px', fontWeight:800, color:'#15803d', flexShrink:0 }}>{Number(item.ratingNum).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
 
-                <div style={{ background:'rgba(248,113,113,0.08)', borderRadius:'14px', padding:'18px', border:'1px solid rgba(248,113,113,0.20)' }}>
-                  <p style={{ margin:'0 0 12px', fontSize:'12px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#f87171', display:'flex', alignItems:'center', gap:'6px' }}>
+                <div style={{ background:'#fff5f5', borderRadius:'14px', padding:'18px', border:'1px solid #fecaca' }}>
+                  <p style={{ margin:'0 0 12px', fontSize:'12px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#991b1b', display:'flex', alignItems:'center', gap:'6px' }}>
                     ▼ Improvement Areas
                   </p>
                   {aiInsights.gaps.map((item, i) => (
                     <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: i < 2 ? '8px' : 0 }}>
-                      <span style={{ fontSize:'12px', color:'rgba(255,255,255,0.80)', flex:1, marginRight:'8px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.name}</span>
-                      <span style={{ fontSize:'12px', fontWeight:800, color:'#f87171', flexShrink:0 }}>{Number(item.ratingNum).toFixed(2)}</span>
+                      <span style={{ fontSize:'12px', color:'#334155', flex:1, marginRight:'8px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.name}</span>
+                      <span style={{ fontSize:'12px', fontWeight:800, color:'#991b1b', flexShrink:0 }}>{Number(item.ratingNum).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -518,12 +514,12 @@ export default function EvaluateMemberPage() {
               disabled={savingDraft || submitting}
               style={{
                 borderRadius: '12px',
-                border: '1.5px solid #475569',
-                background: savingDraft ? '#1e293b' : 'linear-gradient(135deg, #1e293b, #334155)',
+                border: '1px solid #e2e8f0',
+                background: '#f1f5f9',
                 padding: '12px 28px',
                 fontSize: '14px',
                 fontWeight: 700,
-                color: '#e2e8f0',
+                color: '#334155',
                 cursor: savingDraft || submitting ? 'not-allowed' : 'pointer',
                 opacity: savingDraft || submitting ? 0.65 : 1,
                 display: 'inline-flex',
@@ -531,7 +527,7 @@ export default function EvaluateMemberPage() {
                 gap: '7px',
                 letterSpacing: '0.01em',
                 transition: 'all 0.2s ease',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+                boxShadow: '0 1px 2px rgb(15 23 42 / 0.08)',
               }}
             >
               {savingDraft ? 'Saving…' : 'Save Draft'}
@@ -555,36 +551,34 @@ export default function EvaluateMemberPage() {
         <div style={{
           position:'fixed', inset:0, zIndex:9999,
           display:'flex', alignItems:'center', justifyContent:'center',
-          background:'rgba(0,0,0,0.65)', backdropFilter:'blur(6px)',
+          background:'rgba(10, 20, 60, 0.55)', backdropFilter:'blur(6px)',
         }}>
           <div style={{
             width:'100%', maxWidth:'460px', margin:'0 16px',
             borderRadius:'24px',
-            background:'linear-gradient(160deg,#0f172a 0%,#1e293b 100%)',
-            border:'1px solid rgba(255,255,255,0.10)',
-            boxShadow:'0 32px 80px rgba(0,0,0,0.60)',
+            background:'#ffffff',
+            boxShadow:'0 32px 80px rgba(10, 20, 60, 0.30), 0 0 0 1px rgba(255,255,255,0.08)',
             overflow:'hidden',
           }}>
-            <div style={{ height:'4px', background:'linear-gradient(90deg,#475569,#7c3aed,#6366f1)' }} />
             <div style={{ padding:'36px 36px 32px' }}>
               <div style={{ display:'flex', justifyContent:'center', marginBottom:'20px' }}>
-                <div style={{ width:'72px', height:'72px', borderRadius:'50%', background:'radial-gradient(circle at 35% 35%,#7c3aed,#4c1d95)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <div style={{ width:'72px', height:'72px', borderRadius:'50%', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
                     <polyline points="17 21 17 13 7 13 7 21"/>
                     <polyline points="7 3 7 8 15 8"/>
                   </svg>
                 </div>
               </div>
-              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#f1f5f9' }}>Draft Saved</h2>
-              <p style={{ margin:'0 0 24px', textAlign:'center', fontSize:'14px', color:'rgba(255,255,255,0.50)' }}>Your progress has been saved. You can continue editing anytime.</p>
+              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#0f172a' }}>Draft Saved</h2>
+              <p style={{ margin:'0 0 24px', textAlign:'center', fontSize:'14px', color:'#475569' }}>Your progress has been saved. You can continue editing anytime.</p>
               <div style={{ display:'flex', gap:'10px' }}>
                 <button type="button" onClick={() => setShowDraftSaved(false)}
-                  style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1.5px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.65)', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
+                  style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1px solid #e2e8f0', background:'#f1f5f9', color:'#334155', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
                   Continue Editing
                 </button>
                 <button type="button" onClick={() => router.push(routes.myTeam)}
-                  style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#4c1d95,#7c3aed)', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>
+                  style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'#1c398e', boxShadow:'0 2px 8px rgba(28, 57, 142, 0.22)', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>
                   Go to My Team
                 </button>
               </div>
@@ -598,28 +592,27 @@ export default function EvaluateMemberPage() {
         <div style={{
           position:'fixed', inset:0, zIndex:9999,
           display:'flex', alignItems:'center', justifyContent:'center',
-          background:'rgba(0,0,0,0.65)', backdropFilter:'blur(6px)',
+          background:'rgba(10, 20, 60, 0.55)', backdropFilter:'blur(6px)',
         }}>
           <div style={{
             width:'100%', maxWidth:'440px', margin:'0 16px',
             borderRadius:'24px',
-            background:'linear-gradient(160deg,#0f172a 0%,#1c1917 100%)',
-            border:'1px solid rgba(255,255,255,0.10)',
+            background:'#ffffff',
+            boxShadow:'0 32px 80px rgba(10, 20, 60, 0.30), 0 0 0 1px rgba(255,255,255,0.08)',
             overflow:'hidden',
           }}>
-            <div style={{ height:'4px', background:'linear-gradient(90deg,#92400e,#f59e0b,#fcd34d)' }} />
             <div style={{ padding:'36px 36px 32px' }}>
-              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#f1f5f9' }}>Leave Without Saving?</h2>
-              <p style={{ margin:'0 0 28px', textAlign:'center', fontSize:'14px', color:'rgba(255,255,255,0.50)', lineHeight:1.6 }}>
-                Any unsaved changes to <strong style={{ color:'rgba(255,255,255,0.75)' }}>{member.name}&apos;s</strong> evaluation will be lost.
+              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#0f172a' }}>Leave Without Saving?</h2>
+              <p style={{ margin:'0 0 28px', textAlign:'center', fontSize:'14px', color:'#475569', lineHeight:1.6 }}>
+                Any unsaved changes to <strong style={{ color:'#0f172a' }}>{member.name}&apos;s</strong> evaluation will be lost.
               </p>
               <div style={{ display:'flex', gap:'10px' }}>
                 <button type="button" onClick={() => setShowCancelConfirm(false)}
-                  style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#92400e,#d97706)', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>
+                  style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'#d97706', boxShadow:'0 2px 8px rgba(217, 119, 6, 0.22)', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>
                   Stay Here
                 </button>
                 <button type="button" onClick={() => { router.push(routes.myTeam); updateTeamMemberStatus(member.id, 'pending').catch(() => {}); }}
-                  style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1.5px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.55)', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
+                  style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1px solid #e2e8f0', background:'#f1f5f9', color:'#334155', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
                   Leave Page
                 </button>
               </div>
@@ -630,32 +623,30 @@ export default function EvaluateMemberPage() {
 
       {/* ── Submit Success Modal ─────────────────────────────────────────── */}
       {showSuccess && (
-        <div style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.65)', backdropFilter:'blur(6px)' }}>
-          <div style={{ width:'100%', maxWidth:'480px', margin:'0 16px', borderRadius:'24px', background:'linear-gradient(160deg,#0f172a 0%,#1e293b 100%)', border:'1px solid rgba(255,255,255,0.10)', overflow:'hidden' }}>
-            <div style={{ height:'4px', background:'linear-gradient(90deg,#16a34a,#4ade80,#22d3ee)' }} />
+        <div style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(10, 20, 60, 0.55)', backdropFilter:'blur(6px)' }}>
+          <div style={{ width:'100%', maxWidth:'480px', margin:'0 16px', borderRadius:'24px', background:'#ffffff', boxShadow:'0 32px 80px rgba(10, 20, 60, 0.30), 0 0 0 1px rgba(255,255,255,0.08)', overflow:'hidden' }}>
             <div style={{ padding:'36px 36px 32px' }}>
               <div style={{ display:'flex', justifyContent:'center', marginBottom:'20px' }}>
-                <div style={{ width:'72px', height:'72px', borderRadius:'50%', background:'radial-gradient(circle at 35% 35%,#22c55e,#15803d)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <div style={{ width:'72px', height:'72px', borderRadius:'50%', background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
               </div>
-              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#f1f5f9' }}>Evaluation Submitted</h2>
-              <p style={{ margin:'0 0 24px', textAlign:'center', fontSize:'14px', color:'rgba(255,255,255,0.50)' }}>The evaluation has been sent for approval review.</p>
+              <h2 style={{ margin:'0 0 8px', textAlign:'center', fontSize:'22px', fontWeight:800, color:'#0f172a' }}>Evaluation Submitted</h2>
+              <p style={{ margin:'0 0 24px', textAlign:'center', fontSize:'14px', color:'#475569' }}>The evaluation has been sent for approval review.</p>
               <div style={{ display:'flex', gap:'10px' }}>
                 <button type="button" onClick={() => setShowSuccess(false)}
-                  style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1.5px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.05)', color:'rgba(255,255,255,0.65)', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
+                  style={{ flex:1, padding:'13px', borderRadius:'12px', border:'1px solid #e2e8f0', background:'#f1f5f9', color:'#334155', fontSize:'14px', fontWeight:600, cursor:'pointer' }}>
                   Stay on Page
                 </button>
                 <button type="button" onClick={() => { if (!submitting) router.push(routes.approvals); }} disabled={submitting}
-                  style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'linear-gradient(135deg,#1d4ed8,#2563eb)', color:'#fff', fontSize:'14px', fontWeight:700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
+                  style={{ flex:2, padding:'13px', borderRadius:'12px', border:'none', background:'#1c398e', boxShadow:'0 2px 8px rgba(28, 57, 142, 0.22)', color:'#fff', fontSize:'14px', fontWeight:700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
                   {submitting ? 'Saving…' : 'View Approvals'}
                 </button>
               </div>
             </div>
           </div>
-          <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes scaleIn{from{opacity:0;transform:scale(0.85)}to{opacity:1;transform:scale(1)}}`}</style>
         </div>
       )}
     </>

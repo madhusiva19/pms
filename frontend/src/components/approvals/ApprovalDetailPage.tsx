@@ -286,32 +286,25 @@ export default function EvaluationApproval() {
         <div style={{
           position: 'fixed', inset: 0, zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.65)',
+          background: 'rgba(10, 20, 60, 0.55)',
           backdropFilter: 'blur(6px)',
-          animation: 'fadeIn 0.2s ease',
         }}>
           <div style={{
             width: '100%', maxWidth: '480px', margin: '0 16px',
             borderRadius: '24px',
-            background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 100%)',
-            border: '1px solid rgba(255,255,255,0.10)',
-            boxShadow: '0 32px 80px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.08)',
+            background: '#ffffff',
+            boxShadow: '0 32px 80px rgba(10, 20, 60, 0.30), 0 0 0 1px rgba(255,255,255,0.08)',
             overflow: 'hidden',
-            animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)',
           }}>
-            {/* Green accent bar */}
-            <div style={{ height: '4px', background: 'linear-gradient(90deg, #16a34a, #4ade80, #22d3ee)' }} />
-
             <div style={{ padding: '36px 36px 32px' }}>
               {/* Icon */}
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
                 <div style={{
                   width: '72px', height: '72px', borderRadius: '50%',
-                  background: 'radial-gradient(circle at 35% 35%, #22c55e, #15803d)',
-                  boxShadow: '0 0 0 12px rgba(34,197,94,0.12), 0 8px 24px rgba(34,197,94,0.30)',
+                  background: '#dcfce7',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
@@ -320,14 +313,14 @@ export default function EvaluationApproval() {
               {/* Title */}
               <h2 style={{
                 margin: '0 0 8px', textAlign: 'center',
-                fontSize: '22px', fontWeight: 800, color: '#f1f5f9',
+                fontSize: '22px', fontWeight: 800, color: '#0f172a',
                 letterSpacing: '-0.02em',
               }}>
                 Evaluation Approved
               </h2>
               <p style={{
                 margin: '0 0 24px', textAlign: 'center',
-                fontSize: '14px', color: 'rgba(255,255,255,0.50)', lineHeight: 1.5,
+                fontSize: '14px', color: '#475569', lineHeight: 1.5,
               }}>
                 The evaluation has been successfully approved.
               </p>
@@ -335,8 +328,8 @@ export default function EvaluationApproval() {
               {/* Member info card */}
               <div style={{
                 borderRadius: '14px',
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
                 padding: '16px 20px',
                 marginBottom: '28px',
                 display: 'grid',
@@ -345,20 +338,19 @@ export default function EvaluationApproval() {
                 gap: '12px',
               }}>
                 <div>
-                  <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.45)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Employee</p>
-                  <p style={{ margin: '4px 0 0', fontSize: '15px', fontWeight: 700, color: '#f1f5f9' }}>{approval.employee || member?.name}</p>
-                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'rgba(255,255,255,0.40)' }}>{formatRole(member?.role)}</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Employee</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>{approval.employee || member?.name}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>{formatRole(member?.role)}</p>
                 </div>
                 {Number(overallScore) > 0 && (
                   <div style={{
                     minWidth: '64px', height: '64px', borderRadius: '14px',
-                    background: 'linear-gradient(135deg, #14532d, #16a34a)',
-                    border: '1px solid rgba(34,197,94,0.40)',
+                    background: '#16a34a',
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center',
                   }}>
                     <span style={{ fontSize: '18px', fontWeight: 800, color: '#fff', lineHeight: 1 }}>{formatScore(overallScore)}</span>
-                    <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.55)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Score</span>
+                    <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.75)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Score</span>
                   </div>
                 )}
               </div>
@@ -368,11 +360,10 @@ export default function EvaluationApproval() {
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', gap: '7px',
                   padding: '7px 16px', borderRadius: '999px',
-                  background: 'rgba(34,197,94,0.12)',
-                  border: '1px solid rgba(34,197,94,0.30)',
-                  color: '#4ade80', fontSize: '12px', fontWeight: 700,
+                  background: '#dcfce7',
+                  color: '#166534', fontSize: '12px', fontWeight: 700,
                 }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#166534', display: 'inline-block' }} />
                   Approved
                 </div>
               </div>
@@ -384,8 +375,8 @@ export default function EvaluationApproval() {
                 style={{
                   width: '100%', padding: '13px', borderRadius: '12px',
                   border: 'none',
-                  background: 'linear-gradient(135deg, #15803d, #16a34a)',
-                  boxShadow: '0 6px 20px rgba(22,163,74,0.40)',
+                  background: '#1c398e',
+                  boxShadow: '0 2px 8px rgba(28, 57, 142, 0.22)',
                   color: '#ffffff', fontSize: '14px', fontWeight: 700,
                   cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
@@ -399,11 +390,6 @@ export default function EvaluationApproval() {
               </button>
             </div>
           </div>
-
-          <style>{`
-            @keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
-            @keyframes scaleIn { from { opacity:0; transform:scale(0.85) } to { opacity:1; transform:scale(1) } }
-          `}</style>
         </div>
       )}
     </>
