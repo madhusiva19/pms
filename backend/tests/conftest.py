@@ -24,6 +24,7 @@ sys.modules["apscheduler.schedulers"]            = _aps
 sys.modules["apscheduler.schedulers.background"] = _aps
 sys.modules["apscheduler.triggers"]              = _aps
 sys.modules["apscheduler.triggers.cron"]         = _aps
+sys.modules["apscheduler.triggers.interval"]     = _aps
 
 # ── 3. Dummy env vars ────────────────────────────────────────────
 os.environ.setdefault("SUPABASE_URL", "https://mock.supabase.co")
