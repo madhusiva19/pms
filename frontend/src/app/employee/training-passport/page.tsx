@@ -8,8 +8,8 @@ import type { CurrentUser } from "@/hooks/useCurrentUser";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/apiFetch";
 
-interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; }
-interface RawSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; supervisor_comment?: string; }
+interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; evidence_url?: string; }
+interface RawSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; supervisor_comment?: string; employee_viewed?: boolean; }
 
 export default function EmployeeTrainingPage() {
   const router = useRouter();
@@ -37,6 +37,7 @@ export default function EmployeeTrainingPage() {
         const mappedSuggestions = (suggData.suggestions || []).map((s: RawSuggestion) => ({
           id: s.id, trainingName: s.training_name, justification: s.justification,
           status: s.status, supervisorComment: s.supervisor_comment || "",
+          employeeViewed: s.employee_viewed ?? false,
         }));
 
         setAttended(mappedAttended);

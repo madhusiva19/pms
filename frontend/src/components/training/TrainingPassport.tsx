@@ -23,6 +23,7 @@ type TrainingSuggestion = {
   supervisorComment?: string;
   submittedBy?: string;
   submittedByRole?: string;
+  employeeViewed?: boolean;
 };
 
 type AIRecommendation = {
@@ -254,7 +255,8 @@ export default function TrainingPassport({
 
   // ── Pending counts for badges ──
   const pendingSubordinateCount = subordinateSuggestions.filter(s => s.status === "pending").length;
-  const reviewedOwnCount        = suggestionList.filter(s => s.status === "approved" || s.status === "rejected").length;
+  const reviewedOwnCount        = suggestionList.filter(s => (s.status === "approved" || s.status === "rejected") && !s.employeeViewed).length;
+  const suggestionsTabBadge     = (config.canReview ? pendingSubordinateCount : 0) + (config.canSuggest ? reviewedOwnCount : 0);
 
   return (
     <>
@@ -311,17 +313,21 @@ export default function TrainingPassport({
               <button
                 type="button"
                 className={activeTab === "suggestions" ? styles.tabActive : styles.tabInactive}
-                onClick={() => { setActiveTab("suggestions"); clearTrainingBadge() }}
+                onClick={() => {
+                  setActiveTab("suggestions");
+                  if (config.canSuggest) {
+                    setSuggestionList(prev => prev.map(s =>
+                      (s.status === "approved" || s.status === "rejected") ? { ...s, employeeViewed: true } : s
+                    ));
+                  }
+                  clearTrainingBadge();
+                }}
   >
-        
+
                 🔮 Training Suggestions
-                {/* Badge for supervisor — pending subordinate suggestions */}
-                {config.canReview && pendingSubordinateCount > 0 && (
-                  <span className={styles.tabBadge}>{pendingSubordinateCount}</span>
-                )}
-                {/* Badge for employee — reviewed (approved/rejected) suggestions */}
-                {config.canSuggest && !config.canReview && reviewedOwnCount > 0 && (
-                  <span className={styles.tabBadge}>{reviewedOwnCount}</span>
+                {/* Badge — pending subordinate reviews (supervisor) + newly-reviewed own suggestions (submitter) */}
+                {suggestionsTabBadge > 0 && (
+                  <span className={styles.tabBadge}>{suggestionsTabBadge}</span>
                 )}
               </button>
             )}
