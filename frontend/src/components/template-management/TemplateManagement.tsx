@@ -80,7 +80,10 @@ export default function TemplatesListPage() {
   useEffect(() => {
     if (templates.length === 0) return;
     const ids = templates.map(t => t.id).join(',');
-    const url = user?.id
+    const isDirectManager = user?.role === 'branch_admin' || 
+                            user?.role === 'dept_admin' || 
+                            user?.role === 'sub_dept_admin';
+    const url = isDirectManager && user?.id
       ? `${API}/api/templates/assignments/batch?template_ids=${ids}&manager_id=${user.id}`
       : `${API}/api/templates/assignments/batch?template_ids=${ids}`;
     fetch(url)

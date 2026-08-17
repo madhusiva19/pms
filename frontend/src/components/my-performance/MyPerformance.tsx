@@ -192,7 +192,7 @@ export default function MyPerformance() {
   const [openCats,       setOpenCats]       = useState<Record<string, boolean>>({});
   const [dataH1,         setDataH1]         = useState<PerformanceData | null>(null);
   const [dataH2,         setDataH2]         = useState<PerformanceData | null>(null);
-  const [h2Year,         setH2Year]         = useState<number>(new Date().getFullYear() - 1);
+  const [h2Year,         setH2Year]         = useState<number>(new Date().getFullYear());
   const [loading,        setLoading]        = useState(false);
   const [activeYear,     setActiveYear]     = useState<number>(new Date().getFullYear());
 
@@ -219,7 +219,7 @@ export default function MyPerformance() {
       .then(r => r.ok ? r.json() : null)
       .then(async cycleJson => {
         // pms_year from rating_periods is driven by the scheduler, not pms_cycles
-        const yr = cycleJson?.pms_year ?? new Date().getFullYear();
+        const yr = parseInt(cycleJson?.pms_year) || new Date().getFullYear();
         if (!cancelled) setActiveYear(yr);
 
         // Auto-select the most recently completed period based on rating_end.
@@ -240,7 +240,7 @@ export default function MyPerformance() {
         // Before that → fall back to pms_year-1 (previous H2)
         const availRes = await fetch(`${API_BASE}/api/performance/${employeeId}/periods`);
         const availPeriods: {year: number; period: string}[] = availRes.ok ? await availRes.json() : [];
-        const h2Year = availPeriods.some(p => p.year === yr && p.period === 'H2') ? yr : yr - 1;
+        const h2Year = availPeriods.some(p => Number(p.year) === Number(yr) && p.period === 'H2') ? yr : yr - 1;
         if (!cancelled) setH2Year(h2Year);
 
         return Promise.all([fetchPeriod(employeeId, 'H1', yr), fetchPeriod(employeeId, 'H2', h2Year)]);
@@ -294,15 +294,12 @@ export default function MyPerformance() {
     feedback: string | null;
     evaluator: { name: string; designation: string } | null;
   } | null>(null);
-  const [recommendations, setRecommendations] = useState<{ insight_text: string; insight_type: string }[]>([]);
 
     useEffect(() => {
     if (!employeeId) return;
     const yearForPeriod = selectedPeriod === 'H2' ? h2Year : activeYear;
     fetch(`${API_BASE}/api/feedback/${employeeId}/${yearForPeriod}/${selectedPeriod}`)
       .then(r => r.json()).then(setSupervisorFeedback).catch(() => setSupervisorFeedback(null));
-    fetch(`${API_BASE}/api/recommendations/${employeeId}/${yearForPeriod}/${selectedPeriod}`)
-      .then(r => r.json()).then(setRecommendations).catch(() => setRecommendations([]));
   }, [employeeId, selectedPeriod, activeYear, h2Year]);
 
   const displayName        = data?.employee?.name        ?? user?.full_name ?? null;
@@ -332,7 +329,7 @@ export default function MyPerformance() {
                     style={{ padding: '5px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
                       background: active ? '#fff' : 'transparent', color: active ? C.textDark : C.textMuted,
                       boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>
-                    {fiscalLabel(p === 'H2' ? activeYear - 1 : activeYear, p)}
+                    {fiscalLabel(p === 'H2' ? h2Year : activeYear, p)}
                   </button>
                 );
               })}
@@ -554,30 +551,6 @@ export default function MyPerformance() {
                     {supervisorFeedback?.feedback ?? 'No feedback available for this period.'}
                   </p>
                 </div>
-              </div>
-            </div>
-
-            {/* AI Recommendations */}
-            <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12 }}>
-              <div style={{ padding: '20px 24px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 18 }}>✦</span>
-                  <h4 style={{ fontSize: 15, fontWeight: 600, color: C.textDark, margin: 0 }}>AI-Powered Recommendations</h4>
-                </div>
-                <p style={{ fontSize: 13, color: C.textMuted, margin: '0 0 16px' }}>
-                  Personalized insights based on your {(selectedPeriod === 'H2' ? fiscalLabel(h2Year, 'H2') : fiscalLabel(activeYear, 'H1'))} KPI results
-                </p>
-              </div>
-              <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {recommendations.length > 0
-                  ? recommendations.map((rec, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#AD46FF', flexShrink: 0, marginTop: 8 }} />
-                        <p style={{ fontSize: 14, color: '#364153', lineHeight: '23px', margin: 0 }}>{rec.insight_text}</p>
-                      </div>
-                    ))
-                  : <p style={{ fontSize: 14, color: C.textMuted, margin: 0 }}>No recommendations available for this period.</p>
-                }
               </div>
             </div>
           </>

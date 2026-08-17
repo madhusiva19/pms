@@ -213,6 +213,21 @@ def _get_windows_closing_in(days: int, today: date) -> list[tuple[int, str]]:
     )
     return [(int(rp["pms_year"]), rp["period"]) for rp in (res.data or [])]
 
+def _get_all_windows_closing_in(days: int, today: date) -> list[dict]:
+    """
+    Return ALL rating period rows (any scope) closing in exactly `days` days.
+    Handles custom end dates set by country/branch/dept admins.
+    """
+    target_end = today + timedelta(days=days)
+    res = (
+        supabase.table("rating_periods")
+        .select("pms_year, period, country_id, branch_id, department_id, sub_department_id")
+        .eq("is_active", True)
+        .eq("rating_end", target_end.isoformat())
+        .execute()
+    )
+    return res.data or []
+
 
 def _get_windows_closed_yesterday(today: date) -> list[tuple[int, str]]:
     """
@@ -231,6 +246,20 @@ def _get_windows_closed_yesterday(today: date) -> list[tuple[int, str]]:
         .execute()
     )
     return [(int(rp["pms_year"]), rp["period"]) for rp in (res.data or [])]
+
+def _get_windows_closing_today(today: date) -> list[dict]:
+    """
+    Return ALL rating period rows (any scope) whose rating_end is today.
+    Handles custom end dates set by country/branch/dept admins.
+    """
+    res = (
+        supabase.table("rating_periods")
+        .select("pms_year, period, country_id, branch_id, department_id, sub_department_id")
+        .eq("is_active", True)
+        .eq("rating_end", today.isoformat())
+        .execute()
+    )
+    return res.data or []
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -293,15 +322,19 @@ def deadline_warning_job() -> None:
     broadcast deadline_warning notifications to evaluators with pending ratings.
     """
     today   = date.today()
-    closing = _get_windows_closing_in(WARNING_DAYS_BEFORE, today)
+    closing = _get_all_windows_closing_in(WARNING_DAYS_BEFORE, today)
 
-    for pms_year, period in closing:
+    for rp in closing:
+        pms_year = int(rp["pms_year"])
+        period   = rp["period"]
         log.info(
-            "[scheduler] deadline_warning_job: %s %s closes in %d days",
+            "[scheduler] deadline_warning_job: %s %s closes in %d days "
+            "(country=%s branch=%s dept=%s sub=%s)",
             period, pms_year, WARNING_DAYS_BEFORE,
+            rp.get("country_id"), rp.get("branch_id"),
+            rp.get("department_id"), rp.get("sub_department_id"),
         )
         _broadcast("deadline_warning", period, pms_year)
-
 
 def auto_close_rating_window() -> None:
     """
@@ -319,6 +352,100 @@ def auto_close_rating_window() -> None:
             period, pms_year,
         )
         _broadcast("period_closed", period, pms_year)
+
+
+def auto_calculate_scores_on_period_end() -> None:
+    """
+    Job 4 — runs daily at 23:30.
+    On the last day of any rating window (global or org-scoped),
+    automatically calculate ratings and scores for all performance
+    records missing ratings. Handles custom dates per country/branch/dept.
+    """
+    today = date.today()
+    closing_periods = _get_windows_closing_today(today)
+
+    if not closing_periods:
+        return
+
+    try:
+        from services.rating_engine import calculate_rating, load_scale_meta
+        from services.score_service import patch_total_score
+
+        mappings_by_obj, rules_by_mapping, obj_by_id, _ = load_scale_meta()
+
+        for rp in closing_periods:
+            pms_year = int(rp["pms_year"])
+            period   = rp["period"]
+            country  = rp.get("country_id")
+            branch   = rp.get("branch_id")
+            dept     = rp.get("department_id")
+            sub_dept = rp.get("sub_department_id")
+
+            log.info(
+                "[scheduler] auto_calculate_scores: %s %s "
+                "(country=%s branch=%s dept=%s sub=%s)",
+                period, pms_year, country, branch, dept, sub_dept,
+            )
+
+            scoped_user_ids = []
+            if country or branch or dept or sub_dept:
+                user_q = supabase.table("users").select("id")
+                if sub_dept:   user_q = user_q.eq("sub_department_id", sub_dept)
+                elif dept:     user_q = user_q.eq("department_id", dept)
+                elif branch:   user_q = user_q.eq("branch_id", branch)
+                elif country:  user_q = user_q.eq("country_id", country)
+                user_res = user_q.execute()
+                scoped_user_ids = [u["id"] for u in (user_res.data or [])]
+                if not scoped_user_ids:
+                    continue
+
+            offset    = 0
+            page_size = 500
+            updated   = 0
+            period_keys: set[tuple] = set()
+
+            while True:
+                q = (
+                    supabase.table("performance_records")
+                    .select("*")
+                    .eq("year", pms_year)
+                    .eq("period", period)
+                    .is_("rating", "null")
+                    .range(offset, offset + page_size - 1)
+                )
+                if scoped_user_ids:
+                    q = q.in_("user_id", scoped_user_ids)
+
+                batch = q.execute().data or []
+                if not batch:
+                    break
+
+                for rec in batch:
+                    obj_id   = rec["objective_id"]
+                    mapping  = mappings_by_obj.get(obj_id, {})
+                    brackets = rules_by_mapping.get(mapping.get("id"), [])
+                    obj      = obj_by_id.get(obj_id, {})
+                    weight   = float(obj.get("weight", 0))
+                    rating   = calculate_rating(rec, mapping, brackets)
+                    score    = round(rating * (weight / 100), 4)
+                    supabase.table("performance_records").update(
+                        {"rating": rating, "score": score}
+                    ).eq("id", rec["id"]).execute()
+                    period_keys.add((rec["user_id"], rec["year"], rec["period"]))
+                    updated += 1
+
+                offset += page_size
+
+            for (uid, yr, per) in period_keys:
+                patch_total_score(uid, yr, per)
+
+            log.info(
+                "[scheduler] auto_calculate_scores: %d records, %d summaries for %s %s",
+                updated, len(period_keys), period, pms_year,
+            )
+
+    except Exception as exc:
+        log.error("[scheduler] auto_calculate_scores_on_period_end failed: %s", exc)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -457,8 +584,17 @@ def init_scheduler() -> BackgroundScheduler:
         replace_existing = True,
     )
 
+   # Job 4 — 23:30 daily — calculate scores on last day of rating window
+    scheduler.add_job(
+        func    = auto_calculate_scores_on_period_end,
+        trigger = CronTrigger(hour=23, minute=30),
+        id      = "auto_calculate_scores_on_period_end",
+        name    = "Calculate scores on last day of each rating window",
+        replace_existing = True,
+    )
+
     scheduler.start()
-    log.info("[scheduler] APScheduler started — 3 jobs registered.")
+    log.info("[scheduler] APScheduler started — 4 jobs registered.")
 
     # Catch-up check — opens any missed rating windows on startup
     catchup_rating_window()

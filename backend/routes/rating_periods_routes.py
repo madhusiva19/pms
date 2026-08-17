@@ -599,10 +599,31 @@ def get_batch_rating_status():
 
         print(f"[DEBUG] batch status: user_ids={user_ids}, year={year}, period={period}")
 
-        # Get template assignments for all requested users
-        assign_res     = supabase.table("template_assignments").select("user_id, template_id").in_("user_id", user_ids).execute()
-        assign_by_user = {r["user_id"]: r["template_id"] for r in (assign_res.data or [])}
-        template_ids   = list(set(assign_by_user.values()))
+ # Get the correct pms_cycle for the requested year
+        cycle_res = (
+            supabase.table("pms_cycles")
+            .select("id")
+            .eq("pms_year", year)
+            .limit(1)
+            .execute()
+        )
+        active_cycle_id = (cycle_res.data or [{}])[0].get("id")
+
+        # Get template assignments filtered by correct cycle
+        assign_res = (
+            supabase.table("template_assignments")
+            .select("user_id, template_id, templates!inner(pms_cycle_id)")
+            .in_("user_id", user_ids)
+            .execute()
+        )
+        assign_by_user = {}
+        for r in (assign_res.data or []):
+            tmpl_cycle = (r.get("templates") or {}).get("pms_cycle_id")
+            if active_cycle_id and tmpl_cycle == active_cycle_id:
+                assign_by_user[r["user_id"]] = r["template_id"]
+        if not assign_by_user:
+            assign_by_user = {r["user_id"]: r["template_id"] for r in (assign_res.data or [])}
+        template_ids = list(set(assign_by_user.values()))
 
         print(f"[DEBUG] assign_by_user={assign_by_user}, template_ids={template_ids}")
 

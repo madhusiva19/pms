@@ -1836,85 +1836,94 @@ export default function TemplateDashboardBase({ level }: { level: number }) {
             </div>
           )}
 
-          {/* Page header */}
-          <div className={styles.pageHeader}>
-            <div>
-              <p className={styles.pageSubtitleMain}>
-                Manage and deploy evaluation templates across org
-              </p>
-              <p className={styles.pageSubtitle}>
-                <span className={styles.rolePill}>{permissions.roleLabel}</span>
-                {permissions.freezeStatus === "open"   && <span className={styles.subtitleNote}>Objective window closes <strong>{formatDate(freezeDates.objectiveSettingEnd)}</strong></span>}
-                {permissions.freezeStatus === "grace"  && <span className={styles.subtitleNoteAmber}>Grace period until <strong>{formatDate(freezeDates.graceEnd)}</strong></span>}
-                {permissions.freezeStatus === "frozen" && <span className={styles.subtitleNoteFrozen}>Templates frozen — read only{level === 1 && " (use Manage Freeze to unfreeze per branch)"}</span>}
-              </p>
-            </div>
+ {/* ── Page Header ─────────────────────────────────────────────────────── */}
 
-            <div className={styles.headerActions}>
-              <CycleStatusBadge status={permissions.freezeStatus} />
+<div className={styles.pageHeader}>
 
-              {/* Copy-previous-assignments button */}
-              {level === 1 && showAssignmentsBanner && previousCycle && (
-                <button
-                  onClick={handleCopyPreviousAssignments}
-                  disabled={isCopyingAssignments || assignmentsCopied}
-                  title={assignmentsCopied
-                    ? "Assignments from previous cycle already applied"
-                    : `Copy assignments from PMS ${previousCycle.pms_year} to current cycle`}
-                  className={[
-                    styles.assignPrevBtn,
-                    assignmentsCopied    ? styles.assignPrevBtnDone    : "",
-                    isCopyingAssignments ? styles.assignPrevBtnLoading : "",
-                  ].join(" ")}
-                >
-                  {isCopyingAssignments ? (
-                    <><Loader2 size={13} className={styles.spinner} /><span>Applying…</span></>
-                  ) : assignmentsCopied ? (
-                    <><CheckCircle2 size={13} /><span>Assignments Applied</span></>
-                  ) : (
-                    <><Users size={13} /><span>Assign Previous Combinations</span></>
-                  )}
-                </button>
-              )}
+  {/* Left — title + role/status subtitle */}
+  <div>
+    <p className={styles.pageSubtitleMain}>
+    Manage and deploy evaluation templates across the organization
+    </p>
+    <p className={styles.pageSubtitle}>
+      <span className={styles.rolePill}>{permissions.roleLabel}</span>
+      {permissions.freezeStatus === "open"   && <span className={styles.subtitleNote}>Objective window closes <strong>{formatDate(freezeDates.objectiveSettingEnd)}</strong></span>}
+      {permissions.freezeStatus === "grace"  && <span className={styles.subtitleNoteAmber}>Grace period until <strong>{formatDate(freezeDates.graceEnd)}</strong></span>}
+      {permissions.freezeStatus === "frozen" && <span className={styles.subtitleNoteFrozen}>Templates frozen — read only{level === 1 && " (use Manage Freeze to unfreeze per branch)"}</span>}
+    </p>
+  </div>
+<div className={styles.headerActions}>
+  <CycleStatusBadge status={permissions.freezeStatus} />
 
-              {/* View Variants */}
-              <button
-                className={styles.actionBtn}
-                onClick={() => router.push(`${rolePrefix}/template-management/template-variants`)}
-                title="View all branch and country template variants"
-              >
-                <GitBranch size={13} /><span>View Variants</span>
-              </button>
+  {/* Stacked button group */}
+  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
 
-              {/* Template history */}
-              <button
-                className={styles.actionBtn}
-                onClick={() => router.push(`${rolePrefix}/template-management/template-history`)}
-                title="View archived templates from past PMS cycles"
-              >
-                <History size={13} /><span>History</span>
-              </button>
+    {/* Top — Assignments full width */}
+    {level === 1 && showAssignmentsBanner && previousCycle && (
+      <button
+        onClick={handleCopyPreviousAssignments}
+        disabled={isCopyingAssignments || assignmentsCopied}
+        title={assignmentsCopied
+          ? "Assignments from previous cycle already applied"
+          : `Copy assignments from PMS ${previousCycle.pms_year} to current cycle`}
+        className={styles.headerNavBtn}
+        style={{
+          color:          assignmentsCopied ? "#16a34a" : "#1d4ed8",
+          width:          "100%",
+          justifyContent: "center",
+        }}
+      >
+        {isCopyingAssignments ? (
+          <><Loader2 size={13} className={styles.spinner} /><span>Applying…</span></>
+        ) : assignmentsCopied ? (
+          <><CheckCircle2 size={13} color="#16a34a" /><span>Assignments Applied</span></>
+        ) : (
+          <><Users size={13} color="#1d4ed8" /><span>Assign Previous Combinations</span></>
+        )}
+      </button>
+    )}
 
-              {/* Create new template */}
-              {permissions.canCreate && (
-                <button
-                  className={styles.createBtn}
-                  onClick={() => router.push(`${rolePrefix}/template-management/template-creation`)}
-                >
-                  <span className={styles.createBtnIcon}>
-                    <FileText size={32} strokeWidth={1.8} className={styles.createBtnMainIcon} />
-                    <Sparkles size={16} strokeWidth={2}   className={styles.createBtnSparkle1} />
-                    <Sparkles size={12} strokeWidth={2}   className={styles.createBtnSparkle2} />
-                    <Pen      size={20} strokeWidth={2}   className={styles.createBtnPen} />
-                    <Sparkles size={12} strokeWidth={2}   className={styles.createBtnSparkle3} />
-                  </span>
-                  <span className={styles.createBtnTexts}>
-                    <span className={styles.createBtnText}>Create</span>
-                    <span className={styles.createBtnSubText}>New Template</span>
-                  </span>
-                </button>
-              )}
-            </div>
+    {/* Bottom — View Variants + History side by side */}
+    <div style={{ display: "flex", gap: "6px" }}>
+      <button
+        className={styles.headerNavBtn}
+        style={{ color: "#7c3aed", flex: 1, justifyContent: "center" }}
+        onClick={() => router.push(`${rolePrefix}/template-management/template-variants`)}
+        title="View all branch and country template variants"
+      >
+        <GitBranch size={13} color="#7c3aed" /><span>View Variants</span>
+      </button>
+      <button
+        className={styles.headerNavBtn}
+        style={{ color: "#0891b2", flex: 1, justifyContent: "center" }}
+        onClick={() => router.push(`${rolePrefix}/template-management/template-history`)}
+        title="View archived templates from past PMS cycles"
+      >
+        <History size={13} color="#0891b2" /><span>History</span>
+      </button>
+    </div>
+  </div>
+
+  {/* Create new template */}
+  {permissions.canCreate && (
+    <button
+      className={styles.createBtn}
+      onClick={() => router.push(`${rolePrefix}/template-management/template-creation`)}
+    >
+      <span className={styles.createBtnIcon}>
+        <FileText size={32} strokeWidth={1.8} className={styles.createBtnMainIcon} />
+        <Sparkles size={16} strokeWidth={2}   className={styles.createBtnSparkle1} />
+        <Sparkles size={12} strokeWidth={2}   className={styles.createBtnSparkle2} />
+        <Pen      size={20} strokeWidth={2}   className={styles.createBtnPen} />
+        <Sparkles size={12} strokeWidth={2}   className={styles.createBtnSparkle3} />
+      </span>
+      <span className={styles.createBtnTexts}>
+        <span className={styles.createBtnText}>Create</span>
+        <span className={styles.createBtnSubText}>New Template</span>
+      </span>
+    </button>
+  )}
+</div>
           </div>
 
           {/* Status banner */}

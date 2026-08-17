@@ -312,11 +312,19 @@ export default function ViewTemplatePage() {
 
     fetchTemplate();
 
-    // Scope the assignment list to only this manager's direct reports
-    fetch(`${API}/api/templates/${templateId}/assignments?manager_id=${managerId}`)
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d)) setAssignedEmployees(d); })
-      .catch(() => {});
+    // Only scope to manager_id for roles that directly manage employees;
+// Country Admin and above should see all assignments in their scope
+const isDirectManager = user?.role === 'branch_admin' ||
+                        user?.role === 'dept_admin' ||
+                        user?.role === 'sub_dept_admin';
+const assignmentsUrl = isDirectManager && managerId
+  ? `${API}/api/templates/${templateId}/assignments?manager_id=${managerId}`
+  : `${API}/api/templates/${templateId}/assignments`;
+
+fetch(assignmentsUrl)
+  .then(r => r.json())
+  .then(d => { if (Array.isArray(d)) setAssignedEmployees(d); })
+  .catch(() => {});
 
     // Load the PMS cycle to determine whether editing is currently allowed
     fetch(`${API}/api/pms-cycle/current`)
@@ -572,7 +580,7 @@ export default function ViewTemplatePage() {
   const isFrozen      = template?.status !== 'active';
   // The Edit button is only enabled when the PMS cycle allows editing AND the template is active
   const editingOpen   = cycleState?.editing_open ?? false;
-  const canEdit       = !isFrozen && editingOpen;
+  const canEdit = !isFrozen && (editingOpen || template?.status === 'active');
   // Tooltip text shown on the disabled Edit button explaining why editing is blocked
   const editBlockedReason = isFrozen
     ? 'This template has been frozen by the Group Admin'
@@ -748,7 +756,7 @@ export default function ViewTemplatePage() {
                   // Flag used to colour the GAP % yellow when it doesn't match the stored category weight
                   const gapOk  = editMode ? catSum === cat.weight : true;
                   return (
-                    <React.Fragment key={cat.id}>
+                    <React.Fragment key={`cat-${cat.id ?? ci}-${cat.name}`}>
                       {/* Category header row */}
                       <tr style={{ background: '#155DFC' }}>
                         <td style={tdStyle('center', { color: '#fff', fontWeight: 700, fontSize: 13 })}>{ci + 1}</td>
@@ -777,7 +785,7 @@ export default function ViewTemplatePage() {
                         const missing  = isNew && (!obj.name.trim() || !obj.weight || !obj.control_type || !obj.kpi_scale);
                         return (
                           <tr
-                            key={obj.id}
+                            key={`obj-${obj.id ?? oi}-${obj.name}`}
                             style={{
                               background:   isLocked ? '#EFF6FF' : '#FFFFFF',
                               borderBottom: '1px solid #E8EDF5',

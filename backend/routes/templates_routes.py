@@ -118,7 +118,28 @@ def get_templates():
         department_id     = request.args.get("department_id")
         sub_department_id = request.args.get("sub_department_id")
 
-        result    = supabase.table("templates").select("*").execute()
+        # For non-HQ roles, only show templates from the active cycle
+        # HQ Admin sees all templates across all cycles
+        cycle_res = (
+            supabase.table("pms_cycles")
+            .select("id")
+            .eq("is_active", True)
+            .order("pms_year", desc=True)
+            .limit(1)
+            .execute()
+        )
+        active_cycle_id = (cycle_res.data or [{}])[0].get("id")
+
+        query = supabase.table("templates").select("*")
+        if active_cycle_id and any([
+            request.args.get("country_id"),
+            request.args.get("branch_id"),
+            request.args.get("department_id"),
+            request.args.get("sub_department_id"),
+        ]):
+            query = query.eq("pms_cycle_id", active_cycle_id)
+
+        result    = query.execute()
         templates = result.data or []
 
         # Derive global freeze status from pms_cycles dates, not templates.status.
@@ -157,17 +178,39 @@ def get_templates():
             # override the frozen status back to active.
             unfrozen_for_user: set = set()
             if not cycle_active:
+                # Resolve cycle 1 equivalents of current cycle templates by name matching
+                # since template_unfreezes stores cycle 1 template IDs
+                cycle1_res = (
+                    supabase.table("templates")
+                    .select("id, name")
+                    .eq("pms_cycle_id", 1)
+                    .execute()
+                    .data or []
+                )
+                curr_res = (
+                    supabase.table("templates")
+                    .select("id, name")
+                    .in_("id", all_template_ids)
+                    .execute()
+                    .data or []
+                )
+                name_to_c1 = {t["name"]: t["id"] for t in cycle1_res}
+                c5_to_c1   = {t["id"]: name_to_c1.get(t["name"]) for t in curr_res if name_to_c1.get(t["name"])}
+                all_check_ids = list(set(all_template_ids) | set(v for v in c5_to_c1.values() if v))
                 uf_res = (
                     supabase.table("template_unfreezes")
                     .select("template_id, branch_id, country_id")
-                    .in_("template_id", all_template_ids)
+                    .in_("template_id", all_check_ids)
                     .execute()
                 )
                 for row in (uf_res.data or []):
+                    tmpl_id = row["template_id"]
+                    # Map cycle 1 ID back to current cycle ID
+                    c_id = next((k for k, v in c5_to_c1.items() if v == tmpl_id), tmpl_id)
                     if branch_id and row.get("branch_id") == branch_id:
-                        unfrozen_for_user.add(row["template_id"])
+                        unfrozen_for_user.add(c_id)
                     elif country_id and row.get("country_id") == country_id:
-                        unfrozen_for_user.add(row["template_id"])
+                        unfrozen_for_user.add(c_id)
 
             # Variant resolution
             var_res = (
@@ -303,6 +346,38 @@ def get_template(template_id: int):
         )
         template["status"] = "active" if _active else "frozen"
 
+        # Check unfreeze exceptions — if HQ Admin unfroze this template for the
+        # requesting user's org unit, override frozen status back to active
+        if not _active and any([country_id, branch_id, department_id, sub_department_id]):
+            # Also check cycle 1 equivalent by name matching
+            c1_res = (
+                supabase.table("templates")
+                .select("id")
+                .eq("name", template.get("name", ""))
+                .eq("pms_cycle_id", 1)
+                .limit(1)
+                .execute()
+            )
+            c1_id = (c1_res.data or [{}])[0].get("id")
+            check_ids = [template_id]
+            if c1_id:
+                check_ids.append(c1_id)
+            uf_res = (
+                supabase.table("template_unfreezes")
+                .select("template_id, branch_id, country_id")
+                .in_("template_id", check_ids)
+                .execute()
+            )
+            for row in (uf_res.data or []):
+                if branch_id and row.get("branch_id") == branch_id:
+                    template["status"] = "active"
+                    break
+                elif country_id and row.get("country_id") == country_id:
+                    template["status"] = "active"
+                    break
+
+        # Check for variant if org context provided
+
         # Check for variant if org context provided
         if any([country_id, branch_id, department_id, sub_department_id]):
             cycle_res = (
@@ -339,7 +414,28 @@ def get_template(template_id: int):
             if best and best_score > 0 and best.get("template_content"):
                 template["name"]        = best.get("name")        or template["name"]
                 template["description"] = best.get("description") or template.get("description")
-                template["categories"]  = best["template_content"]
+                def normalize_categories(cats):
+                    result = []
+                    for cat in (cats or []):
+                        objs = []
+                        for obj in cat.get("objectives", []):
+                            objs.append({
+                                "id":           obj.get("id"),
+                                "name":         obj.get("name", ""),
+                                "weight":       obj.get("weight", 0),
+                                "control_type": obj.get("control") or obj.get("control_type", "Locked"),
+                                "kpi_scale":    obj.get("kpiScale") or obj.get("kpi_scale", ""),
+                                "max_score":    obj.get("kpiMaxScore") or obj.get("max_score", 5),
+                                "mandatory":    obj.get("mandatory", True),
+                            })
+                        result.append({
+                            "id":         cat.get("id"),
+                            "name":       cat.get("name", ""),
+                            "weight":     cat.get("weight", 0),
+                            "objectives": objs,
+                        })
+                    return result
+                template["categories"]  = normalize_categories(best["template_content"])
                 template["has_variant"] = True
                 template["variant_id"]  = best["id"]
                 return jsonify(template)
@@ -941,3 +1037,4 @@ def get_kpi_scales():
 
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+    

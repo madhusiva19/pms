@@ -18,8 +18,11 @@ from services.notification_service import (
 )
 from routes.pms_cycle_routes import pms_cycle_bp, init_pms_cycle_routes
 
-# ── User & Role Management ──────────────────────────────────────────────────
+# ── Web push (desktop/OS notification popups) ────────────────────────────────
+from routes.push_routes import push_bp
+from services.push_service import init_push_scheduler
 
+# ── User & Role Management ──────────────────────────────────────────────────
 from routes.auth_routes         import auth_bp
 from routes.profile_routes      import profile_bp
 from routes.diary_routes        import diary_bp
@@ -83,6 +86,7 @@ CORS(app)
 
 # Register Notification & Cycle Management blueprints
 app.register_blueprint(notifications_bp)
+app.register_blueprint(push_bp)
 app.register_blueprint(pms_cycle_bp)
 
 # Register User & Role Management blueprints
@@ -134,6 +138,9 @@ init_notifications(supabase)
 
 # Initialise scheduler (Performance Evaluation module)
 init_scheduler()
+
+# Initialise web push scheduler (polls for new personal notifications)
+init_push_scheduler()
 
 # ── DB WARMUP (runs under WSGI/Gunicorn too) ──────────────────────────────────
 with app.app_context():

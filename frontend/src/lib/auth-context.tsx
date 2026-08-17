@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { apiFetch } from "@/lib/apiFetch";
+import { setupPushNotifications } from "@/lib/pushNotifications";
 
 interface User {
   id: string;
@@ -103,6 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user) refreshBadges();
   }, [user, refreshBadges]);
+
+  useEffect(() => {
+    if (user?.employee_id) setupPushNotifications(user.employee_id);
+  }, [user?.employee_id]);
 
   const clearTrainingBadge = useCallback(async () => {
     const raw = localStorage.getItem("pms_user");

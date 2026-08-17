@@ -8,16 +8,38 @@ report_cycle_bp = Blueprint('report_cycle', __name__)
 @report_cycle_bp.route('/api/active-report-year', methods=['GET'])
 def get_active_report_year():
     """
-    Returns the active report year from pms_cycles WHERE is_active=true.
-    Both H1 (mid-year) and H2 (year-end) for that year share the same pms_year value.
-    When the cycle advances (e.g. 2027 becomes active), pms_cycles is updated accordingly.
+    Returns the report year whose data should be displayed on the Reports pages.
+
+    Normally this is the pms_cycles row WHERE is_active=true. But a cycle only
+    starts producing real performance_summaries rows after its mid_year_review
+    checkpoint passes (that's when H1 ratings are actually entered) — before
+    that date the active cycle is empty, so reports would show all zeros even
+    though the previous cycle's H1/H2 results are still available.
+    To avoid that, if today is earlier than the active cycle's mid_year_review
+    date, fall back to the most recent previous cycle's pms_year instead.
+    This does not affect pms_cycles.is_active or the objective-setting/rollover
+    logic — it only changes which year's data the Reports pages query.
     """
     try:
-        result = supabase.table('pms_cycles').select('pms_year').eq('is_active', True).limit(1).execute()
-        if result.data:
-            active_report_year = result.data[0]['pms_year']
+        result = (
+            supabase.table('pms_cycles')
+            .select('pms_year, mid_year_review, is_active')
+            .order('pms_year', desc=True)
+            .execute()
+        )
+        rows = result.data or []
+        active = next((r for r in rows if r.get('is_active')), None)
+
+        if active:
+            active_report_year = active['pms_year']
+            mid_year_review = active.get('mid_year_review')
+            if mid_year_review and datetime.now().date() < datetime.fromisoformat(str(mid_year_review)[:10]).date():
+                previous = next((r for r in rows if r['pms_year'] < active['pms_year']), None)
+                if previous:
+                    active_report_year = previous['pms_year']
         else:
             active_report_year = datetime.now().year
+
         return jsonify({
             'success': True,
             'data': {

@@ -62,9 +62,9 @@
 
 /* ─── Page wrapper ───────────────────────────────────────────────────────────*/
 .pageWrapper {
-  max-width:  1400px;
-  margin:     0 auto;
-  padding:    32px 24px 80px;
+  max-width:   1400px;
+  margin:      0 auto;
+  padding:     4px 24px 80px;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
@@ -130,7 +130,7 @@
 }
 
 .pageSubtitle {
-  font-size:   13px;
+  font-size:   13.5px;
   color:       var(--cd-text-muted);
   font-weight: 400;
   margin:      0;

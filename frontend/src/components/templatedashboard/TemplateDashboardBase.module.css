@@ -124,7 +124,7 @@
   display:         flex;
   justify-content: space-between;
   align-items:     flex-start;
-  margin-bottom:   24px;
+  margin-bottom:   14px;
   gap:             12px;
 }
 .pageTitle        { font-size: 30px; font-weight: 700; color: var(--tdb-text-primary); letter-spacing: -0.3px; margin: 10px 0 14px; }
@@ -1691,6 +1691,7 @@
 @media (max-width: 900px) {
   .cyclePanelWrapper {
     grid-template-columns: 1fr;
+  
   }
 
   .cyclePanelLeft {
@@ -1803,27 +1804,32 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    HEADER NAV BUTTONS (Variants / History)
 ───────────────────────────────────────────────────────────────────────────── */
-
 .headerNavBtn {
   display:       inline-flex;
   align-items:   center;
-  gap:           5px;
-  padding:       8px 12px;
-  border-radius: var(--tdb-radius-sm);
-  background:    #f8fafc;
-  border:        1px solid var(--tdb-border);
-  color:         #475569;
-  font-size:     12px;
-  font-weight:   600;
+  gap:           7px;
+  padding:       10px 28px;   
+  border-radius: 10px;
+  background:    #ffffff;
+  border:        1px solid #e5e7eb;
+  font-size:     13px;       
+  font-weight:   700;
   cursor:        pointer;
-  transition:    all 0.15s;
+  transition:    all 0.2s;
   white-space:   nowrap;
+  box-shadow:    0 1px 4px rgba(0,0,0,0.06);
+  font-family:   inherit;
 }
 
 .headerNavBtn:hover {
-  background:   var(--tdb-blue-tint);
-  border-color: var(--tdb-blue-border);
-  color:        var(--tdb-blue);
+  box-shadow:   0 4px 12px rgba(0,0,0,0.10);
+  transform:    translateY(-1px);
+  border-color: #c7d2fe;
+}
+
+.headerNavBtn:active {
+  transform:  translateY(0);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 .card > *:last-child {
   border-bottom-left-radius:  var(--tdb-radius-xl);

@@ -46,10 +46,10 @@ def get_periods(user_id: str):
         periods: list[dict] = []
 
         for r in result.data:
-            key = (r["pms_year"], r["period"])
+            key = (r["year"], r["period"])
             if key not in seen:
                 seen.add(key)
-                periods.append({"pms_year": r["pms_year"], "period": r["period"]})
+                periods.append({"pms_year": r["year"], "year": r["year"], "period": r["period"]})
 
         periods.sort(key=lambda x: (x["pms_year"], x["period"]))
         return jsonify(periods)
@@ -338,7 +338,11 @@ def backfill_scores():
         mappings_by_obj, rules_by_mapping, obj_by_id, _ = load_scale_meta()
 
         all_records = (
-            supabase.table("performance_records").select("*").execute().data or []
+            supabase.table("performance_records")
+            .select("*")
+            .is_("rating", "null")
+            .execute()
+            .data or []
         )
 
         updated     = 0
