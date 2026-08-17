@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -147,7 +148,7 @@ function getProfileHref(role: string | undefined): string | undefined {
 
 export default function Header() {
   const pathname = usePathname();
-  const { user, notificationCount } = useAuth();
+  const { user, notificationCount, clearBrokenAvatar } = useAuth();
 
   const roleFromPath = pathname?.split('/')[1]?.replace(/-/g, '_');
   const role = user?.role ?? roleFromPath;
@@ -164,6 +165,12 @@ export default function Header() {
     .join('')
     .toUpperCase()
     .slice(0, 2) || '?';
+
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [user?.avatar_url]);
 
   return (
     <header className={styles.header}>
@@ -199,8 +206,13 @@ export default function Header() {
 
         {profileHref && (
           <Link href={profileHref} className={styles.avatarCircle} aria-label="My Profile">
-            {user?.avatar_url ? (
-              <img src={user.avatar_url} alt="" className={styles.avatarImg} />
+            {user?.avatar_url && !imgError ? (
+              <img
+                src={user.avatar_url}
+                alt=""
+                className={styles.avatarImg}
+                onError={() => { setImgError(true); clearBrokenAvatar(); }}
+              />
             ) : (
               userInitials
             )}

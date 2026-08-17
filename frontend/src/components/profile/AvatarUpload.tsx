@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { apiFetch } from "@/lib/apiFetch";
 
 interface AvatarUploadProps {
@@ -21,7 +21,12 @@ export default function AvatarUpload({
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [uploading, setUploading]       = useState(false);
   const [error, setError]               = useState("");
+  const [imgError, setImgError]         = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [currentUrl]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -59,6 +64,18 @@ export default function AvatarUpload({
     finally { setUploading(false); }
   };
 
+  // Only reconciles the DB when viewing your own avatar — a supervisor's
+  // read-only view of a report's profile must never mutate that report's
+  // data just because a broken image loaded in the supervisor's browser.
+  const handleImgError = () => {
+    setImgError(true);
+    if (viewMode !== "own") return;
+    apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/remove-avatar/${employeeId}`,
+      { method: "DELETE" })
+      .catch(() => {});
+    onUpdate(null);
+  };
+
   const openRemoveModal = () => {
     setShowMenu(false);
     setShowRemoveModal(true);
@@ -84,7 +101,7 @@ export default function AvatarUpload({
         {/* Avatar circle */}
         <div style={{
           width: "88px", height: "88px", borderRadius: "50%",
-          background: currentUrl ? "transparent" : avatarBg,
+          background: currentUrl && !imgError ? "transparent" : avatarBg,
           display: "flex", alignItems: "center", justifyContent: "center",
           overflow: "hidden", border: "3px solid rgba(255,255,255,0.9)",
           boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
@@ -95,9 +112,10 @@ export default function AvatarUpload({
           onClick={() => viewMode === "own" && setShowMenu(!showMenu)}
           ref={avatarRef}
         >
-          {currentUrl ? (
+          {currentUrl && !imgError ? (
             <img src={currentUrl} alt="Profile"
-              style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              onError={handleImgError} />
           ) : (
             <span style={{ color: "#fff", fontSize: "28px", fontWeight: 800,
               fontFamily: "'Segoe UI', Inter, sans-serif", letterSpacing: "-0.5px" }}>

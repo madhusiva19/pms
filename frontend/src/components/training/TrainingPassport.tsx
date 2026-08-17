@@ -107,7 +107,13 @@ export default function TrainingPassport({
   aiRecommendations = DUMMY_AI,
 }: TrainingPassportProps) {
   const config = ROLE_CONFIG[role];
-  const { refreshBadges, clearTrainingBadge } = useAuth();
+  const { refreshBadges, clearTrainingBadge, clearBrokenAvatar } = useAuth();
+
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [avatarUrl]);
 
   const [activeTab, setActiveTab] = useState<"attended" | "suggestions">("attended");
 
@@ -338,15 +344,16 @@ export default function TrainingPassport({
         {/* Profile strip */}
         <div className={styles.profileStrip}>
           <div className={styles.stripAvatar} style={{
-            background: avatarUrl ? "transparent" : undefined,
+            background: avatarUrl && !imgError ? "transparent" : undefined,
             overflow: "hidden",
             padding: 0,
           }}>
-            {avatarUrl ? (
+            {avatarUrl && !imgError ? (
               <img
                 src={avatarUrl}
                 alt="Profile"
                 style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                onError={() => { setImgError(true); clearBrokenAvatar(); }}
               />
             ) : (
               initials

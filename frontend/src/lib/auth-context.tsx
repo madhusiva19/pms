@@ -31,6 +31,7 @@ interface AuthContextType {
   trainingBadgeCount: number;
   refreshBadges: () => void;
   clearTrainingBadge: () => Promise<void>;
+  clearBrokenAvatar: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -43,6 +44,7 @@ const AuthContext = createContext<AuthContextType>({
   trainingBadgeCount: 0,
   refreshBadges: () => {},
   clearTrainingBadge: async () => {},
+  clearBrokenAvatar: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -138,6 +140,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Called when an <img> for the current user's own avatar fails to load
+  // (e.g. its file was deleted directly from the Supabase bucket, leaving a
+  // stale avatar_url). Clears the stale reference server-side and locally so
+  // every consumer of useAuth() falls back to initials instead of retrying
+  // the same broken URL on the next render.
+  const clearBrokenAvatar = useCallback(async () => {
+    const raw = localStorage.getItem("pms_user");
+    if (!raw) return;
+    const currentUser = JSON.parse(raw);
+    const API = process.env.NEXT_PUBLIC_API_URL;
+    if (!API || !currentUser?.avatar_url) return;
+
+    try {
+      await apiFetch(`${API}/api/profile/remove-avatar/${currentUser.employee_id}`, {
+        method: "DELETE",
+      });
+    } catch {
+      // silently fail — the next broken-image render will retry
+    }
+    updateUser({ avatar_url: null });
+  }, [updateUser]);
+
   const logout = () => {
     localStorage.removeItem("pms_user");
     document.cookie = "pms_auth=; path=/; max-age=0; SameSite=Lax";
@@ -157,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       trainingBadgeCount,
       refreshBadges,
       clearTrainingBadge,
+      clearBrokenAvatar,
     }}>
       {children}
     </AuthContext.Provider>

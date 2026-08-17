@@ -149,13 +149,14 @@ function getNavItems(role: string | undefined): NavItem[] {
 export default function Sidebar() {
   const pathname = usePathname();
   const router   = useRouter();
-  const { user, trainingBadgeCount, logout } = useAuth();
+  const { user, trainingBadgeCount, logout, clearBrokenAvatar } = useAuth();
 
   const roleFromPath = pathname?.split('/')[1]?.replace(/-/g, '_');
   const role = user?.role ?? roleFromPath;
   const navItems = getNavItems(role);
 
   const [openMenus, setOpenMenus] = useState<Set<string>>(new Set());
+  const [imgError, setImgError] = useState(false);
 
   const toggleMenu = (name: string) =>
     setOpenMenus(prev => {
@@ -170,6 +171,10 @@ export default function Sidebar() {
     if (pathname?.includes('/template-management/'))
       setOpenMenus(prev => new Set([...prev, 'Template Management']));
   }, [pathname]);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [user?.avatar_url]);
 
   const userInitials = user?.full_name
     ?.split(' ')
@@ -272,11 +277,12 @@ export default function Sidebar() {
       <div className={styles.sideFooter}>
         <div className={styles.profileRow}>
           <div className={styles.avatarCircle}>
-            {user?.avatar_url ? (
+            {user?.avatar_url && !imgError ? (
               <img
                 src={user.avatar_url}
                 alt="Avatar"
                 style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+                onError={() => { setImgError(true); clearBrokenAvatar(); }}
               />
             ) : (
               userInitials
