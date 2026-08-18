@@ -1,6 +1,49 @@
 import requests as req
 from datetime import datetime
 from models import supabase, SUPABASE_URL, SUPABASE_KEY, SERVICE_KEY
+from services.rating_engine import calculate_rating, load_scale_meta
+
+
+def _compute_live_score(employee_id, year, period):
+    """Recompute a period's total score exactly like
+    GET /api/performance/<user>/<year>/<period> (the My Performance page's
+    source): trust the stored rating/score only when BOTH are present,
+    otherwise recalculate from the record + KPI scale metadata via
+    calculate_rating(). performance_summaries.total_score is a cache that
+    silently drops records missing a stored score, so it can go stale —
+    this keeps the profile number in lockstep with My Performance instead."""
+    records = supabase.table("performance_records")\
+        .select("*")\
+        .eq("user_id", employee_id)\
+        .eq("year", year)\
+        .eq("period", period)\
+        .execute().data or []
+
+    if not records:
+        return None
+
+    mappings_by_obj, rules_by_mapping, obj_by_id, _ = load_scale_meta()
+
+    total = 0.0
+    for rec in records:
+        obj_id   = rec["objective_id"]
+        obj      = obj_by_id.get(obj_id, {})
+        mapping  = mappings_by_obj.get(obj_id, {})
+        brackets = rules_by_mapping.get(mapping.get("id"), [])
+        weight   = float(obj.get("weight", 0))
+
+        stored_rating = rec.get("rating")
+        stored_score  = rec.get("score")
+
+        if stored_rating is not None and stored_score is not None:
+            score = float(stored_score)
+        else:
+            rating = calculate_rating(rec, mapping, brackets)
+            score  = round(rating * (weight / 100), 4)
+
+        total += score
+
+    return round(total, 2)
 
 
 def get_profile(employee_id):
@@ -21,16 +64,35 @@ def get_profile(employee_id):
             profile["department"] = profile["departments"]["name"]
 
         # ── Fetch latest performance score ──
+        # Mirrors My Performance page: same performance_summaries table,
+        # same user_id/period/pms_year columns. Prefers H2 over H1 when a
+        # user has both; falls back to H1 only if no H2 row exists at all.
         performance_score = None
+        cycle_period = None
+        cycle_year = None
         try:
-            perf_res = supabase.table("performance_summaries")\
-                .select("total_score")\
-                .eq("user_id", employee_id)\
-                .order("created_at", desc=True)\
-                .limit(1)\
-                .execute()
-            if perf_res.data:
-                performance_score = perf_res.data[0]["total_score"]
+            for period in ("H2", "H1"):
+                perf_res = supabase.table("performance_summaries")\
+                    .select("total_score, pms_year")\
+                    .eq("user_id", employee_id)\
+                    .eq("period", period)\
+                    .order("pms_year", desc=True)\
+                    .order("updated_at", desc=True)\
+                    .limit(1)\
+                    .execute()
+                if perf_res.data:
+                    performance_score = perf_res.data[0]["total_score"]
+                    cycle_year = perf_res.data[0]["pms_year"]
+                    cycle_period = period
+                    break
+
+            # performance_summaries can be a stale cache (e.g. records with a
+            # rating but no stored score get dropped from its total). Prefer
+            # a live recomputation so this always matches My Performance.
+            if cycle_period:
+                live_score = _compute_live_score(employee_id, cycle_year, cycle_period)
+                if live_score is not None:
+                    performance_score = live_score
         except Exception:
             pass
 
@@ -50,6 +112,8 @@ def get_profile(employee_id):
 
         profile["performance_score"] = performance_score
         profile["potential_block"]   = potential_block
+        profile["cycle_period"]      = cycle_period
+        profile["cycle_year"]        = cycle_year
 
         return {"profile": profile}, 200
     except Exception as e:
