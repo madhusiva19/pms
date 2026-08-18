@@ -460,10 +460,15 @@ const avatarBg = "#F9BE00";
     <div className={styles.heroAccent} />
   </section>
 
+  {!config.isHQ && (
+  <>
   {/* ── Performance Score Card ── */}
   <div className={`${styles.scoreCard} ${styles.scoreCardPerformance}`}>
     <span className={styles.scoreLabel}>Performance Score</span>
     <span className={styles.scoreValue}>{profile.performanceScore ?? "—"}</span>
+    {profile.performanceScore != null && profile.cyclePeriod && (
+      <span className={styles.scoreCaption}>({profile.cyclePeriod})</span>
+    )}
   </div>
 
   {/* ── Potential Score Card ── */}
@@ -476,6 +481,8 @@ const avatarBg = "#F9BE00";
     <span className={styles.scoreLabel}>Potential Score</span>
     <span className={styles.scoreValue}>{profile.potentialBlock ?? "—"}</span>
   </div>
+  </>
+  )}
 
 </div>
 

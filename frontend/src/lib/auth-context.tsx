@@ -67,16 +67,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!raw) return;
     const currentUser = JSON.parse(raw);
     const employeeId = currentUser.employee_id;
+    const userId = currentUser.id;
     const role = currentUser.role;
     const API = process.env.NEXT_PUBLIC_API_URL;
     if (!API) return;
 
     try {
-      // ── Notification badge ──
-      const notifRes  = await apiFetch(`${API}/api/notifications/${employeeId}`);
-      const notifData = await notifRes.json();
-      const unread = (notifData.notifications || []).filter((n: any) => !n.is_read).length;
-      setNotificationCount(unread);
+      // ── Notification bell badge ──
+      // Counts how many Notifications-page TABS have at least one unread
+      // item — not the total number of unread items. A tab with 10 unread
+      // contributes 1, same as a tab with 1 unread; an untouched tab
+      // contributes 0. Max is therefore the number of tabs (5).
+      const reminderTypes = ["period_opened", "deadline_warning", "supervisor_alert", "manual_reminder"];
+      const hasUnread = (arr: any[]) => Array.isArray(arr) && arr.some((n) => !n.is_read);
+
+      const [achData, cutoffData, paData, manualData, evalData] = await Promise.all([
+        apiFetch(`${API}/api/notifications/${employeeId}`).then((r) => r.json()).catch(() => ({ notifications: [] })),
+        apiFetch(`${API}/api/notifications/by-level`).then((r) => r.json()).catch(() => []),
+        apiFetch(`${API}/api/potential-assessment-notifications/${userId}`).then((r) => r.json()).catch(() => ({ data: [] })),
+        apiFetch(`${API}/api/manual-rating-notifications/${userId}`).then((r) => r.json()).catch(() => []),
+        apiFetch(`${API}/api/evaluation-notifications`).then((r) => r.json()).catch(() => []),
+      ]);
+
+      const tabsWithUnread = [
+        hasUnread(achData.notifications || []),                                                            // Achievement Approvals
+        hasUnread(Array.isArray(cutoffData) ? cutoffData : []),                                             // Objectives Cut-off
+        hasUnread(paData.data || []),                                                                       // Potential Assessment
+        hasUnread((Array.isArray(manualData) ? manualData : []).filter((n: any) => reminderTypes.includes(n.type))), // Manual Rating Reminders
+        hasUnread(Array.isArray(evalData) ? evalData : []),                                                 // Evaluation Approvals
+      ].filter(Boolean).length;
+
+      setNotificationCount(tabsWithUnread);
 
       // ── Training badge ──
       const isSupervisor = ["hq_admin", "country_admin", "branch_admin", "dept_admin", "sub_dept_admin"].includes(role);

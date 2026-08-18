@@ -53,6 +53,7 @@ export default function EvaluateMemberPage() {
   const [summary, setSummary]   = useState<EvaluationSummary>({});
   const [evalRec, setEvalRec]   = useState<EvaluationRecord>({});
   const [noRecords, setNoRecords]   = useState(false);
+  const [templateAssigned, setTemplateAssigned] = useState(true);
   const [adminFeedback, setAdminFeedback] = useState('');
   const [loading, setLoading]             = useState(true);
   const [submitting, setSubmitting]       = useState(false);
@@ -92,6 +93,7 @@ export default function EvaluateMemberPage() {
           setSummary(data.summary ?? {});
           setEvalRec(data.evaluation ?? {});
           setNoRecords((data.groups ?? []).length === 0);
+          setTemplateAssigned(data.template_assigned ?? true);
 
           // Pre-fill feedback from evaluations.admin_recommendation
           setAdminFeedback(
@@ -277,8 +279,20 @@ export default function EvaluateMemberPage() {
             </div>
           </section>
 
-          {/* Warning when no performance_records found for this member */}
-          {noRecords && (
+          {/* Warning when this member has no template assigned yet — takes priority
+              over the "no records" message since there's no objectives structure to show at all */}
+          {noRecords && !templateAssigned && (
+            <div
+              className={viewStyles.v140}
+              style={{ marginBottom: '1rem', background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}
+            >
+              No template assigned to this member yet. Assign an evaluation template
+              before objectives and performance data can be entered.
+            </div>
+          )}
+
+          {/* Warning when a template is assigned but no performance_records exist yet */}
+          {noRecords && templateAssigned && (
             <div
               className={viewStyles.v140}
               style={{ marginBottom: '1rem', background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}

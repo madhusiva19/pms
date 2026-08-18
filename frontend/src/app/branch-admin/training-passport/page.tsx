@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/apiFetch";
 
 interface RawTraining { id: string; training_name: string; training_date: string; trainer_provider: string; evidence_url?: string; }
-interface RawSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; supervisor_comment?: string; }
+interface RawSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; supervisor_comment?: string; employee_viewed?: boolean; }
 interface RawSubordinateSuggestion { id: string; training_name: string; justification: string; status: "pending" | "approved" | "rejected"; users?: { full_name: string; role: string; }; }
 
 export default function BranchAdminTrainingPage() {
@@ -39,6 +39,7 @@ export default function BranchAdminTrainingPage() {
         const mappedSuggestions = (suggData.suggestions || []).map((s: RawSuggestion) => ({
           id: s.id, trainingName: s.training_name, justification: s.justification,
           status: s.status, supervisorComment: s.supervisor_comment || "",
+          employeeViewed: s.employee_viewed ?? false,
         }));
 
         const subRes = await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/training/subordinate-suggestions/${currentUser.employee_id}`);

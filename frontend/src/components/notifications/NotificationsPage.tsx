@@ -418,6 +418,22 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
     } catch (e) { console.error("markAllRead:", e); }
   };
 
+  const markAchievementRead = async (id: string) => {
+    setAchievementNotifs((prev: any[]) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
+    try {
+      await apiFetch(`${API}/notifications/${id}/read`, { method: "PATCH", headers });
+    } catch (e) { console.error("markAchievementRead:", e); }
+  };
+
+  const markEvalNotifRead = async (notificationId: string) => {
+    setEvalNotifs((prev: any[]) => prev.map((n) =>
+      (n.notification_id ?? n.id) === notificationId ? { ...n, is_read: true } : n
+    ));
+    try {
+      await apiFetch(`${API}/evaluation-notifications/${notificationId}/read`, { method: "PATCH" });
+    } catch (e) { console.error("markEvalNotifRead:", e); }
+  };
+
   const markPaRead = async (id: string) => {
     setPaList(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     try { await fetch(`${WAPI}/api/potential-assessment-notifications/${id}/read`, { method: "PATCH" }); }
@@ -431,10 +447,11 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const unreadCount    = notifications.filter((n) => !n.is_read).length;
-  const unreadPa       = paList.filter(n => !n.isRead).length;
-  const unreadManual   = manualReminderList.filter(n => !n.isRead).length;
-  const unreadEval     = evalApprovals.filter(a => !readEvalIds.has(a.id as string)).length;
+  const unreadCount        = notifications.filter((n) => !n.is_read).length;
+  const unreadAchievements = achievementNotifs.filter((n) => !n.isRead).length;
+  const unreadPa           = paList.filter(n => !n.isRead).length;
+  const unreadManual       = manualReminderList.filter(n => !n.isRead).length;
+  const unreadEval         = evalNotifs.filter((n) => !n.is_read).length;
 
   const renderBanner = () => null;
 
@@ -472,6 +489,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
             </button>
             <button className={activeTab === "approvals" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("approvals")}>
               Achievement Approvals
+              {unreadAchievements > 0 && <span className={styles.tabBadge}>{unreadAchievements}</span>}
             </button>
             <button className={activeTab === "pa" ? styles.tabActive : styles.tabInactive} onClick={() => setActiveTab("pa")}>
               Potential Assessment
@@ -507,11 +525,11 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                           <span className={styles.notifDate}>{formatDate(n.submittedAt)}</span>
                         </div>
                       </div>
-                      {!n.isRead && <button className={styles.readBtn} onClick={() => markRead(n.id)}>Mark as read</button>}
+                      {!n.isRead && <button className={styles.readBtn} onClick={() => markAchievementRead(n.id)}>Mark as read</button>}
                     </div>
                     <p className={styles.notifBody}>{n.achievement}</p>
                     <div className={styles.notifActions}>
-                      <button type="button" className={styles.actionBtn} onClick={() => { markRead(n.id); window.location.href = n.actionUrl; }}>Review Achievement →</button>
+                      <button type="button" className={styles.actionBtn} onClick={() => { markAchievementRead(n.id); window.location.href = n.actionUrl; }}>Review Achievement →</button>
                     </div>
                   </div>
                 ))
@@ -703,11 +721,11 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                     const styleKey = ntype === "rejection" ? "approval_rejected"
                                    : ntype === "approval_approved" ? "approval_done"
                                    : "approval_pending";
-                    const s        = EVAL_STYLES[styleKey];
-                    const notifId     = `evalnotif-${n.notification_id ?? n.id}`;
-                    const isRead      = readEvalIds.has(notifId);
+                    const s          = EVAL_STYLES[styleKey];
+                    const notificationId = n.notification_id ?? n.id;
+                    const isRead         = !!n.is_read;
                     return (
-                      <div key={notifId} className={`${styles.notifCard} ${!isRead ? styles.unread : ""}`}>
+                      <div key={`evalnotif-${notificationId}`} className={`${styles.notifCard} ${!isRead ? styles.unread : ""}`}>
                         <div className={styles.notifTop}>
                           <div className={styles.notifMeta}>
                             {!isRead && <span className={styles.unreadDot} />}
@@ -719,7 +737,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                               </div>
                             </div>
                           </div>
-                          {!isRead && <button type="button" className={styles.readBtn} onClick={() => markEvalRead(notifId)}>Mark as read</button>}
+                          {!isRead && <button type="button" className={styles.readBtn} onClick={() => markEvalNotifRead(notificationId)}>Mark as read</button>}
                         </div>
                         <p className={styles.notifBody}>{n.description ?? n.message ?? ""}</p>
                       </div>
