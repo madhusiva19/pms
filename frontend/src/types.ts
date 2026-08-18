@@ -139,4 +139,5 @@ export interface MemberEvaluationData {
   groups: ObjectiveGroup[];
   summary: EvaluationSummary;
   evaluation: EvaluationRecord;
+  template_assigned?: boolean;
 }

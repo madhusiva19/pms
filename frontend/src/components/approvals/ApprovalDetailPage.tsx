@@ -33,6 +33,7 @@ export default function EvaluationApproval() {
   const [summary, setSummary]       = useState<EvaluationSummary>({});
   const [evalRec, setEvalRec]       = useState<EvaluationRecord>({});
   const [noRecords, setNoRecords]   = useState(false);
+  const [templateAssigned, setTemplateAssigned] = useState(true);
   const [adminFeedback, setAdminFeedback] = useState('');
   const [loading, setLoading]       = useState(true);
   const [showApproveSuccess, setShowApproveSuccess] = useState(false);
@@ -84,6 +85,7 @@ export default function EvaluationApproval() {
           setSummary(data.summary ?? {});
           setEvalRec(data.evaluation ?? {});
           setNoRecords((data.groups ?? []).length === 0);
+          setTemplateAssigned(data.template_assigned ?? true);
           setAdminFeedback(
             data.evaluation?.feedback ??
             (memberData?.evaluation?.feedback as string | undefined) ??
@@ -193,7 +195,13 @@ export default function EvaluationApproval() {
             </div>
           </section>
 
-          {noRecords && (
+          {noRecords && !templateAssigned && (
+            <div className={viewStyles.v140} style={{ marginBottom: '1rem', background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
+              ⚠️ No template assigned to this member yet — no objectives to display.
+            </div>
+          )}
+
+          {noRecords && templateAssigned && (
             <div className={viewStyles.v140} style={{ marginBottom: '1rem', background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
               ⚠️ Performance records could not be loaded — showing template data. The actual scores may differ.
             </div>

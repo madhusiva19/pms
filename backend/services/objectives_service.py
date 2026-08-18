@@ -11,6 +11,23 @@ team_members.id  (URL param)
         ├─ performance_summaries.user_id  → total_score, period
         └─ evaluations.employee_id        → overall_score, admin_recommendation
 
+No performance_records yet (template preview path)
+────────────────────────────────────────────────────
+team_members.user_id  (UUID)
+  └─ template_assignments.user_id → template_assignments.template_id
+        (direct match; else fall back to a role/org-unit match on
+         designation_id + department_id + branch_id + country_id)
+        (when a match yields more than one template_id — e.g. one per
+         PMS cycle — prefer the one whose templates.pms_cycle_id is
+         pms_cycles.is_active; otherwise treat as unassigned)
+  └─ templates.id
+        └─ categories.template_id → categories.id
+              └─ objectives.category_id  (scoped objective list)
+
+NOT templates.template_content — that jsonb column only has objective
+*names*, no ids, so it can't be joined; categories.template_id already
+does the same scoping as a real FK.
+
 Column sources
 ──────────────
   OBJECTIVE  ← objectives.name
@@ -163,12 +180,95 @@ def _fetch_records(user_id=None, team_member_id=None):
     return []
 
 
-def _fetch_objectives_structure():
-    """All objectives + categories — used when no performance_records exist yet."""
+def _pick_active_template(template_ids):
+    """When a match resolves to more than one template_id (e.g. one per PMS cycle),
+    prefer the one tied to the currently active pms_cycles row. Returns None when it
+    can't be disambiguated (better to show "no template" than the wrong template).
+    """
+    template_ids = list(template_ids)
+    if len(template_ids) == 1:
+        return template_ids[0]
+    if not template_ids:
+        return None
+
+    templates = fetch_rows("templates", params={
+        "select": "id,pms_cycle_id",
+        "id": f"in.({','.join(str(t) for t in template_ids)})",
+    })
+    cycle_ids = {t["pms_cycle_id"] for t in templates if t.get("pms_cycle_id") is not None}
+    if not cycle_ids:
+        return None
+
+    active_cycles = fetch_rows("pms_cycles", params={
+        "select": "id",
+        "id": f"in.({','.join(str(c) for c in cycle_ids)})",
+        "is_active": "eq.true",
+    })
+    active_cycle_ids = {c["id"] for c in active_cycles}
+    matches = [t["id"] for t in templates if t.get("pms_cycle_id") in active_cycle_ids]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _resolve_template_id(user_id):
+    """Find the template assigned to a user: direct assignment first, then a
+    role/org-unit match (designation_id + department_id + branch_id + country_id)
+    when no direct row exists. Returns None when nothing can be resolved.
+    """
+    if not user_id:
+        return None
+
+    direct = fetch_rows("template_assignments", params={
+        "select": "template_id",
+        "user_id": f"eq.{user_id}",
+    })
+    if direct:
+        return _pick_active_template({d["template_id"] for d in direct})
+
+    user_rows = fetch_rows("users", params={
+        "select": "designation_id,department_id,branch_id,country_id",
+        "id": f"eq.{user_id}",
+    })
+    if not user_rows:
+        return None
+    user = user_rows[0]
+    if any(user.get(f) is None for f in ("designation_id", "department_id", "branch_id", "country_id")):
+        return None
+
+    fallback = fetch_rows("template_assignments", params={
+        "select": "template_id",
+        "designation_id": f"eq.{user['designation_id']}",
+        "department_id": f"eq.{user['department_id']}",
+        "branch_id": f"eq.{user['branch_id']}",
+        "country_id": f"eq.{user['country_id']}",
+    })
+    if not fallback:
+        return None
+    return _pick_active_template({f["template_id"] for f in fallback})
+
+
+def _fetch_objectives_structure(user_id=None):
+    """Objectives scoped to the member's assigned template, via categories.template_id
+    → objectives.category_id (an exact FK join, not the name-matched template_content
+    jsonb). Returns [] when no template can be resolved for this user.
+    """
+    template_id = _resolve_template_id(user_id)
+    if not template_id:
+        return []
     try:
+        categories = raw_supabase_request("categories", params={
+            "select": "id",
+            "template_id": f"eq.{template_id}",
+        }) or []
+        category_ids = [c["id"] for c in categories]
+        if not category_ids:
+            return []
         return raw_supabase_request(
             "objectives",
-            params={"select": "*,categories(id,name)", "order": "id.asc"},
+            params={
+                "select": "*,categories(id,name)",
+                "category_id": f"in.({','.join(str(c) for c in category_ids)})",
+                "order": "id.asc",
+            },
         ) or []
     except Exception:
         return []
@@ -293,6 +393,7 @@ def get_objectives():
             "summary": {"total_score": None, "period": None, "year": None},
             "evaluation": {"id": None, "overall_score": None, "period": None,
                            "year": None, "status": None, "feedback": None},
+            "template_assigned": False,
         })
 
     user_id        = request.args.get("user_id")
@@ -302,10 +403,12 @@ def get_objectives():
     records = _fetch_records(user_id=user_id, team_member_id=team_member_id)
     if records:
         groups = _rows_to_groups(records, _item_from_record)
+        template_assigned = True
     else:
         # No records yet — show the objectives structure with "-" for data columns
-        objectives = _fetch_objectives_structure()
+        objectives = _fetch_objectives_structure(user_id)
         groups = _rows_to_groups(objectives, _item_from_objective)
+        template_assigned = bool(objectives)
 
     # 2. Overall score + period from performance_summaries
     summary = _fetch_summary(user_id=user_id)
@@ -313,4 +416,9 @@ def get_objectives():
     # 3. Existing evaluation row (fallback score/period + feedback textarea seed)
     evaluation = _fetch_evaluation(user_id=user_id, team_member_id=team_member_id)
 
-    return jsonify({"groups": groups, "summary": summary, "evaluation": evaluation}), 200
+    return jsonify({
+        "groups": groups,
+        "summary": summary,
+        "evaluation": evaluation,
+        "template_assigned": template_assigned,
+    }), 200
