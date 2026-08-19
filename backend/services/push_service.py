@@ -104,18 +104,21 @@ def send_push_to_employee(employee_id: str, title: str, body: str, url: str = "/
 # ─────────────────────────────────────────────────────────────────────────────
 
 # One tracked table per notification source that should trigger a popup.
-# (table_name, recipient_column, url_column_or_None)
+# (table_name, recipient_column, url_column_or_None, skip_types)
+# skip_types: row "type" values that should stay panel-only (no popup) —
+# e.g. an FYI/cc notification alongside the actionable one for the same event.
 _POLLED_TABLES = [
-    ("notifications", "receiver_id", "action_link"),
-    ("potential_assessment_notifications", "recipient_id", None),
+    ("notifications", "receiver_id", "action_link", set()),
+    ("potential_assessment_notifications", "recipient_id", None, {"reconsideration_fyi"}),
+    ("manual_rating_notifications", "recipient_id", None, set()),
 ]
 
-_last_checked_at = {table: datetime.now(timezone.utc) for table, _, _ in _POLLED_TABLES}
+_last_checked_at = {table: datetime.now(timezone.utc) for table, _, _, _ in _POLLED_TABLES}
 
 
-def _poll_table(table: str, recipient_col: str, url_col: str | None) -> None:
+def _poll_table(table: str, recipient_col: str, url_col: str | None, skip_types: set) -> None:
     since = _last_checked_at[table].isoformat()
-    select_cols = f"{recipient_col}, title, message, created_at"
+    select_cols = f"{recipient_col}, title, message, created_at, type"
     if url_col:
         select_cols += f", {url_col}"
 
@@ -136,12 +139,13 @@ def _poll_table(table: str, recipient_col: str, url_col: str | None) -> None:
 
     latest = _last_checked_at[table]
     for row in rows:
-        send_push_to_employee(
-            row[recipient_col],
-            row.get("title") or "New notification",
-            row.get("message") or "",
-            (row.get(url_col) if url_col else None) or "/",
-        )
+        if row.get("type") not in skip_types:
+            send_push_to_employee(
+                row[recipient_col],
+                row.get("title") or "New notification",
+                row.get("message") or "",
+                (row.get(url_col) if url_col else None) or "/",
+            )
         try:
             created_at = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
             latest = max(latest, created_at)
@@ -152,8 +156,8 @@ def _poll_table(table: str, recipient_col: str, url_col: str | None) -> None:
 
 
 def _poll_and_dispatch() -> None:
-    for table, recipient_col, url_col in _POLLED_TABLES:
-        _poll_table(table, recipient_col, url_col)
+    for table, recipient_col, url_col, skip_types in _POLLED_TABLES:
+        _poll_table(table, recipient_col, url_col, skip_types)
 
 
 def init_push_scheduler() -> None:
