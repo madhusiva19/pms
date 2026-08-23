@@ -135,8 +135,15 @@ export default function HQAdminAssessmentComponentsPage() {
         const updated = await assessmentComponentsApi.update(editTarget.id, payload);
         setComponents(prev => prev.map(c => c.id === editTarget.id ? updated : c));
       } else {
+        // Adding a component for a pillar/question/scope slot that already
+        // has one replaces it in place (same id comes back from the API),
+        // rather than appending a duplicate row.
         const created = await assessmentComponentsApi.create(payload as any);
-        setComponents(prev => [...prev, created]);
+        setComponents(prev =>
+          prev.some(c => c.id === created.id)
+            ? prev.map(c => c.id === created.id ? created : c)
+            : [...prev, created]
+        );
       }
       setShowModal(false);
     } catch (err: any) {

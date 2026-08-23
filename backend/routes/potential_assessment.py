@@ -163,6 +163,28 @@ def assessment_components_list():
             return jsonify({'success': False, 'error': 'scope must be global or role'}), 400
         if scope == 'role' and assigned_role not in _AC_ROLES:
             return jsonify({'success': False, 'error': 'Invalid assigned_role'}), 400
+
+        # A component already exists for this exact pillar/question/scope slot
+        # (global slot, or the same role's override) -> replace it instead of
+        # creating a second row that the merge logic would then pick between
+        # unpredictably.
+        existing_query = (
+            supabase.table('assessment_components').select('id')
+            .eq('pillar', pillar).eq('component_number', component_number).eq('scope', scope)
+        )
+        if scope == 'role':
+            existing_query = existing_query.eq('assigned_role', assigned_role)
+        else:
+            existing_query = existing_query.is_('assigned_role', 'null')
+        existing = existing_query.limit(1).execute()
+
+        if existing.data:
+            resp = supabase.table('assessment_components').update({
+                'description': description,
+                'created_by': data.get('created_by'),
+            }).eq('id', existing.data[0]['id']).execute()
+            return jsonify({'success': True, 'data': resp.data[0]}), 200
+
         resp = supabase.table('assessment_components').insert({
             'pillar': pillar, 'component_number': component_number, 'description': description,
             'scope': scope, 'assigned_role': assigned_role if scope == 'role' else None,
