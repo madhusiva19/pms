@@ -78,6 +78,7 @@ export default function DeptAdminReconsiderationReviewPage() {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const toggleExpand = (id: string) => setExpandedItems(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const [overrides, setOverrides] = useState<Record<string, RatingValue | ''>>({});
+  const [itemJustifications, setItemJustifications] = useState<Record<string, string>>({});
   const [justification, setJustification] = useState('');
   const [rejectionNote, setRejectionNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -131,13 +132,20 @@ export default function DeptAdminReconsiderationReviewPage() {
   const isAlreadyReviewed = !!assessment.action;
 
   const setOverride = (itemId: string, v: RatingValue | '') => setOverrides(prev => ({ ...prev, [itemId]: v }));
+  const setItemJustification = (itemId: string, text: string) => setItemJustifications(prev => ({ ...prev, [itemId]: text }));
 
   const handleApprove = async () => {
+    const overrideEntries = Object.entries(overrides).filter(([, rating]) => rating);
+    const missingItemJustification = overrideEntries.some(([itemId]) => !itemJustifications[itemId]?.trim());
+    if (missingItemJustification) {
+      setError('Please provide a justification for every rating you have overridden.');
+      return;
+    }
     setSubmitting(true);
     try {
-      const overrideItems = Object.entries(overrides)
-        .filter(([, rating]) => rating)
-        .map(([item_id, rating]) => ({ item_id, rating: rating as string }));
+      const overrideItems = overrideEntries.map(([item_id, rating]) => ({
+        item_id, rating: rating as string, justification: itemJustifications[item_id].trim(),
+      }));
       await reconsiderationApi.review(assessmentId, 'approve', {
         reviewerId: user.id,
         justification: justification || undefined,
@@ -293,7 +301,18 @@ export default function DeptAdminReconsiderationReviewPage() {
                         </td>
                         {!isAlreadyReviewed && (
                           <td className="px-4 py-4 align-top">
-                            <OverrideSelect itemId={item.id} value={overrides[item.id] ?? ''} onChange={setOverride} />
+                            <div className="flex flex-col gap-1.5">
+                              <OverrideSelect itemId={item.id} value={overrides[item.id] ?? ''} onChange={setOverride} />
+                              {isOverridden && (
+                                <textarea
+                                  rows={2}
+                                  placeholder="Why are you changing this rating? (required)"
+                                  value={itemJustifications[item.id] ?? ''}
+                                  onChange={e => setItemJustification(item.id, e.target.value)}
+                                  className="w-full rounded-lg border border-[#D1D5DB] px-2.5 py-1.5 text-[12px] text-[#1E293B] resize-none focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:border-transparent"
+                                />
+                              )}
+                            </div>
                           </td>
                         )}
                       </tr>
