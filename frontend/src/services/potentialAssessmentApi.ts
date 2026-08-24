@@ -133,7 +133,7 @@ export const reconsiderationApi = {
       rejectionNote?:  string;
       reviewerId?:     string;
       justification?:  string;
-      overrideItems?:  { item_id: string; rating: string }[];
+      overrideItems?:  { item_id: string; rating: string; justification: string }[];
     },
   ): Promise<PotentialAssessmentReconsideration> => {
     const res = await paClient.put(`/potential-assessment/${assessmentId}/reconsideration/review`, {
