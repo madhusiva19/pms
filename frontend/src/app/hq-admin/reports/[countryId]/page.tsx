@@ -6,7 +6,7 @@
  * Shows both mid-year and year-end reports with visualizations
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { logger } from '@/utils/logger';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -77,7 +77,15 @@ export default function CountryReportPage() {
   } | null>(null);
   const [reportYear, setReportYear] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Cache per-period (mid_year / year_end) data so switching tabs doesn't refetch
+  const periodCacheRef = useRef<Partial<Record<ReportType, {
+    bellCurveData: BellCurveData[];
+    metrics: { total_evaluated: number; avg_score: number; top_performers: number };
+    insights: AIInsight[];
+  }>>>({});
 
   // ← NEW — Create Report Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -96,9 +104,10 @@ export default function CountryReportPage() {
 
   useEffect(() => {
     if (countryId && reportYear !== null) {
+      periodCacheRef.current = {};
       fetchAllData();
     }
-  }, [countryId, activeTab, reportYear]);
+  }, [countryId, reportYear]);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -121,36 +130,68 @@ export default function CountryReportPage() {
       return;
     }
 
-    // ── Non-critical: charts/metrics degrade gracefully on failure ──
-    const activeReport = activeTab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
+    // Comparison data doesn't depend on the active tab (mid-year/year-end) — fetch once
+    comparisonLiveApi.get({ year: reportYear!, scope: 'country', scope_id: countryId })
+      .then(setComparisonData)
+      .catch(() => setComparisonData([]));
 
-    await Promise.allSettled([
-      bellCurveApi.getLive({ period_type: activeTab, year: reportYear!, scope: 'country', scope_id: countryId })
-        .then(setBellCurveData)
-        .catch(() => setBellCurveData([])),
-
-      metricsApi.get({ period_type: activeTab, year: reportYear!, scope: 'country', scope_id: countryId })
-        .then(setMetrics)
-        .catch(() => setMetrics({ total_evaluated: 0, avg_score: 0, top_performers: 0 })),
-
-      (activeReport
-        ? insightsApi.getByReport(activeReport.id).then(data => {
-            if (data && data.length > 0) {
-              setInsights(data);
-            } else {
-              const fallbackInsight = activeTab === 'mid_year' ? FALLBACK_INSIGHT_MID_YEAR : FALLBACK_INSIGHT_YEAR_END;
-              setInsights([{ id: 'fallback-insight', report_id: activeReport.id, insight_text: fallbackInsight, insight_type: 'distribution_analysis', created_at: new Date().toISOString() }]);
-            }
-          })
-        : Promise.resolve()
-      ).catch(() => {}),
-
-      comparisonLiveApi.get({ year: reportYear!, scope: 'country', scope_id: countryId })
-        .then(setComparisonData)
-        .catch(() => setComparisonData([])),
-    ]);
+    await fetchPeriodData(activeTab, summaryData);
 
     setLoading(false);
+  };
+
+  // Fetches bell curve / metrics / insights for a given period and caches the result
+  const fetchPeriodData = async (tab: ReportType, summaryData: DashboardSummary) => {
+    const activeReport = tab === 'mid_year' ? summaryData.mid_year : summaryData.year_end;
+
+    const [bellCurveResult, metricsResult, insightsResult] = await Promise.allSettled([
+      bellCurveApi.getLive({ period_type: tab, year: reportYear!, scope: 'country', scope_id: countryId }),
+      metricsApi.get({ period_type: tab, year: reportYear!, scope: 'country', scope_id: countryId }),
+      activeReport ? insightsApi.getByReport(activeReport.id) : Promise.resolve([]),
+    ]);
+
+    const bellCurveData = bellCurveResult.status === 'fulfilled' ? bellCurveResult.value : [];
+    const metrics = metricsResult.status === 'fulfilled'
+      ? metricsResult.value
+      : { total_evaluated: 0, avg_score: 0, top_performers: 0 };
+
+    let insights: AIInsight[] = [];
+    if (insightsResult.status === 'fulfilled') {
+      const data = insightsResult.value;
+      if (data && data.length > 0) {
+        insights = data;
+      } else if (activeReport) {
+        const fallbackInsight = tab === 'mid_year' ? FALLBACK_INSIGHT_MID_YEAR : FALLBACK_INSIGHT_YEAR_END;
+        insights = [{ id: 'fallback-insight', report_id: activeReport.id, insight_text: fallbackInsight, insight_type: 'distribution_analysis', created_at: new Date().toISOString() }];
+      }
+    }
+
+    setBellCurveData(bellCurveData);
+    setMetrics(metrics);
+    setInsights(insights);
+
+    periodCacheRef.current[tab] = { bellCurveData, metrics, insights };
+  };
+
+  const handleTabChange = async (tab: ReportType) => {
+    if (tab === activeTab) return;
+    setActiveTab(tab);
+
+    const cached = periodCacheRef.current[tab];
+    if (cached) {
+      setBellCurveData(cached.bellCurveData);
+      setMetrics(cached.metrics);
+      setInsights(cached.insights);
+      return;
+    }
+
+    if (!summary) return;
+    setTabLoading(true);
+    try {
+      await fetchPeriodData(tab, summary);
+    } finally {
+      setTabLoading(false);
+    }
   };
 
   // ── NEW — Download flow ──────────────────────────────────────────────
@@ -342,8 +383,9 @@ export default function CountryReportPage() {
         {/* ── Tab Switcher — unchanged ── */}
         <div className="flex bg-[#F3F4F6] p-[3px] rounded-xl w-fit">
           <button
-            onClick={() => setActiveTab('mid_year')}
-            className={`px-[57px] py-[3.8px] text-[13.3px] font-medium rounded-xl transition-all ${activeTab === 'mid_year'
+            onClick={() => handleTabChange('mid_year')}
+            disabled={tabLoading}
+            className={`px-[57px] py-[3.8px] text-[13.3px] font-medium rounded-xl transition-all disabled:cursor-wait ${activeTab === 'mid_year'
               ? 'bg-white text-[#1E293B] shadow-sm'
               : 'text-[#1E293B] hover:bg-gray-200/60'
               }`}
@@ -351,8 +393,9 @@ export default function CountryReportPage() {
             Mid-Year Report
           </button>
           <button
-            onClick={() => setActiveTab('year_end')}
-            className={`px-[58px] py-[3.8px] text-[13px] font-medium rounded-xl transition-all ${activeTab === 'year_end'
+            onClick={() => handleTabChange('year_end')}
+            disabled={tabLoading}
+            className={`px-[58px] py-[3.8px] text-[13px] font-medium rounded-xl transition-all disabled:cursor-wait ${activeTab === 'year_end'
               ? 'bg-white text-[#1E293B] shadow-sm'
               : 'text-[#1E293B] hover:bg-gray-200/60'
               }`}
@@ -399,53 +442,60 @@ export default function CountryReportPage() {
         ───────────────────────────────────────── */}
         <div id="report-content" className="flex flex-col gap-8 p-6 bg-[#FFFFFF] rounded-xl min-h-[400px]">
 
-          {/* ── Bell Curve Chart ── */}
-          {isYearEndEmpty ? (
-            <YearEndEmptyState />
-          ) : bellCurveData.length > 0 ? (
-            <BellCurveChart
-              data={bellCurveData}
-              title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear! - 1}/${String(reportYear!).slice(-2)}`}
-              subtitle={
-                activeTab === 'mid_year'
-                  ? 'Performance rating distribution with normalization'
-                  : 'Final performance rating distribution with normalization'
-              }
-            />
-          ) : null}
-
-          {/* ── AI Insight strip ── */}
-          {insights.length > 0 && (
-            <div>
-              {insights.map((insight) => (
-                <AIInsightCard
-                  key={insight.id}
-                  insight={insight.insight_text}
-                  type={activeTab === 'year_end' ? 'success' : 'info'}
-                />
-              ))}
+          {tabLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-[#155DFC]" />
             </div>
-          )}
+          ) : (
+            <>
+              {/* ── Bell Curve Chart ── */}
+              {isYearEndEmpty ? (
+                <YearEndEmptyState />
+              ) : bellCurveData.length > 0 ? (
+                <BellCurveChart
+                  data={bellCurveData}
+                  title={`Bell Curve Distribution - ${activeTab === 'mid_year' ? 'Mid-Year' : 'Year-End'} ${reportYear! - 1}/${String(reportYear!).slice(-2)}`}
+                  subtitle={
+                    activeTab === 'mid_year'
+                      ? 'Performance rating distribution with normalization'
+                      : 'Final performance rating distribution with normalization'
+                  }
+                />
+              ) : null}
 
-          {/* Comparison chart — always shown when data available */}
-          {activeTab === 'year_end' && (
-            isYearEndEmpty ? (
-              <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-6">
-                <div className="mb-6">
-                  <h4 className="text-[15px] font-semibold text-[#1E293B] mb-1.5">Mid-Year vs Year-End Comparison</h4>
-                  <p className="text-[14px] text-[#64748B]">Performance progression across categories</p>
+              {/* ── AI Insight strip ── */}
+              {insights.length > 0 && (
+                <div>
+                  {insights.map((insight) => (
+                    <AIInsightCard
+                      key={insight.id}
+                      insight={insight.insight_text}
+                      type={activeTab === 'year_end' ? 'success' : 'info'}
+                    />
+                  ))}
                 </div>
-                <YearEndEmptyState description="The Mid-Year vs Year-End comparison will be available once the H2 appraisal cycle is completed." />
-              </div>
-            ) : comparisonData.length > 0 ? (
-              <ComparisonChart
-                data={comparisonData as any}
-                title="Mid-Year vs Year-End Comparison"
-                subtitle="Performance progression across categories"
-              />
-            ) : null
+              )}
+
+              {/* Comparison chart — always shown when data available */}
+              {activeTab === 'year_end' && (
+                isYearEndEmpty ? (
+                  <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-6">
+                    <div className="mb-6">
+                      <h4 className="text-[15px] font-semibold text-[#1E293B] mb-1.5">Mid-Year vs Year-End Comparison</h4>
+                      <p className="text-[14px] text-[#64748B]">Performance progression across categories</p>
+                    </div>
+                    <YearEndEmptyState description="The Mid-Year vs Year-End comparison will be available once the H2 appraisal cycle is completed." />
+                  </div>
+                ) : comparisonData.length > 0 ? (
+                  <ComparisonChart
+                    data={comparisonData as any}
+                    title="Mid-Year vs Year-End Comparison"
+                    subtitle="Performance progression across categories"
+                  />
+                ) : null
+              )}
+            </>
           )}
-          
 
         </div>
         {/* ── End printable area ── */}
