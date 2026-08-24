@@ -295,7 +295,7 @@ def review_reconsideration(assessment_id: str):
         rejection_note = (body.get('rejection_note') or '').strip()
         reviewer_id   = body.get('reviewer_id', '')
         justification = (body.get('justification') or '').strip()
-        # List of {item_id, rating} — only entries where rating is non-empty are true overrides
+        # List of {item_id, rating, justification} — only entries where rating is non-empty are true overrides
         override_items = [i for i in (body.get('override_items') or []) if i.get('item_id') and i.get('rating')]
         has_overrides  = len(override_items) > 0
 
@@ -319,6 +319,11 @@ def review_reconsideration(assessment_id: str):
 
         if has_overrides and not justification:
             return jsonify({'success': False, 'error': 'A justification is required when overriding scores.'}), 400
+
+        if has_overrides:
+            missing_item_justification = any(not str(i.get('justification') or '').strip() for i in override_items)
+            if missing_item_justification:
+                return jsonify({'success': False, 'error': 'A justification is required for every overridden rating.'}), 400
 
         now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -357,7 +362,7 @@ def review_reconsideration(assessment_id: str):
             # Apply each component-level override
             for ov in override_items:
                 supabase.table('potential_assessment_items').update(
-                    {'supervisor_rating': ov['rating']}
+                    {'supervisor_rating': ov['rating'], 'supervisor_justification': str(ov['justification']).strip()}
                 ).eq('id', ov['item_id']).execute()
 
             # Recalculate pillar overalls from updated items (majority vote)
