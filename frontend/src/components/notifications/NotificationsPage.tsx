@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar    from "@/components/sidebar/Sidebar";
 import LoadingScreen from "@/components/LoadingScreen";
 import styles from "./notifications.module.css";
@@ -243,6 +244,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
 
   const currentUser = useCurrentUser();
   const { user: authUser } = useAuth() as any;
+  const router = useRouter();
 
   const userId   = authUser?.id ?? "";
   const roleSlug = authUser?.role?.replace(/_/g, "-") ?? "hq-admin";
@@ -666,7 +668,7 @@ export default function NotificationsPage({ level = 1 }: NotificationsPageProps)
                       </div>
                       <p className={styles.notifBody}>{n.message}</p>
                       <div className={styles.notifActions}>
-                        <button type="button" className={styles.actionBtn} onClick={() => { markManualRead(n.id); window.location.href = `/${roleSlug}/manual-rating`; }}>Go to Manual Ratings →</button>
+                        <button type="button" className={styles.actionBtn} onClick={() => { markManualRead(n.id); router.push(`/${roleSlug}/rating-settings`); }}>Go to Manual Ratings →</button>
                         {!n.isRead && <button type="button" className={styles.readBtn} onClick={() => markManualRead(n.id)}>Mark as read</button>}
                       </div>
                     </div>
