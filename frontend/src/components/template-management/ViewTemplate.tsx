@@ -217,9 +217,9 @@ function ControlBadge({ type }: { type: string }) {
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
       padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-      background: locked ? '#DBEAFE' : '#F3F4F6',
-      color:      locked ? '#1447E6' : '#4A5565',
-      border:     locked ? '1px solid #BFDBFE' : '1px solid #D1D5DC',
+      background: locked ? '#F3F4F6' : '#DBEAFE',
+      color:      locked ? '#4A5565' : '#1447E6',
+      border:     locked ? '1px solid #D1D5DC' : '1px solid #BFDBFE',
     }}>
       {locked ? <Lock size={10} /> : <Unlock size={10} />}{type}
     </span>
@@ -272,6 +272,8 @@ export default function ViewTemplatePage() {
   const [assignMsg,         setAssignMsg]         = useState('');
   // Controls whether the assigned employees accordion is expanded
   const [showAllocated,     setShowAllocated]     = useState(false);
+  // Holds the objective pending delete confirmation; null when no dialog is open
+  const [deleteConfirm, setDeleteConfirm] = useState<{ ci: number; oi: number; name: string } | null>(null);
 
   // When an employee is already on another template, these hold the conflict details
   const [conflictEmployee, setConflictEmployee] = useState<Employee | null>(null);
@@ -506,6 +508,13 @@ fetch(assignmentsUrl)
     setEditedData(updated);
   };
 
+  // Actually performs the delete once the user confirms in the dialog
+  const confirmDeleteObjective = async () => {
+    if (!deleteConfirm) return;
+    await handleDeleteObjective(deleteConfirm.ci, deleteConfirm.oi);
+    setDeleteConfirm(null);
+  };
+
   // Sums all objective weights across all categories
   const getTotalWeight = (data: Category[]) =>
     data.reduce((s, c) => s + c.objectives.reduce((ss, o) => ss + (o.weight || 0), 0), 0);
@@ -718,8 +727,8 @@ fetch(assignmentsUrl)
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#1E293B' }}>Evaluation Template Structure</h3>
             <div style={{ display: 'flex', gap: 14, fontSize: 12, color: '#4A5565' }}>
               {[
-                { label: 'Locked',   bg: '#DBEAFE', border: '#BFDBFE' },
-                { label: 'Editable', bg: '#fff',    border: '#D1D5DC' },
+                { label: 'Locked',   bg: '#fff',    border: '#D1D5DC' },
+                { label: 'Editable', bg: '#DBEAFE', border: '#BFDBFE' }, 
               ].map(l => (
                 <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <span style={{ width: 11, height: 11, background: l.bg, border: `1px solid ${l.border}`, borderRadius: 3, display: 'inline-block' }} />
@@ -787,7 +796,7 @@ fetch(assignmentsUrl)
                           <tr
                             key={`obj-${obj.id ?? oi}-${obj.name}`}
                             style={{
-                              background:   isLocked ? '#EFF6FF' : '#FFFFFF',
+                              background:   isLocked ? '#FFFFFF' : '#EFF6FF',
                               borderBottom: '1px solid #E8EDF5',
                               outline:      missing && objectiveError ? '2px solid #FCA5A5' : 'none',
                             }}
@@ -851,7 +860,7 @@ fetch(assignmentsUrl)
                               <td style={tdStyle('center')}>
                                 {!isLocked && (
                                   <button
-                                    onClick={() => handleDeleteObjective(ci, oi)}
+                                    onClick={() => setDeleteConfirm({ ci, oi, name: obj.name || 'this objective' })}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', padding: 4, borderRadius: 4, display: 'inline-flex', alignItems: 'center' }}
                                   >
                                     <Trash2 size={15} />
@@ -1115,6 +1124,39 @@ fetch(assignmentsUrl)
             >
               {saving ? 'Saving…' : 'Submit'}
             </button>
+          </div>
+        )}
+
+                {deleteConfirm && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          }}>
+            <div style={{ background: '#fff', borderRadius: 12, padding: '24px 28px', maxWidth: 400, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 16 }}>
+                <AlertTriangle size={20} color="#DC2626" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <h4 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: '#101828' }}>Delete this objective?</h4>
+                  <p style={{ margin: 0, fontSize: 13, color: '#4A5565', lineHeight: '19px' }}>
+                    This will permanently remove <strong>&quot;{deleteConfirm.name}&quot;</strong> from the template. Its weight will need to be redistributed across the remaining objectives before you can save.
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#F1F5F9', border: '1px solid #E2E8F0', cursor: 'pointer', fontSize: 13, color: '#1E293B', fontWeight: 600 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteObjective}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#DC2626', border: 'none', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600 }}
+                >
+                  Yes, delete
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
