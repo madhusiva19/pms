@@ -94,7 +94,7 @@ export default function ManualRatingsPage() {
       // Fetch team list, objectives, rating window, and member profile in parallel
       const [teamRes, objRes, periodRes, profileRes] = await Promise.all([
         fetch(`${API}/api/evaluator/${evaluatorId}/team`),
-        fetch(`${API}/api/manual-objectives/${userId}?year=${year}&period=${period}`),
+        fetch(`${API}/api/manual-objectives/${userId}?pms_year=${year}&period=${period}`),
         fetch(`${API}/api/rating-periods/current?user_id=${userId}`),
         fetch(`${API}/api/evaluator/${userId}/profile`),
       ]);
