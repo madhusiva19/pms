@@ -661,7 +661,12 @@ function EditPeriodModal({ period, pmsYear, currentStart, currentEnd, evaluatorI
     setLoadingHier(true);
     fetch(`${API}/api/rating-periods/org-hierarchy?evaluator_id=${evaluatorId}&role=${user.role}`)
       .then(r => r.json())
-      .then((d: OrgHierarchy) => setHierarchy(d))
+      .then((d: OrgHierarchy) => setHierarchy({
+        countries:       d?.countries       ?? [],
+        branches:        d?.branches        ?? [],
+        departments:     d?.departments     ?? [],
+        sub_departments: d?.sub_departments ?? [],
+      }))
       .catch(() => {})
       .finally(() => setLoadingHier(false));
   }, [evaluatorId, user?.role]);
