@@ -305,7 +305,7 @@ def get_org_hierarchy():
                 .in_("branch_id", branch_ids)
                 .order("name")
                 .execute()
-                .data
+                .data or []
                 if branch_ids else []
             )
             dept_ids = [d["id"] for d in departments]
@@ -316,7 +316,7 @@ def get_org_hierarchy():
                 .in_("department_id", dept_ids)
                 .order("name")
                 .execute()
-                .data
+                .data or []
                 if dept_ids else []
             )
 
