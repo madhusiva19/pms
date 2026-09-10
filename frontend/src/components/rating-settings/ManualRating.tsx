@@ -263,7 +263,7 @@ export default function ManualRatingsPage() {
         body: JSON.stringify({
           user_id:      userId,
           evaluator_id: EVALUATOR_ID,
-          year,
+          pms_year:     year,
           period,
           ratings: ratingsList,
         }),
